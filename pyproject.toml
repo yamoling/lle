@@ -1,0 +1,30 @@
+[tool.poetry]
+name = "lle"
+version = "0.1.0"
+description = "Laser Learning Environment (LLE) for Multi-Agent Reinforcement Learning"
+authors = ["Yannick Molinghen <yannick.molinghen@ulb.be>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+
+[tool.poetry.group.dev.dependencies]
+maturin = "^1.1.0"
+
+[build-system]
+requires = ["maturin>=1.1,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "lle"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+
+
+[tool.maturin]
+python-source = "python"
+features = ["pyo3/extension-module"]
