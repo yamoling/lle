@@ -1,5 +1,4 @@
 use itertools::izip;
-use pyo3::{exceptions, prelude::*};
 use std::{
     cell::RefCell,
     fs::File,
@@ -8,15 +7,13 @@ use std::{
 };
 
 use crate::{
-    agent::Agent, reward_collector::RewardCollector, utils::find_duplicates, Position, WorldError,
-};
-
-use crate::{
+    agent::Agent,
+    reward_collector::RewardCollector,
     tiles::{laser::Laser, laser_source::LaserSource, Tile, TileType},
-    Action,
+    utils::find_duplicates,
+    Action, Position, WorldError,
 };
 
-#[pyclass(unsendable)]
 #[derive(Clone)]
 pub struct World {
     width: usize,
@@ -256,56 +253,8 @@ impl World {
 
         Ok(())
     }
-}
-
-/// Methods accessible through the Python interface
-#[pymethods]
-impl World {
-    #[getter]
     pub fn n_agents(&self) -> usize {
         self.agents.len()
-    }
-
-    #[new]
-    pub fn init(filename: String) -> PyResult<Self> {
-        match World::from_file(&filename) {
-            Ok(world) => Ok(world),
-            Err(e) => match e {
-                WorldError::InvalidFileName { file_name } => {
-                    Err(exceptions::PyFileNotFoundError::new_err(file_name))
-                }
-                WorldError::AgentKilledOnStartup {
-                    agent_num,
-                    laser_num,
-                    i,
-                    j,
-                } => Err(exceptions::PyRuntimeError::new_err(format!(
-                    "Agent {} killed by laser {} at position ({}, {})",
-                    agent_num, laser_num, i, j
-                ))),
-                WorldError::InconsistentDimensions {
-                    expected_n_cols,
-                    actual_n_cols,
-                    row,
-                } => Err(exceptions::PyValueError::new_err(format!(
-                    "Inconsistent number of columns in row {}: expected {}, got {}",
-                    row, expected_n_cols, actual_n_cols
-                ))),
-                WorldError::InconsistentNumberOfAgents {
-                    n_start_pos,
-                    n_exit_pos,
-                } => Err(exceptions::PyValueError::new_err(format!(
-                    "Inconsistent number of agents: {} start positions, {} exit positions",
-                    n_start_pos, n_exit_pos
-                ))),
-                WorldError::InvalidPosition { x, y } => {
-                    panic!(
-                        "Unexpected error 'InvalidPosition' while building a new World: {}, {}",
-                        x, y
-                    )
-                }
-            },
-        }
     }
 
     pub fn reset(&mut self) {
@@ -324,7 +273,7 @@ impl World {
     }
 
     /// Perform one step in the environment and return the corresponding reward.
-    pub fn step(&mut self, actions: Vec<Action>) -> i32 {
+    pub fn step(&mut self, actions: &Vec<Action>) -> i32 {
         assert!(self.n_agents() == actions.len());
 
         // Available positions account for edge, following and swapping conflicts
@@ -336,7 +285,7 @@ impl World {
             .agent_positions
             .iter()
             .zip(actions)
-            .map(|(pos, action)| (action + *pos).unwrap())
+            .map(|(pos, action)| (action + pos).unwrap())
             .collect::<Vec<_>>();
 
         // Check for vertex conflicts
@@ -359,7 +308,6 @@ impl World {
         self.reward_collector.consume()
     }
 
-    #[getter]
     pub fn done(&self) -> bool {
         return self.agents.iter().any(|a| a.borrow().is_dead())
             || self.agents.iter().all(|a| a.borrow().has_arrived());

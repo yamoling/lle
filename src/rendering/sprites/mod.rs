@@ -5,14 +5,14 @@ use lazy_static::lazy_static;
 use super::{AGENT_COLOURS, BACKGROUND_GREY, BLACK, STR_AGENT_COLOURS, TILE_SIZE};
 
 lazy_static! {
-    pub static ref GEM: RgbaImage = image::open("src/oxen/rendering/sprites/gem.png")
+    pub static ref GEM: RgbaImage = image::open("src/rendering/sprites/gem.png")
         .unwrap()
 
         .to_rgba8();
     pub static ref AGENTS: [RgbaImage; 4] = STR_AGENT_COLOURS
         .iter()
         .map(|colour| {
-            image::open(format!("src/oxen/rendering/sprites/agents/{colour}.png"))
+            image::open(format!("src/rendering/sprites/agents/{colour}.png"))
                 .unwrap()
                 .to_rgba8()
         })
@@ -23,7 +23,7 @@ lazy_static! {
         .iter()
         .map(|colour| {
             image::open(format!(
-                "src/oxen/rendering/sprites/lasers/horizontal/{colour}.png"
+                "src/rendering/sprites/lasers/horizontal/{colour}.png"
             ))
             .unwrap()
             .to_rgba8()
@@ -35,7 +35,7 @@ lazy_static! {
         .iter()
         .map(|colour| {
             image::open(format!(
-                "src/oxen/rendering/sprites/lasers/vertical/{colour}.png"
+                "src/rendering/sprites/lasers/vertical/{colour}.png"
             ))
             .unwrap()
             .to_rgba8()
@@ -47,7 +47,7 @@ lazy_static! {
         .iter()
         .map(|colour| {
             image::open(format!(
-                "src/oxen/rendering/sprites/laser_sources/north/{colour}.png"
+                "src/rendering/sprites/laser_sources/north/{colour}.png"
             ))
             .unwrap()
             .to_rgb8()
@@ -58,7 +58,7 @@ lazy_static! {
     pub static ref LASER_SOURCES_EAST: [RgbImage; 4] = STR_AGENT_COLOURS
         .iter()
         .map(|colour| {
-            let name = format!("src/oxen/rendering/sprites/laser_sources/east/{colour}.png");
+            let name = format!("src/rendering/sprites/laser_sources/east/{colour}.png");
             image::open(name).unwrap().to_rgb8()
         })
         .collect::<Vec<RgbImage>>()
@@ -68,7 +68,7 @@ lazy_static! {
         .iter()
         .map(|colour| {
             image::open(format!(
-                "src/oxen/rendering/sprites/laser_sources/south/{colour}.png"
+                "src/rendering/sprites/laser_sources/south/{colour}.png"
             ))
             .unwrap()
             .to_rgb8()
@@ -80,7 +80,7 @@ lazy_static! {
         .iter()
         .map(|colour| {
             image::open(format!(
-                "src/oxen/rendering/sprites/laser_sources/west/{colour}.png"
+                "src/rendering/sprites/laser_sources/west/{colour}.png"
             ))
             .unwrap()
             .to_rgb8()

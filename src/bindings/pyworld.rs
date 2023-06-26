@@ -1,11 +1,14 @@
 use pyo3::{exceptions, prelude::*};
 
-use crate::{Action, World, WorldError};
+use crate::{Renderer, World, WorldError};
 
-#[pyclass(unsendable)]
+use super::pyaction::PyAction;
+
+#[pyclass(unsendable, name = "World")]
 #[derive(Clone)]
 pub struct PyWorld {
     world: World,
+    renderer: Renderer,
 }
 
 #[pymethods]
@@ -13,7 +16,11 @@ impl PyWorld {
     #[new]
     pub fn new(level: String) -> PyResult<Self> {
         match World::from_file(&level) {
-            Ok(w) => Ok(PyWorld { world: w }),
+            Ok(world) => {
+                let renderer =
+                    Renderer::new(world.width() as u32, world.height() as u32, world.tiles());
+                Ok(PyWorld { world, renderer })
+            }
             Err(e) => match e {
                 WorldError::InvalidFileName { file_name } => {
                     Err(exceptions::PyFileNotFoundError::new_err(file_name))
@@ -58,6 +65,12 @@ impl PyWorld {
     }
 
     #[getter]
+    /// Return the rendering dimsions (width, height)
+    pub fn image_dimentions(&self) -> (u32, u32) {
+        (self.renderer.pixel_width(), self.renderer.pixel_height())
+    }
+
+    #[getter]
     pub fn width(&self) -> usize {
         self.world.width()
     }
@@ -67,7 +80,8 @@ impl PyWorld {
         self.world.height()
     }
 
-    pub fn step(&mut self, actions: Vec<Action>) -> i32 {
+    pub fn step(&mut self, actions: Vec<PyAction>) -> i32 {
+        let actions = actions.into_iter().map(|a| a.action).collect();
         self.world.step(&actions)
     }
 
@@ -75,11 +89,21 @@ impl PyWorld {
         self.world.reset()
     }
 
-    pub fn available_actions(&self) -> Vec<Vec<Action>> {
-        self.world.available_actions()
+    pub fn available_actions(&self) -> Vec<Vec<PyAction>> {
+        self.world
+            .available_actions()
+            .into_iter()
+            .map(|a| a.into_iter().map(|a| PyAction { action: a }).collect())
+            .collect()
     }
 
+    #[getter]
     pub fn done(&self) -> bool {
         self.world.done()
+    }
+
+    pub fn get_image(&mut self) -> Vec<u8> {
+        let img = self.renderer.update(self.world.tiles());
+        img.to_vec()
     }
 }

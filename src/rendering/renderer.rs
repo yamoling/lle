@@ -1,13 +1,15 @@
 use image::{GenericImage, Rgb, RgbImage, RgbaImage};
-use pyo3::prelude::*;
 
 use super::{sprites, AGENT_COLOURS, BLACK, GRID_GREY};
 use crate::tiles::{laser::Direction, laser_source::LaserSource, Tile, TileType};
 
 use super::{BACKGROUND_GREY, TILE_SIZE};
 
+#[derive(Clone)]
 pub struct Renderer {
     screen: RgbImage,
+    pixel_width: u32,
+    pixel_height: u32,
 }
 
 impl Renderer {
@@ -21,7 +23,11 @@ impl Renderer {
         let mut screen = image::RgbImage::new(pixel_width, pixel_height);
         static_initial_rendering(&mut screen, tiles);
 
-        Self { screen }
+        Self {
+            screen,
+            pixel_width,
+            pixel_height,
+        }
     }
 
     pub fn update<'a>(&mut self, tiles: impl Iterator<Item = ((u32, u32), &'a Tile)>) -> RgbImage {
@@ -41,6 +47,14 @@ impl Renderer {
         }
         draw_grid(&mut screen);
         screen
+    }
+
+    pub fn pixel_width(&self) -> u32 {
+        self.pixel_width
+    }
+
+    pub fn pixel_height(&self) -> u32 {
+        self.pixel_height
     }
 }
 

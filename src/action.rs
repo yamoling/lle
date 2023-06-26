@@ -1,10 +1,7 @@
 use std::{ops::Add, slice::Iter};
 
-use pyo3::prelude::*;
-
 use crate::{Position, WorldError};
 
-#[pyclass]
 #[derive(Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub enum Action {
     North,
@@ -14,7 +11,6 @@ pub enum Action {
     Stay,
 }
 
-#[pymethods]
 impl Action {
     pub fn delta(&self) -> (i32, i32) {
         match self {
