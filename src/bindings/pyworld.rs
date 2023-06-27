@@ -65,8 +65,8 @@ impl PyWorld {
     }
 
     #[getter]
-    /// Return the rendering dimsions (width, height)
-    pub fn image_dimentions(&self) -> (u32, u32) {
+    /// Return the rendering dimensions (width, height)
+    pub fn image_dimensions(&self) -> (u32, u32) {
         (self.renderer.pixel_width(), self.renderer.pixel_height())
     }
 

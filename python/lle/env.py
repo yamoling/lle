@@ -1,6 +1,9 @@
 from typing import Literal
 import numpy as np
 from rlenv import RLEnv, DiscreteActionSpace, Observation
+
+# Pylint does not recognize the imports from python stub files (i.e.: pyi)
+# pylint: disable=no-name-in-module
 from .lle import World, Action
 from .observations import ObservationType
 

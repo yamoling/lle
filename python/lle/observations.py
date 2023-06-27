@@ -3,6 +3,7 @@ from enum import IntEnum
 import numpy as np
 import cv2
 
+# pylint: disable=no-name-in-module
 from .lle import World
 
 

@@ -14,5 +14,4 @@ const GREEN: Rgb<u8> = Rgb([0, 192, 0]);
 const BLUE: Rgb<u8> = Rgb([0, 0, 192]);
 const YELLOW: Rgb<u8> = Rgb([192, 192, 0]);
 
-const STR_AGENT_COLOURS: [&str; 4] = ["red", "yellow", "blue", "green"];
-const AGENT_COLOURS: [Rgb<u8>; 4] = [RED, YELLOW, BLUE, GREEN];
+const AGENT_COLOURS: [Rgb<u8>; 4] = [GREEN, RED, YELLOW, BLUE];

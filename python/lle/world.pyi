@@ -1,6 +1,8 @@
 from typing import Tuple, List
 import numpy as np
 
+from .action import Action
+
 class World:
     def __init__(self, filename: str):
         """Constructor. Accepts either level names or filenames.
@@ -33,20 +35,3 @@ class World:
         """Return the list of available actions at the current time step for each agent."""
     def get_image(self) -> List[np.uint8]:
         """Return a rendered image of the world"""
-
-class Action:
-    NORTH = 0
-    SOUTH = 1
-    EAST = 2
-    WEST = 3
-    STAY = 4
-
-    N: int
-    """Enum cardinality"""
-
-    @property
-    def delta(self) -> Tuple[int, int]:
-        """The change (i, j) in coordinates for this action."""
-    @property
-    def value(self) -> int:
-        """The integer value of this action."""
