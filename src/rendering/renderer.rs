@@ -37,12 +37,7 @@ impl Renderer {
             let y = i * TILE_SIZE;
             draw_tile(&mut screen, x, y, tile);
             if let Some(agent) = tile.agent() {
-                add_transparent_image(
-                    &mut screen,
-                    &sprites::AGENTS[agent.borrow().num() as usize],
-                    x,
-                    y,
-                );
+                add_transparent_image(&mut screen, &sprites::AGENTS[agent as usize], x, y);
             }
         }
         draw_grid(&mut screen);

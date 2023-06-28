@@ -2,6 +2,8 @@ use std::{error::Error, fmt::Display};
 
 #[derive(Debug)]
 pub enum WorldError {
+    EmptyWorld,
+    NoAgents,
     InvalidFileName {
         file_name: String,
     },

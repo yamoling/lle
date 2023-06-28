@@ -1,11 +1,10 @@
 use std::{
-    cell::RefCell,
     fmt::{Debug, Display},
     rc::Rc,
 };
 
 use crate::{
-    agent::Agent,
+    agent::{Agent, AgentId},
     reward_collector::{RewardCollector, RewardEvent},
 };
 
@@ -13,7 +12,7 @@ use super::tile_type::TileType;
 
 #[derive(Clone)]
 pub struct Tile {
-    agent: Option<Rc<RefCell<Agent>>>,
+    agent: Option<AgentId>,
     tile_type: TileType,
     reward_collector: Rc<RewardCollector>,
 }
@@ -40,37 +39,34 @@ impl Tile {
         self.tile_type.reset();
     }
 
-    pub fn enter(&mut self, agent: Rc<RefCell<Agent>>) {
-        {
-            let mut agent = agent.borrow_mut();
-            match &self.tile_type {
-                TileType::Gem { collected: false } => {
-                    self.tile_type = TileType::Gem { collected: true };
-                    self.reward_collector.notify(RewardEvent::GemCollected);
-                }
-                TileType::Exit => {
-                    // Notify if the has just arrived
-                    if !agent.has_arrived() {
-                        self.reward_collector.notify(RewardEvent::JustArrived);
-                    }
-                    agent.arrive();
-                }
-                TileType::Laser(laser) => {
-                    if laser.is_on() {
-                        if laser.agent_num() == agent.num() {
-                            laser.turn_off();
-                        } else {
-                            agent.die();
-                        }
-                    }
-                }
-                _ => {}
+    pub fn enter(&mut self, agent: &mut Agent) {
+        match &self.tile_type {
+            TileType::Gem { collected: false } => {
+                self.tile_type = TileType::Gem { collected: true };
+                self.reward_collector.notify(RewardEvent::GemCollected);
             }
+            TileType::Exit => {
+                // Notify if the has just arrived
+                if !agent.has_arrived() {
+                    self.reward_collector.notify(RewardEvent::JustArrived);
+                }
+                agent.arrive();
+            }
+            TileType::Laser(laser) => {
+                if laser.is_on() {
+                    if laser.agent_num() == agent.num() {
+                        laser.turn_off();
+                    } else {
+                        agent.die();
+                    }
+                }
+            }
+            _ => {}
         }
-        self.agent = Some(agent);
+        self.agent = Some(agent.num());
     }
 
-    pub fn leave(&mut self) -> Rc<RefCell<Agent>> {
+    pub fn leave(&mut self) -> AgentId {
         if let TileType::Laser(laser) = &mut self.tile_type {
             laser.turn_on();
         }
@@ -81,8 +77,8 @@ impl Tile {
         self.agent.is_some()
     }
 
-    pub fn agent(&self) -> Option<Rc<RefCell<Agent>>> {
-        self.agent.clone()
+    pub fn agent(&self) -> Option<AgentId> {
+        self.agent
     }
 
     pub fn is_waklable(&self) -> bool {
@@ -100,7 +96,7 @@ impl Tile {
 impl Display for Tile {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         if let Some(agent) = &self.agent {
-            write!(f, "{}", agent.borrow().num())
+            write!(f, "{}", agent)
         } else {
             write!(f, "{}", self.tile_type)
         }
@@ -110,7 +106,7 @@ impl Display for Tile {
 impl Debug for Tile {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         if let Some(agent) = &self.agent {
-            write!(f, "{}", agent.borrow().num())
+            write!(f, "{}", agent)
         } else {
             write!(f, "{}", self.tile_type)
         }

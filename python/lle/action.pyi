@@ -1,18 +1,26 @@
-from typing import Tuple
+from typing import List, Tuple
 
 class Action:
-    NORTH = 0
-    SOUTH = 1
-    EAST = 2
-    WEST = 3
-    STAY = 4
+    NORTH: "Action"
+    SOUTH: "Action"
+    EAST: "Action"
+    WEST: "Action"
+    STAY: "Action"
 
     N: int
     """Enum cardinality"""
 
+    ALL: List["Action"]
+    """List of all variants"""
+
+    def __init__(self, action_num: int):
+        """Create an action from an integer identifier. Invalid values (< 0 or > 5) raise a ValueError."""
     @property
     def delta(self) -> Tuple[int, int]:
         """The change (i, j) in coordinates for this action."""
     @property
     def value(self) -> int:
         """The integer value of this action."""
+    @property
+    def name(self) -> str:
+        """The string name of this action."""

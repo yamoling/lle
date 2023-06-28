@@ -1,6 +1,5 @@
 from rlenv.wrappers import TimeLimitWrapper
-from laser_env import StaticLaserEnv, DynamicLaserEnv
-from lle import Action
+from lle import LLE, Action
 import numpy as np
 
 
@@ -21,7 +20,7 @@ def test_dynamic_env_reset():
 
 
 def test_available_actions():
-    env = StaticLaserEnv("tests/maps/5x5_laser_2agents")
+    env = LLE("tests/maps/5x5_laser_2agents")
     env.reset()
     available_actions = env.get_avail_actions()
     # Agent 0
@@ -29,7 +28,7 @@ def test_available_actions():
     assert available_actions[0, Action.EAST.value] == 0
     assert available_actions[0, Action.SOUTH.value] == 0
     assert available_actions[0, Action.WEST.value] == 1
-    assert available_actions[0, Action.NOOP.value] == 1
+    assert available_actions[0, Action.STAY.value] == 1
 
     # Agent 1
     assert available_actions[1, Action.NORTH.value] == 0
@@ -40,7 +39,7 @@ def test_available_actions():
 
 
 def test_available_actions2():
-    env = StaticLaserEnv("tests/maps/7x7_available_actions.txt")
+    env = LLE("tests/maps/7x7_available_actions.txt")
     obs = env.reset()
 
     def check_available_actions(available: np.ndarray[np.int32], expected_available: list[list[Action]]) -> bool:
@@ -66,17 +65,17 @@ def test_available_actions2():
 
 
 def test_width_height():
-    env = StaticLaserEnv("tests/maps/3x3.txt")
+    env = LLE("tests/maps/3x3.txt")
     assert env.width == 3
     assert env.height == 3
 
-    env = StaticLaserEnv("tests/maps/3x4_gem.txt")
+    env = LLE("tests/maps/3x4_gem.txt")
     assert env.width == 4
     assert env.height == 3
 
 
 def test_state():
-    env = StaticLaserEnv("tests/maps/3x3.txt")
+    env = LLE("tests/maps/3x3.txt")
     assert env.state_shape == (1 * 5 * 3 * 3,)
     env.reset()
     state = env.get_state()
@@ -84,7 +83,7 @@ def test_state():
 
 
 def test_env_summary_file_content_static():
-    env = StaticLaserEnv("tests/maps/3x3_alternating")
+    env = LLE("tests/maps/3x3_alternating")
     with open("tests/maps/3x3_alternating") as f:
         file_content = f.read()
     summary = env.summary()
@@ -95,5 +94,5 @@ def test_env_summary_file_content_static():
 
 
 def test_action_meanings():
-    env = StaticLaserEnv("tests/maps/3x3.txt")
+    env = LLE("tests/maps/3x3.txt")
     assert env.action_meanings == [a.name for a in Action]

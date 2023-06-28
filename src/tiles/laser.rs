@@ -1,8 +1,8 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::Cell, rc::Rc};
 
 use super::Tile;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Direction {
     North,
     East,
@@ -21,25 +21,26 @@ impl Direction {
     }
 }
 
-impl From<&str> for Direction {
-    fn from(value: &str) -> Self {
+impl TryFrom<&str> for Direction {
+    type Error = &'static str;
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
         match value {
-            "N" => Direction::North,
-            "E" => Direction::East,
-            "S" => Direction::South,
-            "W" => Direction::West,
-            _ => panic!("Invalid direction: {value}"),
+            "N" => Ok(Direction::North),
+            "E" => Ok(Direction::East),
+            "S" => Ok(Direction::South),
+            "W" => Ok(Direction::West),
+            _ => Err("Invalid direction"),
         }
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Laser {
-    is_on: Rc<RefCell<bool>>,
+    is_on: Rc<Cell<bool>>,
     direction: Direction,
     agent_num: u32,
     wrapped: Box<Tile>,
-    next_tiles_status: Vec<Rc<RefCell<bool>>>,
+    next_tiles_status: Vec<Rc<Cell<bool>>>,
 }
 
 impl Laser {
@@ -47,8 +48,8 @@ impl Laser {
         direction: Direction,
         agent_num: u32,
         wrapped: Box<Tile>,
-        is_on: Rc<RefCell<bool>>,
-        next_tiles_status: Vec<Rc<RefCell<bool>>>,
+        is_on: Rc<Cell<bool>>,
+        next_tiles_status: Vec<Rc<Cell<bool>>>,
     ) -> Self {
         Self {
             is_on,
@@ -60,25 +61,29 @@ impl Laser {
     }
 
     pub fn reset(&mut self) {
-        *self.is_on.borrow_mut() = true;
+        self.is_on.set(true);
         self.wrapped.reset();
     }
 
     pub fn is_on(&self) -> bool {
-        *self.is_on.borrow()
+        self.is_on.get()
+    }
+
+    pub fn is_off(&self) -> bool {
+        !self.is_on.get()
     }
 
     pub fn turn_off(&self) {
-        *self.is_on.borrow_mut() = false;
+        self.is_on.set(false);
         for status in &self.next_tiles_status {
-            *status.borrow_mut() = false;
+            status.set(false);
         }
     }
 
     pub fn turn_on(&self) {
-        *self.is_on.borrow_mut() = true;
+        self.is_on.set(true);
         for status in &self.next_tiles_status {
-            *status.borrow_mut() = false;
+            status.set(true);
         }
     }
 

@@ -1,23 +1,23 @@
 from typing import Literal
+from lle.lle import World
+from lle.observations import ObservationType
 import numpy as np
 from rlenv import RLEnv, DiscreteActionSpace, Observation
-
-# Pylint does not recognize the imports from python stub files (i.e.: pyi)
-# pylint: disable=no-name-in-module
 from .lle import World, Action
 from .observations import ObservationType
 
 
 class LLE(RLEnv[DiscreteActionSpace]):
-    def __init__(self, world: World, obs_type: ObservationType | str):
-        super().__init__(DiscreteActionSpace(world.n_agents, Action.N, [a.name for a in Action]))
-        self.world = world
+    def __init__(self, env_file: str, obs_type: ObservationType | str = ObservationType.RELATIVE_POSITIONS):
+        self.world = World(env_file)
+        super().__init__(DiscreteActionSpace(self.world.n_agents, Action.N, [a.name for a in Action.ALL]))
         if isinstance(obs_type, str):
             obs_type = ObservationType.from_str(obs_type)
         self.world_observer = obs_type.get_observation_generator(self.world)
         self._state_observer = ObservationType.FLATTENED.get_observation_generator(self.world)
         self._obs_type = obs_type
-        self._render_size = world.image_dimensions
+        dims = self.world.image_dimensions
+        self._image_shape = (dims[1], dims[0], 3)
 
     @property
     def width(self) -> int:
@@ -47,7 +47,7 @@ class LLE(RLEnv[DiscreteActionSpace]):
         reward, done = self.world.step(actions)
         obs_data = self.world_observer.observe()
         obs = Observation(obs_data, self.get_avail_actions(), self.get_state())
-        info = {"gems_collected": self.world.n_gems_collected, "in_elevator": self.world.n_agents_in_elevator}
+        info = {"gems_collected": self.world.gems_collected, "in_elevator": self.world.n_agents_in_elevator}
         return obs, reward, done, False, info
 
     def reset(self):
@@ -60,12 +60,13 @@ class LLE(RLEnv[DiscreteActionSpace]):
 
     def render(self, mode: Literal["human", "rgb_array"] = "human"):
         image = self.world.get_image()
-        image = np.array(image, dtype=np.uint8).reshape(*self._render_size, -1)
+        image = np.array(image, dtype=np.uint8).reshape(self._image_shape)
         match mode:
             case "human":
                 import cv2
 
                 cv2.imshow("LLE", image)
+                cv2.waitKey(1)
             case "rgb_array":
                 return self.world.get_image()
             case other:

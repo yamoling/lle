@@ -1,7 +1,7 @@
 import numpy as np
 
 from lle import World, Action, ObservationType
-from laser_env.tiles import Wall, LaserSource, Gem, Laser, FinishTile, AlternatingLaserSource
+from lle.tiles import Wall, LaserSource, Gem, Laser, FinishTile, AlternatingLaserSource
 
 
 def test_observation_gem_collected():

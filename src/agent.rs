@@ -1,8 +1,10 @@
 use std::fmt::Display;
 
-#[derive(Debug)]
+pub type AgentId = u32;
+
+#[derive(Debug, Clone)]
 pub struct Agent {
-    num: u32,
+    num: AgentId,
     dead: bool,
     arrived: bool,
 }
@@ -34,6 +36,10 @@ impl Agent {
 
     pub fn is_dead(&self) -> bool {
         self.dead
+    }
+
+    pub fn is_alive(&self) -> bool {
+        !self.dead
     }
 
     pub fn num(&self) -> u32 {

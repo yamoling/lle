@@ -8,6 +8,7 @@ mod tiles;
 mod utils;
 mod world;
 
+/// Position with (i, j) coordinates
 pub type Position = (usize, usize);
 
 pub use action::Action;

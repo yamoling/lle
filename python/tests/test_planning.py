@@ -1,7 +1,7 @@
 import numpy as np
-from laser_env.world import World
-from laser_env.actions import Action
-from laser_env.planning import ProblemState, SearchProblem, breadth_first_search, heuristic, astar, get_difficulty, Difficulty
+from lle.world import World
+from lle.actions import Action
+from lle.planning import ProblemState, SearchProblem, breadth_first_search, heuristic, astar, get_difficulty, Difficulty
 
 
 def test_start_state():

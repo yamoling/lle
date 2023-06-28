@@ -1,6 +1,6 @@
-from laser_env.solvability import make_graph
-from laser_env.world import World
-from laser_env import exceptions
+from lle.solvability import make_graph
+from lle.world import World
+from lle import exceptions
 
 
 def test_make_graph():

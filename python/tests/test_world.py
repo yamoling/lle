@@ -2,8 +2,7 @@ import random
 
 import pytest
 
-from laser_env.world import World, Action, REWARD_DEATH
-from laser_env.tiles import AlternatingLaserSource, Laser
+from lle import World, Action, REWARD_DEATH
 
 
 def test_available_actions():
@@ -11,11 +10,11 @@ def test_available_actions():
     world.reset()
     available_actions = world.available_actions()
     # Agent 0
-    expected_available = [Action.NORTH, Action.WEST, Action.NOOP]
+    expected_available = [Action.NORTH, Action.WEST, Action.STAY]
     assert all(expected in available_actions[0] for expected in expected_available)
 
     # Agent 1
-    expected_available = [Action.WEST, Action.NOOP]
+    expected_available = [Action.WEST, Action.STAY]
     assert all(expected in available_actions[1] for expected in expected_available)
 
 
@@ -96,7 +95,7 @@ def test_time_reward():
 
 
 def test_finish_reward():
-    from laser_env.world import REWARD_SUCCESS, REWARD_ARRIVED
+    from lle.world import REWARD_SUCCESS, REWARD_ARRIVED
 
     world = World("tests/maps/basic.txt")
     world.reset()
@@ -106,7 +105,7 @@ def test_finish_reward():
 
 
 def test_collect_reward():
-    from laser_env.world import REWARD_COLLECT
+    from lle.world import REWARD_COLLECT
 
     world = World("tests/maps/3x4_gem.txt")
     world.reset()
@@ -153,7 +152,7 @@ def test_world_success():
 
 def test_replay():
     world = World("tests/maps/3x4_gem.txt")
-    from laser_env.world import REWARD_COLLECT, REWARD_SUCCESS, REWARD_ARRIVED
+    from lle.world import REWARD_COLLECT, REWARD_SUCCESS, REWARD_ARRIVED
 
     def play():
         """Collect the gem and finish the game. Check that the reward is is correct when collecting it."""

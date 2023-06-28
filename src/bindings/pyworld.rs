@@ -2,7 +2,7 @@ use pyo3::{exceptions, prelude::*};
 
 use crate::{Renderer, World, WorldError};
 
-use super::pyaction::PyAction;
+use super::{pyaction::PyAction, pyagent::PyAgent};
 
 #[pyclass(unsendable, name = "World")]
 #[derive(Clone)]
@@ -42,6 +42,12 @@ impl PyWorld {
                     "Inconsistent number of columns in row {}: expected {}, got {}",
                     row, expected_n_cols, actual_n_cols
                 ))),
+                WorldError::EmptyWorld => {
+                    Err(exceptions::PyValueError::new_err("Empty world: no tiles"))
+                }
+                WorldError::NoAgents => {
+                    Err(exceptions::PyValueError::new_err("No agents in the world"))
+                }
                 WorldError::InconsistentNumberOfAgents {
                     n_start_pos,
                     n_exit_pos,
@@ -80,8 +86,22 @@ impl PyWorld {
         self.world.height()
     }
 
+    fn exit_rate(&self) -> f32 {
+        let n_arrived: f32 = self
+            .world
+            .agents()
+            .iter()
+            .map(|a| if a.has_arrived() { 1.0f32 } else { 0.0f32 })
+            .sum();
+        n_arrived / (self.world.n_agents() as f32)
+    }
+
+    fn gems_collected(&self) -> u32 {
+        self.world.gems_collected()
+    }
+
     pub fn step(&mut self, actions: Vec<PyAction>) -> i32 {
-        let actions = actions.into_iter().map(|a| a.action).collect();
+        let actions: Vec<_> = actions.into_iter().map(|a| a.action).collect();
         self.world.step(&actions)
     }
 
@@ -94,6 +114,14 @@ impl PyWorld {
             .available_actions()
             .into_iter()
             .map(|a| a.into_iter().map(|a| PyAction { action: a }).collect())
+            .collect()
+    }
+
+    pub fn agents(&self) -> Vec<PyAgent> {
+        self.world
+            .agents()
+            .iter()
+            .map(|a| PyAgent { agent: a.clone() })
             .collect()
     }
 

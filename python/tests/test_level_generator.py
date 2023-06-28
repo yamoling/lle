@@ -1,9 +1,9 @@
 import pytest
-import laser_env
+import lle
 
 
 def test_level_generator():
-    env = laser_env.DynamicLaserEnv(width=5, height=5, num_agents=4, num_gems=5, num_lasers=1)
+    env = lle.DynamicLaserEnv(width=5, height=5, num_agents=4, num_gems=5, num_lasers=1)
 
     env.reset()
     world = env.world
@@ -16,8 +16,8 @@ def test_level_generator():
 def test_impossible_level_generator():
     with pytest.raises(ValueError):
         # Too many gems
-        laser_env.DynamicLaserEnv(width=5, height=5, num_gems=50)
+        lle.DynamicLaserEnv(width=5, height=5, num_gems=50)
 
     with pytest.raises(AssertionError):
         # Too many agents
-        laser_env.DynamicLaserEnv(width=5, height=5, num_agents=5)
+        lle.DynamicLaserEnv(width=5, height=5, num_agents=5)

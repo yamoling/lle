@@ -5,7 +5,7 @@ use super::{
     laser_source::LaserSource,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum TileType {
     Floor,
     Wall,
@@ -37,7 +37,7 @@ impl From<&str> for TileType {
             '@' => Self::Wall,
             'F' => Self::Exit,
             'L' => {
-                let direction = Direction::from(&token[2..]);
+                let direction = Direction::try_from(&token[2..]).unwrap();
                 let agent_num = token[1..2].parse().unwrap();
                 Self::LaserSource(LaserSource::new(direction, agent_num))
             }

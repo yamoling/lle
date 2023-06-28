@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use super::laser::Direction;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct LaserSource {
     pub direction: Direction,
     pub agent_num: u32,

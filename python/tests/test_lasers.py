@@ -1,6 +1,5 @@
-from laser_env.tiles import Laser
-from laser_env.world import World
-from laser_env.actions import Action
+from lle.tiles import Laser
+from lle import World, Action
 
 
 def test_laser_blocked_on_reset():

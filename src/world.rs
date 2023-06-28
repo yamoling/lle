@@ -1,6 +1,6 @@
 use itertools::izip;
 use std::{
-    cell::RefCell,
+    cell::Cell,
     fs::File,
     io::{BufReader, Read},
     rc::Rc,
@@ -21,7 +21,7 @@ pub struct World {
     start_pos: Vec<Position>,
     exit_pos: Vec<Position>,
     grid: Vec<Vec<Tile>>,
-    agents: Vec<Rc<RefCell<Agent>>>,
+    agents: Vec<Agent>,
     agent_positions: Vec<Position>,
     reward_collector: Rc<RewardCollector>,
 }
@@ -29,19 +29,10 @@ pub struct World {
 /// Methods for Rust usage
 impl World {
     fn new(tiles: Vec<Vec<TileType>>) -> Result<Self, WorldError> {
-        let width = tiles[0].len();
-        let height = tiles.len();
-        let mut world = Self {
-            width,
-            height,
-            start_pos: vec![],
-            exit_pos: vec![],
-            grid: vec![],
-            agents: vec![],
-            agent_positions: vec![],
-            reward_collector: Rc::new(RewardCollector::default()),
-        };
-        world.setup(tiles)?;
+        if tiles.is_empty() {
+            return Err(WorldError::EmptyWorld);
+        }
+        let mut world = World::setup(tiles)?;
         world.sanity_check()?;
         world.reset();
         Ok(world)
@@ -83,10 +74,9 @@ impl World {
         let mut available_actions = vec![];
         for (agent, agent_pos) in self.agents.iter().zip(self.agent_positions.iter()) {
             let mut agent_actions = vec![Action::Stay];
-            let agent = agent.borrow();
             if !agent.has_arrived() {
-                for action in Action::iter() {
-                    if let Ok(pos) = action + agent_pos {
+                for action in [Action::North, Action::East, Action::South, Action::West] {
+                    if let Ok(pos) = &action + agent_pos {
                         if let Some(tile) = self.get(pos) {
                             if tile.is_waklable() && !tile.is_occupied() {
                                 agent_actions.push(action.clone());
@@ -126,7 +116,17 @@ impl World {
         res.into_iter()
     }
 
-    fn setup(&mut self, board: Vec<Vec<TileType>>) -> Result<(), WorldError> {
+    fn setup(board: Vec<Vec<TileType>>) -> Result<World, WorldError> {
+        let n_agents: u32 = board
+            .iter()
+            .flatten()
+            .map(|t| if let TileType::Start { .. } = t { 1 } else { 0 })
+            .sum();
+
+        let reward_collector = Rc::new(RewardCollector::new(n_agents));
+        let mut agents = vec![];
+        let mut grid = vec![];
+        let mut exit_pos = vec![];
         let mut gem_pos = vec![];
         let mut start_pos = vec![];
         let mut sources_pos = vec![];
@@ -136,11 +136,10 @@ impl World {
                 match tile {
                     TileType::Start { agent_num } => {
                         start_pos.push((agent_num, (i, j)));
-                        self.agents
-                            .push(Rc::new(RefCell::new(Agent::new(agent_num))));
+                        agents.push(Agent::new(agent_num));
                     }
                     TileType::Exit { .. } => {
-                        self.exit_pos.push((i, j));
+                        exit_pos.push((i, j));
                     }
                     TileType::Gem { .. } => gem_pos.push((i, j)),
                     TileType::LaserSource(source) => {
@@ -148,23 +147,32 @@ impl World {
                     }
                     _ => {}
                 }
-                grid_row.push(Tile::new(tile, self.reward_collector.clone()));
+                grid_row.push(Tile::new(tile, reward_collector.clone()));
             }
-            self.grid.push(grid_row);
+            grid.push(grid_row);
         }
         // Sort agents and start tiles by agent number
         // Make sure there are no gaps in agent numbers
-        self.agents.sort_by_key(|agent| agent.borrow().num());
-        for (agent_num, agent) in self.agents.iter().enumerate() {
-            assert_eq!(agent_num as u32, agent.borrow().num());
+        agents.sort_by_key(|agent| agent.num());
+        for (agent_num, agent) in agents.iter().enumerate() {
+            assert_eq!(agent_num as u32, agent.num());
         }
         start_pos.sort_by_key(|(agent_num, _)| *agent_num);
-        self.start_pos = start_pos.into_iter().map(|(_, pos)| pos).collect();
-
+        let start_pos: Vec<(usize, usize)> = start_pos.into_iter().map(|(_, pos)| pos).collect();
+        let mut world = Self {
+            width: grid[0].len(),
+            height: grid.len(),
+            start_pos: start_pos.clone(),
+            exit_pos,
+            grid,
+            agents,
+            agent_positions: start_pos,
+            reward_collector,
+        };
         for (i, j, source) in sources_pos {
-            self.create_beam((i, j), source)?;
+            world.create_beam((i, j), source)?;
         }
-        Ok(())
+        Ok(world)
     }
 
     fn create_beam(&mut self, pos: Position, source: LaserSource) -> Result<(), WorldError> {
@@ -172,30 +180,30 @@ impl World {
         let mut states = vec![];
         let mut positions = vec![];
         let delta = source.direction().delta();
-        while i > 0 && j > 0 && i < self.height && j < self.width {
-            i = (i as i32 + delta.0) as usize;
-            j = (j as i32 + delta.1) as usize;
 
-            match self.grid[i][j].tile_type() {
+        (i, j) = ((i as i32 + delta.0) as usize, (j as i32 + delta.1) as usize);
+        while let Some(tile) = self.get((i, j)) {
+            match tile.tile_type() {
+                // break if the beam hits a wall or another laser source
                 TileType::Wall | TileType::LaserSource { .. } => break,
+                // Otherwise, add the tile to the beam
                 _ => {
                     positions.push((i, j));
-                    states.push(Rc::new(RefCell::new(true)));
+                    states.push(Rc::new(Cell::new(true)));
                 }
             }
+            (i, j) = ((i as i32 + delta.0) as usize, (j as i32 + delta.1) as usize);
         }
+
         for (i, j) in positions {
             let replaced = self.grid[i].remove(j);
             if let TileType::Start { agent_num } = replaced.tile_type() {
                 // Disable all next tiles if it crosses a start tile of the same colour
                 if *agent_num == source.agent_num() {
-                    states = states
-                        .iter()
-                        .map(|_| Rc::new(RefCell::new(false)))
-                        .collect();
+                    states = states.iter().map(|_| Rc::new(Cell::new(false))).collect();
                 }
                 // Otherwise, the agent dies at startup if the beam is on-> return an error
-                else if *states[0].borrow() {
+                else if states[0].get() {
                     return Err(WorldError::AgentKilledOnStartup {
                         agent_num: *agent_num,
                         laser_num: source.agent_num(),
@@ -234,6 +242,9 @@ impl World {
     }
 
     fn sanity_check(&self) -> Result<(), WorldError> {
+        if self.agents.is_empty() {
+            return Err(WorldError::NoAgents);
+        }
         if self.exit_pos.len() != self.start_pos.len() {
             return Err(WorldError::InconsistentNumberOfAgents {
                 n_start_pos: self.start_pos.len(),
@@ -257,7 +268,16 @@ impl World {
         self.agents.len()
     }
 
+    pub fn agents(&self) -> &Vec<Agent> {
+        &self.agents
+    }
+
+    pub fn gems_collected(&self) -> u32 {
+        self.reward_collector.episode_gems_collected()
+    }
+
     pub fn reset(&mut self) {
+        self.reward_collector.reset();
         for row in self.grid.iter_mut() {
             for tile in row.iter_mut() {
                 tile.reset();
@@ -265,15 +285,15 @@ impl World {
         }
         self.agent_positions = self.start_pos.clone();
         for ((i, j), agent) in self.agent_positions.iter().zip(self.agents.iter()) {
-            self.grid[*i][*j].pre_enter(&agent.borrow());
+            self.grid[*i][*j].pre_enter(agent);
         }
         for ((i, j), agent) in self.agent_positions.iter().zip(self.agents.iter_mut()) {
-            self.grid[*i][*j].enter(agent.clone());
+            self.grid[*i][*j].enter(agent);
         }
     }
 
     /// Perform one step in the environment and return the corresponding reward.
-    pub fn step(&mut self, actions: &Vec<Action>) -> i32 {
+    pub fn step(&mut self, actions: &[Action]) -> i32 {
         assert!(self.n_agents() == actions.len());
 
         // Available positions account for edge, following and swapping conflicts
@@ -297,20 +317,20 @@ impl World {
             let (old_i, old_j) = *old_pos;
             self.grid[old_i][old_j].leave();
             let (new_i, new_j) = *new_pos;
-            self.grid[new_i][new_j].pre_enter(&agent.borrow());
+            self.grid[new_i][new_j].pre_enter(agent);
         }
 
-        for (agent, new_pos) in izip!(&self.agents, &new_positions) {
+        for (agent, new_pos) in izip!(&mut self.agents, &new_positions) {
             let (i, j) = *new_pos;
-            self.grid[i][j].enter(agent.clone());
+            self.grid[i][j].enter(agent);
         }
         self.agent_positions = new_positions;
-        self.reward_collector.consume()
+        self.reward_collector.consume_step_reward()
     }
 
     pub fn done(&self) -> bool {
-        return self.agents.iter().any(|a| a.borrow().is_dead())
-            || self.agents.iter().all(|a| a.borrow().has_arrived());
+        return self.agents.iter().any(|a| a.is_dead())
+            || self.agents.iter().all(|a| a.has_arrived());
     }
 }
 
@@ -347,3 +367,7 @@ fn parse(world_str: &str) -> Vec<Vec<TileType>> {
     }
     res
 }
+
+#[cfg(test)]
+#[path = "./unit_tests/test_world.rs"]
+mod tests;

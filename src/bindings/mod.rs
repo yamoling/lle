@@ -1,6 +1,7 @@
 use pyo3::prelude::*;
 
 mod pyaction;
+mod pyagent;
 mod pyworld;
 
 #[pymodule]
