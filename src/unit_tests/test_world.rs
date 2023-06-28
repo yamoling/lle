@@ -79,15 +79,16 @@ fn test_laser_blocked_on_reset() {
 #[test]
 fn test_facing_lasers() {
     let mut w = World::try_from(
-        "@ @ L0S @  @
-             @ F  .  S0 @
-             @ .  .  .  @
-             @ F  .  S1 @
-             @ @ L1N  @ @",
+        "
+        @ @ L0S @  @
+        @ F  .  S0 @
+        @ .  .  .  @
+        @ F  .  S1 @
+        @ @ L1N  @ @",
     )
     .unwrap();
     w.reset();
-    w.step(&vec![Action::West, Action::West]);
+    w.step(&[Action::West, Action::West]);
     assert!(!w.done());
     assert!(w.agents().iter().all(Agent::is_alive));
     let laser = w.get((2, 2)).unwrap().tile_type();

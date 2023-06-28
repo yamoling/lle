@@ -98,4 +98,8 @@ impl Laser {
     pub fn wrapped(&self) -> &Tile {
         &self.wrapped
     }
+
+    pub fn wrapped_mut(&mut self) -> &mut Tile {
+        &mut self.wrapped
+    }
 }

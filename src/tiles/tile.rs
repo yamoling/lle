@@ -60,6 +60,7 @@ impl Tile {
                         agent.die();
                     }
                 }
+                //laser.wrapped_mut().enter(agent);
             }
             _ => {}
         }
