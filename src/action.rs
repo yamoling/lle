@@ -1,14 +1,18 @@
-use std::{ops::Add, slice::Iter};
+use std::{
+    fmt::{Display, Formatter},
+    ops::Add,
+    slice::Iter,
+};
 
 use crate::{Position, WorldError};
 
-#[derive(Clone, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub enum Action {
-    North,
-    South,
-    East,
-    West,
-    Stay,
+    North = 0,
+    South = 1,
+    East = 2,
+    West = 3,
+    Stay = 4,
 }
 
 impl Action {
@@ -59,6 +63,12 @@ impl From<&str> for Action {
             "Stay" => Action::Stay,
             _ => panic!("Invalid value for action: {}", value),
         }
+    }
+}
+
+impl Display for Action {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
     }
 }
 

@@ -99,13 +99,6 @@ impl PyAction {
 
     #[getter]
     fn name(&self) -> String {
-        match self.action {
-            Action::North => "NORTH",
-            Action::South => "SOUTH",
-            Action::East => "EAST",
-            Action::West => "WEST",
-            Action::Stay => "STAY",
-        }
-        .into()
+        self.action.to_string()
     }
 }

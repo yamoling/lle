@@ -1,15 +1,22 @@
 use std::{error::Error, fmt::Display};
 
+use crate::{agent::AgentId, Action};
+
 #[derive(Debug)]
 pub enum WorldError {
     EmptyWorld,
     NoAgents,
+    InvalidTile {
+        tile_str: String,
+        line: usize,
+        col: usize,
+    },
     InvalidFileName {
         file_name: String,
     },
-    InconsistentNumberOfAgents {
-        n_start_pos: usize,
-        n_exit_pos: usize,
+    NotEnoughExitTiles {
+        n_starts: usize,
+        n_exits: usize,
     },
     InconsistentDimensions {
         expected_n_cols: usize,
@@ -35,3 +42,20 @@ impl Display for WorldError {
 }
 
 impl Error for WorldError {}
+
+#[derive(Debug)]
+pub enum RuntimeWorldError {
+    InvalidAction {
+        agent_id: AgentId,
+        available: Vec<Action>,
+        taken: Action,
+    },
+}
+
+impl Display for RuntimeWorldError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+
+impl Error for RuntimeWorldError {}

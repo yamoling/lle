@@ -1,5 +1,11 @@
 use std::cell::Cell;
 
+pub const REWARD_GEM_COLLECTED: i32 = 1;
+pub const REWARD_AGENT_DIED: i32 = -1;
+pub const REWARD_AGENT_JUST_ARRIVED: i32 = 1;
+pub const REWARD_END_GAME: i32 = 1;
+
+#[derive(Debug)]
 pub struct RewardCollector {
     step_reward: Cell<i32>,
     n_dead: Cell<u32>,
@@ -28,18 +34,18 @@ impl RewardCollector {
     pub fn notify(&self, event: RewardEvent) {
         let reward = self.step_reward.get();
         let event_reward = match event {
-            RewardEvent::AgentDied => -1,
+            RewardEvent::AgentDied => REWARD_AGENT_DIED,
             RewardEvent::GemCollected => {
                 self.episode_gems_collected
                     .set(self.episode_gems_collected.get() + 1);
-                1
+                REWARD_GEM_COLLECTED
             }
             RewardEvent::JustArrived => {
                 self.episode_agents_arrived
                     .set(self.episode_agents_arrived.get() + 1);
-                let reward = 1;
+                let reward = REWARD_AGENT_JUST_ARRIVED;
                 if self.episode_agents_arrived() == self.n_agents {
-                    reward + 1
+                    reward + REWARD_END_GAME
                 } else {
                     reward
                 }

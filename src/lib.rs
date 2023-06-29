@@ -12,6 +12,9 @@ mod world;
 pub type Position = (usize, usize);
 
 pub use action::Action;
-pub use errors::WorldError;
+pub use errors::{RuntimeWorldError, WorldError};
 pub use rendering::Renderer;
+pub use reward_collector::{
+    REWARD_AGENT_DIED, REWARD_AGENT_JUST_ARRIVED, REWARD_END_GAME, REWARD_GEM_COLLECTED,
+};
 pub use world::World;

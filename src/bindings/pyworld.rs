@@ -1,6 +1,6 @@
 use pyo3::{exceptions, prelude::*};
 
-use crate::{Renderer, World, WorldError};
+use crate::{errors::RuntimeWorldError, Renderer, World, WorldError};
 
 use super::{pyaction::PyAction, pyagent::PyAgent};
 
@@ -42,25 +42,30 @@ impl PyWorld {
                     "Inconsistent number of columns in row {}: expected {}, got {}",
                     row, expected_n_cols, actual_n_cols
                 ))),
+                WorldError::NotEnoughExitTiles { n_starts, n_exits } => {
+                    Err(exceptions::PyValueError::new_err(format!(
+                        "Not enough exit tiles: {n_starts} starts, {n_exits} exits"
+                    )))
+                }
                 WorldError::EmptyWorld => {
                     Err(exceptions::PyValueError::new_err("Empty world: no tiles"))
                 }
                 WorldError::NoAgents => {
                     Err(exceptions::PyValueError::new_err("No agents in the world"))
                 }
-                WorldError::InconsistentNumberOfAgents {
-                    n_start_pos,
-                    n_exit_pos,
-                } => Err(exceptions::PyValueError::new_err(format!(
-                    "Inconsistent number of agents: {} start positions, {} exit positions",
-                    n_start_pos, n_exit_pos
-                ))),
                 WorldError::InvalidPosition { x, y } => {
                     panic!(
                         "Unexpected error 'InvalidPosition' while building a new World: {}, {}",
                         x, y
                     )
                 }
+                WorldError::InvalidTile {
+                    tile_str,
+                    line,
+                    col,
+                } => Err(exceptions::PyValueError::new_err(format!(
+                    "Invalid tile '{tile_str}' at position ({line}, {col})"
+                ))),
             },
         }
     }
@@ -100,9 +105,20 @@ impl PyWorld {
         self.world.gems_collected()
     }
 
-    pub fn step(&mut self, actions: Vec<PyAction>) -> i32 {
+    pub fn step(&mut self, actions: Vec<PyAction>) -> PyResult<i32> {
         let actions: Vec<_> = actions.into_iter().map(|a| a.action).collect();
-        self.world.step(&actions)
+        match self.world.step(&actions) {
+            Ok(r) => Ok(r),
+            Err(e) => match e {
+                RuntimeWorldError::InvalidAction {
+                    agent_id,
+                    available,
+                    taken,
+                } => Err(exceptions::PyValueError::new_err(format!(
+                    "Invalid action for agent {agent_id}: available actions: {available:?}, taken action: {taken}",
+                ))),
+            },
+        }
     }
 
     pub fn reset(&mut self) {
@@ -112,8 +128,8 @@ impl PyWorld {
     pub fn available_actions(&self) -> Vec<Vec<PyAction>> {
         self.world
             .available_actions()
-            .into_iter()
-            .map(|a| a.into_iter().map(|a| PyAction { action: a }).collect())
+            .iter()
+            .map(|a| a.iter().map(|a| PyAction { action: a.clone() }).collect())
             .collect()
     }
 

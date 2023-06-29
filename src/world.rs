@@ -7,37 +7,28 @@ use std::{
 };
 
 use crate::{
-    agent::Agent,
+    agent::{Agent, AgentId},
+    errors::RuntimeWorldError,
     reward_collector::RewardCollector,
-    tiles::{laser::Laser, laser_source::LaserSource, Tile, TileType},
+    tiles::{Direction, Exit, Floor, Gem, Laser, LaserBeam, LaserSource, Start, Tile, Wall},
     utils::find_duplicates,
     Action, Position, WorldError,
 };
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct World {
     width: usize,
     height: usize,
-    start_pos: Vec<Position>,
-    exit_pos: Vec<Position>,
-    grid: Vec<Vec<Tile>>,
+    start_tiles: Vec<Position>,
+    grid: Vec<Vec<Box<dyn Tile>>>,
     agents: Vec<Agent>,
     agent_positions: Vec<Position>,
     reward_collector: Rc<RewardCollector>,
+    available_actions: Vec<Vec<Action>>,
 }
 
 /// Methods for Rust usage
 impl World {
-    fn new(tiles: Vec<Vec<TileType>>) -> Result<Self, WorldError> {
-        if tiles.is_empty() {
-            return Err(WorldError::EmptyWorld);
-        }
-        let mut world = World::setup(tiles)?;
-        world.sanity_check()?;
-        world.reset();
-        Ok(world)
-    }
-
     pub fn from_file(file: &str) -> Result<Self, WorldError> {
         let file = match File::open(file) {
             Ok(f) => f,
@@ -56,7 +47,7 @@ impl World {
     pub fn print(&self) {
         for row in self.grid.iter() {
             for tile in row.iter() {
-                print!("{} ", tile);
+                print!("{:?} ", tile);
             }
             println!();
         }
@@ -70,7 +61,7 @@ impl World {
         self.height
     }
 
-    pub fn available_actions(&self) -> Vec<Vec<Action>> {
+    fn update_available_actions(&mut self) {
         let mut available_actions = vec![];
         for (agent, agent_pos) in self.agents.iter().zip(self.agent_positions.iter()) {
             let mut agent_actions = vec![Action::Stay];
@@ -87,7 +78,11 @@ impl World {
             }
             available_actions.push(agent_actions);
         }
-        available_actions
+        self.available_actions = available_actions;
+    }
+
+    pub fn available_actions(&self) -> &Vec<Vec<Action>> {
+        &self.available_actions
     }
 
     fn solve_vertex_conflicts(new_pos: &mut [Position], old_pos: &[Position]) {
@@ -106,7 +101,7 @@ impl World {
     }
 
     /// Creates an iterator over all tiles in the grid with their (i, j) coordinates
-    pub fn tiles(&self) -> impl Iterator<Item = ((u32, u32), &Tile)> {
+    pub fn tiles(&self) -> impl Iterator<Item = ((u32, u32), &Box<dyn Tile>)> {
         let mut res = vec![];
         for (i, row) in self.grid.iter().enumerate() {
             for (j, tile) in row.iter().enumerate() {
@@ -116,121 +111,9 @@ impl World {
         res.into_iter()
     }
 
-    fn setup(board: Vec<Vec<TileType>>) -> Result<World, WorldError> {
-        let n_agents: u32 = board
-            .iter()
-            .flatten()
-            .map(|t| if let TileType::Start { .. } = t { 1 } else { 0 })
-            .sum();
-
-        let reward_collector = Rc::new(RewardCollector::new(n_agents));
-        let mut agents = vec![];
-        let mut grid = vec![];
-        let mut exit_pos = vec![];
-        let mut gem_pos = vec![];
-        let mut start_pos = vec![];
-        let mut sources_pos = vec![];
-        for (i, row) in board.into_iter().enumerate() {
-            let mut grid_row: Vec<Tile> = vec![];
-            for (j, tile) in row.into_iter().enumerate() {
-                match tile {
-                    TileType::Start { agent_num } => {
-                        start_pos.push((agent_num, (i, j)));
-                        agents.push(Agent::new(agent_num));
-                    }
-                    TileType::Exit { .. } => {
-                        exit_pos.push((i, j));
-                    }
-                    TileType::Gem { .. } => gem_pos.push((i, j)),
-                    TileType::LaserSource(source) => {
-                        sources_pos.push((i, j, source));
-                    }
-                    _ => {}
-                }
-                grid_row.push(Tile::new(tile, reward_collector.clone()));
-            }
-            grid.push(grid_row);
-        }
-        // Sort agents and start tiles by agent number
-        // Make sure there are no gaps in agent numbers
-        agents.sort_by_key(|agent| agent.num());
-        for (agent_num, agent) in agents.iter().enumerate() {
-            assert_eq!(agent_num as u32, agent.num());
-        }
-        start_pos.sort_by_key(|(agent_num, _)| *agent_num);
-        let start_pos: Vec<(usize, usize)> = start_pos.into_iter().map(|(_, pos)| pos).collect();
-        let mut world = Self {
-            width: grid[0].len(),
-            height: grid.len(),
-            start_pos: start_pos.clone(),
-            exit_pos,
-            grid,
-            agents,
-            agent_positions: start_pos,
-            reward_collector,
-        };
-        for (i, j, source) in sources_pos {
-            world.create_beam((i, j), source)?;
-        }
-        Ok(world)
-    }
-
-    fn create_beam(&mut self, pos: Position, source: LaserSource) -> Result<(), WorldError> {
-        let (mut i, mut j) = pos;
-        let mut states = vec![];
-        let mut positions = vec![];
-        let delta = source.direction().delta();
-
-        (i, j) = ((i as i32 + delta.0) as usize, (j as i32 + delta.1) as usize);
-        while let Some(tile) = self.get((i, j)) {
-            match tile.tile_type() {
-                // break if the beam hits a wall or another laser source
-                TileType::Wall | TileType::LaserSource { .. } => break,
-                // Otherwise, add the tile to the beam
-                _ => {
-                    positions.push((i, j));
-                    states.push(Rc::new(Cell::new(true)));
-                }
-            }
-            (i, j) = ((i as i32 + delta.0) as usize, (j as i32 + delta.1) as usize);
-        }
-
-        for (i, j) in positions {
-            let replaced = self.grid[i].remove(j);
-            if let TileType::Start { agent_num } = replaced.tile_type() {
-                // Disable all next tiles if it crosses a start tile of the same colour
-                if *agent_num == source.agent_num() {
-                    states = states.iter().map(|_| Rc::new(Cell::new(false))).collect();
-                }
-                // Otherwise, the agent dies at startup if the beam is on-> return an error
-                else if states[0].get() {
-                    return Err(WorldError::AgentKilledOnStartup {
-                        agent_num: *agent_num,
-                        laser_num: source.agent_num(),
-                        i,
-                        j,
-                    });
-                }
-            }
-
-            // First item is the state of the current laser, the rest are the states of the following tiles
-            let is_on = states.remove(0);
-            let next_tiles_status = states.clone();
-
-            let laser = Laser::new(
-                source.direction(),
-                source.agent_num(),
-                Box::new(replaced),
-                is_on,
-                next_tiles_status,
-            );
-            let laser = Tile::new(TileType::Laser(laser), self.reward_collector.clone());
-            self.grid[i].insert(j, laser);
-        }
-        Ok(())
-    }
-
-    fn get(&self, pos: Position) -> Option<&Tile> {
+    // Remove unrelevant warning
+    #[allow(clippy::borrowed_box)]
+    fn get(&self, pos: Position) -> Option<&Box<dyn Tile>> {
         let (i, j) = pos;
         if i >= self.height {
             return None;
@@ -241,16 +124,19 @@ impl World {
         Some(&self.grid[i][j])
     }
 
-    fn sanity_check(&self) -> Result<(), WorldError> {
+    fn sanity_check(&self, n_exit_tiles: usize) -> Result<(), WorldError> {
+        // There is at least one agent
         if self.agents.is_empty() {
             return Err(WorldError::NoAgents);
         }
-        if self.exit_pos.len() != self.start_pos.len() {
-            return Err(WorldError::InconsistentNumberOfAgents {
-                n_start_pos: self.start_pos.len(),
-                n_exit_pos: self.exit_pos.len(),
+        if self.start_tiles.len() > n_exit_tiles {
+            return Err(WorldError::NotEnoughExitTiles {
+                n_starts: self.start_tiles.len(),
+                n_exits: n_exit_tiles,
             });
         }
+
+        // All rows have the same length
         let width = self.width();
         for (i, row) in self.grid.iter().enumerate() {
             if row.len() != width {
@@ -261,7 +147,10 @@ impl World {
                 });
             }
         }
-
+        // Agents are ordered
+        for (agent_num, agent) in self.agents.iter().enumerate() {
+            assert_eq!(agent_num as u32, agent.id());
+        }
         Ok(())
     }
     pub fn n_agents(&self) -> usize {
@@ -270,6 +159,10 @@ impl World {
 
     pub fn agents(&self) -> &Vec<Agent> {
         &self.agents
+    }
+
+    pub fn agent_positions(&self) -> &Vec<Position> {
+        &self.agent_positions
     }
 
     pub fn gems_collected(&self) -> u32 {
@@ -283,23 +176,34 @@ impl World {
                 tile.reset();
             }
         }
-        self.agent_positions = self.start_pos.clone();
+        self.agent_positions = self.start_tiles.clone();
         for ((i, j), agent) in self.agent_positions.iter().zip(self.agents.iter()) {
             self.grid[*i][*j].pre_enter(agent);
         }
         for ((i, j), agent) in self.agent_positions.iter().zip(self.agents.iter_mut()) {
             self.grid[*i][*j].enter(agent);
         }
+        for agent in &mut self.agents {
+            agent.reset();
+        }
+        self.update_available_actions();
     }
 
     /// Perform one step in the environment and return the corresponding reward.
-    pub fn step(&mut self, actions: &[Action]) -> i32 {
+    pub fn step(&mut self, actions: &[Action]) -> Result<i32, RuntimeWorldError> {
         assert!(self.n_agents() == actions.len());
 
         // Available positions account for edge, following and swapping conflicts
-        let available_actions = self.available_actions();
-        for (action, availables) in actions.iter().zip(available_actions) {
-            assert!(availables.contains(action));
+        for (agent_id, (action, availables)) in
+            actions.iter().zip(&self.available_actions).enumerate()
+        {
+            if !availables.contains(action) {
+                return Err(RuntimeWorldError::InvalidAction {
+                    agent_id: agent_id as u32,
+                    available: availables.clone(),
+                    taken: action.clone(),
+                });
+            }
         }
         let mut new_positions = self
             .agent_positions
@@ -312,20 +216,26 @@ impl World {
         // If a new_pos occurs more than once, then set it back to its original position
         World::solve_vertex_conflicts(&mut new_positions, &self.agent_positions);
 
-        for (agent, old_pos, new_pos) in izip!(&self.agents, &self.agent_positions, &new_positions)
+        for (agent, action, old_pos, new_pos) in
+            izip!(&self.agents, actions, &self.agent_positions, &new_positions)
         {
-            let (old_i, old_j) = *old_pos;
-            self.grid[old_i][old_j].leave();
-            let (new_i, new_j) = *new_pos;
-            self.grid[new_i][new_j].pre_enter(agent);
+            if *action != Action::Stay {
+                let (old_i, old_j) = *old_pos;
+                self.grid[old_i][old_j].leave();
+                let (new_i, new_j) = *new_pos;
+                self.grid[new_i][new_j].pre_enter(agent);
+            }
         }
 
-        for (agent, new_pos) in izip!(&mut self.agents, &new_positions) {
-            let (i, j) = *new_pos;
-            self.grid[i][j].enter(agent);
+        for (agent, action, new_pos) in izip!(&mut self.agents, actions, &new_positions) {
+            if *action != Action::Stay {
+                let (i, j) = *new_pos;
+                self.grid[i][j].enter(agent);
+            }
         }
         self.agent_positions = new_positions;
-        self.reward_collector.consume_step_reward()
+        self.update_available_actions();
+        Ok(self.reward_collector.consume_step_reward())
     }
 
     pub fn done(&self) -> bool {
@@ -337,35 +247,126 @@ impl World {
 impl TryFrom<String> for World {
     type Error = WorldError;
 
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        let tiles = parse(&value);
-        World::new(tiles)
+    fn try_from(world_str: String) -> Result<Self, Self::Error> {
+        parse(&world_str)
     }
 }
 
 impl TryFrom<&str> for World {
     type Error = WorldError;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let tiles = parse(value);
-        World::new(tiles)
+    fn try_from(world_str: &str) -> Result<Self, Self::Error> {
+        parse(world_str)
     }
 }
 
-fn parse(world_str: &str) -> Vec<Vec<TileType>> {
-    let mut res = vec![];
+/// Wrap the tiles behin lasers with a `Laser` tile.
+fn laser_setup(
+    mut grid: Vec<Vec<Box<dyn Tile>>>,
+    laser_sources: Vec<(Position, Direction, AgentId)>,
+) -> Vec<Vec<Box<dyn Tile>>> {
+    let width = grid[0].len() as i32;
+    let height = grid.len() as i32;
+    for (pos, dir, agent_num) in laser_sources {
+        let delta = dir.delta();
+        let (mut i, mut j) = (pos.0 as i32, pos.1 as i32);
+        let mut beam = vec![];
+        let mut beam_pos = vec![];
+
+        (i, j) = ((i + delta.0), (j + delta.1));
+        while i >= 0 && j >= 0 && i < height && j < width {
+            let pos = (i as usize, j as usize);
+            if !grid[pos.0][pos.1].is_waklable() {
+                break;
+            }
+            beam.push(Rc::new(Cell::new(true)));
+            beam_pos.push(pos);
+            (i, j) = ((i + delta.0), (j + delta.1));
+        }
+
+        for (i, pos) in beam_pos.iter().enumerate() {
+            let beam = LaserBeam::new(beam[i..].to_vec());
+            let wrapped = grid[pos.0].remove(pos.1);
+            let laser = Box::new(Laser::new(agent_num, dir, wrapped, beam));
+            grid[pos.0].insert(pos.1, laser);
+        }
+    }
+    grid
+}
+
+fn parse(world_str: &str) -> Result<World, WorldError> {
+    let mut grid = vec![];
+    let mut start_tiles: Vec<(Position, AgentId)> = vec![];
+    let mut exit_tiles: Vec<Position> = vec![];
+    let mut laser_sources: Vec<(Position, Direction, AgentId)> = vec![];
     for line in world_str.lines() {
         let line = line.trim();
         if line.is_empty() {
             continue;
         }
+        let i = grid.len();
         let mut row = vec![];
-        for token in line.split_whitespace() {
-            row.push(TileType::from(token));
+        for (j, token) in line.split_whitespace().enumerate() {
+            let tile: Box<dyn Tile> = match token.to_uppercase().chars().next().unwrap() {
+                '.' => Box::<Floor>::default(),
+                '@' => Box::new(Wall::new()),
+                'G' => Box::<Gem>::default(),
+                'S' => {
+                    let agent_num = token[1..].parse().unwrap();
+                    start_tiles.push(((i, j), agent_num));
+                    Box::new(Start::new(agent_num))
+                }
+                'X' => {
+                    exit_tiles.push((i, j));
+                    Box::<Exit>::default()
+                }
+                'L' => {
+                    let direction = Direction::try_from(&token[2..]).unwrap();
+                    let agent_num = token[1..2].parse().unwrap();
+                    laser_sources.push(((i, j), direction, agent_num));
+                    Box::new(LaserSource::new(direction, agent_num))
+                }
+                other => {
+                    return Err(WorldError::InvalidTile {
+                        tile_str: other.into(),
+                        line: i,
+                        col: j,
+                    });
+                }
+            };
+            row.push(tile);
         }
-        res.push(row);
+        grid.push(row);
     }
-    res
+    if grid.is_empty() {
+        return Err(WorldError::EmptyWorld);
+    }
+    grid = laser_setup(grid, laser_sources);
+
+    // Sort start tiles by agent id, then map to positions
+    start_tiles.sort_by_key(|(_, id)| *id);
+    let start_tiles: Vec<Position> = start_tiles.iter().map(|(pos, _)| *pos).collect();
+    // Initial agent positions are start tiles
+    let agent_positions = start_tiles.clone();
+    let reward_collector = Rc::new(RewardCollector::new(start_tiles.len() as u32));
+    let agents = start_tiles
+        .iter()
+        .enumerate()
+        .map(|(id, _)| Agent::new(id as u32, reward_collector.clone()))
+        .collect();
+
+    let world = World {
+        width: grid[0].len(),
+        height: grid.len(),
+        agent_positions,
+        start_tiles,
+        agents,
+        grid,
+        reward_collector,
+        available_actions: vec![],
+    };
+    world.sanity_check(exit_tiles.len())?;
+    Ok(world)
 }
 
 #[cfg(test)]

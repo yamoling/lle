@@ -1,115 +1,120 @@
-use std::{
-    fmt::{Debug, Display},
-    rc::Rc,
-};
-
 use crate::{
     agent::{Agent, AgentId},
-    reward_collector::{RewardCollector, RewardEvent},
+    rendering::TileVisitor,
 };
+use std::{any::Any, fmt::Debug};
 
-use super::tile_type::TileType;
+pub trait Tile: Debug + TileClone {
+    fn pre_enter(&self, agent: &Agent);
+    fn reset(&mut self);
+    fn enter(&mut self, agent: &mut Agent);
+    fn leave(&mut self) -> AgentId;
+    fn agent(&self) -> Option<AgentId>;
+    fn is_waklable(&self) -> bool {
+        true
+    }
+    fn is_occupied(&self) -> bool {
+        self.agent().is_some()
+    }
+    /// Visitor pattern to render the tile
+    fn accept(&self, visitor: &mut dyn TileVisitor, x: u32, y: u32);
 
-#[derive(Clone)]
-pub struct Tile {
-    agent: Option<AgentId>,
-    tile_type: TileType,
-    reward_collector: Rc<RewardCollector>,
+    // Required for testing purposes
+    fn as_any(&self) -> &dyn Any;
 }
 
-impl Tile {
-    pub fn new(tile_type: TileType, reward_collector: Rc<RewardCollector>) -> Self {
-        Self {
-            agent: None,
-            tile_type,
-            reward_collector,
-        }
-    }
+pub trait TileClone {
+    fn clone_box(&self) -> Box<dyn Tile>;
+}
 
-    pub fn pre_enter(&mut self, agent: &Agent) {
-        if let TileType::Laser(laser) = &self.tile_type {
-            if agent.num() == laser.agent_num() {
-                laser.turn_off();
-            }
-        }
+impl Clone for Box<dyn Tile> {
+    fn clone(&self) -> Self {
+        self.clone_box()
     }
+}
 
-    pub fn reset(&mut self) {
+#[derive(Debug, Clone, Default)]
+pub struct Floor {
+    agent: Option<AgentId>,
+}
+
+impl Tile for Floor {
+    fn pre_enter(&self, _agent: &Agent) {}
+
+    fn reset(&mut self) {
         self.agent = None;
-        self.tile_type.reset();
     }
 
-    pub fn enter(&mut self, agent: &mut Agent) {
-        match &self.tile_type {
-            TileType::Gem { collected: false } => {
-                self.tile_type = TileType::Gem { collected: true };
-                self.reward_collector.notify(RewardEvent::GemCollected);
-            }
-            TileType::Exit => {
-                // Notify if the has just arrived
-                if !agent.has_arrived() {
-                    self.reward_collector.notify(RewardEvent::JustArrived);
-                }
-                agent.arrive();
-            }
-            TileType::Laser(laser) => {
-                if laser.is_on() {
-                    if laser.agent_num() == agent.num() {
-                        laser.turn_off();
-                    } else {
-                        agent.die();
-                    }
-                }
-                //laser.wrapped_mut().enter(agent);
-            }
-            _ => {}
-        }
-        self.agent = Some(agent.num());
+    fn enter(&mut self, agent: &mut Agent) {
+        self.agent = Some(agent.id());
     }
 
-    pub fn leave(&mut self) -> AgentId {
-        if let TileType::Laser(laser) = &mut self.tile_type {
-            laser.turn_on();
-        }
+    fn leave(&mut self) -> AgentId {
         self.agent.take().unwrap()
     }
 
-    pub fn is_occupied(&self) -> bool {
-        self.agent.is_some()
-    }
-
-    pub fn agent(&self) -> Option<AgentId> {
+    fn agent(&self) -> Option<AgentId> {
         self.agent
     }
 
-    pub fn is_waklable(&self) -> bool {
-        if matches!(TileType::Wall, TileType::LaserSource(..)) {
-            return false;
-        }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn accept(&self, _visitor: &mut dyn TileVisitor, _x: u32, _y: u32) {
+        // Nothing to do
+    }
+}
+
+impl TileClone for Floor {
+    fn clone_box(&self) -> Box<dyn Tile> {
+        Box::new(self.clone())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Wall {}
+
+impl Wall {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Tile for Wall {
+    fn pre_enter(&self, _agent: &Agent) {
+        panic!("Cannot pre-enter a wall")
+    }
+
+    fn reset(&mut self) {}
+
+    fn enter(&mut self, _agent: &mut Agent) {
+        panic!("Cannot enter a wall")
+    }
+
+    fn leave(&mut self) -> AgentId {
+        panic!("Cannot leave a wall")
+    }
+
+    fn is_occupied(&self) -> bool {
         true
     }
 
-    pub fn tile_type(&self) -> &TileType {
-        &self.tile_type
+    fn agent(&self) -> Option<AgentId> {
+        None
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn accept(&self, visitor: &mut dyn TileVisitor, x: u32, y: u32) {
+        visitor.visit_wall(x, y);
     }
 }
 
-impl Display for Tile {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        if let Some(agent) = &self.agent {
-            write!(f, "{}", agent)
-        } else {
-            write!(f, "{}", self.tile_type)
-        }
-    }
-}
-
-impl Debug for Tile {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        if let Some(agent) = &self.agent {
-            write!(f, "{}", agent)
-        } else {
-            write!(f, "{}", self.tile_type)
-        }
+impl TileClone for Wall {
+    fn clone_box(&self) -> Box<dyn Tile> {
+        Box::new(self.clone())
     }
 }

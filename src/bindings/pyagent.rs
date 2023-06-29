@@ -12,7 +12,7 @@ pub struct PyAgent {
 impl PyAgent {
     #[getter]
     fn num(&self) -> u32 {
-        self.agent.num()
+        self.agent.id()
     }
 
     #[getter]
