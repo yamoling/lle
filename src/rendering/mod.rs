@@ -1,7 +1,9 @@
 mod renderer;
 mod sprites;
+mod tile_visitor;
 
-pub use renderer::Renderer;
+pub use renderer::{Renderer, VisitorData};
+pub use tile_visitor::TileVisitor;
 
 use image::Rgb;
 

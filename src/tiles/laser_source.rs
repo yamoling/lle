@@ -1,37 +1,67 @@
-use std::fmt::Display;
+use crate::{
+    agent::{Agent, AgentId},
+    rendering::{TileVisitor, VisitorData},
+};
 
-use super::laser::Direction;
+use super::{tile::TileClone, Direction, Tile, Wall};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug, Clone)]
 pub struct LaserSource {
-    pub direction: Direction,
-    pub agent_num: u32,
+    wall: Wall,
+    direction: Direction,
+    agent_id: AgentId,
 }
 
 impl LaserSource {
-    pub fn new(direction: Direction, agent_num: u32) -> Self {
+    pub fn new(direction: Direction, agent_id: AgentId) -> Self {
         Self {
+            wall: Wall {},
             direction,
-            agent_num,
+            agent_id,
         }
+    }
+
+    pub fn agent_id(&self) -> AgentId {
+        self.agent_id
     }
 
     pub fn direction(&self) -> Direction {
         self.direction
     }
+}
 
-    pub fn agent_num(&self) -> u32 {
-        self.agent_num
+impl Tile for LaserSource {
+    fn pre_enter(&self, agent: &Agent) {
+        self.wall.pre_enter(agent);
+    }
+
+    fn reset(&self) {
+        self.wall.reset();
+    }
+
+    fn enter(&self, agent: &mut Agent) {
+        self.wall.enter(agent);
+    }
+
+    fn leave(&self) -> AgentId {
+        self.wall.leave()
+    }
+
+    fn agent(&self) -> Option<AgentId> {
+        self.wall.agent()
+    }
+
+    fn is_waklable(&self) -> bool {
+        false
+    }
+
+    fn accept(&self, _visitor: &dyn TileVisitor, _data: &mut VisitorData) {
+        // Nothing to do here as it is statically rendered
     }
 }
 
-impl Display for LaserSource {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.direction {
-            Direction::North => write!(f, "S↑{}", self.agent_num),
-            Direction::East => write!(f, "S→{}", self.agent_num),
-            Direction::South => write!(f, "S↓{}", self.agent_num),
-            Direction::West => write!(f, "S←{}", self.agent_num),
-        }
+impl TileClone for LaserSource {
+    fn clone_box(&self) -> Box<dyn Tile> {
+        Box::new(self.clone())
     }
 }

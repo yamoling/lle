@@ -11,8 +11,8 @@ pub struct PyAgent {
 #[pymethods]
 impl PyAgent {
     #[getter]
-    fn num(&self) -> u32 {
-        self.agent.num()
+    fn num(&self) -> usize {
+        self.agent.id()
     }
 
     #[getter]

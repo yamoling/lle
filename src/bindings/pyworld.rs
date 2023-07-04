@@ -1,8 +1,13 @@
+use numpy::PyArray1;
 use pyo3::{exceptions, prelude::*};
 
-use crate::{Renderer, World, WorldError};
+use crate::{errors::RuntimeWorldError, Position, Renderer, World, WorldError};
 
-use super::{pyaction::PyAction, pyagent::PyAgent};
+use super::{
+    pyaction::PyAction,
+    pyagent::PyAgent,
+    pytile::{PyGem, PyLaser, PyLaserSource},
+};
 
 #[pyclass(unsendable, name = "World")]
 #[derive(Clone)]
@@ -11,57 +16,67 @@ pub struct PyWorld {
     renderer: Renderer,
 }
 
+fn error_to_exception(error: WorldError) -> PyErr {
+    match error {
+        WorldError::InvalidFileName { file_name } => {
+            exceptions::PyFileNotFoundError::new_err(file_name)
+        }
+        WorldError::AgentKilledOnStartup {
+            agent_num,
+            laser_num,
+            i,
+            j,
+        } => exceptions::PyRuntimeError::new_err(format!(
+            "Agent {} killed by laser {} at position ({}, {})",
+            agent_num, laser_num, i, j
+        )),
+        WorldError::InconsistentDimensions {
+            expected_n_cols,
+            actual_n_cols,
+            row,
+        } => exceptions::PyValueError::new_err(format!(
+            "Inconsistent number of columns in row {}: expected {}, got {}",
+            row, expected_n_cols, actual_n_cols
+        )),
+        WorldError::NotEnoughExitTiles { n_starts, n_exits } => exceptions::PyValueError::new_err(
+            format!("Not enough exit tiles: {n_starts} starts, {n_exits} exits"),
+        ),
+        WorldError::EmptyWorld => exceptions::PyValueError::new_err("Empty world: no tiles"),
+        WorldError::NoAgents => exceptions::PyValueError::new_err("No agents in the world"),
+        WorldError::InvalidPosition { x, y } => {
+            exceptions::PyIndexError::new_err(format!("Invalid position ({}, {})", x, y))
+        }
+        WorldError::InvalidTile {
+            tile_str,
+            line,
+            col,
+        } => exceptions::PyValueError::new_err(format!(
+            "Invalid tile '{tile_str}' at position ({line}, {col})"
+        )),
+    }
+}
+
 #[pymethods]
 impl PyWorld {
     #[new]
     pub fn new(level: String) -> PyResult<Self> {
         match World::from_file(&level) {
             Ok(world) => {
-                let renderer =
-                    Renderer::new(world.width() as u32, world.height() as u32, world.tiles());
+                let renderer = Renderer::new(&world);
                 Ok(PyWorld { world, renderer })
             }
-            Err(e) => match e {
-                WorldError::InvalidFileName { file_name } => {
-                    Err(exceptions::PyFileNotFoundError::new_err(file_name))
-                }
-                WorldError::AgentKilledOnStartup {
-                    agent_num,
-                    laser_num,
-                    i,
-                    j,
-                } => Err(exceptions::PyRuntimeError::new_err(format!(
-                    "Agent {} killed by laser {} at position ({}, {})",
-                    agent_num, laser_num, i, j
-                ))),
-                WorldError::InconsistentDimensions {
-                    expected_n_cols,
-                    actual_n_cols,
-                    row,
-                } => Err(exceptions::PyValueError::new_err(format!(
-                    "Inconsistent number of columns in row {}: expected {}, got {}",
-                    row, expected_n_cols, actual_n_cols
-                ))),
-                WorldError::EmptyWorld => {
-                    Err(exceptions::PyValueError::new_err("Empty world: no tiles"))
-                }
-                WorldError::NoAgents => {
-                    Err(exceptions::PyValueError::new_err("No agents in the world"))
-                }
-                WorldError::InconsistentNumberOfAgents {
-                    n_start_pos,
-                    n_exit_pos,
-                } => Err(exceptions::PyValueError::new_err(format!(
-                    "Inconsistent number of agents: {} start positions, {} exit positions",
-                    n_start_pos, n_exit_pos
-                ))),
-                WorldError::InvalidPosition { x, y } => {
-                    panic!(
-                        "Unexpected error 'InvalidPosition' while building a new World: {}, {}",
-                        x, y
-                    )
-                }
-            },
+            Err(e) => Err(error_to_exception(e)),
+        }
+    }
+
+    #[staticmethod]
+    fn from_str(world_string: String) -> PyResult<Self> {
+        match World::try_from(world_string) {
+            Ok(world) => {
+                let renderer = Renderer::new(&world);
+                Ok(PyWorld { world, renderer })
+            }
+            Err(e) => Err(error_to_exception(e)),
         }
     }
 
@@ -86,6 +101,11 @@ impl PyWorld {
         self.world.height()
     }
 
+    #[getter]
+    pub fn n_gems(&self) -> usize {
+        self.world.n_gems()
+    }
+
     fn exit_rate(&self) -> f32 {
         let n_arrived: f32 = self
             .world
@@ -100,9 +120,64 @@ impl PyWorld {
         self.world.gems_collected()
     }
 
-    pub fn step(&mut self, actions: Vec<PyAction>) -> i32 {
+    #[getter]
+    fn agent_positions(&self) -> Vec<Position> {
+        self.world.agent_positions().clone()
+    }
+
+    #[getter]
+    fn wall_pos(&self) -> Vec<Position> {
+        self.world.walls().copied().collect()
+    }
+
+    #[getter]
+    fn gems(&self) -> Vec<(Position, PyGem)> {
+        self.world
+            .gems()
+            .map(|(pos, gem)| (*pos, PyGem::new(gem.clone())))
+            .collect()
+    }
+
+    #[getter]
+    fn lasers(&self) -> Vec<(Position, PyLaser)> {
+        self.world
+            .lasers()
+            .map(|(pos, laser)| (*pos, PyLaser::new(laser.clone())))
+            .collect()
+    }
+
+    #[getter]
+    fn laser_sources(&self) -> Vec<(Position, PyLaserSource)> {
+        self.world
+            .laser_sources()
+            .map(|(pos, laser_source)| (*pos, PyLaserSource::new(laser_source.clone())))
+            .collect()
+    }
+
+    #[getter]
+    fn exit_pos(&self) -> Vec<Position> {
+        self.world.exits().copied().collect()
+    }
+
+    pub fn step(&mut self, actions: Vec<PyAction>) -> PyResult<i32> {
         let actions: Vec<_> = actions.into_iter().map(|a| a.action).collect();
-        self.world.step(&actions)
+        match self.world.step(&actions) {
+            Ok(r) => Ok(r),
+            Err(e) => match e {
+                RuntimeWorldError::InvalidAction {
+                    agent_id,
+                    available,
+                    taken,
+                } => Err(exceptions::PyValueError::new_err(format!(
+                    "Invalid action for agent {agent_id}: available actions: {available:?}, taken action: {taken}",
+                ))),
+                RuntimeWorldError::WorldIsDone => Err(exceptions::PyValueError::new_err("World is done, cannot step anymore")),
+                RuntimeWorldError::InvalidNumberOfActions { given, expected } => Err(exceptions::PyValueError::new_err(format!(
+                    "Invalid number of actions: given {given}, expected {expected}",
+                ))),
+                other => panic!("Unexpected error: {:?}", other),
+            },
+        }
     }
 
     pub fn reset(&mut self) {
@@ -112,8 +187,8 @@ impl PyWorld {
     pub fn available_actions(&self) -> Vec<Vec<PyAction>> {
         self.world
             .available_actions()
-            .into_iter()
-            .map(|a| a.into_iter().map(|a| PyAction { action: a }).collect())
+            .iter()
+            .map(|a| a.iter().map(|a| PyAction { action: a.clone() }).collect())
             .collect()
     }
 
@@ -130,8 +205,13 @@ impl PyWorld {
         self.world.done()
     }
 
-    pub fn get_image(&mut self) -> Vec<u8> {
-        let img = self.renderer.update(self.world.tiles());
-        img.to_vec()
+    fn get_image(self_: PyRef<'_, Self>) -> PyResult<PyObject> {
+        let dims = self_.image_dimensions();
+        let dims = (dims.0 as usize, dims.1 as usize, 3);
+        let py = self_.py();
+        let img = self_.renderer.update(&self_.world);
+        let buffer = img.into_raw();
+        let res = PyArray1::from_vec(py, buffer).reshape(dims).unwrap();
+        Ok(res.into_py(py))
     }
 }

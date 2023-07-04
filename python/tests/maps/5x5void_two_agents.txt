@@ -2,4 +2,4 @@ v v  v  v v
 v S1 v  v v
 v v  S0 v v
 v v  v  v v
-v F  v  F v
+v X  v  X v

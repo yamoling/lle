@@ -1,9 +1,9 @@
-use pyo3::prelude::*;
+use pyo3::{prelude::*, pyclass::CompareOp};
 
 use crate::Action;
 
 #[pyclass(unsendable, name = "Action")]
-#[derive(Clone, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Clone)]
 pub struct PyAction {
     pub action: Action,
 }
@@ -86,6 +86,24 @@ impl PyAction {
         }
     }
 
+    fn __richcmp__(&self, other: &Self, op: CompareOp) -> PyResult<bool> {
+        match op {
+            CompareOp::Eq => Ok(self.action == other.action),
+            CompareOp::Ne => Ok(self.action != other.action),
+            _ => Err(pyo3::exceptions::PyTypeError::new_err(
+                "Invalid comparison operator for Action.",
+            )),
+        }
+    }
+
+    fn __str__(&self) -> String {
+        self.action.to_string()
+    }
+
+    fn __repr__(&self) -> String {
+        self.action.to_string()
+    }
+
     #[getter]
     fn value(&self) -> u32 {
         match self.action {
@@ -99,13 +117,6 @@ impl PyAction {
 
     #[getter]
     fn name(&self) -> String {
-        match self.action {
-            Action::North => "NORTH",
-            Action::South => "SOUTH",
-            Action::East => "EAST",
-            Action::West => "WEST",
-            Action::Stay => "STAY",
-        }
-        .into()
+        self.action.to_string()
     }
 }

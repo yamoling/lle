@@ -1,7 +1,11 @@
-pub mod laser;
-pub mod laser_source;
-pub mod tile;
-pub mod tile_type;
+mod gem;
+mod laser;
+mod laser_source;
+mod start_exit;
+mod tile;
 
-pub use tile::Tile;
-pub use tile_type::TileType;
+pub use gem::Gem;
+pub use laser::{Direction, Laser, LaserBeam};
+pub use laser_source::LaserSource;
+pub use start_exit::{Exit, Start};
+pub use tile::{Floor, Tile, TileClone, Wall};

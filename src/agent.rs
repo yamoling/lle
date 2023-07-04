@@ -1,33 +1,45 @@
-use std::fmt::Display;
+use std::{fmt::Display, rc::Rc};
 
-pub type AgentId = u32;
+use crate::reward_collector::{RewardCollector, RewardEvent};
+
+pub type AgentId = usize;
 
 #[derive(Debug, Clone)]
 pub struct Agent {
-    num: AgentId,
+    id: AgentId,
     dead: bool,
     arrived: bool,
+    reward_collector: Rc<RewardCollector>,
 }
 
 impl Agent {
-    pub fn new(id: u32) -> Self {
+    pub fn new(id: u32, collector: Rc<RewardCollector>) -> Self {
         Self {
-            num: id,
+            id: id as usize,
             dead: false,
             arrived: false,
+            reward_collector: collector,
         }
     }
 
     pub fn reset(&mut self) {
         self.dead = false;
+        self.arrived = false;
+        self.reward_collector.reset();
     }
 
     pub fn die(&mut self) {
         self.dead = true;
+        self.reward_collector.notify(RewardEvent::AgentDied);
     }
 
     pub fn arrive(&mut self) {
         self.arrived = true;
+        self.reward_collector.notify(RewardEvent::JustArrived);
+    }
+
+    pub fn collect_gem(&self) {
+        self.reward_collector.notify(RewardEvent::GemCollected);
     }
 
     pub fn has_arrived(&self) -> bool {
@@ -42,24 +54,13 @@ impl Agent {
         !self.dead
     }
 
-    pub fn num(&self) -> u32 {
-        self.num
+    pub fn id(&self) -> AgentId {
+        self.id
     }
 }
 
 impl Display for Agent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("Agent {}", self.num))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn basics() {
-        let a = Agent::new(1);
-        assert!(!a.is_dead());
+        f.write_fmt(format_args!("Agent {}", self.id))
     }
 }

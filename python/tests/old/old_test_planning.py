@@ -1,6 +1,5 @@
 import numpy as np
-from lle.world import World
-from lle.actions import Action
+from lle import World, Action
 from lle.planning import ProblemState, SearchProblem, breadth_first_search, heuristic, astar, get_difficulty, Difficulty
 
 
