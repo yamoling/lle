@@ -1,14 +1,14 @@
 use crate::{
     agent::{Agent, AgentId},
-    rendering::TileVisitor,
+    rendering::{TileVisitor, VisitorData},
 };
-use std::{any::Any, fmt::Debug};
+use std::{cell::Cell, fmt::Debug};
 
 pub trait Tile: Debug + TileClone {
     fn pre_enter(&self, agent: &Agent);
-    fn reset(&mut self);
-    fn enter(&mut self, agent: &mut Agent);
-    fn leave(&mut self) -> AgentId;
+    fn reset(&self);
+    fn enter(&self, agent: &mut Agent);
+    fn leave(&self) -> AgentId;
     fn agent(&self) -> Option<AgentId>;
     fn is_waklable(&self) -> bool {
         true
@@ -17,10 +17,7 @@ pub trait Tile: Debug + TileClone {
         self.agent().is_some()
     }
     /// Visitor pattern to render the tile
-    fn accept(&self, visitor: &mut dyn TileVisitor, x: u32, y: u32);
-
-    // Required for testing purposes
-    fn as_any(&self) -> &dyn Any;
+    fn accept(&self, visitor: &dyn TileVisitor, data: &mut VisitorData);
 }
 
 pub trait TileClone {
@@ -35,33 +32,29 @@ impl Clone for Box<dyn Tile> {
 
 #[derive(Debug, Clone, Default)]
 pub struct Floor {
-    agent: Option<AgentId>,
+    agent: Cell<Option<AgentId>>,
 }
 
 impl Tile for Floor {
     fn pre_enter(&self, _agent: &Agent) {}
 
-    fn reset(&mut self) {
-        self.agent = None;
+    fn reset(&self) {
+        self.agent.set(None);
     }
 
-    fn enter(&mut self, agent: &mut Agent) {
-        self.agent = Some(agent.id());
+    fn enter(&self, agent: &mut Agent) {
+        self.agent.set(Some(agent.id()));
     }
 
-    fn leave(&mut self) -> AgentId {
+    fn leave(&self) -> AgentId {
         self.agent.take().unwrap()
     }
 
     fn agent(&self) -> Option<AgentId> {
-        self.agent
+        self.agent.get()
     }
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn accept(&self, _visitor: &mut dyn TileVisitor, _x: u32, _y: u32) {
+    fn accept(&self, _visitor: &dyn TileVisitor, _data: &mut VisitorData) {
         // Nothing to do
     }
 }
@@ -72,27 +65,21 @@ impl TileClone for Floor {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Wall {}
-
-impl Wall {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
 
 impl Tile for Wall {
     fn pre_enter(&self, _agent: &Agent) {
         panic!("Cannot pre-enter a wall")
     }
 
-    fn reset(&mut self) {}
+    fn reset(&self) {}
 
-    fn enter(&mut self, _agent: &mut Agent) {
+    fn enter(&self, _agent: &mut Agent) {
         panic!("Cannot enter a wall")
     }
 
-    fn leave(&mut self) -> AgentId {
+    fn leave(&self) -> AgentId {
         panic!("Cannot leave a wall")
     }
 
@@ -104,12 +91,12 @@ impl Tile for Wall {
         None
     }
 
-    fn as_any(&self) -> &dyn Any {
-        self
+    fn is_waklable(&self) -> bool {
+        false
     }
 
-    fn accept(&self, visitor: &mut dyn TileVisitor, x: u32, y: u32) {
-        visitor.visit_wall(x, y);
+    fn accept(&self, _visitor: &dyn TileVisitor, _data: &mut VisitorData) {
+        // Nothing to do here as it is statically rendered
     }
 }
 
@@ -118,3 +105,7 @@ impl TileClone for Wall {
         Box::new(self.clone())
     }
 }
+
+#[cfg(test)]
+#[path = "../unit_tests/test_tile.rs"]
+mod tests;

@@ -1,6 +1,6 @@
 use lle::{
-    Action, RuntimeWorldError, World, WorldError, REWARD_AGENT_JUST_ARRIVED, REWARD_END_GAME,
-    REWARD_GEM_COLLECTED,
+    Action, RuntimeWorldError, World, WorldError, REWARD_AGENT_DIED, REWARD_AGENT_JUST_ARRIVED,
+    REWARD_END_GAME, REWARD_GEM_COLLECTED,
 };
 
 #[test]
@@ -225,6 +225,38 @@ fn test_reward() {
 }
 
 #[test]
+fn test_reward_death() {
+    let mut w = World::try_from(
+        "
+    S0 L0S X
+    S1  .  X",
+    )
+    .unwrap();
+    w.reset();
+    assert_eq!(
+        w.step(&[Action::Stay, Action::East]).unwrap(),
+        REWARD_AGENT_DIED
+    );
+    assert!(w.done());
+}
+
+#[test]
+fn test_reward_collect_and_death() {
+    let mut w = World::try_from(
+        "
+    S0 L0S X
+    S1  G  X",
+    )
+    .unwrap();
+    w.reset();
+    assert_eq!(
+        w.step(&[Action::Stay, Action::East]).unwrap(),
+        REWARD_AGENT_DIED
+    );
+    assert!(w.done());
+}
+
+#[test]
 fn test_take_action_not_available() {
     let mut w = World::try_from("S0 X").unwrap();
     w.reset();
@@ -237,6 +269,7 @@ fn test_take_action_not_available() {
                 assert_eq!(taken, Action::North);
                 return;
             }
+            other => panic!("Expected InvalidAction, got {:?}", other),
         }
     }
     panic!("Expected the world to raise an error");
@@ -255,6 +288,45 @@ fn test_take_action_not_available_swap() {
                 assert_eq!(taken, Action::South);
                 return;
             }
+            other => panic!("Expected InvalidAction, got {:?}", other),
+        }
+    }
+    panic!("Expected the world to raise an error");
+}
+
+#[test]
+fn test_take_action_not_available_walk_into_laser_source() {
+    let mut w = World::try_from("L0E X\nS0 .").unwrap();
+    w.reset();
+    if let Err(e) = w.step(&[Action::North]) {
+        match e {
+            RuntimeWorldError::InvalidAction {
+                agent_id, taken, ..
+            } => {
+                assert_eq!(agent_id, 0);
+                assert_eq!(taken, Action::North);
+                return;
+            }
+            other => panic!("Expected InvalidAction, got {:?}", other),
+        }
+    }
+    panic!("Expected the world to raise an error");
+}
+
+#[test]
+fn test_take_action_walk_outside_map() {
+    let mut w = World::try_from("L0E X\nS0 .").unwrap();
+    w.reset();
+    if let Err(e) = w.step(&[Action::West]) {
+        match e {
+            RuntimeWorldError::InvalidAction {
+                agent_id, taken, ..
+            } => {
+                assert_eq!(agent_id, 0);
+                assert_eq!(taken, Action::West);
+                return;
+            }
+            other => panic!("Expected InvalidAction, got {:?}", other),
         }
     }
     panic!("Expected the world to raise an error");
@@ -274,5 +346,15 @@ fn test_reset() {
             REWARD_AGENT_JUST_ARRIVED + REWARD_END_GAME
         );
         assert!(w.done());
+    }
+}
+
+#[test]
+fn test_standard_levels() {
+    for level in 1..7 {
+        let name = format!("level{}", level);
+        World::from_file(&name).unwrap();
+        let name = format!("lvl{}", level);
+        World::from_file(&name).unwrap();
     }
 }

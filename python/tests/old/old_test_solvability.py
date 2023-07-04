@@ -7,7 +7,7 @@ def test_make_graph():
     map_content = """
     .  . G
     S0 . .
-    . .  F
+    . .  X
     """
     world = World.from_str(map_content)
     g, *_ = make_graph(world._grid)
@@ -18,7 +18,7 @@ def test_make_graph():
 def test_not_solvable_corner():
     map_content = """
     G @  .
-    @ S0 F
+    @ S0 X
     """
     world = World.from_str(map_content)
     try:
@@ -27,7 +27,7 @@ def test_not_solvable_corner():
     except exceptions.UnreachableGem:
         pass
     map_content = """
-    F @  .
+    X @  .
     @ S0 G
     """
     world = World.from_str(map_content)
@@ -41,7 +41,7 @@ def test_not_solvable_corner():
 def test_obvious_solvable():
     map_content = """
     G .  .
-    . S0 F
+    . S0 X
     """
     world = World.from_str(map_content)
     world.reset()
@@ -50,7 +50,7 @@ def test_obvious_solvable():
 
 def test_laser_solvable():
     map_content = """
-     G  . F
+     G  . X
     L0N . .
     S0  . .
     """
@@ -58,7 +58,7 @@ def test_laser_solvable():
     world.check_solvable()
 
     map_content = """
-     G  . F
+     G  . X
     L0E . .
     S0  . .
     """
@@ -66,7 +66,7 @@ def test_laser_solvable():
     world.check_solvable()
 
     map_content = """
-     G  . F  F
+     G  . X  X
     L0E . .  .
     .   . .  L1W
     S0  . S1 .
@@ -77,7 +77,7 @@ def test_laser_solvable():
 
 def test_laser_not_solvable():
     map_content = """
-     G  . F  F
+     G  . X  X
     L0E . .  .
     L1E . .  .
     S0  . S1 .
@@ -92,7 +92,7 @@ def test_laser_not_solvable():
 
 def test_end_tile_blocks_not_solvable():
     map_content = """
-    G  F .  
+    G  X .  
     @  . . 
     S0 . . 
     """
@@ -104,8 +104,8 @@ def test_end_tile_blocks_not_solvable():
         pass
 
     map_content = """
-    G  F .  
-    F  . . 
+    G  X .  
+    X  . . 
     S0 . S1 
     """
     world = World.from_str(map_content)
@@ -120,8 +120,8 @@ def test_opposite_lasers_kill_on_spawn():
     map_content = """
     . @ G G . . .
     . . . . . @ G
-    S0 F . G . . .
-    . . . F . . .
+    S0 X . G . . .
+    . . . X . . .
     L1E S1 . G . . L0W
     . . . . . . .
     . . . . . . .
@@ -135,10 +135,10 @@ def test_opposite_lasers_kill_on_spawn():
 
 def test_4agents_solvable():
     map_content = """
-    F . F G F
+    X . X G X
     S1 S2 L0S G .
     G . . . S0
     . @ @ @ G
-    F S3 . @ G"""
+    X S3 . @ G"""
     world = World.from_str(map_content)
     world.check_solvable()

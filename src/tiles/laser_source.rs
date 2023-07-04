@@ -1,8 +1,6 @@
-use std::any::Any;
-
 use crate::{
     agent::{Agent, AgentId},
-    rendering::TileVisitor,
+    rendering::{TileVisitor, VisitorData},
 };
 
 use super::{tile::TileClone, Direction, Tile, Wall};
@@ -37,15 +35,15 @@ impl Tile for LaserSource {
         self.wall.pre_enter(agent);
     }
 
-    fn reset(&mut self) {
+    fn reset(&self) {
         self.wall.reset();
     }
 
-    fn enter(&mut self, agent: &mut Agent) {
+    fn enter(&self, agent: &mut Agent) {
         self.wall.enter(agent);
     }
 
-    fn leave(&mut self) -> AgentId {
+    fn leave(&self) -> AgentId {
         self.wall.leave()
     }
 
@@ -57,12 +55,8 @@ impl Tile for LaserSource {
         false
     }
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn accept(&self, visitor: &mut dyn TileVisitor, x: u32, y: u32) {
-        visitor.visit_laser_source(self, x, y);
+    fn accept(&self, _visitor: &dyn TileVisitor, _data: &mut VisitorData) {
+        // Nothing to do here as it is statically rendered
     }
 }
 

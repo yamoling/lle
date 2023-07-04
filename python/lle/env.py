@@ -1,7 +1,8 @@
 from typing import Literal
 from lle.lle import World
-from lle.observations import ObservationType
+import cv2
 import numpy as np
+
 from rlenv import RLEnv, DiscreteActionSpace, Observation
 from .lle import World, Action
 from .observations import ObservationType
@@ -18,6 +19,7 @@ class LLE(RLEnv[DiscreteActionSpace]):
         self._obs_type = obs_type
         dims = self.world.image_dimensions
         self._image_shape = (dims[1], dims[0], 3)
+        self._image_byte_count = np.prod(self._image_shape)
 
     @property
     def width(self) -> int:
@@ -44,11 +46,11 @@ class LLE(RLEnv[DiscreteActionSpace]):
 
     def step(self, actions: np.ndarray[np.int32]):
         actions = [Action(a) for a in actions]
-        reward, done = self.world.step(actions)
+        reward = self.world.step(actions)
         obs_data = self.world_observer.observe()
         obs = Observation(obs_data, self.get_avail_actions(), self.get_state())
-        info = {"gems_collected": self.world.gems_collected, "in_elevator": self.world.n_agents_in_elevator}
-        return obs, reward, done, False, info
+        info = {"gems_collected": self.world.gems_collected, "exit_rate": self.world.exit_rate()}
+        return obs, reward, self.world.done, False, info
 
     def reset(self):
         self.world.reset()
@@ -60,15 +62,13 @@ class LLE(RLEnv[DiscreteActionSpace]):
 
     def render(self, mode: Literal["human", "rgb_array"] = "human"):
         image = self.world.get_image()
-        image = np.array(image, dtype=np.uint8).reshape(self._image_shape)
+        # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         match mode:
             case "human":
-                import cv2
-
                 cv2.imshow("LLE", image)
                 cv2.waitKey(1)
             case "rgb_array":
-                return self.world.get_image()
+                return image
             case other:
                 raise NotImplementedError(f"Rendering mode not implemented: {other}")
 

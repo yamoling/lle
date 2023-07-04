@@ -1,8 +1,8 @@
-use std::any::Any;
+use std::cell::Cell;
 
 use crate::{
     agent::{Agent, AgentId},
-    rendering::TileVisitor,
+    rendering::{TileVisitor, VisitorData},
 };
 
 use super::{tile::TileClone, Floor, Tile};
@@ -10,12 +10,16 @@ use super::{tile::TileClone, Floor, Tile};
 #[derive(Debug, Clone, Default)]
 pub struct Gem {
     floor: Floor,
-    collected: bool,
+    collected: Cell<bool>,
 }
 
 impl Gem {
     pub fn is_collected(&self) -> bool {
-        self.collected
+        self.collected.get()
+    }
+
+    pub fn collect(&self) {
+        self.collected.set(true);
     }
 }
 
@@ -24,20 +28,20 @@ impl Tile for Gem {
         self.floor.pre_enter(agent);
     }
 
-    fn reset(&mut self) {
-        self.collected = false;
+    fn reset(&self) {
+        self.collected.set(false);
         self.floor.reset();
     }
 
-    fn enter(&mut self, agent: &mut Agent) {
-        if !self.collected {
+    fn enter(&self, agent: &mut Agent) {
+        if !self.collected.get() {
             agent.collect_gem();
-            self.collected = true;
+            self.collect();
         }
         self.floor.enter(agent);
     }
 
-    fn leave(&mut self) -> AgentId {
+    fn leave(&self) -> AgentId {
         self.floor.leave()
     }
 
@@ -45,12 +49,8 @@ impl Tile for Gem {
         self.floor.agent()
     }
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn accept(&self, visitor: &mut dyn TileVisitor, x: u32, y: u32) {
-        visitor.visit_gem(self, x, y);
+    fn accept(&self, visitor: &dyn TileVisitor, data: &mut VisitorData) {
+        visitor.visit_gem(self, data);
     }
 }
 

@@ -4,7 +4,7 @@ import numpy as np
 import cv2
 
 # pylint: disable=no-name-in-module
-from .lle import World
+from lle import World
 
 
 class ObservationType(IntEnum):
@@ -66,12 +66,14 @@ class ObservationGenerator(ABC):
 class RelativePosition(ObservationGenerator):
     def __init__(self, world) -> None:
         super().__init__(world)
-        self.n_gems = len(world._gems)
+        self.n_gems = world.n_gems
         self.dimensions = np.array([world.height, world.width])
 
     def observe(self):
-        positions = np.tile((self._world._agent_pos / self.dimensions).flatten(), (self._world.n_agents, 1))
-        gems_collected = np.tile(np.array([not gem.collected for gem in self._world._gems], dtype=np.float32), (self._world.n_agents, 1))
+        positions = np.tile((self._world.agent_positions / self.dimensions).flatten(), (self._world.n_agents, 1))
+        gems_collected = np.tile(
+            np.array([not gem.is_collected for _, gem in self._world.gems], dtype=np.float32), (self._world.n_agents, 1)
+        )
         return np.concatenate([positions, gems_collected], axis=1).astype(np.float32)
 
     @property
@@ -127,50 +129,35 @@ class Layered(ObservationGenerator):
         self.WALL = self.A0 + world.n_agents
         self.LASER_0 = self.WALL + 1
         self.GEM = self.LASER_0 + world.n_agents
-        self.END = self.GEM + 1
+        self.EXIT = self.GEM + 1
 
-        self.laser_pos: dict[tuple[int, int], Laser] = {}
-        self.alternating_sources: dict[tuple[int, int], AlternatingLaserSource] = {}
-        self.gem_pos: dict[tuple(int, int), Gem] = {}
         self.static_obs = self._setup()
 
     def _setup(self):
+        """Initial setup with static data (walls, gems, exits)"""
         obs = np.zeros(self._shape, dtype=np.float32)
+        for i, j in self._world.exit_pos:
+            obs[self.EXIT, i, j] = 1.0
 
-        def tile_setup(tile: Tile):
-            match tile:
-                case Gem():
-                    self.gem_pos[i, j] = tile
-                case Laser():
-                    tile_setup(tile._wrapped)
-                    self.laser_pos[i, j] = tile
-                case FinishTile():
-                    obs[self.END, i, j] = 1.0
-                case AlternatingLaserSource():
-                    self.alternating_sources[i, j] = tile
-                case LaserSource(agent_id):
-                    obs[self.LASER_0 + agent_id, i, j] = -1.0
-                    obs[self.WALL, i, j] = 1.0
-                case Wall():
-                    obs[self.WALL, i, j] = 1.0
+        for i, j in self._world.wall_pos:
+            obs[self.WALL, i, j] = 1.0
 
-        for i in range(self.height):
-            for j in range(self.width):
-                tile_setup(self._world[i, j])
+        for (i, j), source in self._world.laser_sources:
+            obs[self.LASER_0 + source.agent_id, i, j] = -1.0
+            obs[self.WALL, i, j] = 1.0
+
         return obs
 
     def observe(self):
         obs = np.copy(self.static_obs)
-        for (i, j), laser in self.laser_pos.items():
+        for (i, j), laser in self._world.lasers:
             if laser.is_on:
                 obs[self.LASER_0 + laser.agent_id, i, j] = 1.0
-        for (i, j), gem in self.gem_pos.items():
-            if not gem.collected:
+        for (i, j), gem in self._world.gems:
+            if not gem.is_collected:
                 obs[self.GEM, i, j] = 1.0
-        for i, (y, x) in enumerate(self._world._agent_pos):
+        for i, (y, x) in enumerate(self._world.agent_positions):
             obs[self.A0 + i, y, x] = 1.0
-        for (i, j), source in self.alternating_sources.items():
-            obs[self.LASER_0 + source.agent_id, i, j] = -1.0
         return np.tile(obs, (self.n_agents, 1, 1, 1))
 
     @property

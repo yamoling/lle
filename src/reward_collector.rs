@@ -14,6 +14,7 @@ pub struct RewardCollector {
     n_agents: u32,
 }
 
+#[derive(PartialEq)]
 pub enum RewardEvent {
     JustArrived,
     GemCollected,
@@ -32,26 +33,37 @@ impl RewardCollector {
     }
 
     pub fn notify(&self, event: RewardEvent) {
-        let reward = self.step_reward.get();
+        // If the agent has died,
+        if event == RewardEvent::AgentDied {
+            // increase the number of dead agents,
+            self.n_dead.set(self.n_dead.get() + 1);
+            // cap the current reward to 0,
+            let r = self.step_reward.get().min(0);
+            // and add the reward for the agent dying.
+            self.step_reward.set(r + REWARD_AGENT_DIED);
+            return;
+        }
+
+        // Otherwise, if an agent has already died, we don't give any positive reward.
+        if self.n_dead.get() > 0 {
+            return;
+        }
+
+        // Last (general) case: all agents are alive
         let event_reward = match event {
-            RewardEvent::AgentDied => REWARD_AGENT_DIED,
-            RewardEvent::GemCollected => {
-                self.episode_gems_collected
-                    .set(self.episode_gems_collected.get() + 1);
-                REWARD_GEM_COLLECTED
-            }
             RewardEvent::JustArrived => {
                 self.episode_agents_arrived
                     .set(self.episode_agents_arrived.get() + 1);
-                let reward = REWARD_AGENT_JUST_ARRIVED;
                 if self.episode_agents_arrived() == self.n_agents {
-                    reward + REWARD_END_GAME
+                    REWARD_AGENT_JUST_ARRIVED + REWARD_END_GAME
                 } else {
-                    reward
+                    REWARD_AGENT_JUST_ARRIVED
                 }
             }
+            RewardEvent::GemCollected => REWARD_GEM_COLLECTED,
+            RewardEvent::AgentDied => unreachable!(),
         };
-        self.step_reward.set(reward + event_reward);
+        self.step_reward.set(self.step_reward.get() + event_reward);
     }
 
     /// Reset the reward collector and return the reward for the step.

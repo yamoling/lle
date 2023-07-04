@@ -2,7 +2,7 @@ use std::{fmt::Display, rc::Rc};
 
 use crate::reward_collector::{RewardCollector, RewardEvent};
 
-pub type AgentId = u32;
+pub type AgentId = usize;
 
 #[derive(Debug, Clone)]
 pub struct Agent {
@@ -15,7 +15,7 @@ pub struct Agent {
 impl Agent {
     pub fn new(id: u32, collector: Rc<RewardCollector>) -> Self {
         Self {
-            id,
+            id: id as usize,
             dead: false,
             arrived: false,
             reward_collector: collector,
@@ -54,7 +54,7 @@ impl Agent {
         !self.dead
     }
 
-    pub fn id(&self) -> u32 {
+    pub fn id(&self) -> AgentId {
         self.id
     }
 }

@@ -1,9 +1,9 @@
-use pyo3::prelude::*;
+use pyo3::{prelude::*, pyclass::CompareOp};
 
 use crate::Action;
 
 #[pyclass(unsendable, name = "Action")]
-#[derive(Clone, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Clone)]
 pub struct PyAction {
     pub action: Action,
 }
@@ -84,6 +84,24 @@ impl PyAction {
                 "Invalid action value: {value}. Valid values for actions are between 0 and 4."
             ))),
         }
+    }
+
+    fn __richcmp__(&self, other: &Self, op: CompareOp) -> PyResult<bool> {
+        match op {
+            CompareOp::Eq => Ok(self.action == other.action),
+            CompareOp::Ne => Ok(self.action != other.action),
+            _ => Err(pyo3::exceptions::PyTypeError::new_err(
+                "Invalid comparison operator for Action.",
+            )),
+        }
+    }
+
+    fn __str__(&self) -> String {
+        self.action.to_string()
+    }
+
+    fn __repr__(&self) -> String {
+        self.action.to_string()
     }
 
     #[getter]

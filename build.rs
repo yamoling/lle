@@ -26,7 +26,7 @@ fn agent_files(cwd: &str) -> String {
 fn laser_files(cwd: &str) -> String {
     let mut res = String::new();
     for direction in ["horizontal", "vertical"] {
-        let files: Vec<_> = fs::read_dir(format!("{RESOURCES}/lasers/horizontal"))
+        let files: Vec<_> = fs::read_dir(format!("{RESOURCES}/lasers/{direction}"))
             .unwrap()
             .flatten()
             .collect();
@@ -50,7 +50,7 @@ fn laser_files(cwd: &str) -> String {
 fn laser_source_files(cwd: &str) -> String {
     let mut res = String::new();
     for direction in ["east", "north", "south", "west"] {
-        let files: Vec<_> = fs::read_dir(format!("{RESOURCES}/lasers/horizontal"))
+        let files: Vec<_> = fs::read_dir(format!("{RESOURCES}/laser_sources/{direction}"))
             .unwrap()
             .flatten()
             .collect();

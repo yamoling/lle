@@ -1,8 +1,6 @@
-use std::any::Any;
-
 use crate::{
     agent::{Agent, AgentId},
-    rendering::TileVisitor,
+    rendering::{TileVisitor, VisitorData},
 };
 
 use super::{tile::TileClone, Floor, Tile};
@@ -30,16 +28,15 @@ impl Tile for Start {
     fn pre_enter(&self, agent: &Agent) {
         self.floor.pre_enter(agent);
     }
-
-    fn reset(&mut self) {
+    fn reset(&self) {
         self.floor.reset();
     }
 
-    fn enter(&mut self, agent: &mut Agent) {
+    fn enter(&self, agent: &mut Agent) {
         self.floor.enter(agent);
     }
 
-    fn leave(&mut self) -> AgentId {
+    fn leave(&self) -> AgentId {
         self.floor.leave()
     }
 
@@ -47,12 +44,8 @@ impl Tile for Start {
         self.floor.agent()
     }
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn accept(&self, visitor: &mut dyn TileVisitor, x: u32, y: u32) {
-        visitor.visit_start(self, x, y);
+    fn accept(&self, _visitor: &dyn TileVisitor, _data: &mut VisitorData) {
+        // Nothing to do
     }
 }
 
@@ -72,16 +65,16 @@ impl Tile for Exit {
         self.floor.pre_enter(agent);
     }
 
-    fn reset(&mut self) {
+    fn reset(&self) {
         self.floor.reset();
     }
 
-    fn enter(&mut self, agent: &mut Agent) {
+    fn enter(&self, agent: &mut Agent) {
         self.floor.enter(agent);
         agent.arrive();
     }
 
-    fn leave(&mut self) -> AgentId {
+    fn leave(&self) -> AgentId {
         panic!("Cannot leave an exit tile")
     }
 
@@ -89,12 +82,8 @@ impl Tile for Exit {
         self.floor.agent()
     }
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn accept(&self, visitor: &mut dyn TileVisitor, x: u32, y: u32) {
-        visitor.visit_exit(x, y);
+    fn accept(&self, _visitor: &dyn TileVisitor, _data: &mut VisitorData) {
+        // Nothing to do
     }
 }
 

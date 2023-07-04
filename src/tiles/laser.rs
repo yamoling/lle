@@ -1,8 +1,8 @@
-use std::{any::Any, cell::Cell, rc::Rc};
+use std::{cell::Cell, fmt::Display, rc::Rc};
 
 use crate::{
     agent::{Agent, AgentId},
-    rendering::TileVisitor,
+    rendering::{TileVisitor, VisitorData},
 };
 
 use super::{tile::TileClone, Tile};
@@ -23,6 +23,12 @@ impl Direction {
             Direction::South => (1, 0),
             Direction::West => (0, -1),
         }
+    }
+}
+
+impl Display for Direction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
     }
 }
 
@@ -75,14 +81,14 @@ pub struct Laser {
     direction: Direction,
     agent_id: AgentId,
     beam: LaserBeam,
-    wrapped: Box<dyn Tile>,
+    wrapped: Rc<dyn Tile>,
 }
 
 impl Laser {
     pub fn new(
         agent_id: AgentId,
         direction: Direction,
-        wrapped: Box<dyn Tile>,
+        wrapped: Rc<dyn Tile>,
         beam: LaserBeam,
     ) -> Self {
         Self {
@@ -115,6 +121,11 @@ impl Laser {
 }
 
 impl Tile for Laser {
+    fn reset(&self) {
+        self.beam.turn_on();
+        self.wrapped.reset();
+    }
+
     fn pre_enter(&self, agent: &Agent) {
         self.wrapped.pre_enter(agent);
         if agent.id() == self.agent_id {
@@ -122,12 +133,7 @@ impl Tile for Laser {
         }
     }
 
-    fn reset(&mut self) {
-        self.beam.turn_on();
-        self.wrapped.reset();
-    }
-
-    fn enter(&mut self, agent: &mut Agent) {
+    fn enter(&self, agent: &mut Agent) {
         self.wrapped.enter(agent);
         // Note: turning off the beam happens in `pre_enter`
         if self.beam.is_on() && agent.id() != self.agent_id {
@@ -135,9 +141,12 @@ impl Tile for Laser {
         }
     }
 
-    fn leave(&mut self) -> AgentId {
-        self.beam.turn_off();
-        self.wrapped.leave()
+    fn leave(&self) -> AgentId {
+        let id = self.wrapped.leave();
+        if self.agent_id == id {
+            self.beam.turn_on();
+        }
+        id
     }
 
     fn agent(&self) -> Option<AgentId> {
@@ -148,12 +157,8 @@ impl Tile for Laser {
         self.wrapped.is_waklable()
     }
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn accept(&self, visitor: &mut dyn TileVisitor, x: u32, y: u32) {
-        visitor.visit_laser(self, x, y);
+    fn accept(&self, visitor: &dyn TileVisitor, data: &mut VisitorData) {
+        visitor.visit_laser(self, data);
     }
 }
 
