@@ -4,7 +4,7 @@ mod bindings;
 mod errors;
 mod levels;
 // mod planning;
-mod rendering;
+pub mod rendering;
 mod reward_collector;
 mod tiles;
 mod utils;

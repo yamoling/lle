@@ -235,3 +235,11 @@ def test_world_send_thread():
     t.join()
     assert t.status == StatusThread.FINISHED
     
+def test_rendering_size():
+    world = World("S0 . X")
+    TILE_SIZE = 32
+    expected_size = (TILE_SIZE * world.width + 1, TILE_SIZE * world.height + 1)
+    assert world.image_dimensions == expected_size
+    img = world.get_image()
+    expected_shape = (expected_size[1], expected_size[0], 3)
+    assert img.shape == expected_shape

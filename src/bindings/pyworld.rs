@@ -211,7 +211,7 @@ impl PyWorld {
 
     fn get_image(self_: PyRef<'_, Self>) -> PyResult<PyObject> {
         let dims = self_.image_dimensions();
-        let dims = (dims.0 as usize, dims.1 as usize, 3);
+        let dims = (dims.1 as usize, dims.0 as usize, 3);
         let py = self_.py();
         let img = self_.renderer.update(&self_.world);
         let buffer = img.into_raw();
