@@ -1,12 +1,10 @@
 from typing import Any, Literal
-from typing_extensions import Self
-from lle.lle import World
+from lle import World, Action
 import cv2
 import numpy as np
 
 from rlenv import RLEnv, DiscreteActionSpace, Observation
 import rlenv
-from .lle import World, Action
 from .observations import ObservationType
 
 
@@ -72,11 +70,11 @@ class LLE(RLEnv[DiscreteActionSpace]):
                 raise NotImplementedError(f"Rendering mode not implemented: {other}")
 
     @staticmethod
-    def from_str(world_string: str, obs_type: ObservationType = ObservationType.FLATTENED) -> Self:
+    def from_str(world_string: str, obs_type: ObservationType = ObservationType.FLATTENED) -> "LLE":
         return LLE(World(world_string), obs_type)
 
     @staticmethod
-    def from_file(path: str, obs_type: ObservationType = ObservationType.FLATTENED) -> Self:
+    def from_file(path: str, obs_type: ObservationType = ObservationType.FLATTENED) -> "LLE":
         return LLE(World.from_file(path), obs_type)
 
     def kwargs(self) -> dict[str, Any]:

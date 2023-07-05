@@ -1,6 +1,8 @@
 from typing import List, Tuple
 
 class Action:
+    """Enumeration of all possible actions."""
+
     NORTH: "Action"
     SOUTH: "Action"
     EAST: "Action"
@@ -17,7 +19,7 @@ class Action:
         """Create an action from an integer identifier. Invalid values (< 0 or > 5) raise a ValueError."""
     @property
     def delta(self) -> Tuple[int, int]:
-        """The change (i, j) in coordinates for this action."""
+        """The delta (i, j) in coordinates for this action."""
     @property
     def value(self) -> int:
         """The integer value of this action."""

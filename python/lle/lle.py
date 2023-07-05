@@ -1,6 +1,4 @@
-from typing import Tuple
-from enum import Enum
-
+# pylint: disable=import-error
 from .action import Action
 from .world import World
 from .agent import Agent
