@@ -60,6 +60,7 @@ jobs:
         run: |
           poetry update pip
           poetry install
+          pip install maturin
           maturin develop --release
           poetry run pytest
         
