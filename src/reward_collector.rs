@@ -60,7 +60,11 @@ impl RewardCollector {
                     REWARD_AGENT_JUST_ARRIVED
                 }
             }
-            RewardEvent::GemCollected => REWARD_GEM_COLLECTED,
+            RewardEvent::GemCollected => {
+                self.episode_gems_collected
+                    .set(self.episode_gems_collected.get() + 1);
+                REWARD_GEM_COLLECTED
+            }
             RewardEvent::AgentDied => unreachable!(),
         };
         self.step_reward.set(self.step_reward.get() + event_reward);

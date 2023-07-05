@@ -47,7 +47,7 @@ class LLE(RLEnv[DiscreteActionSpace]):
         reward = self.world.step([Action(a) for a in actions])
         obs_data = self.world_observer.observe()
         obs = Observation(obs_data, self.get_avail_actions(), self.get_state())
-        info = {"gems_collected": self.world.gems_collected, "exit_rate": self.world.exit_rate()}
+        info = {"gems_collected": self.world.gems_collected, "exit_rate": self.world.exit_rate}
         return obs, reward, self.world.done, False, info
 
     def reset(self):

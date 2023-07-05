@@ -57,8 +57,12 @@ impl World {
         &self.agent_positions
     }
 
-    pub fn gems_collected(&self) -> u32 {
+    pub fn n_gems_collected(&self) -> u32 {
         self.reward_collector.episode_gems_collected()
+    }
+
+    pub fn n_agents_arrived(&self) -> u32 {
+        self.reward_collector.episode_agents_arrived()
     }
 
     pub fn n_gems(&self) -> usize {

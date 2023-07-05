@@ -97,7 +97,7 @@ fn test_available_actions_exit() {
 }
 
 #[test]
-fn parse_empty_World.from_file() {
+fn parse_empty_world() {
     match World::try_from("") {
         Ok(_) => panic!("Should not be able to parse empty world"),
         Err(e) => match e {
@@ -105,6 +105,32 @@ fn parse_empty_World.from_file() {
             _ => panic!("Expected EmptyWorld, got {e:?}"),
         },
     }
+}
+
+#[test]
+fn test_num_gems_collected() {
+    let mut world = World::try_from("S0 G X").unwrap();
+    world.reset();
+    assert_eq!(world.n_gems_collected(), 0);
+    world.step(&[Action::East]).unwrap();
+    assert_eq!(world.n_gems_collected(), 1);
+    world.step(&[Action::Stay]).unwrap();
+    assert_eq!(world.n_gems_collected(), 1);
+    world.step(&[Action::East]).unwrap();
+    assert_eq!(world.n_gems_collected(), 1);
+}
+
+#[test]
+fn test_num_agents_arrived() {
+    let mut world = World::try_from("S0 G X").unwrap();
+    world.reset();
+    assert_eq!(world.n_agents_arrived(), 0);
+    world.step(&[Action::East]).unwrap();
+    assert_eq!(world.n_agents_arrived(), 0);
+    world.step(&[Action::Stay]).unwrap();
+    assert_eq!(world.n_agents_arrived(), 0);
+    world.step(&[Action::East]).unwrap();
+    assert_eq!(world.n_agents_arrived(), 1);
 }
 
 #[test]

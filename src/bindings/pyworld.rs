@@ -111,18 +111,13 @@ impl PyWorld {
 
     #[getter]
     fn exit_rate(&self) -> f32 {
-        let n_arrived: f32 = self
-            .world
-            .agents()
-            .iter()
-            .map(|a| if a.has_arrived() { 1.0f32 } else { 0.0f32 })
-            .sum();
+        let n_arrived = self.world.n_agents_arrived() as f32;
         n_arrived / (self.world.n_agents() as f32)
     }
 
     #[getter]
     fn gems_collected(&self) -> u32 {
-        self.world.gems_collected()
+        self.world.n_gems_collected()
     }
 
     #[getter]
