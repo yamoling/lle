@@ -5,7 +5,7 @@ use std::path::Path;
 const RESOURCES: &str = "resources";
 
 fn correct_windows_paths(path: &str) -> String {
-    path.replace('\\', "/")
+    path.replace('\\', "\\\\")
 }
 
 fn agent_files(cwd: &str) -> String {
