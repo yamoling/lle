@@ -1,25 +1,24 @@
-from typing import Literal
+from typing import Any, Literal
+from typing_extensions import Self
 from lle.lle import World
 import cv2
 import numpy as np
 
 from rlenv import RLEnv, DiscreteActionSpace, Observation
+import rlenv
 from .lle import World, Action
 from .observations import ObservationType
 
 
 class LLE(RLEnv[DiscreteActionSpace]):
-    def __init__(self, env_file: str, obs_type: ObservationType | str = ObservationType.RELATIVE_POSITIONS):
-        self.world = World(env_file)
+    def __init__(self, world: World, obs_type: ObservationType | str = ObservationType.RELATIVE_POSITIONS):
+        self.world = world
         super().__init__(DiscreteActionSpace(self.world.n_agents, Action.N, [a.name for a in Action.ALL]))
         if isinstance(obs_type, str):
             obs_type = ObservationType.from_str(obs_type)
         self.world_observer = obs_type.get_observation_generator(self.world)
         self._state_observer = ObservationType.FLATTENED.get_observation_generator(self.world)
         self._obs_type = obs_type
-        dims = self.world.image_dimensions
-        self._image_shape = (dims[1], dims[0], 3)
-        self._image_byte_count = np.prod(self._image_shape)
 
     @property
     def width(self) -> int:
@@ -72,5 +71,24 @@ class LLE(RLEnv[DiscreteActionSpace]):
             case other:
                 raise NotImplementedError(f"Rendering mode not implemented: {other}")
 
-    def summary(self, static=False) -> dict[str,]:
-        return {**super().summary(), "map_file_content": self.world.to_world_string(static)}
+    @staticmethod
+    def from_str(world_string: str, obs_type: ObservationType = ObservationType.FLATTENED) -> Self:
+        return LLE(World(world_string), obs_type)
+
+    @staticmethod
+    def from_file(path: str, obs_type: ObservationType = ObservationType.FLATTENED) -> Self:
+        return LLE(World.from_file(path), obs_type)
+
+    def kwargs(self) -> dict[str, Any]:
+        return {
+            "world_string": self.world.world_string,
+            "obs_type": self._obs_type.name,
+        }
+
+    @classmethod
+    def from_summary(cls, summary: dict[str, Any]):
+        kwargs = summary[cls.__name__]
+        return cls.from_str(kwargs["world_string"], ObservationType.from_str(kwargs["obs_type"]))
+
+
+rlenv.register(LLE)

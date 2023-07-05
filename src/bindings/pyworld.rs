@@ -1,5 +1,5 @@
 use numpy::PyArray1;
-use pyo3::{exceptions, prelude::*};
+use pyo3::{exceptions, prelude::*, types::PyDict};
 
 use crate::{errors::RuntimeWorldError, Position, Renderer, World, WorldError};
 
@@ -59,25 +59,28 @@ fn error_to_exception(error: WorldError) -> PyErr {
 #[pymethods]
 impl PyWorld {
     #[new]
-    pub fn new(level: String) -> PyResult<Self> {
-        match World::from_file(&level) {
-            Ok(world) => {
-                let renderer = Renderer::new(&world);
-                Ok(PyWorld { world, renderer })
-            }
-            Err(e) => Err(error_to_exception(e)),
-        }
+    pub fn new(map_str: String) -> PyResult<Self> {
+        let world = match World::try_from(map_str) {
+            Ok(world) => world,
+            Err(e) => return Err(error_to_exception(e)),
+        };
+        let renderer = Renderer::new(&world);
+        Ok(PyWorld { world, renderer })
     }
 
     #[staticmethod]
-    fn from_str(world_string: String) -> PyResult<Self> {
-        match World::try_from(world_string) {
-            Ok(world) => {
-                let renderer = Renderer::new(&world);
-                Ok(PyWorld { world, renderer })
-            }
-            Err(e) => Err(error_to_exception(e)),
-        }
+    fn from_file(filename: String) -> PyResult<Self> {
+        let world = match World::from_file(&filename) {
+            Ok(world) => world,
+            Err(e) => return Err(error_to_exception(e)),
+        };
+        let renderer = Renderer::new(&world);
+        Ok(PyWorld { world, renderer })
+    }
+
+    #[getter]
+    fn world_string(&self) -> String {
+        self.world.world_string().into()
     }
 
     #[getter]
@@ -203,6 +206,10 @@ impl PyWorld {
     #[getter]
     pub fn done(&self) -> bool {
         self.world.done()
+    }
+
+    pub fn __deepcopy__(&self, _memo: &PyDict) -> Self {
+        self.clone()
     }
 
     fn get_image(self_: PyRef<'_, Self>) -> PyResult<PyObject> {

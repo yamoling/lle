@@ -8,7 +8,7 @@ res = a1 == a2
 print(res)
 
 exit()
-env = lle.LLE("map.txt")
+env = lle.LLE.from_file("map.txt")
 env.reset()
 env.render("human")
 import time

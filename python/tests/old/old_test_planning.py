@@ -4,7 +4,7 @@ from lle.planning import ProblemState, SearchProblem, breadth_first_search, heur
 
 
 def test_start_state():
-    world = World.from_str(
+    world = World(
         """
     . . G
     S0 . .
@@ -19,7 +19,7 @@ def test_start_state():
 
 
 def test_goal_state():
-    world = World.from_str(
+    world = World(
         """
     . . G
     S0 . .
@@ -36,7 +36,7 @@ def test_goal_state():
 
 
 def test_get_successors_basic():
-    world = World.from_str(
+    world = World(
         """
     . . .
     S0 . .
@@ -59,7 +59,7 @@ def test_get_successors_basic():
 
 
 def test_get_successors_gem():
-    world = World.from_str(
+    world = World(
         """
     . .  .
     G S0 .
@@ -82,7 +82,7 @@ def test_get_successors_gem():
 
 
 def test_successors_two_agents():
-    world = World.from_str(
+    world = World(
         """
     S1 . .
     S0 . F
@@ -106,7 +106,7 @@ def test_successors_two_agents():
 
 
 def test_get_successors_end():
-    world = World.from_str(
+    world = World(
         """
     . . .
     S0 . .
@@ -120,7 +120,7 @@ def test_get_successors_end():
 
 
 def test_bfs_one_agent():
-    world = World.from_str(
+    world = World(
         """
     .  . .
     S0 . F
@@ -134,7 +134,7 @@ def test_bfs_one_agent():
 
 
 def test_bfs_two_agents():
-    world = World.from_str(
+    world = World(
         """
     S1 . .
     S0 . F
@@ -147,7 +147,7 @@ def test_bfs_two_agents():
 
 
 def test_bfs_impossible():
-    world = World.from_str(
+    world = World(
         """
     .  @ .
     S0 @ F
@@ -160,7 +160,7 @@ def test_bfs_impossible():
 
 
 def test_heuristic():
-    world = World.from_str(
+    world = World(
         """
     .  @ .
     S0 @ F
@@ -169,7 +169,7 @@ def test_heuristic():
     )
     p = SearchProblem(world)
     heuristic(p.start_state, p) == 1
-    world = World.from_str(
+    world = World(
         """
     .  . G
     S0 . F
@@ -181,7 +181,7 @@ def test_heuristic():
 
 
 def test_astar_path():
-    world = World.from_str(
+    world = World(
         """
     .  G .
     S0 @ F
@@ -198,7 +198,7 @@ def test_astar_path():
 
 
 def test_astar_no_path():
-    world = World.from_str(
+    world = World(
         """
     .  @ G
     S0 @ F
@@ -211,7 +211,7 @@ def test_astar_no_path():
 
 
 def test_difficulty_very_easy():
-    world = World.from_str(
+    world = World(
         """
     .  G .
     S0 @ F
@@ -225,7 +225,7 @@ def test_difficulty_very_easy():
 
 
 def test_difficulty_easy():
-    world = World.from_str(
+    world = World(
         """
     .  L0S .
     S0  .  F
@@ -235,13 +235,13 @@ def test_difficulty_easy():
     level = get_difficulty(world)
     assert level == Difficulty.EASY
 
-    world = World.from_str(". G L0E F @\n. . @ G .\n. . . . S1\n. L1E F G .\nS0 @ G . G")
+    world = World(". G L0E F @\n. . @ G .\n. . . . S1\n. L1E F G .\nS0 @ G . G")
     _, actions = astar(SearchProblem(world))
     assert get_difficulty(world) == Difficulty.EASY
 
 
 def test_difficulty_medium():
-    world = World.from_str(
+    world = World(
         """
     .  L0S .
     S0  .  F
@@ -253,7 +253,7 @@ def test_difficulty_medium():
 
 
 def test_difficulty_hard():
-    world = World.from_str(
+    world = World(
         """
     .  L0S  .  F
     .   .   .  .
@@ -266,7 +266,7 @@ def test_difficulty_hard():
 
 
 def test_difficulty_unsolvable():
-    world = World.from_str(
+    world = World(
         """
     .  L0S  .  F
     .   @   .  .
@@ -277,13 +277,13 @@ def test_difficulty_unsolvable():
     level = get_difficulty(world)
     assert level == Difficulty.UNSOLVABLE
 
-    world = World.from_str("G @ . . G\n. F G L0S S0\n. . G . .\n. @ L1E F @\n. . S1 G .")
+    world = World("G @ . . G\n. F G L0S S0\n. . G . .\n. @ L1E F @\n. . S1 G .")
     level = get_difficulty(world)
     assert level == Difficulty.UNSOLVABLE
 
 
 def test_finish_tile_laser_kills_agent():
-    world = World.from_str(
+    world = World(
         """
 . L0S S1 . @
 F . G . .

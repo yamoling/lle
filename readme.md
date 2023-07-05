@@ -10,7 +10,7 @@ Features:
 ## Using the environment
 ```python
 import lle
-env = lle.LLE("maps/lvl1")
+env = lle.LLE.from_file("maps/lvl1")
 env.reset()
 env.step([0]) # Perform action 0
 ```

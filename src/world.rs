@@ -21,6 +21,7 @@ use crate::{
 pub struct World {
     width: usize,
     height: usize,
+    world_string: String,
 
     grid: Vec<Vec<Rc<dyn Tile>>>,
     gems: HashMap<Position, Rc<Gem>>,
@@ -42,6 +43,10 @@ pub struct World {
 impl World {
     pub fn n_agents(&self) -> usize {
         self.agents.len()
+    }
+
+    pub fn world_string(&self) -> &str {
+        &self.world_string
     }
 
     pub fn agents(&self) -> &Vec<Agent> {
@@ -481,6 +486,7 @@ fn parse(world_str: &str) -> Result<World, WorldError> {
         reward_collector,
         available_actions: vec![],
         done: false,
+        world_string: world_str.into(),
     };
     world.sanity_check()?;
     Ok(world)

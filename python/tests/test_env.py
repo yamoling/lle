@@ -19,7 +19,7 @@ import numpy as np
 
 
 def test_available_actions():
-    env = LLE("python/tests/maps/5x5_laser_2agents")
+    env = LLE.from_file("python/tests/maps/5x5_laser_2agents")
     env.reset()
     available_actions = env.get_avail_actions()
     # Agent 0
@@ -38,7 +38,7 @@ def test_available_actions():
 
 
 def test_available_actions2():
-    env = LLE("python/tests/maps/7x7_available_actions.txt")
+    env = LLE.from_file("python/tests/maps/7x7_available_actions.txt")
     obs = env.reset()
 
     def check_available_actions(available: np.ndarray[np.int32], expected_available: list[list[Action]]) -> bool:
@@ -64,34 +64,23 @@ def test_available_actions2():
 
 
 def test_width_height():
-    env = LLE("python/tests/maps/3x3.txt")
+    env = LLE.from_file("python/tests/maps/3x3.txt")
     assert env.width == 3
     assert env.height == 3
 
-    env = LLE("python/tests/maps/3x4_gem.txt")
+    env = LLE.from_file("python/tests/maps/3x4_gem.txt")
     assert env.width == 4
     assert env.height == 3
 
 
 def test_state():
-    env = LLE("python/tests/maps/3x3.txt")
+    env = LLE.from_file("python/tests/maps/3x3.txt")
     assert env.state_shape == (1 * 5 * 3 * 3,)
     env.reset()
     state = env.get_state()
     assert state.shape == env.state_shape
 
 
-def test_env_summary_file_content_static():
-    env = LLE("python/tests/maps/3x3_alternating")
-    with open("python/tests/maps/3x3_alternating") as f:
-        file_content = f.read()
-    summary = env.summary()
-    assert summary["map_file_content"] == file_content
-    static_summary = env.summary(static=True)
-    expected_static = "L0E . @\nS0 . G\nV . F"
-    assert static_summary["map_file_content"] == expected_static
-
-
 def test_action_meanings():
-    env = LLE("python/tests/maps/3x3.txt")
-    assert env.action_meanings == [a.name for a in Action]
+    env = LLE.from_file("python/tests/maps/3x3.txt")
+    assert env.action_meanings == [a.name for a in Action.ALL]

@@ -7,10 +7,9 @@ from .agent import Agent
 from .tiles import Gem, LaserSource, Laser
 
 class World:
-    def __init__(self, filename: str):
-        """Constructor. Accepts either level names (level[1-6]) or filenames for custom maps.
+    def __init__(self, world_str: str):
+        """Constructs a World from a string.
         Raises:
-            - FileNotFoundError if the file does not exist.
             - RuntimeError if the file is not a valid level.
             - ValueError if the file is not a valid level (inconsistent dimensions or invalid grid).
         """
@@ -62,6 +61,9 @@ class World:
     @property
     def agent_positions(self) -> List[Position]:
         """Return the list of agent positions"""
+    @property
+    def world_string(self) -> str:
+        """The string upon which the world was constructed."""
     def step(self, actions: List[Action]) -> float:
         """Perform an action for each agent in the world."""
     def reset(self):
@@ -73,5 +75,5 @@ class World:
     def exit_rate(self) -> float:
         """Return the rate at which agents exit the world (i.e. enter the elevator)"""
     @staticmethod
-    def from_str(world_str: str) -> "World":
-        """Create a world from a string representation of a level."""
+    def from_file(filename: str) -> "World":
+        """Create a world from file or a standard level (`"level1"` -`"level6"`)."""

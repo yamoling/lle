@@ -1,7 +1,7 @@
 from lle import LLE, ObservationType, Action
 from timeit import timeit
 
-env = LLE("lvl6", ObservationType.FLATTENED)
+env = LLE.from_file("lvl6", ObservationType.FLATTENED)
 
 
 def bench_reset():

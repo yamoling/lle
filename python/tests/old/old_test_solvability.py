@@ -9,7 +9,7 @@ def test_make_graph():
     S0 . .
     . .  X
     """
-    world = World.from_str(map_content)
+    world = World(map_content)
     g, *_ = make_graph(world._grid)
     assert g.number_of_nodes() == 9
     assert g.number_of_edges() == 22
@@ -20,7 +20,7 @@ def test_not_solvable_corner():
     G @  .
     @ S0 X
     """
-    world = World.from_str(map_content)
+    world = World(map_content)
     try:
         world.check_solvable()
         assert False, "Should have raised an exception"
@@ -30,7 +30,7 @@ def test_not_solvable_corner():
     X @  .
     @ S0 G
     """
-    world = World.from_str(map_content)
+    world = World(map_content)
     try:
         world.check_solvable()
         assert False, "Should have raised an exception"
@@ -43,7 +43,7 @@ def test_obvious_solvable():
     G .  .
     . S0 X
     """
-    world = World.from_str(map_content)
+    world = World(map_content)
     world.reset()
     world.check_solvable()
 
@@ -54,7 +54,7 @@ def test_laser_solvable():
     L0N . .
     S0  . .
     """
-    world = World.from_str(map_content)
+    world = World(map_content)
     world.check_solvable()
 
     map_content = """
@@ -62,7 +62,7 @@ def test_laser_solvable():
     L0E . .
     S0  . .
     """
-    world = World.from_str(map_content)
+    world = World(map_content)
     world.check_solvable()
 
     map_content = """
@@ -71,7 +71,7 @@ def test_laser_solvable():
     .   . .  L1W
     S0  . S1 .
     """
-    world = World.from_str(map_content)
+    world = World(map_content)
     world.check_solvable()
 
 
@@ -82,7 +82,7 @@ def test_laser_not_solvable():
     L1E . .  .
     S0  . S1 .
     """
-    world = World.from_str(map_content)
+    world = World(map_content)
     try:
         world.check_solvable()
         assert False, "Should have raised an exception"
@@ -96,7 +96,7 @@ def test_end_tile_blocks_not_solvable():
     @  . . 
     S0 . . 
     """
-    world = World.from_str(map_content)
+    world = World(map_content)
     try:
         world.check_solvable()
         assert False
@@ -108,7 +108,7 @@ def test_end_tile_blocks_not_solvable():
     X  . . 
     S0 . S1 
     """
-    world = World.from_str(map_content)
+    world = World(map_content)
     try:
         world.check_solvable()
         assert False
@@ -127,7 +127,7 @@ def test_opposite_lasers_kill_on_spawn():
     . . . . . . .
     """
     try:
-        World.from_str(map_content)
+        World(map_content)
         assert False, "Should have raised an exception"
     except exceptions.LaserSourceKillsAgentOnStart:
         pass
@@ -140,5 +140,5 @@ def test_4agents_solvable():
     G . . . S0
     . @ @ @ G
     X S3 . @ G"""
-    world = World.from_str(map_content)
+    world = World(map_content)
     world.check_solvable()

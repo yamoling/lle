@@ -6,7 +6,7 @@ from lle import World, Action, REWARD_END_GAME, REWARD_AGENT_JUST_ARRIVED, REWAR
 
 
 def test_available_actions():
-    world = World("python/tests/maps/5x5_laser_2agents")
+    world = World.from_file("python/tests/maps/5x5_laser_2agents")
     world.reset()
     available_actions = world.available_actions()
     # available_actions = [[a.value for a in available] for available in available_actions]
@@ -20,7 +20,7 @@ def test_available_actions():
 def test_parse_wrong_worlds():
     # Not enough finish tiles for all the agents
     with pytest.raises(ValueError):
-        World.from_str(
+        World(
             """
             @ @  @ @
             @ S0 . @
@@ -30,11 +30,11 @@ def test_parse_wrong_worlds():
 
     # Zero agent in the environment
     with pytest.raises(ValueError):
-        World.from_str("X G")
+        World("X G")
 
 
 def test_world_move():
-    world = World("python/tests/maps/3x4.txt")
+    world = World.from_file("python/tests/maps/3x4.txt")
     world.reset()
     world.step([Action.SOUTH])
     world.step([Action.EAST])
@@ -42,7 +42,7 @@ def test_world_move():
 
 
 def test_time_reward():
-    world = World.from_str(
+    world = World(
         """
     . .  . X
     . S0 . .
@@ -55,7 +55,7 @@ def test_time_reward():
 
 
 def test_finish_reward():
-    world = World("python/tests/maps/basic.txt")
+    world = World.from_file("python/tests/maps/basic.txt")
     world.reset()
     world.step([Action.EAST])
     reward = world.step([Action.SOUTH])
@@ -63,7 +63,7 @@ def test_finish_reward():
 
 
 def test_collect_reward():
-    world = World("python/tests/maps/3x4_gem.txt")
+    world = World.from_file("python/tests/maps/3x4_gem.txt")
     world.reset()
     world.step([Action.SOUTH])
     reward = world.step([Action.SOUTH])
@@ -71,7 +71,7 @@ def test_collect_reward():
 
 
 def test_walk_into_wall():
-    world = World("python/tests/maps/basic.txt")
+    world = World.from_file("python/tests/maps/basic.txt")
     world.reset()
     world.step([Action.SOUTH])
     with pytest.raises(ValueError):
@@ -79,7 +79,7 @@ def test_walk_into_wall():
 
 
 def test_long_play():
-    world = World("python/tests/maps/basic.txt")
+    world = World.from_file("python/tests/maps/basic.txt")
     world.reset()
     for _ in range(10_000):
         available = [[a for a in agent_actions] for agent_actions in world.available_actions()]
@@ -90,7 +90,7 @@ def test_long_play():
 
 
 def test_world_success():
-    world = World("python/tests/maps/3x4_gem.txt")
+    world = World.from_file("python/tests/maps/3x4_gem.txt")
     # Do not collect the gem
     world.reset()
     world.step([Action.EAST])
@@ -107,7 +107,7 @@ def test_world_success():
 
 
 def test_replay():
-    world = World("python/tests/maps/3x4_gem.txt")
+    world = World.from_file("python/tests/maps/3x4_gem.txt")
 
     def play():
         """Collect the gem and finish the game. Check that the reward is is correct when collecting it."""
@@ -129,7 +129,7 @@ def test_replay():
 
 
 def test_vertex_conflict():
-    world = World("python/tests/maps/3x4_two_agents.txt")
+    world = World.from_file("python/tests/maps/3x4_two_agents.txt")
     world.reset()
     world.step([Action.SOUTH, Action.WEST])
     # Move to provoke a vertex conflict -> observations should remain identical
@@ -138,7 +138,7 @@ def test_vertex_conflict():
 
 
 def test_swapping_conflict():
-    world = World("python/tests/maps/3x4_two_agents.txt")
+    world = World.from_file("python/tests/maps/3x4_two_agents.txt")
     world.reset()
     world.step([Action.SOUTH, Action.WEST])
     # Move to provoke a swapping conflict -> observations should remain identical
@@ -147,7 +147,7 @@ def test_swapping_conflict():
 
 
 def test_walk_into_laser_source():
-    world = World.from_str(
+    world = World(
         """
         @ L0S @ 
         .  .  . 
@@ -162,7 +162,7 @@ def test_walk_into_laser_source():
 
 
 def test_walk_outside_map():
-    world = World("python/tests/maps/5x5_laser_no_wall")
+    world = World.from_file("python/tests/maps/5x5_laser_no_wall")
     world.reset()
     world.step([Action.SOUTH])
     assert not world.done
@@ -175,7 +175,7 @@ def test_walk_outside_map():
 
 
 def test_world_done():
-    world = World("python/tests/maps/one_laser")
+    world = World.from_file("python/tests/maps/one_laser")
     world.reset()
     world.step([Action.STAY, Action.WEST])
     world.step([Action.STAY, Action.WEST])
@@ -185,3 +185,9 @@ def test_world_done():
         raise Exception("The game should be finished")
     except ValueError:
         pass
+
+
+def test_deepcopy():
+    world = World("S0 . X")
+    from copy import deepcopy
+    deepcopy(world)
