@@ -19,18 +19,6 @@ permissions:
   contents: read
 
 jobs:
-  compile:
-    name: Cargo build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Setup | Checkout
-        uses: actions/checkout@v3
-      - name: Setup | Rust
-        uses: ATiltedTree/setup-rust@v1
-        with:
-          rust-version: stable
-      - name: Build | Compile
-        run: cargo check
   test:
     name: Cargo test & Pytest
     strategy:
@@ -41,7 +29,6 @@ jobs:
           - macOS-latest
         rust:
           - stable
-          - nightly
         target:
           - x86_64
           - aarch64
@@ -49,7 +36,6 @@ jobs:
           - '3.10'
         poetry-version: [latest]
     runs-on: ${{ matrix.os }}
-    needs: [compile]
     steps:
       # Setup Rust and run Rust unit/integration tests
       - name: Setup | Checkout
@@ -72,6 +58,7 @@ jobs:
           poetry-version: ${{ matrix.poetry-version }}
       - name: Run pytest
         run: |
+          poetry update pip
           poetry install
           maturin develop --release
           poetry run pytest
