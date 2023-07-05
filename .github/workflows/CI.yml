@@ -19,25 +19,70 @@ permissions:
   contents: read
 
 jobs:
-  build_and_test:
-    name: Build & Test
+  compile:
+    name: Cargo build
     runs-on: ubuntu-latest
+    steps:
+      - name: Setup | Checkout
+        uses: actions/checkout@v3
+      - name: Setup | Rust
+        uses: ATiltedTree/setup-rust@v1
+        with:
+          rust-version: stable
+      - name: Build | Compile
+        run: cargo check
+  test:
+    name: Cargo test & Pytest
     strategy:
       matrix:
-        toolchain: [stable, nightly]
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macOS-latest
+        rust:
+          - stable
+          - nightly
+        target:
+          - x86_64
+          - aarch64
         python-version: [3.10]
-        target: [x86_64, x86, aarch64]
+        poetry-version: [latest]
+    runs-on: ${{ matrix.os }}
+    needs: [compile]
     steps:
-      - uses: actions/checkout@v3
-      - run: rustup update ${{ matrix.toolchain }} && rustup default ${{ matrix.toolchain }}
-      - run: cargo build --verbose
-      - run: cargo test --verbose
-      - run: pytest
+      # Setup Rust and run Rust unit/integration tests
+      - name: Setup | Checkout
+        uses: actions/checkout@v3
+      - name: Setup | Rust
+        uses: ATiltedTree/setup-rust@v1
+        with:
+          rust-version: ${{ matrix.rust }}
+      - name: Build | Compile
+        run: cargo test
+
+      # Setup poetry and run Python tests
+      - name: Setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Run image
+        uses: abatilo/actions-poetry@v2
+        with:
+          poetry-version: ${{ matrix.poetry-version }}
+      - name: Run pytest
+        run: |
+          poetry install
+          maturin develop --release
+          poetry run pytest
+        
+        
+
+
   linux:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: [x86_64, x86, aarch64, armv7, s390x, ppc64le]
+        target: [x86_64, x86, aarch64, armv7]
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
