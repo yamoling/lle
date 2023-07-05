@@ -2,7 +2,7 @@ use pyo3::{prelude::*, pyclass::CompareOp};
 
 use crate::Action;
 
-#[pyclass(unsendable, name = "Action")]
+#[pyclass(name = "Action")]
 #[derive(Clone)]
 pub struct PyAction {
     pub action: Action,

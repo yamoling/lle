@@ -202,3 +202,36 @@ def test_deepcopy():
     from copy import deepcopy
 
     deepcopy(world)
+
+
+from threading import Thread
+
+
+class StatusThread(Thread):
+    INITIAL = 0
+    FINISHED = 1
+
+    def __init__(self, data):
+        super().__init__()
+        self.data = data
+        self.status = StatusThread.INITIAL
+
+    def run(self):
+        print(self.data)
+        self.status = StatusThread.FINISHED
+
+
+def test_action_send_thread():
+    t = StatusThread(Action.NORTH)
+    t.start()
+    t.join()
+    assert t.status == StatusThread.FINISHED
+
+
+def test_world_send_thread():
+    world = World("S0 . X")
+    t = StatusThread(world)
+    t.start()
+    t.join()
+    assert t.status == StatusThread.FINISHED
+    
