@@ -65,6 +65,9 @@ class World:
     @property
     def world_string(self) -> str:
         """The string upon which the world was constructed."""
+    @property
+    def exit_rate(self) -> float:
+        """The ratio of agents that have exited the world (i.e. enter the elevator)"""
     def step(self, actions: List[Action]) -> float:
         """Perform an action for each agent in the world."""
     def reset(self):
@@ -73,8 +76,6 @@ class World:
         """Return the list of available actions at the current time step for each agent."""
     def get_image(self) -> np.ndarray[np.uint8, Any]:
         """Return a rendered image of the world"""
-    def exit_rate(self) -> float:
-        """Return the rate at which agents exit the world (i.e. enter the elevator)"""
     @staticmethod
     def from_file(filename: str) -> "World":
         """Create a world from file or a standard level (`"level1"` -`"level6"`)."""

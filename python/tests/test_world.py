@@ -187,7 +187,18 @@ def test_world_done():
         pass
 
 
+def test_gems_collected():
+    world = World("S0 G X")
+    world.reset()
+    assert world.gems_collected == 0
+    world.step([Action.EAST])
+    assert world.gems_collected == 1
+    world.step([Action.EAST])
+    assert world.gems_collected == 1
+
+
 def test_deepcopy():
     world = World("S0 . X")
     from copy import deepcopy
+
     deepcopy(world)

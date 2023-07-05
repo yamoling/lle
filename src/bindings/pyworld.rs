@@ -109,6 +109,7 @@ impl PyWorld {
         self.world.n_gems()
     }
 
+    #[getter]
     fn exit_rate(&self) -> f32 {
         let n_arrived: f32 = self
             .world
@@ -119,6 +120,7 @@ impl PyWorld {
         n_arrived / (self.world.n_agents() as f32)
     }
 
+    #[getter]
     fn gems_collected(&self) -> u32 {
         self.world.gems_collected()
     }
