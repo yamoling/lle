@@ -4,6 +4,10 @@ use std::path::Path;
 
 const RESOURCES: &str = "resources";
 
+fn correct_windows_paths(path: &str) -> String {
+    path.replace('\\', "/")
+}
+
 fn agent_files(cwd: &str) -> String {
     // List files in resources/agents
     let files: Vec<_> = fs::read_dir(format!("{RESOURCES}/agents"))
@@ -16,7 +20,7 @@ fn agent_files(cwd: &str) -> String {
     files.iter().for_each(|file| {
         res_string.push_str("include_bytes!(\"");
         res_string.push_str(cwd);
-        res_string.push_str(file.path().to_str().unwrap());
+        res_string.push_str(&correct_windows_paths(file.path().to_str().unwrap()));
         res_string.push_str("\"),\n");
     });
     res_string.push_str("];\n");
@@ -39,7 +43,7 @@ fn laser_files(cwd: &str) -> String {
         files.iter().for_each(|file| {
             res.push_str("include_bytes!(\"");
             res.push_str(cwd);
-            res.push_str(file.path().to_str().unwrap());
+            res.push_str(&correct_windows_paths(file.path().to_str().unwrap()));
             res.push_str("\"),\n");
         });
         res.push_str("];\n");
@@ -61,7 +65,7 @@ fn laser_source_files(cwd: &str) -> String {
         files.iter().for_each(|file| {
             value.push_str(&format!(
                 "include_bytes!(\"{cwd}{}\"),\n",
-                file.path().to_str().unwrap()
+                &correct_windows_paths(file.path().to_str().unwrap())
             ));
         });
         value.push(']');
