@@ -1,4 +1,4 @@
-from typing import Any, Literal
+from typing import Any, Literal, Iterable
 from lle import World, Action
 import cv2
 import numpy as np
@@ -34,16 +34,15 @@ class LLE(RLEnv[DiscreteActionSpace]):
     def observation_shape(self):
         return self.world_observer.shape
 
-    def get_avail_actions(self) -> np.ndarray[np.int64]:
+    def get_avail_actions(self) -> np.ndarray[np.int32, Any]:
         available_actions = np.zeros((self.n_agents, self.n_actions), dtype=np.int64)
         for agent, actions in enumerate(self.world.available_actions()):
             for action in actions:
                 available_actions[agent, action.value] = 1
         return available_actions
 
-    def step(self, actions: np.ndarray[np.int32]):
-        actions = [Action(a) for a in actions]
-        reward = self.world.step(actions)
+    def step(self, actions: Iterable[int]):
+        reward = self.world.step([Action(a) for a in actions])
         obs_data = self.world_observer.observe()
         obs = Observation(obs_data, self.get_avail_actions(), self.get_state())
         info = {"gems_collected": self.world.gems_collected, "exit_rate": self.world.exit_rate()}
@@ -54,7 +53,7 @@ class LLE(RLEnv[DiscreteActionSpace]):
         obs = self.world_observer.observe()
         return Observation(obs, self.get_avail_actions(), self.get_state())
 
-    def get_state(self) -> np.ndarray[np.float32]:
+    def get_state(self) -> np.ndarray[np.float32, Any]:
         return self._state_observer.observe()[0]
 
     def render(self, mode: Literal["human", "rgb_array"] = "human"):

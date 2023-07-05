@@ -1,3 +1,4 @@
+from typing import Any
 from abc import ABC, abstractmethod
 from enum import IntEnum
 import numpy as np
@@ -45,7 +46,7 @@ class ObservationGenerator(ABC):
         self._world = world
 
     @abstractmethod
-    def observe(self) -> np.ndarray[np.float32]:
+    def observe(self) -> np.ndarray[np.float32, Any]:
         """Observe the world and return an observation for each agent."""
 
     @property
@@ -88,7 +89,7 @@ class RelativePosition(ObservationGenerator):
 class RGBImage(ObservationGenerator):
     def observe(self):
         obs = self._world.get_image()
-        obs = cv2.resize(obs, (120, 160))
+        obs = cv2.resize(obs, (120, 160))  # type: ignore
         obs = obs.transpose(2, 1, 0)
         return np.tile(obs, (self._world.n_agents, 1, 1, 1))
 

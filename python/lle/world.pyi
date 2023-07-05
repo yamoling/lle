@@ -1,7 +1,8 @@
-from typing import Tuple, List
+from typing import Tuple, List, Any
 from lle import Position
 import numpy as np
 
+# pylint: disable=import-error
 from .action import Action
 from .agent import Agent
 from .tiles import Gem, LaserSource, Laser
@@ -70,7 +71,7 @@ class World:
         """Reset the world to its initial state."""
     def available_actions(self) -> List[List[Action]]:
         """Return the list of available actions at the current time step for each agent."""
-    def get_image(self) -> np.ndarray[np.uint8]:
+    def get_image(self) -> np.ndarray[np.uint8, Any]:
         """Return a rendered image of the world"""
     def exit_rate(self) -> float:
         """Return the rate at which agents exit the world (i.e. enter the elevator)"""

@@ -46,3 +46,7 @@ max-line-length = 140
 [tool.pylint."MESSAGES CONTROL"]
 disable = []
 
+[tool.pyright]
+typeCheckingMode = "basic" # "strict", "off"
+include = ["src"]
+reportPrivateImportUsage = false
