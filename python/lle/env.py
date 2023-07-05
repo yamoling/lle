@@ -9,6 +9,8 @@ from .observations import ObservationType
 
 
 class LLE(RLEnv[DiscreteActionSpace]):
+    """Laser Learning Environment (LLE)"""
+
     def __init__(self, world: World, obs_type: ObservationType | str = ObservationType.RELATIVE_POSITIONS):
         self.world = world
         super().__init__(DiscreteActionSpace(self.world.n_agents, Action.N, [a.name for a in Action.ALL]))
@@ -75,6 +77,9 @@ class LLE(RLEnv[DiscreteActionSpace]):
     @staticmethod
     def from_file(path: str, obs_type: ObservationType = ObservationType.FLATTENED) -> "LLE":
         return LLE(World.from_file(path), obs_type)
+
+    def seed(self, _seed_value: int):
+        return
 
     def kwargs(self) -> dict[str, Any]:
         return {
