@@ -1,26 +1,16 @@
-import lle
-import cv2
-import numpy as np
+from lle import LLE, ObservationType, Action
 
-a1 = lle.Action(0)
-a2 = lle.Action(0)
-res = a1 == a2
-print(res)
 
-exit()
-env = lle.LLE.from_file("map.txt")
-env.reset()
-env.render("human")
-import time
+def main():
+    env = LLE.from_file("lvl6", ObservationType.LAYERED)
+    env.reset()
+    env.render("human")
+    import time
 
-time.sleep(0.2)
-env.render("human")
-input("Press enter to continue")
-exit()
-w.reset()
-print(w.n_agents)
-dims = w.image_dimensions
-dims = (dims[1], dims[0])
-img = np.array(w.get_image(), dtype=np.uint8).reshape((*dims, 3))
-img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-cv2.imwrite("lle.png", img)
+    time.sleep(0.2)
+    env.render("human")
+    input()
+
+
+if __name__ == "__main__":
+    main()

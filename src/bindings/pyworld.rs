@@ -30,6 +30,13 @@ fn error_to_exception(error: WorldError) -> PyErr {
             "Agent {} killed by laser {} at position ({}, {})",
             agent_num, laser_num, i, j
         )),
+        WorldError::DuplicateStartTile {
+            agent_id,
+            start1,
+            start2,
+        } => exceptions::PyValueError::new_err(format!(
+            "Agent {agent_id} has two start tiles: {start1:?} and {start2:?}"
+        )),
         WorldError::InconsistentDimensions {
             expected_n_cols,
             actual_n_cols,

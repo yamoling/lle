@@ -48,6 +48,37 @@ fn test_tile_type() {
 }
 
 #[test]
+fn test_duplicate_start_pos() {
+    match World::try_from("S0 S0 X X").unwrap_err() {
+        WorldError::DuplicateStartTile { .. } => {}
+        other => panic!("Expected DuplicateStartTile error, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_start_pos_order() {
+    let mut world = World::try_from("S1 S0 X X").unwrap();
+    assert_eq!(world.starts.len(), 2);
+    assert_eq!(world.starts.get(&(0, 0)).unwrap().agent_id(), 1);
+    assert_eq!(world.starts.get(&(0, 1)).unwrap().agent_id(), 0);
+    world.reset();
+    assert_eq!(world.agent_positions, vec![(0, 1), (0, 0)]);
+    assert_eq!(world.start_positions, vec![(0, 1), (0, 0)]);
+}
+
+#[test]
+fn test_start_pos_order_lvl6() {
+    let mut world = World::from_file("lvl6").unwrap();
+    assert_eq!(world.starts.len(), 4);
+    world.reset();
+    assert_eq!(world.agent_positions, vec![(0, 1), (0, 0)]);
+    for i in 0..4 {
+        assert_eq!(world.starts.get(&(0, i + 4)).unwrap().agent_id(), i);
+        assert_eq!(world.agent_positions[i], (0, i + 4));
+    }
+}
+
+#[test]
 fn test_laser_blocked_by_wall() {
     let mut w = World::try_from(
         "

@@ -2,7 +2,7 @@ use image::{self, RgbImage, RgbaImage};
 
 use lazy_static::lazy_static;
 
-use super::{BACKGROUND_GREY, BLACK, TILE_SIZE};
+use super::{BLACK, TILE_SIZE};
 
 // Image binary data is included at compile time with the build.rs script.
 // The environment variable OUT_DIR is set by Cargo
@@ -31,12 +31,10 @@ fn load_rgb(bytes: &[&[u8]]) -> Vec<RgbImage> {
 }
 
 lazy_static! {
-    pub static ref GEM: RgbaImage = image::load_from_memory_with_format(
-        include_bytes!("../../resources/gem.png"),
-        image::ImageFormat::Png
-    )
-    .unwrap()
-    .to_rgba8();
+    pub static ref GEM: RgbaImage =
+        image::load_from_memory_with_format(GEM_BYTES, image::ImageFormat::Png)
+            .unwrap()
+            .to_rgba8();
     pub static ref AGENTS: [RgbaImage; 4] = load_rgba(&AGENT_BYTES).try_into().unwrap();
     pub static ref HORIZONTAL_LASERS: [RgbaImage; 4] =
         load_rgba(&HORIZONTAL_LASER_BYTES).try_into().unwrap();
@@ -50,6 +48,5 @@ lazy_static! {
         load_rgb(&LASER_SOURCE_SOUTH_BYTES).try_into().unwrap();
     pub static ref LASER_SOURCES_WEST: [RgbImage; 4] =
         load_rgb(&LASER_SOURCE_WEST_BYTES).try_into().unwrap();
-    pub static ref FLOOR: RgbImage = RgbImage::from_pixel(TILE_SIZE, TILE_SIZE, BACKGROUND_GREY);
     pub static ref WALL: RgbImage = RgbImage::from_pixel(TILE_SIZE, TILE_SIZE, BLACK);
 }

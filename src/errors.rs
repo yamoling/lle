@@ -18,6 +18,11 @@ pub enum WorldError {
         n_starts: usize,
         n_exits: usize,
     },
+    DuplicateStartTile {
+        agent_id: AgentId,
+        start1: Position,
+        start2: Position,
+    },
     InconsistentDimensions {
         expected_n_cols: usize,
         actual_n_cols: usize,

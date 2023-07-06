@@ -1,10 +1,10 @@
 const LEVELS: [&str; 6] = [
-    include_str!("lvl1"),
-    include_str!("lvl2"),
-    include_str!("lvl3"),
-    include_str!("lvl4"),
-    include_str!("lvl5"),
-    include_str!("lvl6"),
+    include_str!("../resources/levels/lvl1"),
+    include_str!("../resources/levels/lvl2"),
+    include_str!("../resources/levels/lvl3"),
+    include_str!("../resources/levels/lvl4"),
+    include_str!("../resources/levels/lvl5"),
+    include_str!("../resources/levels/lvl6"),
 ];
 
 pub fn get_level(level: &str) -> Option<&'static str> {

@@ -2,7 +2,7 @@ use image::{GenericImage, Rgb, RgbImage, RgbaImage};
 
 use super::{sprites, TileVisitor, AGENT_COLOURS, BLACK, GRID_GREY};
 use crate::{
-    tiles::{Direction, Gem, Laser, LaserSource, Tile},
+    tiles::{Direction, Gem, Laser, LaserSource},
     World,
 };
 
@@ -65,7 +65,7 @@ impl Renderer {
                 TILE_SIZE,
                 TILE_SIZE,
                 AGENT_COLOURS[start.agent_id()],
-                2,
+                3,
             );
         }
 
@@ -73,7 +73,7 @@ impl Renderer {
         for (i, j) in world.exits() {
             let x = *j as u32 * TILE_SIZE;
             let y = *i as u32 * TILE_SIZE;
-            draw_rectangle(&mut self.static_frame, x, y, TILE_SIZE, TILE_SIZE, BLACK, 2);
+            draw_rectangle(&mut self.static_frame, x, y, TILE_SIZE, TILE_SIZE, BLACK, 3);
         }
     }
 
@@ -96,15 +96,23 @@ impl Renderer {
                 y: pos.0 as u32 * TILE_SIZE,
                 frame: &mut frame,
             };
-            laser.accept(self, &mut data);
+            if laser.is_on() {
+                let agent_id = laser.agent_id();
+                let laser_sprite = match laser.direction() {
+                    Direction::North | Direction::South => &sprites::VERTICAL_LASERS[agent_id],
+                    Direction::East | Direction::West => &sprites::HORIZONTAL_LASERS[agent_id],
+                };
+                add_transparent_image(data.frame, laser_sprite, data.x, data.y);
+            }
+            // Draw the tile below the laser
+            laser.wrapped().accept(self, &mut data);
         }
         for (pos, gem) in world.gems() {
-            let mut data = VisitorData {
-                x: pos.1 as u32 * TILE_SIZE,
-                y: pos.0 as u32 * TILE_SIZE,
-                frame: &mut frame,
-            };
-            gem.accept(self, &mut data);
+            let x = pos.1 as u32 * TILE_SIZE;
+            let y = pos.0 as u32 * TILE_SIZE;
+            if !gem.is_collected() {
+                add_transparent_image(&mut frame, &sprites::GEM, x, y);
+            }
         }
         for (id, pos) in world.agent_positions().iter().enumerate() {
             let x = pos.1 as u32 * TILE_SIZE;
@@ -167,45 +175,16 @@ fn draw_rectangle(
 ) {
     let horizontal_line = RgbImage::from_pixel(width, thickness, color);
     let vertical_line = RgbImage::from_pixel(thickness, height, color);
-    img.copy_from(&horizontal_line, x, y + thickness - 1)
+    img.copy_from(&horizontal_line, x, y).unwrap();
+    img.copy_from(&horizontal_line, x, y + height - thickness + 1)
         .unwrap();
-    img.copy_from(&horizontal_line, x, y + height - thickness)
-        .unwrap();
-    img.copy_from(&vertical_line, x + thickness - 1, y).unwrap();
-    img.copy_from(&vertical_line, x + width - thickness, y)
+    img.copy_from(&vertical_line, x, y).unwrap();
+    img.copy_from(&vertical_line, x + width - thickness + 1, y)
         .unwrap();
 }
 
-// fn draw_rect(
-//     frame: &mut Array3<u8>,
-//     x: usize,
-//     y: usize,
-//     width: usize,
-//     height: usize,
-//     thickness: usize,
-//     colour: u8,
-// ) {
-//     let horizontal_line = Array3::<u8>::from_elem((width, thickness, 3), colour);
-//     let vertical_line = Array3::<u8>::from_elem((thickness, height, 3), colour);
-//     frame
-//         .slice_mut(s![x, y..y + thickness, ..])
-//         .assign(&horizontal_line);
-//     frame
-//         .slice_mut(s![x, y + height - thickness..y + height, ..])
-//         .assign(&horizontal_line);
-//     frame
-//         .slice_mut(s![x + thickness..x + width - thickness, y, ..])
-//         .assign(&vertical_line);
-//     frame
-//         .slice_mut(s![x + width - thickness..x + width, y, ..])
-//         .assign(&vertical_line);
-// }
-
 impl TileVisitor for Renderer {
     fn visit_gem(&self, gem: &Gem, data: &mut VisitorData) {
-        data.frame
-            .copy_from(&(*sprites::FLOOR), data.x, data.y)
-            .unwrap();
         if !gem.is_collected() {
             add_transparent_image(data.frame, &sprites::GEM, data.x, data.y);
         }

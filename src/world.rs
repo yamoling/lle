@@ -1,7 +1,7 @@
 use itertools::{izip, Itertools};
 use std::{
     cell::Cell,
-    collections::HashMap,
+    collections::{HashMap},
     fs::File,
     io::{BufReader, Read},
     rc::Rc,
@@ -300,11 +300,25 @@ impl World {
         if self.agents.is_empty() {
             return Err(WorldError::NoAgents);
         }
+        // There are enough exit tiles
         if self.starts.len() > self.exits.len() {
             return Err(WorldError::NotEnoughExitTiles {
                 n_starts: self.starts.len(),
                 n_exits: self.exits.len(),
             });
+        }
+        // There is a single start tile per agent
+        let mut inverted = HashMap::new();
+        for (pos, start) in &self.starts {
+            let id = start.agent_id();
+            if inverted.contains_key(&id) {
+                return Err(WorldError::DuplicateStartTile {
+                    agent_id: id,
+                    start1: *inverted.get(&id).unwrap(),
+                    start2: *pos,
+                });
+            }
+            inverted.insert(id, *pos);
         }
 
         // All rows have the same length

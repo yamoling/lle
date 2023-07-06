@@ -2,7 +2,7 @@ use std::env;
 use std::fs;
 use std::path::Path;
 
-const RESOURCES: &str = "resources";
+const RESOURCES: &str = "resources/sprites";
 
 fn agent_files(cwd: &str) -> String {
     // List files in resources/agents
@@ -84,6 +84,9 @@ fn main() {
     let mut res = agent_files(&cwd);
     res.push_str(&laser_files(&cwd));
     res.push_str(&laser_source_files(&cwd));
+    res.push_str(&format!(
+        "pub const GEM_BYTES: &[u8] = include_bytes!(r#\"{cwd}/{RESOURCES}/gem.png\"#);\n",
+    ));
 
     fs::write(dest_path, res).unwrap();
     println!("cargo:rerun-if-changed=build.rs");
