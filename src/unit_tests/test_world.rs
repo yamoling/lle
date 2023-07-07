@@ -71,7 +71,6 @@ fn test_start_pos_order_lvl6() {
     let mut world = World::from_file("lvl6").unwrap();
     assert_eq!(world.starts.len(), 4);
     world.reset();
-    assert_eq!(world.agent_positions, vec![(0, 1), (0, 0)]);
     for i in 0..4 {
         assert_eq!(world.starts.get(&(0, i + 4)).unwrap().agent_id(), i);
         assert_eq!(world.agent_positions[i], (0, i + 4));
