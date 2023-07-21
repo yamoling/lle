@@ -1,4 +1,6 @@
+from typing import Any
 from lle import LLE, Action
+from copy import deepcopy
 import numpy as np
 
 
@@ -41,7 +43,7 @@ def test_available_actions2():
     env = LLE.from_file("python/tests/maps/7x7_available_actions.txt")
     obs = env.reset()
 
-    def check_available_actions(available: np.ndarray[np.int32], expected_available: list[list[Action]]) -> bool:
+    def check_available_actions(available: np.ndarray[np.int32, Any], expected_available: list[list[Action]]) -> bool:
         available_actions = np.zeros((2, Action.N), dtype=np.int32)
         for agent_id, actions in enumerate(expected_available):
             for action in actions:
@@ -84,3 +86,19 @@ def test_state():
 def test_action_meanings():
     env = LLE.from_file("python/tests/maps/3x3.txt")
     assert env.action_meanings == [a.name for a in Action.ALL]
+
+
+def test_deep_copy():
+    env = LLE.from_str("S0 X")
+    copy = deepcopy(env)
+    assert env is not copy
+
+    env.reset()
+    copy.reset()
+
+    _, _, done, _, _ = env.step([Action.EAST.value])
+    assert done
+    # If the deepcopy is not correct, the copy should also be done and the game should crash
+    # If the deepcopy is properly done, then the copy should not be done
+    _, _, done, _, _ = copy.step([Action.STAY.value])
+    assert not done

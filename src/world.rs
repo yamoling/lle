@@ -1,7 +1,7 @@
 use itertools::{izip, Itertools};
 use std::{
     cell::Cell,
-    collections::{HashMap},
+    collections::HashMap,
     fs::File,
     io::{BufReader, Read},
     rc::Rc,
@@ -17,7 +17,7 @@ use crate::{
     Action, Position, WorldError,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct World {
     width: usize,
     height: usize,
@@ -508,6 +508,12 @@ fn parse(world_str: &str) -> Result<World, WorldError> {
     };
     world.sanity_check()?;
     Ok(world)
+}
+
+impl Clone for World {
+    fn clone(&self) -> Self {
+        Self::try_from(self.world_string.clone()).unwrap()
+    }
 }
 
 #[cfg(test)]

@@ -1,6 +1,7 @@
 import random
 
 import pytest
+from copy import deepcopy
 
 from lle import World, Action, REWARD_END_GAME, REWARD_AGENT_JUST_ARRIVED, REWARD_GEM_COLLECTED
 
@@ -234,7 +235,8 @@ def test_world_send_thread():
     t.start()
     t.join()
     assert t.status == StatusThread.FINISHED
-    
+
+
 def test_rendering_size():
     world = World("S0 . X")
     TILE_SIZE = 32
@@ -243,3 +245,11 @@ def test_rendering_size():
     img = world.get_image()
     expected_shape = (expected_size[1], expected_size[0], 3)
     assert img.shape == expected_shape
+
+
+def test_deepcopy():
+    world = World("S0 . X")
+    world2 = deepcopy(world)
+    assert world.agent_positions == world2.agent_positions
+    assert world.agent_positions is not world2.agent_positions
+    assert world.width == world2.width
