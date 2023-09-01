@@ -55,7 +55,7 @@ impl Renderer {
         }
 
         // Start
-        for (pos, start) in world.starts() {
+        for (id, pos) in world.starts() {
             let x = pos.1 as u32 * TILE_SIZE;
             let y = pos.0 as u32 * TILE_SIZE;
             draw_rectangle(
@@ -64,7 +64,7 @@ impl Renderer {
                 y,
                 TILE_SIZE,
                 TILE_SIZE,
-                AGENT_COLOURS[start.agent_id()],
+                AGENT_COLOURS[id],
                 3,
             );
         }

@@ -1,4 +1,4 @@
-use itertools::{izip, Itertools};
+use itertools::izip;
 use std::{
     cell::Cell,
     collections::HashMap,
@@ -14,7 +14,7 @@ use crate::{
     reward_collector::RewardCollector,
     tiles::{Direction, Exit, Floor, Gem, Laser, LaserBeam, LaserSource, Start, Tile, Wall},
     utils::find_duplicates,
-    Action, Position, WorldError,
+    Action, AgentId, Position, WorldError,
 };
 
 #[derive(Debug)]
@@ -24,16 +24,16 @@ pub struct World {
     world_string: String,
 
     grid: Vec<Vec<Rc<dyn Tile>>>,
-    gems: HashMap<Position, Rc<Gem>>,
+    gems: Vec<(Position, Rc<Gem>)>,
     lasers: Vec<(Position, Rc<Laser>)>,
-    walls: Vec<Position>,
     sources: HashMap<Position, Rc<LaserSource>>,
-    starts: HashMap<Position, Rc<Start>>,
-    exits: HashMap<Position, Rc<Exit>>,
 
     agents: Vec<Agent>,
     start_positions: Vec<Position>,
+    exit_positions: Vec<Position>,
     agent_positions: Vec<Position>,
+    wall_positions: Vec<Position>,
+
     reward_collector: Rc<RewardCollector>,
     available_actions: Vec<Vec<Action>>,
     done: bool,
@@ -86,7 +86,7 @@ impl World {
     }
 
     pub fn walls(&self) -> impl Iterator<Item = &Position> {
-        self.walls.iter()
+        self.wall_positions.iter()
     }
 
     pub fn gems(&self) -> impl Iterator<Item = (&Position, &Gem)> {
@@ -99,12 +99,12 @@ impl World {
             .map(|(pos, source)| (pos, source.as_ref()))
     }
 
-    pub fn starts(&self) -> impl Iterator<Item = (&Position, &Start)> {
-        self.starts.iter().map(|(pos, start)| (pos, start.as_ref()))
+    pub fn starts(&self) -> impl Iterator<Item = (AgentId, &Position)> {
+        self.start_positions.iter().enumerate()
     }
 
     pub fn exits(&self) -> impl Iterator<Item = &Position> {
-        self.exits.keys()
+        self.exit_positions.iter()
     }
 
     pub fn lasers(&self) -> impl Iterator<Item = (&Position, &Laser)> {
@@ -203,8 +203,7 @@ impl World {
         }
 
         // Available positions account for edge, following and swapping conflicts
-        for (agent_id, (action, availables)) in
-            actions.iter().zip(&self.available_actions).enumerate()
+        for (agent_id, (action, availables)) in izip!(actions, &self.available_actions).enumerate()
         {
             if !availables.contains(action) {
                 return Err(RuntimeWorldError::InvalidAction {
@@ -249,7 +248,7 @@ impl World {
 
     pub fn force_state(
         &mut self,
-        agent_positions: &Vec<Position>,
+        agent_positions: &[Position],
         gem_collected: &[bool],
     ) -> Result<(), RuntimeWorldError> {
         if gem_collected.len() != self.n_gems() {
@@ -275,7 +274,8 @@ impl World {
             agent.reset();
         }
         // Set the gem states
-        for (gem, collect) in izip!(self.gems.values(), gem_collected) {
+        self.reward_collector.reset();
+        for ((_, gem), collect) in izip!(&self.gems, gem_collected) {
             if *collect {
                 gem.collect();
                 self.reward_collector
@@ -283,11 +283,11 @@ impl World {
             }
         }
 
-        self.agent_positions = agent_positions.clone();
-        for ((i, j), agent) in self.agent_positions.iter().zip(self.agents.iter()) {
+        self.agent_positions = agent_positions.to_vec();
+        for ((i, j), agent) in izip!(&self.agent_positions, &self.agents) {
             self.grid[*i][*j].pre_enter(agent);
         }
-        for ((i, j), agent) in self.agent_positions.iter().zip(self.agents.iter_mut()) {
+        for ((i, j), agent) in izip!(&self.agent_positions, &mut self.agents) {
             self.grid[*i][*j].enter(agent);
         }
         self.update();
@@ -302,25 +302,12 @@ impl World {
         if self.agents.is_empty() {
             return Err(WorldError::NoAgents);
         }
-        // There are enough exit tiles
-        if self.starts.len() > self.exits.len() {
+        // There are enough start/exit tiles
+        if self.start_positions.len() != self.exit_positions.len() {
             return Err(WorldError::NotEnoughExitTiles {
-                n_starts: self.starts.len(),
-                n_exits: self.exits.len(),
+                n_starts: self.start_positions.len(),
+                n_exits: self.exit_positions.len(),
             });
-        }
-        // There is a single start tile per agent
-        let mut inverted = HashMap::new();
-        for (pos, start) in &self.starts {
-            let id = start.agent_id();
-            if inverted.contains_key(&id) {
-                return Err(WorldError::DuplicateStartTile {
-                    agent_id: id,
-                    start1: *inverted.get(&id).unwrap(),
-                    start2: *pos,
-                });
-            }
-            inverted.insert(id, *pos);
         }
 
         // All rows have the same length
@@ -333,10 +320,6 @@ impl World {
                     row: i,
                 });
             }
-        }
-        // Agents are ordered
-        for (agent_num, agent) in self.agents.iter().enumerate() {
-            assert_eq!(agent_num, agent.id());
         }
         Ok(())
     }
@@ -416,9 +399,9 @@ fn laser_setup(
 
 fn parse(world_str: &str) -> Result<World, WorldError> {
     let mut grid = vec![];
-    let mut gems: HashMap<Position, Rc<Gem>> = HashMap::new();
-    let mut starts: HashMap<Position, Rc<Start>> = HashMap::new();
-    let mut exits: HashMap<Position, Rc<Exit>> = HashMap::new();
+    let mut gems: Vec<(Position, Rc<Gem>)> = vec![];
+    let mut start_positions: Vec<(AgentId, Position)> = vec![];
+    let mut exit_positions: Vec<Position> = vec![];
     let mut walls: Vec<Position> = vec![];
     let mut sources: HashMap<Position, Rc<LaserSource>> = HashMap::new();
     for line in world_str.lines() {
@@ -437,18 +420,27 @@ fn parse(world_str: &str) -> Result<World, WorldError> {
                 }
                 'G' => {
                     let gem = Rc::<Gem>::default();
-                    gems.insert((i, j), gem.clone());
+                    gems.push(((i, j), gem.clone()));
                     gem
                 }
                 'S' => {
-                    let agent_num = token[1..].parse().unwrap();
-                    let start = Rc::new(Start::new(agent_num));
-                    starts.insert((i, j), start.clone());
-                    start
+                    let agent_id = token[1..].parse().unwrap();
+                    // Check for duplicate agent ids
+                    for (id, other_pos) in &start_positions {
+                        if *id == agent_id {
+                            return Err(WorldError::DuplicateStartTile {
+                                agent_id,
+                                start1: *other_pos,
+                                start2: (i, j),
+                            });
+                        }
+                    }
+                    start_positions.push((agent_id, (i, j)));
+                    Rc::new(Start::new(agent_id))
                 }
                 'X' => {
                     let exit = Rc::<Exit>::default();
-                    exits.insert((i, j), exit.clone());
+                    exit_positions.push((i, j));
                     exit
                 }
                 'L' => {
@@ -475,16 +467,14 @@ fn parse(world_str: &str) -> Result<World, WorldError> {
     }
     let lasers = laser_setup(&mut grid, &sources);
 
-    let agent_positions: Vec<Position> = starts
-        .iter()
-        .map(|(pos, start)| (pos, start.agent_id()))
-        .sorted_by_key(|(_, id)| *id)
-        .map(|(pos, _)| *pos)
-        .collect();
-    let start_positions = agent_positions.clone();
+    // Sort start positions
+    start_positions.sort_by(|(id_a, _), (id_b, _)| id_a.cmp(id_b));
+    let start_positions: Vec<Position> = start_positions.iter().map(|(_, pos)| *pos).collect();
+    let agent_positions: Vec<Position> = start_positions.clone();
 
-    let reward_collector = Rc::new(RewardCollector::new(starts.len() as u32));
-    let agents = starts
+    // Create agents
+    let reward_collector = Rc::new(RewardCollector::new(start_positions.len() as u32));
+    let agents = start_positions
         .iter()
         .enumerate()
         .map(|(id, _)| Agent::new(id as u32, reward_collector.clone()))
@@ -494,10 +484,9 @@ fn parse(world_str: &str) -> Result<World, WorldError> {
         width: grid[0].len(),
         height: grid.len(),
         agent_positions,
-        starts,
-        walls,
+        wall_positions: walls,
         agents,
-        exits,
+        exit_positions,
         gems,
         sources,
         grid,

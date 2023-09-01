@@ -76,6 +76,8 @@ class World:
         """Return the list of available actions at the current time step for each agent."""
     def get_image(self) -> np.ndarray[np.uint8, Any]:
         """Return a rendered image of the world"""
+    def force_state(self, agents_pos: List[Position], gems_collected: List[bool]):
+        """Force the world to a given state (agents location and gems collection status)"""
     @staticmethod
     def from_file(filename: str) -> "World":
         """Create a world from file or a standard level (`"level1"` -`"level6"`)."""

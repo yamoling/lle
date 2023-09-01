@@ -225,4 +225,15 @@ impl PyWorld {
         let res = PyArray1::from_vec(py, buffer).reshape(dims).unwrap();
         Ok(res.into_py(py))
     }
+
+    fn force_state(
+        &mut self,
+        agents_pos: Vec<Position>,
+        gems_collected: Vec<bool>,
+    ) -> PyResult<()> {
+        match self.world.force_state(&agents_pos, &gems_collected) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(exceptions::PyValueError::new_err(format!("{e:?}"))),
+        }
+    }
 }

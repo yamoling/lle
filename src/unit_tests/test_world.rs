@@ -1,6 +1,6 @@
 use crate::{
     agent::Agent,
-    tiles::{Gem, Laser, LaserSource},
+    tiles::{Laser, LaserSource},
     Action, RuntimeWorldError, World, WorldError,
 };
 
@@ -33,18 +33,22 @@ fn test_tile_type() {
     )
     .unwrap();
     world.reset();
-    assert!(world.starts.contains_key(&(0, 0)));
-    let start = world.starts.get(&(0, 0)).unwrap();
-    assert_eq!(start.agent_id(), 0);
+    assert!(world.start_positions.contains(&(0, 0)));
+    //let start = world.start_positions[0].get(&(0, 0)).unwrap();
+    assert_eq!(world.start_positions[0], (0, 0));
 
-    let _gem: &Gem = world.gems.get(&(0, 2)).unwrap();
+    assert!(world
+        .gems
+        .iter()
+        .map(|(pos, _)| pos)
+        .any(|pos| pos.0 == 0 && pos.1 == 2));
     let source: &LaserSource = world.sources.get(&(1, 0)).unwrap();
     assert_eq!(source.agent_id(), 0);
     let laser = get_laser(&world, (1, 1));
     assert_eq!(laser.agent_id(), 0);
-    let _exit = world.exits.get(&(1, 1)).unwrap();
-    assert!(world.walls.contains(&(1, 2)));
-    assert!(world.walls.len() == 1);
+    assert!(world.exit_positions.contains(&(1, 1)));
+    assert!(world.wall_positions.contains(&(1, 2)));
+    assert!(world.wall_positions.len() == 1);
 }
 
 #[test]
@@ -58,9 +62,9 @@ fn test_duplicate_start_pos() {
 #[test]
 fn test_start_pos_order() {
     let mut world = World::try_from("S1 S0 X X").unwrap();
-    assert_eq!(world.starts.len(), 2);
-    assert_eq!(world.starts.get(&(0, 0)).unwrap().agent_id(), 1);
-    assert_eq!(world.starts.get(&(0, 1)).unwrap().agent_id(), 0);
+    assert_eq!(world.start_positions.len(), 2);
+    assert_eq!(world.start_positions[1], (0, 0));
+    assert_eq!(world.start_positions[0], (0, 1));
     world.reset();
     assert_eq!(world.agent_positions, vec![(0, 1), (0, 0)]);
     assert_eq!(world.start_positions, vec![(0, 1), (0, 0)]);
@@ -69,11 +73,11 @@ fn test_start_pos_order() {
 #[test]
 fn test_start_pos_order_lvl6() {
     let mut world = World::from_file("lvl6").unwrap();
-    assert_eq!(world.starts.len(), 4);
+    assert_eq!(world.start_positions.len(), 4);
     world.reset();
-    for i in 0..4 {
-        assert_eq!(world.starts.get(&(0, i + 4)).unwrap().agent_id(), i);
-        assert_eq!(world.agent_positions[i], (0, i + 4));
+    for (id, pos) in world.starts() {
+        assert_eq!(*pos, (0, id + 4));
+        assert_eq!(world.agent_positions[id], (0, id + 4));
     }
 }
 
@@ -175,11 +179,11 @@ fn test_force_state() {
     )
     .unwrap();
     w.reset();
-    let agent_pos = &[(1, 2)].into();
+    let agent_pos = &[(1, 2)];
     let gem_collected = [true];
     w.force_state(agent_pos, &gem_collected).unwrap();
     assert_eq!(w.agent_positions()[0], (1, 2));
-    let gem = w.gems.get(&(0, 2)).unwrap();
+    let gem = &w.gems[0].1;
     assert!(gem.is_collected());
     assert!(!w.done());
 }
@@ -194,11 +198,11 @@ fn test_force_end_state() {
     )
     .unwrap();
     w.reset();
-    let agent_pos = &[(1, 0)].into();
+    let agent_pos = &[(1, 0)];
     let gem_collected = [true];
     w.force_state(agent_pos, &gem_collected).unwrap();
     assert_eq!(w.agent_positions()[0], (1, 0));
-    let gem = w.gems.get(&(0, 2)).unwrap();
+    let gem = &w.gems[0].1;
     assert!(gem.is_collected());
     assert!(w.done());
 }
@@ -213,7 +217,7 @@ fn test_force_state_agent_dies() {
     )
     .unwrap();
     w.reset();
-    let agent_pos = &[(0, 0), (1, 1)].into();
+    let agent_pos = &[(0, 0), (1, 1)];
     let gem_collected = [true];
     w.force_state(agent_pos, &gem_collected).unwrap();
     assert!(w.agents[1].is_dead());
@@ -230,7 +234,7 @@ fn test_force_state_invalid_number_of_agents() {
     )
     .unwrap();
     w.reset();
-    let agent_pos = &[(1, 2), (0, 0)].into();
+    let agent_pos = &[(1, 2), (0, 0)];
     let gem_collected = [true];
     match w.force_state(agent_pos, &gem_collected) {
         Err(e) => match e {
@@ -257,7 +261,7 @@ fn test_force_state_invalid_number_of_gems() {
     )
     .unwrap();
     w.reset();
-    let agent_pos = &[(1, 2)].into();
+    let agent_pos = &[(1, 2)];
     let gem_collected = [true, false];
     match w.force_state(agent_pos, &gem_collected) {
         Err(e) => match e {
@@ -292,8 +296,7 @@ fn test_complex_laser_blocking() {
     let laser = get_laser(&w, (0, 3));
     assert!(laser.is_on());
 
-    w.force_state(&[(0, 2), (0, 3)].into(), &[false; 5])
-        .unwrap();
+    w.force_state(&[(0, 2), (0, 3)], &[false; 5]).unwrap();
     let laser = get_laser(&w, (0, 3));
     assert!(laser.is_off());
     assert!(w.agents().iter().all(Agent::is_alive));
