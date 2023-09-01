@@ -258,16 +258,26 @@ def test_deepcopy_not_initial_state():
     assert world.width == world2.width
 
 
-def test_force_state():
+def test_get_state():
+    world = World("S0 G X")
+    world.reset()
+    state = world.get_state()
+    assert state == ([(0, 0)], [False])
+    world.step([Action.EAST])
+    state = world.get_state()
+    assert state == ([(0, 1)], [True])
+
+
+def test_set_state():
     world = World("S0 G X")
     world.reset()
     world.step([Action.EAST])
-    world.force_state([(0, 0)], [False])
+    world.set_state([(0, 0)], [False])
     assert world.agent_positions == [(0, 0)]
     assert world.gems_collected == 0
     assert not world.done
 
-    world.force_state([(0, 2)], [True])
+    world.set_state([(0, 2)], [True])
     assert world.agent_positions == [(0, 2)]
     assert world.gems_collected == 1
     assert world.done

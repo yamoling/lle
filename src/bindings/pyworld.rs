@@ -226,14 +226,15 @@ impl PyWorld {
         Ok(res.into_py(py))
     }
 
-    fn force_state(
-        &mut self,
-        agents_pos: Vec<Position>,
-        gems_collected: Vec<bool>,
-    ) -> PyResult<()> {
+    fn set_state(&mut self, agents_pos: Vec<Position>, gems_collected: Vec<bool>) -> PyResult<()> {
         match self.world.force_state(&agents_pos, &gems_collected) {
             Ok(_) => Ok(()),
             Err(e) => Err(exceptions::PyValueError::new_err(format!("{e:?}"))),
         }
+    }
+
+    fn get_state(&self) -> (Vec<Position>, Vec<bool>) {
+        let gems_collected = self.world.gems().map(|(_, g)| g.is_collected()).collect();
+        (self.world.agent_positions().clone(), gems_collected)
     }
 }
