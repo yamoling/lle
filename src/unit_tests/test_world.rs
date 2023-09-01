@@ -175,7 +175,7 @@ fn test_force_state() {
     )
     .unwrap();
     w.reset();
-    let agent_pos = [(1, 2)].into();
+    let agent_pos = &[(1, 2)].into();
     let gem_collected = [true];
     w.force_state(agent_pos, &gem_collected).unwrap();
     assert_eq!(w.agent_positions()[0], (1, 2));
@@ -194,7 +194,7 @@ fn test_force_end_state() {
     )
     .unwrap();
     w.reset();
-    let agent_pos = [(1, 0)].into();
+    let agent_pos = &[(1, 0)].into();
     let gem_collected = [true];
     w.force_state(agent_pos, &gem_collected).unwrap();
     assert_eq!(w.agent_positions()[0], (1, 0));
@@ -213,7 +213,7 @@ fn test_force_state_agent_dies() {
     )
     .unwrap();
     w.reset();
-    let agent_pos = [(0, 0), (1, 1)].into();
+    let agent_pos = &[(0, 0), (1, 1)].into();
     let gem_collected = [true];
     w.force_state(agent_pos, &gem_collected).unwrap();
     assert!(w.agents[1].is_dead());
@@ -230,7 +230,7 @@ fn test_force_state_invalid_number_of_agents() {
     )
     .unwrap();
     w.reset();
-    let agent_pos = [(1, 2), (0, 0)].into();
+    let agent_pos = &[(1, 2), (0, 0)].into();
     let gem_collected = [true];
     match w.force_state(agent_pos, &gem_collected) {
         Err(e) => match e {
@@ -257,7 +257,7 @@ fn test_force_state_invalid_number_of_gems() {
     )
     .unwrap();
     w.reset();
-    let agent_pos = [(1, 2)].into();
+    let agent_pos = &[(1, 2)].into();
     let gem_collected = [true, false];
     match w.force_state(agent_pos, &gem_collected) {
         Err(e) => match e {
@@ -292,7 +292,8 @@ fn test_complex_laser_blocking() {
     let laser = get_laser(&w, (0, 3));
     assert!(laser.is_on());
 
-    w.force_state([(0, 2), (0, 3)].into(), &[false; 5]).unwrap();
+    w.force_state(&[(0, 2), (0, 3)].into(), &[false; 5])
+        .unwrap();
     let laser = get_laser(&w, (0, 3));
     assert!(laser.is_off());
     assert!(w.agents().iter().all(Agent::is_alive));
@@ -301,4 +302,22 @@ fn test_complex_laser_blocking() {
     assert!(w.agents().iter().all(Agent::is_alive));
     let laser = get_laser(&w, (0, 3));
     assert!(laser.is_off());
+}
+
+#[test]
+fn test_clone_after_step() {
+    let mut w = World::try_from(
+        "
+        S0 . G
+        X  . .
+    ",
+    )
+    .unwrap();
+    w.reset();
+    w.step(&[Action::East]).unwrap();
+    w.step(&[Action::East]).unwrap();
+
+    let w2 = w.clone();
+    assert_eq!(w2.agent_positions(), w.agent_positions());
+    assert_eq!(w2.n_gems_collected(), w.n_gems_collected());
 }

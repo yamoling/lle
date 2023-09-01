@@ -249,7 +249,7 @@ impl World {
 
     pub fn force_state(
         &mut self,
-        agent_positions: Vec<Position>,
+        agent_positions: &Vec<Position>,
         gem_collected: &[bool],
     ) -> Result<(), RuntimeWorldError> {
         if gem_collected.len() != self.n_gems() {
@@ -278,10 +278,12 @@ impl World {
         for (gem, collect) in izip!(self.gems.values(), gem_collected) {
             if *collect {
                 gem.collect();
+                self.reward_collector
+                    .notify(crate::reward_collector::RewardEvent::GemCollected);
             }
         }
 
-        self.agent_positions = agent_positions;
+        self.agent_positions = agent_positions.clone();
         for ((i, j), agent) in self.agent_positions.iter().zip(self.agents.iter()) {
             self.grid[*i][*j].pre_enter(agent);
         }
@@ -512,7 +514,17 @@ fn parse(world_str: &str) -> Result<World, WorldError> {
 
 impl Clone for World {
     fn clone(&self) -> Self {
-        Self::try_from(self.world_string.clone()).unwrap()
+        let mut world = Self::try_from(self.world_string.clone()).unwrap();
+        world
+            .force_state(
+                &self.agent_positions,
+                &self
+                    .gems()
+                    .map(|(_, g)| g.is_collected())
+                    .collect::<Vec<bool>>(),
+            )
+            .unwrap();
+        world
     }
 }
 

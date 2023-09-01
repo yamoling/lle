@@ -198,12 +198,6 @@ def test_gems_collected():
     assert world.gems_collected == 1
 
 
-def test_deepcopy():
-    world = World("S0 . X")
-    from copy import deepcopy
-
-    deepcopy(world)
-
 
 from threading import Thread
 
@@ -249,6 +243,16 @@ def test_rendering_size():
 
 def test_deepcopy():
     world = World("S0 . X")
+    world2 = deepcopy(world)
+    assert world.agent_positions == world2.agent_positions
+    assert world.agent_positions is not world2.agent_positions
+    assert world.width == world2.width
+
+
+def test_deepcopy_not_initial_state():
+    world = World("S0 . X")
+    world.reset()
+    world.step([Action.EAST])
     world2 = deepcopy(world)
     assert world.agent_positions == world2.agent_positions
     assert world.agent_positions is not world2.agent_positions
