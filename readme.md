@@ -7,6 +7,9 @@ Features:
 - Discrete action space
 - Full or partial observability
 
+## Paper
+Presented at EWRL 2023 as a [poster paper](https://openreview.net/forum?id=IPfdjr4rIs).
+
 ## Using the environment
 ```python
 import lle
