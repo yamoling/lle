@@ -15,9 +15,9 @@ authors = ["Yannick Molinghen <yannick.molinghen@ulb.be>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.11"
+python = ">=3.10"
 numpy = "^1.25.0"
-rlenv = {git = "https://github.com/yamoling/rlenv.git"}
+rlenv = { git = "https://github.com/yamoling/rlenv.git" }
 
 [tool.poetry.group.dev.dependencies]
 maturin = "^1.1.0"
@@ -28,7 +28,7 @@ requires = ["maturin>=1.1,<2.0"]
 build-backend = "maturin"
 
 [tool.maturin]
-python-source = "python" # Target directory
+python-source = "python"             # Target directory
 features = ["pyo3/extension-module"]
 
 
@@ -47,6 +47,6 @@ max-line-length = 140
 disable = []
 
 [tool.pyright]
-typeCheckingMode = "basic" # "strict", "off"
+typeCheckingMode = "basic"       # "strict", "off"
 include = ["src"]
 reportPrivateImportUsage = false

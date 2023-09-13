@@ -324,3 +324,23 @@ fn test_clone_after_step() {
     assert_eq!(w2.agent_positions(), w.agent_positions());
     assert_eq!(w2.n_gems_collected(), w.n_gems_collected());
 }
+
+#[test]
+fn test_set_state_available_actions() {
+    let mut w = World::try_from(
+        "
+        .  . . @ . . . @ . X
+        .  @ . @ . @ . @ . @
+        S0 @ . . . @ . . . @
+    ",
+    )
+    .unwrap();
+    w.reset();
+    w.force_state(&[(0, 0)], &[]).unwrap();
+    let actions = w.available_actions();
+    assert_eq!(actions.len(), 1);
+    assert_eq!(actions[0].len(), 3);
+    assert!(actions[0].contains(&Action::South));
+    assert!(actions[0].contains(&Action::Stay));
+    assert!(actions[0].contains(&Action::East));
+}

@@ -69,11 +69,15 @@ class World:
     def exit_rate(self) -> float:
         """The ratio of agents that have exited the world (i.e. enter the elevator)"""
     def step(self, actions: List[Action]) -> float:
-        """Perform an action for each agent in the world."""
+        """Perform an action for each agent in the world and return the collective step reward."""
     def reset(self):
         """Reset the world to its initial state."""
     def available_actions(self) -> List[List[Action]]:
-        """Return the list of available actions at the current time step for each agent."""
+        """
+        Return the list of available actions at the current time step for each agent.
+
+        The actions available for agent `n` are given by `world.available_actions()[n]`.
+        """
     def get_image(self) -> np.ndarray[np.uint8, Any]:
         """Return a rendered image of the world"""
     def get_state(self) -> Tuple[List[Position], List[bool]]:
