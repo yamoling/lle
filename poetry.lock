@@ -193,14 +193,20 @@ files = []
 develop = false
 
 [package.dependencies]
-numpy = ">=1.23.4"
-opencv-python = ">=4.6.0.66"
+numpy = "^1.23.4"
+opencv-python = "^4.6.0"
+
+[package.extras]
+all = ["gymnasium[accept-rom-license,atari] (>=0.28.1,<0.29.0)", "pettingzoo (>=1.22.3,<2.0.0)", "smac @ git+https://github.com/oxwhirl/smac.git"]
+atari = ["gymnasium[accept-rom-license,atari] (>=0.28.1,<0.29.0)"]
+pettingzoo = ["pettingzoo (>=1.22.3,<2.0.0)"]
+smac = ["smac @ git+https://github.com/oxwhirl/smac.git"]
 
 [package.source]
 type = "git"
 url = "https://github.com/yamoling/rlenv.git"
 reference = "HEAD"
-resolved_reference = "be205a1504ef2cf3acaf7350f762a7df3eccf660"
+resolved_reference = "ea297522ee47aa0e4d3e32e7c6360b68e18be44d"
 
 [[package]]
 name = "tomli"
