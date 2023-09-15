@@ -10,7 +10,7 @@ class WorldState:
     def __init__(self, agent_positions: List[Position], gems_collected: List[bool]):
         """Construct a WorldState from the position of each agent and the collection status of each gem."""
     @property
-    def agent_positions(self) -> List[Position]:
+    def agents_positions(self) -> List[Position]:
         """The position of each agent."""
     @property
     def gems_collected(self) -> List[bool]:
@@ -69,7 +69,7 @@ class World:
     def lasers(self) -> List[Tuple[Position, Laser]]:
         """The position of every laser."""
     @property
-    def agent_positions(self) -> List[Position]:
+    def agents_positions(self) -> List[Position]:
         """Return the list of agent positions"""
     @property
     def world_string(self) -> str:

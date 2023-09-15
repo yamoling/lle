@@ -71,7 +71,7 @@ class RelativePosition(ObservationGenerator):
         self.dimensions = np.array([world.height, world.width])
 
     def observe(self):
-        positions = np.tile((self._world.agent_positions / self.dimensions).flatten(), (self._world.n_agents, 1))
+        positions = np.tile((self._world.agents_positions / self.dimensions).flatten(), (self._world.n_agents, 1))
         gems_collected = np.tile(
             np.array([not gem.is_collected for _, gem in self._world.gems], dtype=np.float32), (self._world.n_agents, 1)
         )
@@ -157,7 +157,7 @@ class Layered(ObservationGenerator):
         for (i, j), gem in self._world.gems:
             if not gem.is_collected:
                 obs[self.GEM, i, j] = 1.0
-        for i, (y, x) in enumerate(self._world.agent_positions):
+        for i, (y, x) in enumerate(self._world.agents_positions):
             obs[self.A0 + i, y, x] = 1.0
         return np.tile(obs, (self.n_agents, 1, 1, 1))
 

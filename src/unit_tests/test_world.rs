@@ -185,7 +185,7 @@ fn test_force_state() {
         gems_collected: [true].into(),
     };
     w.force_state(&s).unwrap();
-    assert_eq!(w.agent_positions()[0], (1, 2));
+    assert_eq!(w.agents_positions()[0], (1, 2));
     let gem = &w.gems[0].1;
     assert!(gem.is_collected());
     assert!(!w.done());
@@ -206,7 +206,7 @@ fn test_force_end_state() {
         gems_collected: [true].into(),
     };
     w.force_state(&s).unwrap();
-    assert_eq!(w.agent_positions()[0], (1, 0));
+    assert_eq!(w.agents_positions()[0], (1, 0));
     let gem = &w.gems[0].1;
     assert!(gem.is_collected());
     assert!(w.done());
@@ -337,7 +337,7 @@ fn test_clone_after_step() {
     w.step(&[Action::East]).unwrap();
 
     let w2 = w.clone();
-    assert_eq!(w2.agent_positions(), w.agent_positions());
+    assert_eq!(w2.agents_positions(), w.agents_positions());
     assert_eq!(w2.n_gems_collected(), w.n_gems_collected());
 }
 

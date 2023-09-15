@@ -114,7 +114,7 @@ impl Renderer {
                 add_transparent_image(&mut frame, &sprites::GEM, x, y);
             }
         }
-        for (id, pos) in world.agent_positions().iter().enumerate() {
+        for (id, pos) in world.agents_positions().iter().enumerate() {
             let x = pos.1 as u32 * TILE_SIZE;
             let y = pos.0 as u32 * TILE_SIZE;
             add_transparent_image(&mut frame, &sprites::AGENTS[id], x, y);

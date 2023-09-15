@@ -1,5 +1,7 @@
+use std::hash::{Hash, Hasher};
+
 use numpy::PyArray1;
-use pyo3::{exceptions, prelude::*, types::PyDict};
+use pyo3::{exceptions, prelude::*, pyclass::CompareOp, types::PyDict};
 
 use crate::{errors::RuntimeWorldError, world::WorldState, Position, Renderer, World, WorldError};
 
@@ -10,10 +12,10 @@ use super::{
 };
 
 #[pyclass(name = "WorldState")]
-#[derive(Clone)]
+#[derive(Clone, Hash)]
 pub struct PyWorldState {
     #[pyo3(get, set)]
-    agent_positions: Vec<Position>,
+    agents_positions: Vec<Position>,
     #[pyo3(get, set)]
     gems_collected: Vec<bool>,
 }
@@ -21,9 +23,9 @@ pub struct PyWorldState {
 #[pymethods]
 impl PyWorldState {
     #[new]
-    pub fn new(agent_positions: Vec<Position>, gems_collected: Vec<bool>) -> Self {
+    pub fn new(agents_positions: Vec<Position>, gems_collected: Vec<bool>) -> Self {
         Self {
-            agent_positions,
+            agents_positions,
             gems_collected,
         }
     }
@@ -35,21 +37,38 @@ impl PyWorldState {
     fn __str__(&self) -> String {
         format!(
             "WorldState(agent_positions={:?}, gems_collected={:?})",
-            self.agent_positions, self.gems_collected
+            self.agents_positions, self.gems_collected
         )
     }
 
     fn __repr__(&self) -> String {
         self.__str__()
     }
+
+    fn __hash__(&self) -> u64 {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        self.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    fn __richcmp__(&self, other: &Self, cmp: CompareOp) -> PyResult<bool> {
+        let eq = self.agents_positions == other.agents_positions
+            && self.gems_collected == other.gems_collected;
+        match cmp {
+            CompareOp::Eq => Ok(eq),
+            CompareOp::Ne => Ok(!eq),
+            other => Err(exceptions::PyArithmeticError::new_err(format!(
+                "Unsupported comparison: {other:?}"
+            ))),
+        }
+    }
 }
 
-//Below code inplements  Into<WorldState> for PyWorldState
-impl Into<WorldState> for PyWorldState {
-    fn into(self) -> WorldState {
+impl From<PyWorldState> for WorldState {
+    fn from(val: PyWorldState) -> Self {
         WorldState {
-            agents_positions: self.agent_positions,
-            gems_collected: self.gems_collected,
+            agents_positions: val.agents_positions,
+            gems_collected: val.gems_collected,
         }
     }
 }
@@ -173,8 +192,8 @@ impl PyWorld {
     }
 
     #[getter]
-    fn agent_positions(&self) -> Vec<Position> {
-        self.world.agent_positions().clone()
+    fn agents_positions(&self) -> Vec<Position> {
+        self.world.agents_positions().clone()
     }
 
     #[getter]

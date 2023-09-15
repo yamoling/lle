@@ -1,5 +1,5 @@
 import random
-
+from threading import Thread
 import pytest
 from copy import deepcopy
 
@@ -198,9 +198,6 @@ def test_gems_collected():
     assert world.gems_collected == 1
 
 
-from threading import Thread
-
-
 class StatusThread(Thread):
     INITIAL = 0
     FINISHED = 1
@@ -243,8 +240,8 @@ def test_rendering_size():
 def test_deepcopy():
     world = World("S0 . X")
     world2 = deepcopy(world)
-    assert world.agent_positions == world2.agent_positions
-    assert world.agent_positions is not world2.agent_positions
+    assert world.agents_positions == world2.agents_positions
+    assert world.agents_positions is not world2.agents_positions
     assert world.width == world2.width
 
 
@@ -253,8 +250,8 @@ def test_deepcopy_not_initial_state():
     world.reset()
     world.step([Action.EAST])
     world2 = deepcopy(world)
-    assert world.agent_positions == world2.agent_positions
-    assert world.agent_positions is not world2.agent_positions
+    assert world.agents_positions == world2.agents_positions
+    assert world.agents_positions is not world2.agents_positions
     assert world.width == world2.width
 
 
@@ -262,11 +259,11 @@ def test_get_state():
     world = World("S0 G X")
     world.reset()
     state = world.get_state()
-    assert state.agent_positions == [(0, 0)]
+    assert state.agents_positions == [(0, 0)]
     assert state.gems_collected == [False]
     world.step([Action.EAST])
     state = world.get_state()
-    assert state.agent_positions == [(0, 1)]
+    assert state.agents_positions == [(0, 1)]
     assert state.gems_collected == [True]
 
 
@@ -275,11 +272,33 @@ def test_set_state():
     world.reset()
     world.step([Action.EAST])
     world.set_state(WorldState([(0, 0)], [False]))
-    assert world.agent_positions == [(0, 0)]
+    assert world.agents_positions == [(0, 0)]
     assert world.gems_collected == 0
     assert not world.done
 
     world.set_state(WorldState([(0, 2)], [True]))
-    assert world.agent_positions == [(0, 2)]
+    assert world.agents_positions == [(0, 2)]
     assert world.gems_collected == 1
     assert world.done
+
+
+def test_world_state_hash_eq():
+    world = World("S0 G X")
+    world.reset()
+    state1 = world.get_state()
+    state2 = world.get_state()
+    assert hash(state1) == hash(state2)
+    assert state1 == state2
+    world.step([Action.EAST])
+    state1 = world.get_state()
+    state2 = world.get_state()
+    assert hash(state1) == hash(state2)
+    assert state1 == state2
+
+
+def test_world_state_hash_neq():
+    s1 = WorldState([(0, 0)], [False])
+    s2 = WorldState([(0, 1)], [False])
+
+    assert hash(s1) != hash(s2)
+    assert s1 != s2

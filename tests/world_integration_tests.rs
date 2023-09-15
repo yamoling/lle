@@ -228,7 +228,7 @@ fn test_vertex_conflict() {
     .unwrap();
     w.reset();
     w.step(&[Action::South, Action::North]).unwrap();
-    let pos = w.agent_positions();
+    let pos = w.agents_positions();
     assert_eq!(pos[0], (0, 0));
     assert_eq!(pos[1], (2, 0));
 }
@@ -364,7 +364,7 @@ fn test_reset() {
     for i in 0..10 {
         w.reset();
         assert!(!w.done(), "World should not be done after reset (step {i})");
-        assert_eq!(w.agent_positions()[0], (0, 0));
+        assert_eq!(w.agents_positions()[0], (0, 0));
         assert_eq!(w.step(&[Action::East]).unwrap(), REWARD_GEM_COLLECTED);
         assert!(!w.done());
         assert_eq!(
