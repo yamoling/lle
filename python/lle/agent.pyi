@@ -1,6 +1,8 @@
+AgentId = int
+
 class Agent:
     @property
-    def num(self) -> int:
+    def num(self) -> AgentId:
         """The agent ID."""
     @property
     def has_arrived(self) -> bool:

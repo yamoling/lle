@@ -1,6 +1,6 @@
 # pylint: disable=import-error
 from .action import Action
-from .world import World
+from .world import World, WorldState
 from .agent import Agent
 from .tiles import Gem, Laser, LaserSource, Tile
 from .direction import Direction

@@ -17,6 +17,12 @@ use crate::{
     Action, AgentId, Position, WorldError,
 };
 
+#[derive(Debug, Clone)]
+pub struct WorldState {
+    pub agents_positions: Vec<Position>,
+    pub gems_collected: Vec<bool>,
+}
+
 #[derive(Debug)]
 pub struct World {
     width: usize,
@@ -246,20 +252,27 @@ impl World {
         Ok(self.reward_collector.consume_step_reward())
     }
 
-    pub fn force_state(
-        &mut self,
-        agent_positions: &[Position],
-        gem_collected: &[bool],
-    ) -> Result<(), RuntimeWorldError> {
-        if gem_collected.len() != self.n_gems() {
+    pub fn get_state(&self) -> WorldState {
+        WorldState {
+            agents_positions: self.agent_positions.clone(),
+            gems_collected: self
+                .gems
+                .iter()
+                .map(|(_, gem)| gem.is_collected())
+                .collect(),
+        }
+    }
+
+    pub fn force_state(&mut self, state: &WorldState) -> Result<(), RuntimeWorldError> {
+        if state.gems_collected.len() != self.n_gems() {
             return Err(RuntimeWorldError::InvalidNumberOfGems {
-                given: gem_collected.len(),
+                given: state.gems_collected.len(),
                 expected: self.gems.len(),
             });
         }
-        if agent_positions.len() != self.n_agents() {
+        if state.agents_positions.len() != self.n_agents() {
             return Err(RuntimeWorldError::InvalidNumberOfAgents {
-                given: agent_positions.len(),
+                given: state.agents_positions.len(),
                 expected: self.n_agents(),
             });
         }
@@ -275,7 +288,7 @@ impl World {
         }
         // Set the gem states
         self.reward_collector.reset();
-        for ((_, gem), collect) in izip!(&self.gems, gem_collected) {
+        for ((_, gem), collect) in izip!(&self.gems, &state.gems_collected) {
             if *collect {
                 gem.collect();
                 self.reward_collector
@@ -283,7 +296,7 @@ impl World {
             }
         }
 
-        self.agent_positions = agent_positions.to_vec();
+        self.agent_positions = state.agents_positions.to_vec();
         for ((i, j), agent) in izip!(&self.agent_positions, &self.agents) {
             self.grid[*i][*j].pre_enter(agent);
         }
@@ -504,15 +517,7 @@ fn parse(world_str: &str) -> Result<World, WorldError> {
 impl Clone for World {
     fn clone(&self) -> Self {
         let mut world = Self::try_from(self.world_string.clone()).unwrap();
-        world
-            .force_state(
-                &self.agent_positions,
-                &self
-                    .gems()
-                    .map(|(_, g)| g.is_collected())
-                    .collect::<Vec<bool>>(),
-            )
-            .unwrap();
+        world.force_state(&self.get_state()).unwrap();
         world
     }
 }

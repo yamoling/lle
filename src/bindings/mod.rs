@@ -11,6 +11,7 @@ mod pyworld;
 #[pymodule]
 pub fn lle(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<pyworld::PyWorld>()?;
+    m.add_class::<pyworld::PyWorldState>()?;
     m.add_class::<pyaction::PyAction>()?;
     m.add_class::<pyagent::PyAgent>()?;
     m.add_class::<pydirection::PyDirection>()?;

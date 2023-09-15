@@ -3,7 +3,7 @@ import random
 import pytest
 from copy import deepcopy
 
-from lle import World, Action, REWARD_END_GAME, REWARD_AGENT_JUST_ARRIVED, REWARD_GEM_COLLECTED
+from lle import World, WorldState, Action, REWARD_END_GAME, REWARD_AGENT_JUST_ARRIVED, REWARD_GEM_COLLECTED
 
 
 def test_available_actions():
@@ -262,22 +262,24 @@ def test_get_state():
     world = World("S0 G X")
     world.reset()
     state = world.get_state()
-    assert state == ([(0, 0)], [False])
+    assert state.agent_positions == [(0, 0)]
+    assert state.gems_collected == [False]
     world.step([Action.EAST])
     state = world.get_state()
-    assert state == ([(0, 1)], [True])
+    assert state.agent_positions == [(0, 1)]
+    assert state.gems_collected == [True]
 
 
 def test_set_state():
     world = World("S0 G X")
     world.reset()
     world.step([Action.EAST])
-    world.set_state([(0, 0)], [False])
+    world.set_state(WorldState([(0, 0)], [False]))
     assert world.agent_positions == [(0, 0)]
     assert world.gems_collected == 0
     assert not world.done
 
-    world.set_state([(0, 2)], [True])
+    world.set_state(WorldState([(0, 2)], [True]))
     assert world.agent_positions == [(0, 2)]
     assert world.gems_collected == 1
     assert world.done

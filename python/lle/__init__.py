@@ -5,6 +5,7 @@ from typing import Tuple
 from .lle import (
     Action,
     World,
+    WorldState,
     Agent,
     Gem,
     Laser,

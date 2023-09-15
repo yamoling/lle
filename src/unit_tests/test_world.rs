@@ -1,6 +1,7 @@
 use crate::{
     agent::Agent,
     tiles::{Laser, LaserSource},
+    world::WorldState,
     Action, RuntimeWorldError, World, WorldError,
 };
 
@@ -179,9 +180,11 @@ fn test_force_state() {
     )
     .unwrap();
     w.reset();
-    let agent_pos = &[(1, 2)];
-    let gem_collected = [true];
-    w.force_state(agent_pos, &gem_collected).unwrap();
+    let s = WorldState {
+        agents_positions: [(1, 2)].into(),
+        gems_collected: [true].into(),
+    };
+    w.force_state(&s).unwrap();
     assert_eq!(w.agent_positions()[0], (1, 2));
     let gem = &w.gems[0].1;
     assert!(gem.is_collected());
@@ -198,9 +201,11 @@ fn test_force_end_state() {
     )
     .unwrap();
     w.reset();
-    let agent_pos = &[(1, 0)];
-    let gem_collected = [true];
-    w.force_state(agent_pos, &gem_collected).unwrap();
+    let s = WorldState {
+        agents_positions: [(1, 0)].into(),
+        gems_collected: [true].into(),
+    };
+    w.force_state(&s).unwrap();
     assert_eq!(w.agent_positions()[0], (1, 0));
     let gem = &w.gems[0].1;
     assert!(gem.is_collected());
@@ -217,9 +222,12 @@ fn test_force_state_agent_dies() {
     )
     .unwrap();
     w.reset();
-    let agent_pos = &[(0, 0), (1, 1)];
-    let gem_collected = [true];
-    w.force_state(agent_pos, &gem_collected).unwrap();
+
+    let s = WorldState {
+        agents_positions: [(1, 0), (1, 1)].into(),
+        gems_collected: [false; 1].into(),
+    };
+    w.force_state(&s).unwrap();
     assert!(w.agents[1].is_dead());
     assert!(w.done());
 }
@@ -234,9 +242,11 @@ fn test_force_state_invalid_number_of_agents() {
     )
     .unwrap();
     w.reset();
-    let agent_pos = &[(1, 2), (0, 0)];
-    let gem_collected = [true];
-    match w.force_state(agent_pos, &gem_collected) {
+    let s = WorldState {
+        agents_positions: [(1, 2), (0, 0)].into(),
+        gems_collected: [true].into(),
+    };
+    match w.force_state(&s) {
         Err(e) => match e {
             RuntimeWorldError::InvalidNumberOfAgents {
                 given: actual,
@@ -261,9 +271,11 @@ fn test_force_state_invalid_number_of_gems() {
     )
     .unwrap();
     w.reset();
-    let agent_pos = &[(1, 2)];
-    let gem_collected = [true, false];
-    match w.force_state(agent_pos, &gem_collected) {
+    let s = WorldState {
+        agents_positions: [(1, 2)].into(),
+        gems_collected: [true, false].into(),
+    };
+    match w.force_state(&s) {
         Err(e) => match e {
             RuntimeWorldError::InvalidNumberOfGems {
                 given: actual,
@@ -296,7 +308,11 @@ fn test_complex_laser_blocking() {
     let laser = get_laser(&w, (0, 3));
     assert!(laser.is_on());
 
-    w.force_state(&[(0, 2), (0, 3)], &[false; 5]).unwrap();
+    let state = WorldState {
+        agents_positions: [(0, 2), (0, 3)].into(),
+        gems_collected: [false; 5].into(),
+    };
+    w.force_state(&state).unwrap();
     let laser = get_laser(&w, (0, 3));
     assert!(laser.is_off());
     assert!(w.agents().iter().all(Agent::is_alive));
@@ -336,7 +352,11 @@ fn test_set_state_available_actions() {
     )
     .unwrap();
     w.reset();
-    w.force_state(&[(0, 0)], &[]).unwrap();
+    let s = WorldState {
+        agents_positions: [(0, 0)].into(),
+        gems_collected: [].into(),
+    };
+    w.force_state(&s).unwrap();
     let actions = w.available_actions();
     assert_eq!(actions.len(), 1);
     assert_eq!(actions[0].len(), 3);

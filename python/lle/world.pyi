@@ -2,10 +2,19 @@ from typing import Tuple, List, Any
 from lle import Position
 import numpy as np
 
-# pylint: disable=import-error
 from .action import Action
 from .agent import Agent
 from .tiles import Gem, LaserSource, Laser
+
+class WorldState:
+    def __init__(self, agent_positions: List[Position], gems_collected: List[bool]):
+        """Construct a WorldState from the position of each agent and the collection status of each gem."""
+    @property
+    def agent_positions(self) -> List[Position]:
+        """The position of each agent."""
+    @property
+    def gems_collected(self) -> List[bool]:
+        """The collection status of each gem."""
 
 class World:
     def __init__(self, world_str: str):
@@ -80,10 +89,10 @@ class World:
         """
     def get_image(self) -> np.ndarray[np.uint8, Any]:
         """Return a rendered image of the world"""
-    def get_state(self) -> Tuple[List[Position], List[bool]]:
-        """Return a state representation of the world"""
-    def set_state(self, agents_pos: List[Position], gems_collected: List[bool]):
-        """Force the world to a given state (agents location and gems collection status)"""
+    def get_state(self) -> WorldState:
+        """Return a state representation of the world."""
+    def set_state(self, state: WorldState):
+        """Force the world to a given state."""
     @staticmethod
     def from_file(filename: str) -> "World":
         """Create a world from file or a standard level (`"level1"` -`"level6"`)."""

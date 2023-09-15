@@ -3,7 +3,7 @@ mod agent;
 mod bindings;
 mod errors;
 mod levels;
-// mod planning;
+//mod planning;
 pub mod rendering;
 mod reward_collector;
 mod tiles;

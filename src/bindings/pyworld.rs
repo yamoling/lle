@@ -1,13 +1,58 @@
 use numpy::PyArray1;
 use pyo3::{exceptions, prelude::*, types::PyDict};
 
-use crate::{errors::RuntimeWorldError, Position, Renderer, World, WorldError};
+use crate::{errors::RuntimeWorldError, world::WorldState, Position, Renderer, World, WorldError};
 
 use super::{
     pyaction::PyAction,
     pyagent::PyAgent,
     pytile::{PyGem, PyLaser, PyLaserSource},
 };
+
+#[pyclass(name = "WorldState")]
+#[derive(Clone)]
+pub struct PyWorldState {
+    #[pyo3(get, set)]
+    agent_positions: Vec<Position>,
+    #[pyo3(get, set)]
+    gems_collected: Vec<bool>,
+}
+
+#[pymethods]
+impl PyWorldState {
+    #[new]
+    pub fn new(agent_positions: Vec<Position>, gems_collected: Vec<bool>) -> Self {
+        Self {
+            agent_positions,
+            gems_collected,
+        }
+    }
+
+    fn __deepcopy__(&self, _memo: &PyDict) -> Self {
+        self.clone()
+    }
+
+    fn __str__(&self) -> String {
+        format!(
+            "WorldState(agent_positions={:?}, gems_collected={:?})",
+            self.agent_positions, self.gems_collected
+        )
+    }
+
+    fn __repr__(&self) -> String {
+        self.__str__()
+    }
+}
+
+//Below code inplements  Into<WorldState> for PyWorldState
+impl Into<WorldState> for PyWorldState {
+    fn into(self) -> WorldState {
+        WorldState {
+            agents_positions: self.agent_positions,
+            gems_collected: self.gems_collected,
+        }
+    }
+}
 
 #[pyclass(unsendable, name = "World")]
 #[derive(Clone)]
@@ -226,15 +271,15 @@ impl PyWorld {
         Ok(res.into_py(py))
     }
 
-    fn set_state(&mut self, agents_pos: Vec<Position>, gems_collected: Vec<bool>) -> PyResult<()> {
-        match self.world.force_state(&agents_pos, &gems_collected) {
+    fn set_state(&mut self, state: PyWorldState) -> PyResult<()> {
+        match self.world.force_state(&state.into()) {
             Ok(_) => Ok(()),
             Err(e) => Err(exceptions::PyValueError::new_err(format!("{e:?}"))),
         }
     }
 
-    fn get_state(&self) -> (Vec<Position>, Vec<bool>) {
-        let gems_collected = self.world.gems().map(|(_, g)| g.is_collected()).collect();
-        (self.world.agent_positions().clone(), gems_collected)
+    fn get_state(&self) -> PyWorldState {
+        let state = self.world.get_state();
+        PyWorldState::new(state.agents_positions, state.gems_collected)
     }
 }
