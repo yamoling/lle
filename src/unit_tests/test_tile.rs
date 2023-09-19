@@ -1,12 +1,12 @@
 use std::{cell::Cell, rc::Rc};
 
 use crate::{
-    agent::Agent, reward_collector::RewardCollector, tiles::LaserBeam, AgentId, Floor, Gem, Laser,
-    Start, Tile,
+    agent::Agent, reward_collector::SharedRewardCollector, tiles::LaserBeam, AgentId, Floor, Gem,
+    Laser, Start, Tile,
 };
 
 fn make_agent(id: u32) -> Agent {
-    Agent::new(0, Rc::new(RewardCollector::new(id + 1)))
+    Agent::new(0, Rc::new(SharedRewardCollector::new(id + 1)))
 }
 
 fn make_laser(agent_id: AgentId, length: usize) -> Laser {

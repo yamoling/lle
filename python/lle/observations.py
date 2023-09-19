@@ -15,6 +15,8 @@ class ObservationType(IntEnum):
     RGB_IMAGE = 1
     LAYERED = 2
     FLATTENED = 3
+    PARTIAL_3x3 = 4
+    PARTIAL_5x5 = 4
 
     @staticmethod
     def from_str(s: str) -> "ObservationType":
@@ -36,6 +38,8 @@ class ObservationType(IntEnum):
                 return Layered(world)
             case ObservationType.FLATTENED:
                 return FlattenedLayered(world)
+            case ObservationType.PARTIAL_3x3:
+                return PartialGenerator(world, 3)
             case other:
                 raise ValueError(f"Unknown observation type: {other}")
 
@@ -194,3 +198,65 @@ class FlattenedLayered(ObservationGenerator):
     def set_world(self, new_world: World):
         self.layered.set_world(new_world)
         return super().set_world(new_world)
+
+
+def distance(agent_pos: tuple[int, int], other_pos: tuple[int, int]) -> int:
+    return abs(agent_pos[0] - other_pos[0]) + abs(agent_pos[1] - other_pos[1])
+
+
+class PartialGenerator(ObservationGenerator):
+    def __init__(self, world: World, square_size: int):
+        super().__init__(world)
+        assert square_size % 2 == 1, "Can only use odd numbers for the square size"
+        self.size = square_size
+        self._shape = (world.n_agents * 2 + 3, self.size, self.size)
+        self._center = np.array([(self.size - 1) / 2, (self.size - 1) / 2], dtype=np.int64)
+        self.WALL = world.n_agents
+        self.LASER_0 = self.WALL + 1
+        self.GEM = self.LASER_0 + world.n_agents
+        self.EXIT = self.GEM + 1
+
+    @property
+    def shape(self) -> tuple[int, int, int]:
+        return self._shape
+
+    @property
+    def obs_type(self) -> ObservationType:
+        return ObservationType.PARTIAL_3x3
+
+    def encode_layer(self, layer: np.ndarray[np.float32, Any], origin: np.ndarray, positions: np.ndarray[np.int64, Any], fill_value=1.0):
+        if len(positions) == 0:
+            return
+        relative_positions = positions - origin
+        for pos in relative_positions:
+            if all(pos < self.size / 2):
+                i, j = pos + self._center
+                layer[i, j] = fill_value
+
+    def observe(self) -> np.ndarray[np.float32, Any]:
+        obs = np.zeros((self._world.n_agents, *self._shape), dtype=np.float32)
+        for a, agent_pos in enumerate(self._world.agents_positions):
+            agent_pos = np.array(agent_pos)
+            # Agents positions
+            for a2, other_pos in enumerate(self._world.agents_positions):
+                other_pos = np.array(other_pos)
+                self.encode_layer(obs[a, a2], agent_pos, np.array([other_pos]))
+            # Gems
+            self.encode_layer(obs[a, self.GEM], agent_pos, np.array([gem_pos for gem_pos, gem in self._world.gems if not gem.is_collected]))
+            # Exits
+            self.encode_layer(obs[a, self.EXIT], agent_pos, np.array([exit_pos for exit_pos in self._world.exit_pos]))
+            # Walls
+            self.encode_layer(obs[a, self.WALL], agent_pos, np.array([wall_pos for wall_pos in self._world.wall_pos]))
+            # Lasers
+            d = {}
+            for laser_pos, laser in self._world.lasers:
+                if laser.is_on:
+                    lasers: list = d.get(laser.agent_id, [])
+                    lasers.append(laser_pos)
+                    d[laser.agent_id] = lasers
+            for agent_id, laser in d.items():
+                self.encode_layer(obs[a, self.LASER_0 + agent_id], agent_pos, np.array(laser))
+            # Laser sources
+            for pos, source in self._world.laser_sources:
+                self.encode_layer(obs[a, self.LASER_0 + source.agent_id], agent_pos, np.array([pos]), fill_value=-1.0)
+        return obs

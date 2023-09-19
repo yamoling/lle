@@ -1,12 +1,57 @@
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
+
+use crate::AgentId;
 
 pub const REWARD_GEM_COLLECTED: i32 = 1;
 pub const REWARD_AGENT_DIED: i32 = -1;
 pub const REWARD_AGENT_JUST_ARRIVED: i32 = 1;
 pub const REWARD_END_GAME: i32 = 1;
 
+pub trait RewardCollector<T> {
+    fn notify(&self, event: RewardEvent);
+    fn consume(&self) -> T;
+    fn reset(&self);
+}
+
+pub struct IndependentRewardCollector {
+    agent_rewards: RefCell<Vec<i32>>,
+}
+
+impl IndependentRewardCollector {
+    pub fn new(n_agents: usize) -> Self {
+        Self {
+            agent_rewards: RefCell::new(vec![0; n_agents]),
+        }
+    }
+}
+
+impl RewardCollector<Vec<i32>> for IndependentRewardCollector {
+    fn notify(&self, event: RewardEvent) {
+        let mut agent_rewards = self.agent_rewards.borrow_mut();
+        match event {
+            RewardEvent::JustArrived { agent_id } => {
+                agent_rewards[agent_id] += REWARD_AGENT_JUST_ARRIVED;
+            }
+            RewardEvent::GemCollected { agent_id } => {
+                agent_rewards[agent_id] += REWARD_GEM_COLLECTED;
+            }
+            RewardEvent::AgentDied { agent_id } => {
+                agent_rewards[agent_id] += REWARD_AGENT_DIED;
+            }
+        }
+    }
+
+    fn consume(&self) -> Vec<i32> {
+        self.agent_rewards.take()
+    }
+
+    fn reset(&self) {
+        self.agent_rewards.take();
+    }
+}
+
 #[derive(Debug)]
-pub struct RewardCollector {
+pub struct SharedRewardCollector {
     step_reward: Cell<i32>,
     n_dead: Cell<u32>,
     episode_gems_collected: Cell<u32>,
@@ -16,12 +61,12 @@ pub struct RewardCollector {
 
 #[derive(PartialEq)]
 pub enum RewardEvent {
-    JustArrived,
-    GemCollected,
-    AgentDied,
+    JustArrived { agent_id: AgentId },
+    GemCollected { agent_id: AgentId },
+    AgentDied { agent_id: AgentId },
 }
 
-impl RewardCollector {
+impl SharedRewardCollector {
     pub fn new(n_agents: u32) -> Self {
         Self {
             step_reward: Cell::new(0),
@@ -34,7 +79,7 @@ impl RewardCollector {
 
     pub fn notify(&self, event: RewardEvent) {
         // If the agent has died,
-        if event == RewardEvent::AgentDied {
+        if let RewardEvent::AgentDied { .. } = &event {
             // increase the number of dead agents,
             self.n_dead.set(self.n_dead.get() + 1);
             // cap the current reward to 0,
@@ -51,7 +96,7 @@ impl RewardCollector {
 
         // Last (general) case: all agents are alive
         let event_reward = match event {
-            RewardEvent::JustArrived => {
+            RewardEvent::JustArrived { .. } => {
                 self.episode_agents_arrived
                     .set(self.episode_agents_arrived.get() + 1);
                 if self.episode_agents_arrived() == self.n_agents {
@@ -60,12 +105,12 @@ impl RewardCollector {
                     REWARD_AGENT_JUST_ARRIVED
                 }
             }
-            RewardEvent::GemCollected => {
+            RewardEvent::GemCollected { .. } => {
                 self.episode_gems_collected
                     .set(self.episode_gems_collected.get() + 1);
                 REWARD_GEM_COLLECTED
             }
-            RewardEvent::AgentDied => unreachable!(),
+            RewardEvent::AgentDied { .. } => unreachable!(),
         };
         self.step_reward.set(self.step_reward.get() + event_reward);
     }

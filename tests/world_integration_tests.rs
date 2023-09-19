@@ -1,5 +1,5 @@
 use lle::{
-    Action, RuntimeWorldError, World, WorldError, REWARD_AGENT_DIED, REWARD_AGENT_JUST_ARRIVED,
+    Action, ParseError, RuntimeWorldError, World, REWARD_AGENT_DIED, REWARD_AGENT_JUST_ARRIVED,
     REWARD_END_GAME, REWARD_GEM_COLLECTED,
 };
 
@@ -101,7 +101,7 @@ fn parse_empty_world() {
     match World::try_from("") {
         Ok(_) => panic!("Should not be able to parse empty world"),
         Err(e) => match e {
-            WorldError::EmptyWorld { .. } => {}
+            ParseError::EmptyWorld { .. } => {}
             _ => panic!("Expected EmptyWorld, got {e:?}"),
         },
     }
@@ -141,7 +141,7 @@ fn parse_inconsistent_row_lengths() {
     ) {
         Ok(_) => panic!("Should not be able to parse worlds with inconsistent row lengths"),
         Err(e) => match e {
-            WorldError::InconsistentDimensions {
+            ParseError::InconsistentDimensions {
                 actual_n_cols,
                 expected_n_cols,
                 row,
@@ -160,7 +160,7 @@ fn parse_inconsistent_start_exit_tiles() {
     match World::try_from("S1 S0 X") {
         Ok(_) => panic!("Should not be able to parse worlds with #exit < #start"),
         Err(e) => match e {
-            WorldError::NotEnoughExitTiles { n_exits, n_starts } => {
+            ParseError::NotEnoughExitTiles { n_exits, n_starts } => {
                 assert_eq!(n_starts, 2);
                 assert_eq!(n_exits, 1);
             }
@@ -174,7 +174,7 @@ fn parse_no_agents() {
     match World::try_from(". . G") {
         Ok(_) => panic!("Should not be able to create worlds without agents"),
         Err(e) => match e {
-            WorldError::NoAgents => {}
+            ParseError::NoAgents => {}
             _ => panic!("Expected NoAgents, got {e:?}"),
         },
     }

@@ -1,8 +1,5 @@
 use crate::{
-    agent::Agent,
-    tiles::{Laser, LaserSource},
-    world::WorldState,
-    Action, RuntimeWorldError, World, WorldError,
+    agent::Agent, tiles::Laser, world::WorldState, Action, ParseError, RuntimeWorldError, World,
 };
 
 fn get_laser(world: &World, pos: (usize, usize)) -> &Laser {
@@ -43,7 +40,12 @@ fn test_tile_type() {
         .iter()
         .map(|(pos, _)| pos)
         .any(|pos| pos.0 == 0 && pos.1 == 2));
-    let source: &LaserSource = world.sources.get(&(1, 0)).unwrap();
+    let source = &world
+        .sources
+        .iter()
+        .find(|((i, j), _)| *i == 1 && *j == 0)
+        .unwrap()
+        .1;
     assert_eq!(source.agent_id(), 0);
     let laser = get_laser(&world, (1, 1));
     assert_eq!(laser.agent_id(), 0);
@@ -55,7 +57,7 @@ fn test_tile_type() {
 #[test]
 fn test_duplicate_start_pos() {
     match World::try_from("S0 S0 X X").unwrap_err() {
-        WorldError::DuplicateStartTile { .. } => {}
+        ParseError::DuplicateStartTile { .. } => {}
         other => panic!("Expected DuplicateStartTile error, got {other:?}"),
     }
 }
@@ -163,7 +165,7 @@ fn test_facing_lasers_agent_dies() {
 fn test_empty_world() {
     if let Err(e) = World::try_from("") {
         match e {
-            WorldError::EmptyWorld => return,
+            ParseError::EmptyWorld => return,
             other => panic!("Wrong error type: {:?}", other),
         }
     }

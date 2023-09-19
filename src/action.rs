@@ -4,7 +4,7 @@ use std::{
     slice::Iter,
 };
 
-use crate::{Position, WorldError};
+use crate::{Position, RuntimeWorldError};
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub enum Action {
@@ -73,22 +73,22 @@ impl Display for Action {
 }
 
 impl Add<&Action> for &Position {
-    type Output = Result<Position, WorldError>;
+    type Output = Result<Position, RuntimeWorldError>;
 
     fn add(self, rhs: &Action) -> Self::Output {
         let (dx, dy) = rhs.delta();
-        let x = self.0 as i32 + dx;
-        let y = self.1 as i32 + dy;
+        let j = self.0 as i32 + dx;
+        let i = self.1 as i32 + dy;
 
-        if x < 0 || y < 0 {
-            return Err(WorldError::InvalidPosition { x, y });
+        if j < 0 || i < 0 {
+            return Err(RuntimeWorldError::InvalidPosition { i, j });
         }
-        Ok((x as usize, y as usize))
+        Ok((j as usize, i as usize))
     }
 }
 
 impl Add<Position> for Action {
-    type Output = Result<Position, WorldError>;
+    type Output = Result<Position, RuntimeWorldError>;
 
     fn add(self, rhs: Position) -> Self::Output {
         &rhs + &self
@@ -96,7 +96,7 @@ impl Add<Position> for Action {
 }
 
 impl Add<&Position> for &Action {
-    type Output = Result<Position, WorldError>;
+    type Output = Result<Position, RuntimeWorldError>;
 
     fn add(self, rhs: &Position) -> Self::Output {
         rhs + self

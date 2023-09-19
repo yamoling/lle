@@ -1,7 +1,5 @@
 use itertools::izip;
 use std::{
-    cell::Cell,
-    collections::HashMap,
     fs::File,
     hash::Hash,
     io::{BufReader, Read},
@@ -10,12 +8,12 @@ use std::{
 
 use crate::{
     agent::Agent,
-    errors::RuntimeWorldError,
     levels,
-    reward_collector::RewardCollector,
-    tiles::{Direction, Exit, Floor, Gem, Laser, LaserBeam, LaserSource, Start, Tile, Wall},
+    parsing::{ParseError, Parser},
+    reward_collector::{RewardEvent, SharedRewardCollector},
+    tiles::{Gem, Laser, LaserSource, Tile},
     utils::find_duplicates,
-    Action, AgentId, Position, WorldError,
+    Action, AgentId, Position, RuntimeWorldError,
 };
 
 #[derive(Debug, Clone)]
@@ -45,7 +43,7 @@ pub struct World {
     grid: Vec<Vec<Rc<dyn Tile>>>,
     gems: Vec<(Position, Rc<Gem>)>,
     lasers: Vec<(Position, Rc<Laser>)>,
-    sources: HashMap<Position, Rc<LaserSource>>,
+    sources: Vec<(Position, Rc<LaserSource>)>,
 
     agents: Vec<Agent>,
     start_positions: Vec<Position>,
@@ -53,13 +51,44 @@ pub struct World {
     agent_positions: Vec<Position>,
     wall_positions: Vec<Position>,
 
-    reward_collector: Rc<RewardCollector>,
+    reward_collector: Rc<SharedRewardCollector>,
     available_actions: Vec<Vec<Action>>,
     done: bool,
 }
 
 /// Methods for Rust usage
 impl World {
+    pub fn new(
+        grid: Vec<Vec<Rc<dyn Tile>>>,
+        gems: Vec<(Position, Rc<Gem>)>,
+        lasers: Vec<(Position, Rc<Laser>)>,
+        sources: Vec<(Position, Rc<LaserSource>)>,
+        agents: Vec<Agent>,
+        start_positions: Vec<Position>,
+        exit_positions: Vec<Position>,
+        wall_positions: Vec<Position>,
+        reward_collector: Rc<SharedRewardCollector>,
+        world_str: &str,
+    ) -> Self {
+        Self {
+            width: grid[0].len(),
+            height: grid.len(),
+            agent_positions: start_positions.clone(),
+            wall_positions,
+            agents,
+            exit_positions,
+            gems,
+            sources,
+            grid,
+            lasers,
+            start_positions,
+            reward_collector,
+            available_actions: vec![],
+            done: false,
+            world_string: world_str.into(),
+        }
+    }
+
     pub fn n_agents(&self) -> usize {
         self.agents.len()
     }
@@ -305,9 +334,10 @@ impl World {
             if *collect {
                 gem.collect();
                 self.reward_collector
-                    .notify(crate::reward_collector::RewardEvent::GemCollected);
+                    .notify(RewardEvent::GemCollected { agent_id: 0 });
             }
         }
+        self.reward_collector.consume_step_reward();
 
         self.agent_positions = state.agents_positions.to_vec();
         for ((i, j), agent) in izip!(&self.agent_positions, &self.agents) {
@@ -323,41 +353,14 @@ impl World {
 
 // Creational methods
 impl World {
-    fn sanity_check(&self) -> Result<(), WorldError> {
-        // There is at least one agent
-        if self.agents.is_empty() {
-            return Err(WorldError::NoAgents);
-        }
-        // There are enough start/exit tiles
-        if self.start_positions.len() != self.exit_positions.len() {
-            return Err(WorldError::NotEnoughExitTiles {
-                n_starts: self.start_positions.len(),
-                n_exits: self.exit_positions.len(),
-            });
-        }
-
-        // All rows have the same length
-        let width = self.width();
-        for (i, row) in self.grid.iter().enumerate() {
-            if row.len() != width {
-                return Err(WorldError::InconsistentDimensions {
-                    expected_n_cols: width,
-                    actual_n_cols: row.len(),
-                    row: i,
-                });
-            }
-        }
-        Ok(())
-    }
-
-    pub fn from_file(file: &str) -> Result<Self, WorldError> {
+    pub fn from_file(file: &str) -> Result<Self, ParseError> {
         if let Some(world_str) = levels::get_level(file) {
             return World::try_from(world_str);
         }
         let file = match File::open(file) {
             Ok(f) => f,
             Err(_) => {
-                return Err(WorldError::InvalidFileName {
+                return Err(ParseError::InvalidFileName {
                     file_name: file.into(),
                 })
             }
@@ -370,161 +373,21 @@ impl World {
 }
 
 impl TryFrom<String> for World {
-    type Error = WorldError;
+    type Error = ParseError;
 
     fn try_from(world_str: String) -> Result<Self, Self::Error> {
-        parse(&world_str)
+        let parser = Parser::new(&world_str)?;
+        Ok(parser.shared_world())
     }
 }
 
 impl TryFrom<&str> for World {
-    type Error = WorldError;
+    type Error = ParseError;
 
     fn try_from(world_str: &str) -> Result<Self, Self::Error> {
-        parse(world_str)
+        let parser = Parser::new(world_str)?;
+        Ok(parser.shared_world())
     }
-}
-
-/// Wrap the tiles behin lasers with a `Laser` tile.
-fn laser_setup(
-    grid: &mut Vec<Vec<Rc<dyn Tile>>>,
-    laser_sources: &HashMap<Position, Rc<LaserSource>>,
-) -> Vec<(Position, Rc<Laser>)> {
-    let mut lasers = vec![];
-    let width = grid[0].len() as i32;
-    let height: i32 = grid.len() as i32;
-    for (pos, source) in laser_sources.iter() {
-        let dir = source.direction();
-        let delta = dir.delta();
-        let (mut i, mut j) = (pos.0 as i32, pos.1 as i32);
-        let mut beam = vec![];
-        let mut beam_pos = vec![];
-
-        (i, j) = ((i + delta.0), (j + delta.1));
-        while i >= 0 && j >= 0 && i < height && j < width {
-            let pos = (i as usize, j as usize);
-            if !grid[pos.0][pos.1].is_waklable() {
-                break;
-            }
-            let status = Rc::new(Cell::new(true));
-            beam.push(status.clone());
-            beam_pos.push(pos);
-            (i, j) = ((i + delta.0), (j + delta.1));
-        }
-
-        for (i, pos) in beam_pos.iter().enumerate() {
-            let beam = LaserBeam::new(beam[i..].to_vec());
-            let wrapped = grid[pos.0].remove(pos.1);
-            let laser = Rc::new(Laser::new(source.agent_id(), dir, wrapped, beam));
-            lasers.push((*pos, laser.clone()));
-            grid[pos.0].insert(pos.1, laser);
-        }
-    }
-    lasers
-}
-
-fn parse(world_str: &str) -> Result<World, WorldError> {
-    let mut grid = vec![];
-    let mut gems: Vec<(Position, Rc<Gem>)> = vec![];
-    let mut start_positions: Vec<(AgentId, Position)> = vec![];
-    let mut exit_positions: Vec<Position> = vec![];
-    let mut walls: Vec<Position> = vec![];
-    let mut sources: HashMap<Position, Rc<LaserSource>> = HashMap::new();
-    for line in world_str.lines() {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
-        let i = grid.len();
-        let mut row = vec![];
-        for (j, token) in line.split_whitespace().enumerate() {
-            let tile: Rc<dyn Tile> = match token.to_uppercase().chars().next().unwrap() {
-                '.' => Rc::<Floor>::default(),
-                '@' => {
-                    walls.push((i, j));
-                    Rc::new(Wall::default())
-                }
-                'G' => {
-                    let gem = Rc::<Gem>::default();
-                    gems.push(((i, j), gem.clone()));
-                    gem
-                }
-                'S' => {
-                    let agent_id = token[1..].parse().unwrap();
-                    // Check for duplicate agent ids
-                    for (id, other_pos) in &start_positions {
-                        if *id == agent_id {
-                            return Err(WorldError::DuplicateStartTile {
-                                agent_id,
-                                start1: *other_pos,
-                                start2: (i, j),
-                            });
-                        }
-                    }
-                    start_positions.push((agent_id, (i, j)));
-                    Rc::new(Start::new(agent_id))
-                }
-                'X' => {
-                    let exit = Rc::<Exit>::default();
-                    exit_positions.push((i, j));
-                    exit
-                }
-                'L' => {
-                    let direction = Direction::try_from(&token[2..]).unwrap();
-                    let agent_num = token[1..2].parse().unwrap();
-                    let source = Rc::new(LaserSource::new(direction, agent_num));
-                    sources.insert((i, j), source.clone());
-                    source
-                }
-                other => {
-                    return Err(WorldError::InvalidTile {
-                        tile_str: other.into(),
-                        line: i,
-                        col: j,
-                    });
-                }
-            };
-            row.push(tile);
-        }
-        grid.push(row);
-    }
-    if grid.is_empty() {
-        return Err(WorldError::EmptyWorld);
-    }
-    let lasers = laser_setup(&mut grid, &sources);
-
-    // Sort start positions
-    start_positions.sort_by(|(id_a, _), (id_b, _)| id_a.cmp(id_b));
-    let start_positions: Vec<Position> = start_positions.iter().map(|(_, pos)| *pos).collect();
-    let agent_positions: Vec<Position> = start_positions.clone();
-
-    // Create agents
-    let reward_collector = Rc::new(RewardCollector::new(start_positions.len() as u32));
-    let agents = start_positions
-        .iter()
-        .enumerate()
-        .map(|(id, _)| Agent::new(id as u32, reward_collector.clone()))
-        .collect();
-
-    let world = World {
-        width: grid[0].len(),
-        height: grid.len(),
-        agent_positions,
-        wall_positions: walls,
-        agents,
-        exit_positions,
-        gems,
-        sources,
-        grid,
-        lasers,
-        start_positions,
-        reward_collector,
-        available_actions: vec![],
-        done: false,
-        world_string: world_str.into(),
-    };
-    world.sanity_check()?;
-    Ok(world)
 }
 
 impl Clone for World {
@@ -536,5 +399,5 @@ impl Clone for World {
 }
 
 #[cfg(test)]
-#[path = "./unit_tests/test_world.rs"]
+#[path = "../unit_tests/test_world.rs"]
 mod tests;

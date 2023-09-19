@@ -1,7 +1,7 @@
 import numpy as np
 
 from lle import World, Action, ObservationType
-from lle import LaserSource, Gem, Laser
+from lle.observations import PartialGenerator
 
 
 def test_observation_gem_collected():
@@ -121,3 +121,52 @@ def test_world_initial_observation():
     obs0 = observer.observe()
     expected = np.tile(np.array([0.0, 0.0, 1 / 3, 1 / 2, 1]), (2, 1))
     assert np.allclose(expected, obs0)
+
+
+def test_partial_3x3():
+    world = World(
+        """
+    S0 X  @
+    G  S1 @
+    .  .  X"""
+    )
+    world.reset()
+
+    observer = PartialGenerator(world, 3)
+    obs0, obs1 = observer.observe()
+
+    assert obs0[0, 1, 1] == 1
+    assert obs0[1, 2, 2] == 1
+
+    assert obs1[0, 0, 0] == 1
+    assert obs1[1, 1, 1] == 1
+
+    assert obs0[observer.GEM, 2, 1] == 1
+    assert obs1[observer.GEM, 1, 0] == 1
+
+    assert obs1[observer.EXIT, 2, 2] == 1
+
+    assert np.all(obs0[observer.WALL] == 0)
+    assert obs1[observer.WALL, 1, 2] == 1
+    assert obs1[observer.WALL, 0, 2] == 1
+
+
+def test_partial_3x3_lasers():
+    world = World(
+        """
+    .   L0S S1
+    S0   .   .
+    L1E  X   X
+"""
+    )
+    world.reset()
+
+    observer = PartialGenerator(world, 3)
+    obs0, obs1 = observer.observe()
+
+    assert obs0[observer.LASER_0, 0, 2] == -1
+    assert obs0[observer.LASER_0, 1, 2] == 1
+    assert obs0[observer.LASER_0, 2, 2] == 1
+
+    assert obs0[observer.LASER_0 + 1, 2, 1] == -1
+    assert obs0[observer.LASER_0 + 1, 2, 2] == 1

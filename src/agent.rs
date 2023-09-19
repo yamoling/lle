@@ -1,6 +1,6 @@
 use std::{fmt::Display, rc::Rc};
 
-use crate::reward_collector::{RewardCollector, RewardEvent};
+use crate::reward_collector::{RewardEvent, SharedRewardCollector};
 
 pub type AgentId = usize;
 
@@ -9,11 +9,11 @@ pub struct Agent {
     id: AgentId,
     dead: bool,
     arrived: bool,
-    reward_collector: Rc<RewardCollector>,
+    reward_collector: Rc<SharedRewardCollector>,
 }
 
 impl Agent {
-    pub fn new(id: u32, collector: Rc<RewardCollector>) -> Self {
+    pub fn new(id: u32, collector: Rc<SharedRewardCollector>) -> Self {
         Self {
             id: id as usize,
             dead: false,
@@ -30,16 +30,19 @@ impl Agent {
 
     pub fn die(&mut self) {
         self.dead = true;
-        self.reward_collector.notify(RewardEvent::AgentDied);
+        self.reward_collector
+            .notify(RewardEvent::AgentDied { agent_id: self.id });
     }
 
     pub fn arrive(&mut self) {
         self.arrived = true;
-        self.reward_collector.notify(RewardEvent::JustArrived);
+        self.reward_collector
+            .notify(RewardEvent::JustArrived { agent_id: self.id });
     }
 
     pub fn collect_gem(&self) {
-        self.reward_collector.notify(RewardEvent::GemCollected);
+        self.reward_collector
+            .notify(RewardEvent::GemCollected { agent_id: self.id });
     }
 
     pub fn has_arrived(&self) -> bool {

@@ -15,6 +15,8 @@ class WorldState:
     @property
     def gems_collected(self) -> List[bool]:
         """The collection status of each gem."""
+    def __hash__(self) -> int: ...
+    def __eq__(self, __value: object) -> bool: ...
 
 class World:
     def __init__(self, world_str: str):

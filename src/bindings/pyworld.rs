@@ -3,7 +3,10 @@ use std::hash::{Hash, Hasher};
 use numpy::PyArray1;
 use pyo3::{exceptions, prelude::*, pyclass::CompareOp, types::PyDict};
 
-use crate::{errors::RuntimeWorldError, world::WorldState, Position, Renderer, World, WorldError};
+use crate::{
+    parsing::ParseError, reward_collector::SharedRewardCollector, world::WorldState, Parser,
+    Position, Renderer, RuntimeWorldError, World,
+};
 
 use super::{
     pyaction::PyAction,
@@ -80,28 +83,20 @@ pub struct PyWorld {
     renderer: Renderer,
 }
 
-fn error_to_exception(error: WorldError) -> PyErr {
+fn parse_error_to_exception(error: ParseError) -> PyErr {
     match error {
-        WorldError::InvalidFileName { file_name } => {
+        ParseError::InvalidFileName { file_name } => {
             exceptions::PyFileNotFoundError::new_err(file_name)
         }
-        WorldError::AgentKilledOnStartup {
-            agent_num,
-            laser_num,
-            i,
-            j,
-        } => exceptions::PyRuntimeError::new_err(format!(
-            "Agent {} killed by laser {} at position ({}, {})",
-            agent_num, laser_num, i, j
-        )),
-        WorldError::DuplicateStartTile {
+
+        ParseError::DuplicateStartTile {
             agent_id,
             start1,
             start2,
         } => exceptions::PyValueError::new_err(format!(
             "Agent {agent_id} has two start tiles: {start1:?} and {start2:?}"
         )),
-        WorldError::InconsistentDimensions {
+        ParseError::InconsistentDimensions {
             expected_n_cols,
             actual_n_cols,
             row,
@@ -109,15 +104,13 @@ fn error_to_exception(error: WorldError) -> PyErr {
             "Inconsistent number of columns in row {}: expected {}, got {}",
             row, expected_n_cols, actual_n_cols
         )),
-        WorldError::NotEnoughExitTiles { n_starts, n_exits } => exceptions::PyValueError::new_err(
+        ParseError::NotEnoughExitTiles { n_starts, n_exits } => exceptions::PyValueError::new_err(
             format!("Not enough exit tiles: {n_starts} starts, {n_exits} exits"),
         ),
-        WorldError::EmptyWorld => exceptions::PyValueError::new_err("Empty world: no tiles"),
-        WorldError::NoAgents => exceptions::PyValueError::new_err("No agents in the world"),
-        WorldError::InvalidPosition { x, y } => {
-            exceptions::PyIndexError::new_err(format!("Invalid position ({}, {})", x, y))
-        }
-        WorldError::InvalidTile {
+        ParseError::EmptyWorld => exceptions::PyValueError::new_err("Empty world: no tiles"),
+        ParseError::NoAgents => exceptions::PyValueError::new_err("No agents in the world"),
+
+        ParseError::InvalidTile {
             tile_str,
             line,
             col,
@@ -133,7 +126,7 @@ impl PyWorld {
     pub fn new(map_str: String) -> PyResult<Self> {
         let world = match World::try_from(map_str) {
             Ok(world) => world,
-            Err(e) => return Err(error_to_exception(e)),
+            Err(e) => return Err(parse_error_to_exception(e)),
         };
         let renderer = Renderer::new(&world);
         Ok(PyWorld { world, renderer })
@@ -143,7 +136,7 @@ impl PyWorld {
     fn from_file(filename: String) -> PyResult<Self> {
         let world = match World::from_file(&filename) {
             Ok(world) => world,
-            Err(e) => return Err(error_to_exception(e)),
+            Err(e) => return Err(parse_error_to_exception(e)),
         };
         let renderer = Renderer::new(&world);
         Ok(PyWorld { world, renderer })
