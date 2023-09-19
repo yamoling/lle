@@ -1,66 +1,48 @@
 use std::{cell::Cell, rc::Rc};
 
 use crate::{
-    agent::Agent,
-    reward_collector::SharedRewardCollector,
     tiles::{Direction, LaserBeam},
     AgentId, Exit, Floor, Gem, Laser, LaserSource, Position, Start, Tile, Wall, World,
 };
 
-use super::errors::ParseError;
+use crate::ParseError;
 
-pub struct Parser {
+pub fn parse(world_str: &str) -> Result<World, ParseError> {
+    let parser = Parser::new(world_str)?;
+    Ok(World::new(
+        parser.grid,
+        parser.gems,
+        parser.lasers,
+        parser.sources,
+        parser.start_positions,
+        parser.exits,
+        parser.walls_positions,
+        world_str,
+    ))
+}
+
+struct Parser {
     grid: Vec<Vec<Rc<dyn Tile>>>,
     gems: Vec<(Position, Rc<Gem>)>,
     start_positions: Vec<Position>,
-    exit_positions: Vec<Position>,
-    walls: Vec<Position>,
+    exits: Vec<(Position, Rc<Exit>)>,
+    walls_positions: Vec<Position>,
     sources: Vec<(Position, Rc<LaserSource>)>,
     lasers: Vec<(Position, Rc<Laser>)>,
-    world_str: String,
 }
 
 impl Parser {
-    pub fn new(world_str: &str) -> Result<Self, ParseError> {
+    fn new(world_str: &str) -> Result<Self, ParseError> {
         let parser = Self::parse(world_str)?;
         parser.sanity_check()?;
         Ok(parser)
-    }
-
-    pub fn n_agents(&self) -> usize {
-        self.start_positions.len()
-    }
-
-    pub fn shared_world(self) -> World {
-        // Create agents
-        let reward_collector =
-            Rc::new(SharedRewardCollector::new(self.start_positions.len() as u32));
-        let agents = self
-            .start_positions
-            .iter()
-            .enumerate()
-            .map(|(id, _)| Agent::new(id as u32, reward_collector.clone()))
-            .collect();
-
-        World::new(
-            self.grid,
-            self.gems,
-            self.lasers,
-            self.sources,
-            agents,
-            self.start_positions,
-            self.exit_positions,
-            self.walls,
-            reward_collector,
-            &self.world_str,
-        )
     }
 
     fn parse(world_str: &str) -> Result<Self, ParseError> {
         let mut grid = vec![];
         let mut gems: Vec<(Position, Rc<Gem>)> = vec![];
         let mut start_positions: Vec<(AgentId, Position)> = vec![];
-        let mut exit_positions: Vec<Position> = vec![];
+        let mut exits: Vec<(Position, Rc<Exit>)> = vec![];
         let mut walls: Vec<Position> = vec![];
         let mut sources: Vec<(Position, Rc<LaserSource>)> = vec![];
         for line in world_str.lines() {
@@ -99,7 +81,7 @@ impl Parser {
                     }
                     'X' => {
                         let exit = Rc::<Exit>::default();
-                        exit_positions.push((i, j));
+                        exits.push(((i, j), exit.clone()));
                         exit
                     }
                     'L' => {
@@ -133,10 +115,9 @@ impl Parser {
             grid,
             gems,
             start_positions,
-            exit_positions,
-            walls,
+            exits,
+            walls_positions: walls,
             sources,
-            world_str: world_str.into(),
         })
     }
 
@@ -145,10 +126,10 @@ impl Parser {
             return Err(ParseError::NoAgents);
         }
         // There are enough start/exit tiles
-        if self.start_positions.len() != self.exit_positions.len() {
+        if self.start_positions.len() != self.exits.len() {
             return Err(ParseError::NotEnoughExitTiles {
                 n_starts: self.start_positions.len(),
-                n_exits: self.exit_positions.len(),
+                n_exits: self.exits.len(),
             });
         }
 

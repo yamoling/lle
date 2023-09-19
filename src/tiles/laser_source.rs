@@ -3,9 +3,9 @@ use crate::{
     rendering::{TileVisitor, VisitorData},
 };
 
-use super::{tile::TileClone, Direction, Tile, Wall};
+use super::{Direction, Tile, Wall};
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct LaserSource {
     wall: Wall,
     direction: Direction,
@@ -57,11 +57,5 @@ impl Tile for LaserSource {
 
     fn accept(&self, _visitor: &dyn TileVisitor, _data: &mut VisitorData) {
         // Nothing to do here as it is statically rendered
-    }
-}
-
-impl TileClone for LaserSource {
-    fn clone_box(&self) -> Box<dyn Tile> {
-        Box::new(self.clone())
     }
 }

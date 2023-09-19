@@ -1,3 +1,7 @@
+mod observer;
+
+pub use observer::{Observable, Observer};
+
 pub fn find_duplicates<T>(input: &[T]) -> Vec<bool>
 where
     T: PartialEq,

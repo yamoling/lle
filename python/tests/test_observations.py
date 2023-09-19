@@ -5,7 +5,12 @@ from lle.observations import PartialGenerator
 
 
 def test_observation_gem_collected():
-    world = World.from_file("python/tests/maps/3x4_gem.txt")
+    world = World(
+        """
+S0 X . .
+.  . . .
+G  . . ."""
+    )
     observer = ObservationType.RELATIVE_POSITIONS.get_observation_generator(world)
     world.reset()
     world.step([Action.SOUTH])
@@ -22,7 +27,12 @@ def test_observation_gem_collected():
 
 
 def test_observe_rgb_not_empty():
-    world = World.from_file("python/tests/maps/3x4_two_agents_gem.txt")
+    world = World(
+        """
+S0 X  .  .
+.  .  S1 G
+.  X  .  ."""
+    )
     observer = ObservationType.RGB_IMAGE.get_observation_generator(world)
     world.reset()
     image = observer.observe()
@@ -30,7 +40,15 @@ def test_observe_rgb_not_empty():
 
 
 def test_observe_layered_deactivated_laser():
-    world = World.from_file("python/tests/maps/5x5_laser_2agents")
+    world = World(
+        """
+@ @ L0S @  @
+@ .  .  .  @
+@ X  .  S0 @
+@ X  .  S1 @
+@ @  @  @  @
+"""
+    )
     observer = ObservationType.LAYERED.get_observation_generator(world)
     world.reset()
     layers = observer.observe()
@@ -53,7 +71,15 @@ def test_observe_layered_deactivated_laser():
 
 
 def test_observe_layered_gems_walls():
-    world = World.from_file("python/tests/maps/5x5_laser_1agent_1gem")
+    world = World(
+        """
+@ @ L0S @  @
+@ .  .  .  @
+@ X  G  S0 @
+@ .  .  .  @
+@ @  @  @  @
+"""
+    )
     observer = ObservationType.LAYERED.get_observation_generator(world)
     world.reset()
     layers = observer.observe()
@@ -76,8 +102,15 @@ def test_observe_layered_gems_walls():
 
 
 def test_observe_flattened():
-    map_file = "python/tests/maps/5x5_laser_1agent_1gem"
-    world = World.from_file(map_file)
+    world = World(
+        """
+@ @ L0S @  @
+@ .  .  .  @
+@ X  G  S0 @
+@ .  .  .  @
+@ @  @  @  @
+"""
+    )
     observer = ObservationType.FLATTENED.get_observation_generator(world)
     assert observer.shape == (5 * 5 * (world.n_agents * 2 + 3),)
     world.reset()
@@ -89,7 +122,11 @@ def test_observe_flattened():
 
 
 def test_world_initial_observation():
-    world = World.from_file("python/tests/maps/3x3.txt")
+    world = World(
+        """S0 X .
+.  . .
+.  . ."""
+    )
     observer = ObservationType.RELATIVE_POSITIONS.get_observation_generator(world)
     world.reset()
     obs0 = observer.observe()
@@ -108,14 +145,24 @@ def test_world_initial_observation():
     expected = np.tile(np.array([0.0, 0.0, 1 / 3, 2 / 3]), (2, 1))
     assert np.allclose(expected, obs0)
 
-    world = World.from_file("python/tests/maps/3x4_two_agents.txt")
+    world = World(
+        """
+S0 X  .  .
+.  .  S1  .
+.  X  .  ."""
+    )
     observer = ObservationType.RELATIVE_POSITIONS.get_observation_generator(world)
     world.reset()
     obs0 = observer.observe()
     expected = np.tile(np.array([0.0, 0.0, 1 / 3, 1 / 2]), (2, 1))
     assert np.allclose(expected, obs0)
 
-    world = World.from_file("python/tests/maps/3x4_two_agents_gem.txt")
+    world = World(
+        """
+S0 X  .  G
+.  .  S1  .
+.  X  .  ."""
+    )
     observer = ObservationType.RELATIVE_POSITIONS.get_observation_generator(world)
     world.reset()
     obs0 = observer.observe()

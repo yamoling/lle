@@ -2,6 +2,7 @@ use crate::tiles::Direction;
 use pyo3::prelude::*;
 
 #[pyclass(name = "Direction")]
+#[derive(Clone)]
 pub struct PyDirection {
     direction: Direction,
 }

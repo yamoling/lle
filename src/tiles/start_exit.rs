@@ -1,11 +1,14 @@
+use std::{cell::RefCell, rc::Rc};
+
 use crate::{
     agent::{Agent, AgentId},
     rendering::{TileVisitor, VisitorData},
+    utils::{Observable, Observer},
+    RewardEvent,
 };
 
-use super::{tile::TileClone, Floor, Tile};
+use super::{Floor, Tile};
 
-#[derive(Debug, Clone)]
 pub struct Start {
     floor: Floor,
     agent_id: AgentId,
@@ -49,15 +52,22 @@ impl Tile for Start {
     }
 }
 
-impl TileClone for Start {
-    fn clone_box(&self) -> Box<dyn Tile> {
-        Box::new(self.clone())
-    }
-}
-
-#[derive(Debug, Clone, Default)]
+#[derive(Default)]
 pub struct Exit {
     floor: Floor,
+    observers: RefCell<Vec<Rc<dyn Observer<RewardEvent>>>>,
+}
+
+impl Observable<RewardEvent> for Exit {
+    fn register(&self, observer: Rc<dyn Observer<RewardEvent>>) {
+        self.observers.borrow_mut().push(observer);
+    }
+
+    fn notify(&self, event: RewardEvent) {
+        for observer in self.observers.borrow().iter() {
+            observer.update(&event);
+        }
+    }
 }
 
 impl Tile for Exit {
@@ -71,6 +81,9 @@ impl Tile for Exit {
 
     fn enter(&self, agent: &mut Agent) {
         self.floor.enter(agent);
+        self.notify(RewardEvent::AgentExit {
+            agent_id: agent.id(),
+        });
         agent.arrive();
     }
 
@@ -84,11 +97,5 @@ impl Tile for Exit {
 
     fn accept(&self, _visitor: &dyn TileVisitor, _data: &mut VisitorData) {
         // Nothing to do
-    }
-}
-
-impl TileClone for Exit {
-    fn clone_box(&self) -> Box<dyn Tile> {
-        Box::new(self.clone())
     }
 }

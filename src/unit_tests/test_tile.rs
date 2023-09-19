@@ -1,13 +1,6 @@
 use std::{cell::Cell, rc::Rc};
 
-use crate::{
-    agent::Agent, reward_collector::SharedRewardCollector, tiles::LaserBeam, AgentId, Floor, Gem,
-    Laser, Start, Tile,
-};
-
-fn make_agent(id: u32) -> Agent {
-    Agent::new(0, Rc::new(SharedRewardCollector::new(id + 1)))
-}
+use crate::{agent::Agent, tiles::LaserBeam, AgentId, Floor, Gem, Laser, Start, Tile};
 
 fn make_laser(agent_id: AgentId, length: usize) -> Laser {
     let wrapped = Rc::new(Floor::default());
@@ -19,7 +12,7 @@ fn make_laser(agent_id: AgentId, length: usize) -> Laser {
 
 #[test]
 fn test_start() {
-    let mut agent = make_agent(0);
+    let mut agent = Agent::new(0);
     let start = Start::new(agent.id());
     assert_eq!(start.agent_id(), 0);
     start.reset();
@@ -36,7 +29,7 @@ fn test_start() {
 
 #[test]
 fn test_gem() {
-    let mut agent = make_agent(3);
+    let mut agent = Agent::new(3);
     let gem = Gem::default();
     gem.reset();
     assert_eq!(gem.agent(), None);
@@ -67,7 +60,7 @@ fn test_laser_basic() {
 
 #[test]
 fn test_laser_agent_survives() {
-    let mut agent = make_agent(0);
+    let mut agent = Agent::new(0);
     let laser = make_laser(0, 3);
     laser.pre_enter(&agent);
     assert!(!laser.is_occupied());
@@ -84,7 +77,7 @@ fn test_laser_agent_survives() {
 
 #[test]
 fn test_laser_agent_dies() {
-    let mut agent = make_agent(0);
+    let mut agent = Agent::new(0);
     let laser = make_laser(2, 3);
     laser.pre_enter(&agent);
     assert!(!laser.is_occupied());

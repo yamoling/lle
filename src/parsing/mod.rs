@@ -2,4 +2,4 @@ mod errors;
 mod parser;
 
 pub use errors::ParseError;
-pub use parser::Parser;
+pub use parser::parse;

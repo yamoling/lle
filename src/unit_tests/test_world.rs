@@ -1,3 +1,5 @@
+use core::panic;
+
 use crate::{
     agent::Agent, tiles::Laser, world::WorldState, Action, ParseError, RuntimeWorldError, World,
 };
@@ -49,16 +51,27 @@ fn test_tile_type() {
     assert_eq!(source.agent_id(), 0);
     let laser = get_laser(&world, (1, 1));
     assert_eq!(laser.agent_id(), 0);
-    assert!(world.exit_positions.contains(&(1, 1)));
+    let n_exits_at_1_1 = world
+        .exits
+        .iter()
+        .filter(|(pos, _)| pos.0 == 1 && pos.1 == 1)
+        .count();
+    assert!(n_exits_at_1_1 == 1);
     assert!(world.wall_positions.contains(&(1, 2)));
     assert!(world.wall_positions.len() == 1);
 }
 
 #[test]
 fn test_duplicate_start_pos() {
-    match World::try_from("S0 S0 X X").unwrap_err() {
-        ParseError::DuplicateStartTile { .. } => {}
-        other => panic!("Expected DuplicateStartTile error, got {other:?}"),
+    match World::try_from("S0 S0 X X") {
+        Ok(..) => panic!("Should not be able to build a world with duplicate start positions"),
+        Err(err) => match err {
+            ParseError::DuplicateStartTile { start1, start2, .. } => {
+                assert_eq!(start1, (0, 0));
+                assert_eq!(start2, (0, 1));
+            }
+            other => panic!("Expected DuplicateStartTile error, got {other:?}"),
+        },
     }
 }
 

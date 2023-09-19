@@ -2,9 +2,9 @@ use crate::{
     agent::{Agent, AgentId},
     rendering::{TileVisitor, VisitorData},
 };
-use std::{cell::Cell, fmt::Debug};
+use std::cell::Cell;
 
-pub trait Tile: Debug + TileClone {
+pub trait Tile {
     fn pre_enter(&self, agent: &Agent);
     fn reset(&self);
     fn enter(&self, agent: &mut Agent);
@@ -20,17 +20,7 @@ pub trait Tile: Debug + TileClone {
     fn accept(&self, visitor: &dyn TileVisitor, data: &mut VisitorData);
 }
 
-pub trait TileClone {
-    fn clone_box(&self) -> Box<dyn Tile>;
-}
-
-impl Clone for Box<dyn Tile> {
-    fn clone(&self) -> Self {
-        self.clone_box()
-    }
-}
-
-#[derive(Debug, Clone, Default)]
+#[derive(Default)]
 pub struct Floor {
     agent: Cell<Option<AgentId>>,
 }
@@ -59,13 +49,7 @@ impl Tile for Floor {
     }
 }
 
-impl TileClone for Floor {
-    fn clone_box(&self) -> Box<dyn Tile> {
-        Box::new(self.clone())
-    }
-}
-
-#[derive(Debug, Clone, Default)]
+#[derive(Default, Clone)]
 pub struct Wall {}
 
 impl Tile for Wall {
@@ -97,12 +81,6 @@ impl Tile for Wall {
 
     fn accept(&self, _visitor: &dyn TileVisitor, _data: &mut VisitorData) {
         // Nothing to do here as it is statically rendered
-    }
-}
-
-impl TileClone for Wall {
-    fn clone_box(&self) -> Box<dyn Tile> {
-        Box::new(self.clone())
     }
 }
 

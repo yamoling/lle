@@ -1,7 +1,6 @@
 use itertools::izip;
 use std::{
     fs::File,
-    hash::Hash,
     io::{BufReader, Read},
     rc::Rc,
 };
@@ -9,32 +8,14 @@ use std::{
 use crate::{
     agent::Agent,
     levels,
-    parsing::{ParseError, Parser},
-    reward_collector::{RewardEvent, SharedRewardCollector},
+    parsing::{parse, ParseError},
     tiles::{Gem, Laser, LaserSource, Tile},
-    utils::find_duplicates,
-    Action, AgentId, Position, RuntimeWorldError,
+    utils::{find_duplicates, Observable, Observer},
+    Action, AgentId, Exit, Position, RewardEvent, RuntimeWorldError,
 };
 
-#[derive(Debug, Clone)]
-pub struct WorldState {
-    pub agents_positions: Vec<Position>,
-    pub gems_collected: Vec<bool>,
-}
+use super::WorldState;
 
-impl Hash for WorldState {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        for (i, j) in &self.agents_positions {
-            i.hash(state);
-            j.hash(state);
-        }
-        for gem in &self.gems_collected {
-            gem.hash(state);
-        }
-    }
-}
-
-#[derive(Debug)]
 pub struct World {
     width: usize,
     height: usize,
@@ -47,11 +28,10 @@ pub struct World {
 
     agents: Vec<Agent>,
     start_positions: Vec<Position>,
-    exit_positions: Vec<Position>,
+    exits: Vec<(Position, Rc<Exit>)>,
     agent_positions: Vec<Position>,
     wall_positions: Vec<Position>,
 
-    reward_collector: Rc<SharedRewardCollector>,
     available_actions: Vec<Vec<Action>>,
     done: bool,
 }
@@ -63,26 +43,28 @@ impl World {
         gems: Vec<(Position, Rc<Gem>)>,
         lasers: Vec<(Position, Rc<Laser>)>,
         sources: Vec<(Position, Rc<LaserSource>)>,
-        agents: Vec<Agent>,
         start_positions: Vec<Position>,
-        exit_positions: Vec<Position>,
-        wall_positions: Vec<Position>,
-        reward_collector: Rc<SharedRewardCollector>,
+        exits: Vec<(Position, Rc<Exit>)>,
+        walls_positions: Vec<Position>,
         world_str: &str,
     ) -> Self {
+        let agents = start_positions
+            .iter()
+            .enumerate()
+            .map(|(id, _)| Agent::new(id as u32))
+            .collect();
         Self {
             width: grid[0].len(),
             height: grid.len(),
             agent_positions: start_positions.clone(),
-            wall_positions,
+            wall_positions: walls_positions,
             agents,
-            exit_positions,
+            exits,
             gems,
             sources,
             grid,
             lasers,
             start_positions,
-            reward_collector,
             available_actions: vec![],
             done: false,
             world_string: world_str.into(),
@@ -105,20 +87,23 @@ impl World {
         &self.agent_positions
     }
 
-    pub fn n_gems_collected(&self) -> u32 {
-        self.reward_collector.episode_gems_collected()
-    }
-
-    pub fn n_agents_arrived(&self) -> u32 {
-        self.reward_collector.episode_agents_arrived()
-    }
-
     pub fn n_gems(&self) -> usize {
         self.gems.len()
     }
 
     pub fn available_actions(&self) -> &Vec<Vec<Action>> {
         &self.available_actions
+    }
+
+    pub fn n_gems_collected(&self) -> usize {
+        self.gems
+            .iter()
+            .filter(|(_, gem)| gem.is_collected())
+            .count()
+    }
+
+    pub fn n_agents_arrived(&self) -> usize {
+        self.agents.iter().filter(|&a| a.has_arrived()).count()
     }
 
     pub fn width(&self) -> usize {
@@ -151,8 +136,8 @@ impl World {
         self.start_positions.iter().enumerate()
     }
 
-    pub fn exits(&self) -> impl Iterator<Item = &Position> {
-        self.exit_positions.iter()
+    pub fn exits(&self) -> impl Iterator<Item = (&Position, &Exit)> {
+        self.exits.iter().map(|(pos, exit)| (pos, exit.as_ref()))
     }
 
     pub fn lasers(&self) -> impl Iterator<Item = (&Position, &Laser)> {
@@ -161,7 +146,7 @@ impl World {
 
     fn update(&mut self) {
         let mut available_actions = vec![];
-        for (agent, agent_pos) in self.agents.iter().zip(self.agent_positions.iter()) {
+        for (agent, agent_pos) in izip!(&self.agents, &self.agent_positions) {
             let mut agent_actions = vec![Action::Stay];
             if !agent.has_arrived() {
                 for action in [Action::North, Action::East, Action::South, Action::West] {
@@ -219,17 +204,16 @@ impl World {
     }
 
     pub fn reset(&mut self) {
-        self.reward_collector.reset();
         for row in self.grid.iter_mut() {
             for tile in row.iter_mut() {
                 tile.reset();
             }
         }
         self.agent_positions = self.start_positions.clone();
-        for ((i, j), agent) in self.agent_positions.iter().zip(self.agents.iter()) {
+        for ((i, j), agent) in izip!(&self.agent_positions, &self.agents) {
             self.grid[*i][*j].pre_enter(agent);
         }
-        for ((i, j), agent) in self.agent_positions.iter().zip(self.agents.iter_mut()) {
+        for ((i, j), agent) in izip!(&self.agent_positions, &mut self.agents) {
             self.grid[*i][*j].enter(agent);
         }
         for agent in &mut self.agents {
@@ -239,7 +223,7 @@ impl World {
     }
 
     /// Perform one step in the environment and return the corresponding reward.
-    pub fn step(&mut self, actions: &[Action]) -> Result<i32, RuntimeWorldError> {
+    pub fn step(&mut self, actions: &[Action]) -> Result<(), RuntimeWorldError> {
         if self.done {
             return Err(RuntimeWorldError::WorldIsDone);
         }
@@ -291,7 +275,7 @@ impl World {
         }
         self.agent_positions = new_positions;
         self.update();
-        Ok(self.reward_collector.consume_step_reward())
+        Ok(())
     }
 
     pub fn get_state(&self) -> WorldState {
@@ -329,15 +313,11 @@ impl World {
             agent.reset();
         }
         // Set the gem states
-        self.reward_collector.reset();
-        for ((_, gem), collect) in izip!(&self.gems, &state.gems_collected) {
-            if *collect {
+        for ((_, gem), &collect) in izip!(&self.gems, &state.gems_collected) {
+            if collect {
                 gem.collect();
-                self.reward_collector
-                    .notify(RewardEvent::GemCollected { agent_id: 0 });
             }
         }
-        self.reward_collector.consume_step_reward();
 
         self.agent_positions = state.agents_positions.to_vec();
         for ((i, j), agent) in izip!(&self.agent_positions, &self.agents) {
@@ -349,10 +329,7 @@ impl World {
         self.update();
         Ok(())
     }
-}
 
-// Creational methods
-impl World {
     pub fn from_file(file: &str) -> Result<Self, ParseError> {
         if let Some(world_str) = levels::get_level(file) {
             return World::try_from(world_str);
@@ -370,14 +347,25 @@ impl World {
         reader.read_to_string(&mut world_str).unwrap();
         World::try_from(world_str)
     }
+
+    pub fn register_observer(&self, observer: Rc<dyn Observer<RewardEvent>>) {
+        for (_, gem) in &self.gems {
+            gem.register(observer.clone());
+        }
+        for (_, source) in &self.lasers {
+            source.register(observer.clone());
+        }
+        for (_, exit) in &self.exits {
+            exit.register(observer.clone());
+        }
+    }
 }
 
 impl TryFrom<String> for World {
     type Error = ParseError;
 
     fn try_from(world_str: String) -> Result<Self, Self::Error> {
-        let parser = Parser::new(&world_str)?;
-        Ok(parser.shared_world())
+        parse(&world_str)
     }
 }
 
@@ -385,8 +373,7 @@ impl TryFrom<&str> for World {
     type Error = ParseError;
 
     fn try_from(world_str: &str) -> Result<Self, Self::Error> {
-        let parser = Parser::new(world_str)?;
-        Ok(parser.shared_world())
+        parse(world_str)
     }
 }
 

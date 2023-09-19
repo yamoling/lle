@@ -1,16 +1,20 @@
-use std::hash::{Hash, Hasher};
+use std::{
+    hash::{Hash, Hasher},
+    rc::Rc,
+};
 
 use numpy::PyArray1;
 use pyo3::{exceptions, prelude::*, pyclass::CompareOp, types::PyDict};
 
 use crate::{
-    parsing::ParseError, reward_collector::SharedRewardCollector, world::WorldState, Parser,
-    Position, Renderer, RuntimeWorldError, World,
+    parsing::parse, parsing::ParseError, world::WorldState, Position, Renderer, RuntimeWorldError,
+    TeamReward, Tile, World,
 };
 
 use super::{
     pyaction::PyAction,
     pyagent::PyAgent,
+    pydirection::PyDirection,
     pytile::{PyGem, PyLaser, PyLaserSource},
 };
 
@@ -81,6 +85,7 @@ impl From<PyWorldState> for WorldState {
 pub struct PyWorld {
     world: World,
     renderer: Renderer,
+    collector: Rc<TeamReward>,
 }
 
 fn parse_error_to_exception(error: ParseError) -> PyErr {
@@ -124,12 +129,18 @@ fn parse_error_to_exception(error: ParseError) -> PyErr {
 impl PyWorld {
     #[new]
     pub fn new(map_str: String) -> PyResult<Self> {
-        let world = match World::try_from(map_str) {
+        let world = match parse(&map_str) {
             Ok(world) => world,
             Err(e) => return Err(parse_error_to_exception(e)),
         };
+        let collector = Rc::new(TeamReward::new(world.n_agents() as u32));
+        world.register_observer(collector.clone());
         let renderer = Renderer::new(&world);
-        Ok(PyWorld { world, renderer })
+        Ok(PyWorld {
+            world,
+            renderer,
+            collector,
+        })
     }
 
     #[staticmethod]
@@ -138,8 +149,13 @@ impl PyWorld {
             Ok(world) => world,
             Err(e) => return Err(parse_error_to_exception(e)),
         };
+        let reward_model = Rc::new(TeamReward::new(world.n_agents() as u32));
         let renderer = Renderer::new(&world);
-        Ok(PyWorld { world, renderer })
+        Ok(PyWorld {
+            world,
+            renderer,
+            collector: reward_model,
+        })
     }
 
     #[getter]
@@ -180,7 +196,7 @@ impl PyWorld {
     }
 
     #[getter]
-    fn gems_collected(&self) -> u32 {
+    fn gems_collected(&self) -> usize {
         self.world.n_gems_collected()
     }
 
@@ -198,7 +214,7 @@ impl PyWorld {
     fn gems(&self) -> Vec<(Position, PyGem)> {
         self.world
             .gems()
-            .map(|(pos, gem)| (*pos, PyGem::new(gem.clone())))
+            .map(|(pos, gem)| (*pos, PyGem::new(gem.agent(), gem.is_collected())))
             .collect()
     }
 
@@ -206,7 +222,17 @@ impl PyWorld {
     fn lasers(&self) -> Vec<(Position, PyLaser)> {
         self.world
             .lasers()
-            .map(|(pos, laser)| (*pos, PyLaser::new(laser.clone())))
+            .map(|(pos, laser)| {
+                (
+                    *pos,
+                    PyLaser::new(
+                        laser.is_on(),
+                        PyDirection::new(laser.direction()),
+                        laser.agent_id(),
+                        laser.agent(),
+                    ),
+                )
+            })
             .collect()
     }
 
@@ -220,13 +246,13 @@ impl PyWorld {
 
     #[getter]
     fn exit_pos(&self) -> Vec<Position> {
-        self.world.exits().copied().collect()
+        self.world.exits().map(|(pos, _)| pos).copied().collect()
     }
 
     pub fn step(&mut self, actions: Vec<PyAction>) -> PyResult<i32> {
         let actions: Vec<_> = actions.into_iter().map(|a| a.action).collect();
         match self.world.step(&actions) {
-            Ok(r) => Ok(r),
+            Ok(..) => Ok(self.collector.consume_step_reward()),
             Err(e) => match e {
                 RuntimeWorldError::InvalidAction {
                     agent_id,
@@ -245,7 +271,8 @@ impl PyWorld {
     }
 
     pub fn reset(&mut self) {
-        self.world.reset()
+        self.world.reset();
+        self.collector.reset();
     }
 
     pub fn available_actions(&self) -> Vec<Vec<PyAction>> {

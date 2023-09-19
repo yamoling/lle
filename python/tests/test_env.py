@@ -4,24 +4,16 @@ from copy import deepcopy
 import numpy as np
 
 
-# def test_dynamic_env_reset():
-#     env1 = DynamicLaserEnv(num_lasers=2)
-#     env = TimeLimitWrapper(env1, 10)
-
-#     def run(i):
-#         print(i)
-#         done = False
-#         obs = env.reset()
-#         while not done:
-#             actions = env.action_space.sample(obs.available_actions)
-#             obs, _, done, _ = env.step(actions)
-
-#     for i in range(50):
-#         run(i)
-
-
 def test_available_actions():
-    env = LLE.from_file("python/tests/maps/5x5_laser_2agents")
+    env = LLE.from_str(
+        """
+@ @ L0S @  @
+@ .  .  .  @
+@ X  .  S0 @
+@ X  .  S1 @
+@ @  @  @  @
+"""
+    )
     env.reset()
     available_actions = env.get_avail_actions()
     # Agent 0
@@ -40,7 +32,16 @@ def test_available_actions():
 
 
 def test_available_actions2():
-    env = LLE.from_file("python/tests/maps/7x7_available_actions.txt")
+    env = LLE.from_str(
+        """
+@   @ @  @  @ @ @
+@   . S0 S1 . . @
+@   . .  .  . . @
+L0E . .  .  . . @
+@   . .  .  . G @
+@   . X  X  . . @
+@   @ @  @  @ @ @"""
+    )
     obs = env.reset()
 
     def check_available_actions(available: np.ndarray[np.int32, Any], expected_available: list[list[Action]]) -> bool:
@@ -66,17 +67,29 @@ def test_available_actions2():
 
 
 def test_width_height():
-    env = LLE.from_file("python/tests/maps/3x3.txt")
+    env = LLE.from_str(
+        """S0 X .
+.  . .
+.  . ."""
+    )
     assert env.width == 3
     assert env.height == 3
 
-    env = LLE.from_file("python/tests/maps/3x4_gem.txt")
+    env = LLE.from_str(
+        """S0 X . .
+.  . . .
+G  . . ."""
+    )
     assert env.width == 4
     assert env.height == 3
 
 
 def test_state():
-    env = LLE.from_file("python/tests/maps/3x3.txt")
+    env = LLE.from_str(
+        """S0 X .
+.  . .
+.  . ."""
+    )
     assert env.state_shape == (1 * 5 * 3 * 3,)
     env.reset()
     state = env.get_state()
@@ -84,7 +97,11 @@ def test_state():
 
 
 def test_action_meanings():
-    env = LLE.from_file("python/tests/maps/3x3.txt")
+    env = LLE.from_str(
+        """S0 X .
+.  . .
+.  . ."""
+    )
     assert env.action_meanings == [a.name for a in Action.ALL]
 
 

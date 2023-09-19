@@ -70,9 +70,9 @@ impl Renderer {
         }
 
         // Exit
-        for (i, j) in world.exits() {
-            let x = *j as u32 * TILE_SIZE;
-            let y = *i as u32 * TILE_SIZE;
+        for (&(i, j), _) in world.exits() {
+            let x = j as u32 * TILE_SIZE;
+            let y = i as u32 * TILE_SIZE;
             draw_rectangle(&mut self.static_frame, x, y, TILE_SIZE, TILE_SIZE, BLACK, 3);
         }
     }
