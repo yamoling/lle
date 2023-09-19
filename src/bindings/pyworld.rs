@@ -1,14 +1,11 @@
-use std::{
-    hash::{Hash, Hasher},
-    rc::Rc,
-};
+use std::rc::Rc;
 
 use numpy::PyArray1;
-use pyo3::{exceptions, prelude::*, pyclass::CompareOp, types::PyDict};
+use pyo3::{exceptions, prelude::*, types::PyDict};
 
 use crate::{
-    parsing::parse, parsing::ParseError, world::WorldState, Position, Renderer, RuntimeWorldError,
-    TeamReward, Tile, World,
+    parsing::parse, parsing::ParseError, Position, Renderer, RuntimeWorldError, TeamReward, Tile,
+    World,
 };
 
 use super::{
@@ -16,113 +13,14 @@ use super::{
     pyagent::PyAgent,
     pydirection::PyDirection,
     pytile::{PyGem, PyLaser, PyLaserSource},
+    pyworld_state::PyWorldState,
 };
-
-#[pyclass(name = "WorldState")]
-#[derive(Clone, Hash)]
-pub struct PyWorldState {
-    #[pyo3(get, set)]
-    agents_positions: Vec<Position>,
-    #[pyo3(get, set)]
-    gems_collected: Vec<bool>,
-}
-
-#[pymethods]
-impl PyWorldState {
-    #[new]
-    pub fn new(agents_positions: Vec<Position>, gems_collected: Vec<bool>) -> Self {
-        Self {
-            agents_positions,
-            gems_collected,
-        }
-    }
-
-    fn __deepcopy__(&self, _memo: &PyDict) -> Self {
-        self.clone()
-    }
-
-    fn __str__(&self) -> String {
-        format!(
-            "WorldState(agent_positions={:?}, gems_collected={:?})",
-            self.agents_positions, self.gems_collected
-        )
-    }
-
-    fn __repr__(&self) -> String {
-        self.__str__()
-    }
-
-    fn __hash__(&self) -> u64 {
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        self.hash(&mut hasher);
-        hasher.finish()
-    }
-
-    fn __richcmp__(&self, other: &Self, cmp: CompareOp) -> PyResult<bool> {
-        let eq = self.agents_positions == other.agents_positions
-            && self.gems_collected == other.gems_collected;
-        match cmp {
-            CompareOp::Eq => Ok(eq),
-            CompareOp::Ne => Ok(!eq),
-            other => Err(exceptions::PyArithmeticError::new_err(format!(
-                "Unsupported comparison: {other:?}"
-            ))),
-        }
-    }
-}
-
-impl From<PyWorldState> for WorldState {
-    fn from(val: PyWorldState) -> Self {
-        WorldState {
-            agents_positions: val.agents_positions,
-            gems_collected: val.gems_collected,
-        }
-    }
-}
 
 #[pyclass(unsendable, name = "World")]
 #[derive(Clone)]
 pub struct PyWorld {
     world: World,
     renderer: Renderer,
-    collector: Rc<TeamReward>,
-}
-
-fn parse_error_to_exception(error: ParseError) -> PyErr {
-    match error {
-        ParseError::InvalidFileName { file_name } => {
-            exceptions::PyFileNotFoundError::new_err(file_name)
-        }
-
-        ParseError::DuplicateStartTile {
-            agent_id,
-            start1,
-            start2,
-        } => exceptions::PyValueError::new_err(format!(
-            "Agent {agent_id} has two start tiles: {start1:?} and {start2:?}"
-        )),
-        ParseError::InconsistentDimensions {
-            expected_n_cols,
-            actual_n_cols,
-            row,
-        } => exceptions::PyValueError::new_err(format!(
-            "Inconsistent number of columns in row {}: expected {}, got {}",
-            row, expected_n_cols, actual_n_cols
-        )),
-        ParseError::NotEnoughExitTiles { n_starts, n_exits } => exceptions::PyValueError::new_err(
-            format!("Not enough exit tiles: {n_starts} starts, {n_exits} exits"),
-        ),
-        ParseError::EmptyWorld => exceptions::PyValueError::new_err("Empty world: no tiles"),
-        ParseError::NoAgents => exceptions::PyValueError::new_err("No agents in the world"),
-
-        ParseError::InvalidTile {
-            tile_str,
-            line,
-            col,
-        } => exceptions::PyValueError::new_err(format!(
-            "Invalid tile '{tile_str}' at position ({line}, {col})"
-        )),
-    }
 }
 
 #[pymethods]
@@ -133,14 +31,8 @@ impl PyWorld {
             Ok(world) => world,
             Err(e) => return Err(parse_error_to_exception(e)),
         };
-        let collector = Rc::new(TeamReward::new(world.n_agents() as u32));
-        world.register_observer(collector.clone());
         let renderer = Renderer::new(&world);
-        Ok(PyWorld {
-            world,
-            renderer,
-            collector,
-        })
+        Ok(PyWorld { world, renderer })
     }
 
     #[staticmethod]
@@ -149,13 +41,8 @@ impl PyWorld {
             Ok(world) => world,
             Err(e) => return Err(parse_error_to_exception(e)),
         };
-        let reward_model = Rc::new(TeamReward::new(world.n_agents() as u32));
         let renderer = Renderer::new(&world);
-        Ok(PyWorld {
-            world,
-            renderer,
-            collector: reward_model,
-        })
+        Ok(PyWorld { world, renderer })
     }
 
     #[getter]
@@ -249,10 +136,10 @@ impl PyWorld {
         self.world.exits().map(|(pos, _)| pos).copied().collect()
     }
 
-    pub fn step(&mut self, actions: Vec<PyAction>) -> PyResult<i32> {
+    pub fn step(&mut self, actions: Vec<PyAction>) -> PyResult<f32> {
         let actions: Vec<_> = actions.into_iter().map(|a| a.action).collect();
         match self.world.step(&actions) {
-            Ok(..) => Ok(self.collector.consume_step_reward()),
+            Ok(r) => Ok(r),
             Err(e) => match e {
                 RuntimeWorldError::InvalidAction {
                     agent_id,
@@ -272,7 +159,6 @@ impl PyWorld {
 
     pub fn reset(&mut self) {
         self.world.reset();
-        self.collector.reset();
     }
 
     pub fn available_actions(&self) -> Vec<Vec<PyAction>> {
@@ -320,5 +206,42 @@ impl PyWorld {
     fn get_state(&self) -> PyWorldState {
         let state = self.world.get_state();
         PyWorldState::new(state.agents_positions, state.gems_collected)
+    }
+}
+
+fn parse_error_to_exception(error: ParseError) -> PyErr {
+    match error {
+        ParseError::InvalidFileName { file_name } => {
+            exceptions::PyFileNotFoundError::new_err(file_name)
+        }
+
+        ParseError::DuplicateStartTile {
+            agent_id,
+            start1,
+            start2,
+        } => exceptions::PyValueError::new_err(format!(
+            "Agent {agent_id} has two start tiles: {start1:?} and {start2:?}"
+        )),
+        ParseError::InconsistentDimensions {
+            expected_n_cols,
+            actual_n_cols,
+            row,
+        } => exceptions::PyValueError::new_err(format!(
+            "Inconsistent number of columns in row {}: expected {}, got {}",
+            row, expected_n_cols, actual_n_cols
+        )),
+        ParseError::NotEnoughExitTiles { n_starts, n_exits } => exceptions::PyValueError::new_err(
+            format!("Not enough exit tiles: {n_starts} starts, {n_exits} exits"),
+        ),
+        ParseError::EmptyWorld => exceptions::PyValueError::new_err("Empty world: no tiles"),
+        ParseError::NoAgents => exceptions::PyValueError::new_err("No agents in the world"),
+
+        ParseError::InvalidTile {
+            tile_str,
+            line,
+            col,
+        } => exceptions::PyValueError::new_err(format!(
+            "Invalid tile '{tile_str}' at position ({line}, {col})"
+        )),
     }
 }

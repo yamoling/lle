@@ -1,43 +1,35 @@
-use std::{
-    cell::{Cell, RefCell},
-    rc::Rc,
-};
+use std::{cell::Cell, rc::Rc};
 
 use crate::{
     agent::{Agent, AgentId},
     rendering::{TileVisitor, VisitorData},
-    utils::{Observable, Observer},
+    reward::RewardCollector,
     RewardEvent,
 };
 
 use super::{Floor, Tile};
 
-#[derive(Default)]
 pub struct Gem {
     floor: Floor,
     collected: Cell<bool>,
-    observers: RefCell<Vec<Rc<dyn Observer<RewardEvent>>>>,
+    reward_collector: Rc<dyn RewardCollector>,
 }
 
 impl Gem {
+    pub fn new(reward_collector: Rc<dyn RewardCollector>) -> Self {
+        Self {
+            floor: Floor::default(),
+            collected: Cell::new(false),
+            reward_collector,
+        }
+    }
+
     pub fn collect(&self) {
         self.collected.set(true);
     }
 
     pub fn is_collected(&self) -> bool {
         self.collected.get()
-    }
-}
-
-impl Observable<RewardEvent> for Gem {
-    fn register(&self, observer: Rc<dyn Observer<RewardEvent>>) {
-        self.observers.borrow_mut().push(observer);
-    }
-
-    fn notify(&self, event: RewardEvent) {
-        for observer in self.observers.borrow().iter() {
-            observer.update(&event);
-        }
     }
 }
 
@@ -54,7 +46,7 @@ impl Tile for Gem {
     fn enter(&self, agent: &mut Agent) {
         if !self.collected.get() {
             self.collected.set(true);
-            self.notify(RewardEvent::GemCollected {
+            self.reward_collector.update(RewardEvent::GemCollected {
                 agent_id: agent.id(),
             });
         }

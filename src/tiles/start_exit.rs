@@ -1,9 +1,9 @@
-use std::{cell::RefCell, rc::Rc};
+use std::rc::Rc;
 
 use crate::{
     agent::{Agent, AgentId},
     rendering::{TileVisitor, VisitorData},
-    utils::{Observable, Observer},
+    reward::RewardCollector,
     RewardEvent,
 };
 
@@ -52,20 +52,16 @@ impl Tile for Start {
     }
 }
 
-#[derive(Default)]
 pub struct Exit {
     floor: Floor,
-    observers: RefCell<Vec<Rc<dyn Observer<RewardEvent>>>>,
+    collector: Rc<dyn RewardCollector>,
 }
 
-impl Observable<RewardEvent> for Exit {
-    fn register(&self, observer: Rc<dyn Observer<RewardEvent>>) {
-        self.observers.borrow_mut().push(observer);
-    }
-
-    fn notify(&self, event: RewardEvent) {
-        for observer in self.observers.borrow().iter() {
-            observer.update(&event);
+impl Exit {
+    pub fn new(collector: Rc<dyn RewardCollector>) -> Self {
+        Self {
+            floor: Floor::default(),
+            collector,
         }
     }
 }
@@ -81,7 +77,7 @@ impl Tile for Exit {
 
     fn enter(&self, agent: &mut Agent) {
         self.floor.enter(agent);
-        self.notify(RewardEvent::AgentExit {
+        self.collector.update(RewardEvent::AgentExit {
             agent_id: agent.id(),
         });
         agent.arrive();

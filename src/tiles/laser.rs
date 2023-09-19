@@ -1,13 +1,9 @@
-use std::{
-    cell::{Cell, RefCell},
-    fmt::Display,
-    rc::Rc,
-};
+use std::{cell::Cell, fmt::Display, rc::Rc};
 
 use crate::{
     agent::{Agent, AgentId},
     rendering::{TileVisitor, VisitorData},
-    utils::{Observable, Observer},
+    reward::RewardCollector,
     RewardEvent,
 };
 
@@ -87,7 +83,7 @@ pub struct Laser {
     agent_id: AgentId,
     beam: LaserBeam,
     wrapped: Rc<dyn Tile>,
-    observers: RefCell<Vec<Rc<dyn Observer<RewardEvent>>>>,
+    collector: Rc<dyn RewardCollector>,
 }
 
 impl Laser {
@@ -96,13 +92,14 @@ impl Laser {
         direction: Direction,
         wrapped: Rc<dyn Tile>,
         beam: LaserBeam,
+        collector: Rc<dyn RewardCollector>,
     ) -> Self {
         Self {
             agent_id,
             direction,
             wrapped,
             beam,
-            observers: RefCell::new(vec![]),
+            collector,
         }
     }
 
@@ -127,18 +124,6 @@ impl Laser {
     }
 }
 
-impl Observable<RewardEvent> for Laser {
-    fn register(&self, observer: Rc<dyn Observer<RewardEvent>>) {
-        self.observers.borrow_mut().push(observer);
-    }
-
-    fn notify(&self, event: RewardEvent) {
-        for observer in self.observers.borrow().iter() {
-            observer.update(&event);
-        }
-    }
-}
-
 impl Tile for Laser {
     fn reset(&self) {
         self.beam.turn_on();
@@ -157,7 +142,7 @@ impl Tile for Laser {
         // Note: turning off the beam happens in `pre_enter`
         if self.beam.is_on() && agent.id() != self.agent_id {
             agent.die();
-            self.notify(RewardEvent::AgentDied {
+            self.collector.update(RewardEvent::AgentDied {
                 agent_id: agent.id(),
             });
         }

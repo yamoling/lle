@@ -1,8 +1,6 @@
-use std::rc::Rc;
-
 use lle::{
-    Action, ParseError, RuntimeWorldError, TeamReward, World, REWARD_AGENT_DIED,
-    REWARD_AGENT_JUST_ARRIVED, REWARD_END_GAME, REWARD_GEM_COLLECTED,
+    Action, ParseError, RuntimeWorldError, World, REWARD_AGENT_DIED, REWARD_AGENT_JUST_ARRIVED,
+    REWARD_END_GAME, REWARD_GEM_COLLECTED,
 };
 
 #[test]
@@ -215,11 +213,7 @@ fn test_reward_finish() {
     )
     .unwrap();
     w.reset();
-    let rmodel = Rc::new(TeamReward::new(w.n_agents() as u32));
-    w.register_observer(rmodel.clone());
-    w.step(&[Action::East]).unwrap();
-    let r = rmodel.consume_step_reward();
-    assert_eq!(r, 2);
+    assert_eq!(w.step(&[Action::East]).unwrap(), 2f32);
 }
 
 #[test]
@@ -247,17 +241,10 @@ fn test_reward() {
     )
     .unwrap();
     w.reset();
-    let rmodel = Rc::new(TeamReward::new(w.n_agents() as u32));
-    w.register_observer(rmodel.clone());
-    w.step(&[Action::East]).unwrap();
-    assert_eq!(rmodel.consume_step_reward(), REWARD_GEM_COLLECTED);
-
-    w.step(&[Action::East]).unwrap();
-    assert_eq!(rmodel.consume_step_reward(), 0);
-
-    w.step(&[Action::South]).unwrap();
+    assert_eq!(w.step(&[Action::East]).unwrap(), REWARD_GEM_COLLECTED);
+    assert_eq!(w.step(&[Action::East]).unwrap(), 0f32);
     assert_eq!(
-        rmodel.consume_step_reward(),
+        w.step(&[Action::South]).unwrap(),
         REWARD_AGENT_JUST_ARRIVED + REWARD_END_GAME
     );
 }
@@ -271,11 +258,11 @@ fn test_reward_death() {
     )
     .unwrap();
     w.reset();
-    let rmodel = Rc::new(TeamReward::new(w.n_agents() as u32));
-    w.register_observer(rmodel.clone());
 
-    w.step(&[Action::Stay, Action::East]).unwrap();
-    assert_eq!(rmodel.consume_step_reward(), REWARD_AGENT_DIED);
+    assert_eq!(
+        w.step(&[Action::Stay, Action::East]).unwrap(),
+        REWARD_AGENT_DIED
+    );
     assert!(w.done());
 }
 
@@ -288,11 +275,11 @@ fn test_reward_collect_and_death() {
     )
     .unwrap();
     w.reset();
-    let rmodel = Rc::new(TeamReward::new(w.n_agents() as u32));
-    w.register_observer(rmodel.clone());
 
-    w.step(&[Action::Stay, Action::East]).unwrap();
-    assert_eq!(rmodel.consume_step_reward(), REWARD_AGENT_DIED);
+    assert_eq!(
+        w.step(&[Action::Stay, Action::East]).unwrap(),
+        REWARD_AGENT_DIED
+    );
     assert!(w.done());
 }
 
@@ -375,19 +362,16 @@ fn test_take_action_walk_outside_map() {
 #[test]
 fn test_reset() {
     let mut w = World::try_from("S0 G X").unwrap();
-    let rmodel = Rc::new(TeamReward::new(w.n_agents() as u32));
-    w.register_observer(rmodel.clone());
     for i in 0..10 {
         w.reset();
-        rmodel.reset();
         assert!(!w.done(), "World should not be done after reset (step {i})");
         assert_eq!(w.agents_positions()[0], (0, 0));
-        w.step(&[Action::East]).unwrap();
-        assert_eq!(rmodel.consume_step_reward(), REWARD_GEM_COLLECTED);
+        assert_eq!(w.step(&[Action::East]).unwrap(), REWARD_GEM_COLLECTED);
         assert!(!w.done());
-        w.step(&[Action::East]).unwrap();
-        let r = rmodel.consume_step_reward();
-        assert_eq!(r, REWARD_AGENT_JUST_ARRIVED + REWARD_END_GAME);
+        assert_eq!(
+            w.step(&[Action::East]).unwrap(),
+            REWARD_AGENT_JUST_ARRIVED + REWARD_END_GAME
+        );
         assert!(w.done());
     }
 }

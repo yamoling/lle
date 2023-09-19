@@ -1,13 +1,14 @@
 use std::{cell::Cell, rc::Rc};
 
-use crate::{agent::Agent, tiles::LaserBeam, AgentId, Floor, Gem, Laser, Start, Tile};
+use crate::{agent::Agent, tiles::LaserBeam, AgentId, Floor, Gem, Laser, Start, TeamReward, Tile};
 
 fn make_laser(agent_id: AgentId, length: usize) -> Laser {
     let wrapped = Rc::new(Floor::default());
     let mut beam = Vec::with_capacity(4);
     (0..length).for_each(|_| beam.push(Rc::new(Cell::new(true))));
     let beam = LaserBeam::new(beam);
-    Laser::new(agent_id, crate::tiles::Direction::East, wrapped, beam)
+    let rm = Rc::new(TeamReward::new(1));
+    Laser::new(agent_id, crate::tiles::Direction::East, wrapped, beam, rm)
 }
 
 #[test]
@@ -30,7 +31,7 @@ fn test_start() {
 #[test]
 fn test_gem() {
     let mut agent = Agent::new(3);
-    let gem = Gem::default();
+    let gem = Gem::new(Rc::new(TeamReward::new(3)));
     gem.reset();
     assert_eq!(gem.agent(), None);
     assert!(!gem.is_collected());

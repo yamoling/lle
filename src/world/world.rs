@@ -9,9 +9,10 @@ use crate::{
     agent::Agent,
     levels,
     parsing::{parse, ParseError},
+    reward::RewardCollector,
     tiles::{Gem, Laser, LaserSource, Tile},
-    utils::{find_duplicates, Observable, Observer},
-    Action, AgentId, Exit, Position, RewardEvent, RuntimeWorldError,
+    utils::find_duplicates,
+    Action, AgentId, Exit, Position, RuntimeWorldError,
 };
 
 use super::WorldState;
@@ -32,6 +33,7 @@ pub struct World {
     agent_positions: Vec<Position>,
     wall_positions: Vec<Position>,
 
+    reward_model: Rc<dyn RewardCollector>,
     available_actions: Vec<Vec<Action>>,
     done: bool,
 }
@@ -47,6 +49,7 @@ impl World {
         exits: Vec<(Position, Rc<Exit>)>,
         walls_positions: Vec<Position>,
         world_str: &str,
+        reward_model: Rc<dyn RewardCollector>,
     ) -> Self {
         let agents = start_positions
             .iter()
@@ -68,6 +71,7 @@ impl World {
             available_actions: vec![],
             done: false,
             world_string: world_str.into(),
+            reward_model,
         }
     }
 
@@ -219,11 +223,12 @@ impl World {
         for agent in &mut self.agents {
             agent.reset();
         }
+        self.reward_model.reset();
         self.update();
     }
 
     /// Perform one step in the environment and return the corresponding reward.
-    pub fn step(&mut self, actions: &[Action]) -> Result<(), RuntimeWorldError> {
+    pub fn step(&mut self, actions: &[Action]) -> Result<f32, RuntimeWorldError> {
         if self.done {
             return Err(RuntimeWorldError::WorldIsDone);
         }
@@ -275,7 +280,7 @@ impl World {
         }
         self.agent_positions = new_positions;
         self.update();
-        Ok(())
+        Ok(self.reward_model.consume())
     }
 
     pub fn get_state(&self) -> WorldState {
@@ -302,7 +307,7 @@ impl World {
                 expected: self.n_agents(),
             });
         }
-
+        self.reward_model.reset();
         // Reset tiles and agents (but do not enter the new tiles)
         for row in &mut self.grid {
             for tile in row {
@@ -346,18 +351,6 @@ impl World {
         let mut world_str = String::new();
         reader.read_to_string(&mut world_str).unwrap();
         World::try_from(world_str)
-    }
-
-    pub fn register_observer(&self, observer: Rc<dyn Observer<RewardEvent>>) {
-        for (_, gem) in &self.gems {
-            gem.register(observer.clone());
-        }
-        for (_, source) in &self.lasers {
-            source.register(observer.clone());
-        }
-        for (_, exit) in &self.exits {
-            exit.register(observer.clone());
-        }
     }
 }
 
