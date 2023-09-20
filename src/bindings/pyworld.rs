@@ -166,6 +166,7 @@ impl PyWorld {
             .collect()
     }
 
+    #[getter]
     pub fn agents(&self) -> Vec<PyAgent> {
         self.world
             .agents()

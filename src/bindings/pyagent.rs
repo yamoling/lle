@@ -21,6 +21,11 @@ impl PyAgent {
     }
 
     #[getter]
+    fn is_alive(&self) -> bool {
+        self.agent.is_alive()
+    }
+
+    #[getter]
     fn has_arrived(&self) -> bool {
         self.agent.has_arrived()
     }

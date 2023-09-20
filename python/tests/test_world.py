@@ -67,6 +67,17 @@ def test_time_reward():
         assert reward == 0
 
 
+def test_world_agents():
+    world = World(
+        """
+                  S0 S1 S2
+                  X  X  X"""
+    )
+    world.reset()
+    assert not any(a.is_dead for a in world.agents)
+    assert all(a.is_alive for a in world.agents)
+
+
 def test_finish_reward():
     world = World(
         """@ @ @  @ @ @

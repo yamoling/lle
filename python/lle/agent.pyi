@@ -10,3 +10,6 @@ class Agent:
     @property
     def is_dead(self) -> bool:
         """Whether the agent is dead."""
+    @property
+    def is_alive(self) -> bool:
+        """Whether the agent is alive."""
