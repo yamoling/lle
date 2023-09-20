@@ -307,7 +307,7 @@ impl World {
                 expected: self.n_agents(),
             });
         }
-        self.reward_model.reset();
+
         // Reset tiles and agents (but do not enter the new tiles)
         for row in &mut self.grid {
             for tile in row {
@@ -317,13 +317,14 @@ impl World {
         for agent in &mut self.agents {
             agent.reset();
         }
-        // Set the gem states
+        // Collect the necessary gems BEFORE entering the tiles with the agents
         for ((_, gem), &collect) in izip!(&self.gems, &state.gems_collected) {
             if collect {
                 gem.collect();
             }
         }
-
+        // ONLY then, reset the reward model (after gems have been collected & before entering the tiles).
+        self.reward_model.reset();
         self.agent_positions = state.agents_positions.to_vec();
         for ((i, j), agent) in izip!(&self.agent_positions, &self.agents) {
             self.grid[*i][*j].pre_enter(agent);
@@ -331,7 +332,8 @@ impl World {
         for ((i, j), agent) in izip!(&self.agent_positions, &mut self.agents) {
             self.grid[*i][*j].enter(agent);
         }
-        self.reward_model.reset();
+        // Finally, consume the reward of the "force state" step
+        self.reward_model.consume();
         self.update();
         Ok(())
     }

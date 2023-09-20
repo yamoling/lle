@@ -26,18 +26,6 @@ impl TeamReward {
             n_agents,
         }
     }
-
-    pub fn set_n_agents(&mut self, n_agents: u32) {
-        self.n_agents = n_agents;
-    }
-
-    pub fn episode_gems_collected(&self) -> u32 {
-        self.episode_gems_collected.get()
-    }
-
-    pub fn episode_agents_arrived(&self) -> u32 {
-        self.episode_agents_arrived.get()
-    }
 }
 
 impl Clone for TeamReward {
@@ -75,7 +63,7 @@ impl RewardCollector for TeamReward {
             RewardEvent::AgentExit { .. } => {
                 self.episode_agents_arrived
                     .set(self.episode_agents_arrived.get() + 1);
-                if self.episode_agents_arrived() == self.n_agents {
+                if self.episode_agents_arrived.get() == self.n_agents {
                     REWARD_AGENT_JUST_ARRIVED + REWARD_END_GAME
                 } else {
                     REWARD_AGENT_JUST_ARRIVED

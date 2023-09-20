@@ -252,6 +252,24 @@ fn test_reward_after_forced_state() {
 }
 
 #[test]
+fn test_reward_force_state_all_arrived() {
+    let mut w = World::try_from(
+        "
+    S0 . G
+    S1 X X",
+    )
+    .unwrap();
+    w.reset();
+    let state = WorldState {
+        agents_positions: vec![(0, 2), (1, 1)],
+        gems_collected: vec![true],
+    };
+
+    w.force_state(&state).unwrap();
+    assert_eq!(w.step(&[Action::South, Action::Stay]).unwrap(), 2f32);
+}
+
+#[test]
 fn test_vertex_conflict() {
     let mut w = World::try_from(
         "
