@@ -81,6 +81,37 @@ def test_finish_reward():
     assert reward == REWARD_END_GAME + REWARD_AGENT_JUST_ARRIVED
 
 
+def test_arrive_reward_only_once():
+    """Some kind of adversarial game where only one agent can move at a time."""
+    world = World(
+        """
+    S0 . G
+    S1 X X
+"""
+    )
+    action_rewards = [
+        ([Action.EAST, Action.STAY], 0),  # Agent 0
+        ([Action.STAY, Action.EAST], 1),  # Agent 1 finishes the game
+        ([Action.STAY, Action.STAY], 0),  # Agent 0
+        ([Action.STAY, Action.STAY], 0),  # Agent 1
+        ([Action.EAST, Action.STAY], 1),  # Agent 0 collects the gem
+        ([Action.STAY, Action.STAY], 0),  # Agent 1
+        ([Action.SOUTH, Action.STAY], 2),  # Agent 0 finishes the game
+    ]
+    world.reset()
+    for action, reward in action_rewards:
+        assert world.step(action) == reward
+
+
+def test_reward_after_forced_state():
+    world = World(
+        """
+    S0 . G
+    S1 X X
+"""
+    )
+
+
 def test_collect_reward():
     world = World(
         """S0 X . .

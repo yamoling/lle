@@ -331,6 +331,7 @@ impl World {
         for ((i, j), agent) in izip!(&self.agent_positions, &mut self.agents) {
             self.grid[*i][*j].enter(agent);
         }
+        self.reward_model.reset();
         self.update();
         Ok(())
     }

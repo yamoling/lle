@@ -1,6 +1,6 @@
 use lle::{
-    Action, ParseError, RuntimeWorldError, World, REWARD_AGENT_DIED, REWARD_AGENT_JUST_ARRIVED,
-    REWARD_END_GAME, REWARD_GEM_COLLECTED,
+    Action, ParseError, RuntimeWorldError, World, WorldState, REWARD_AGENT_DIED,
+    REWARD_AGENT_JUST_ARRIVED, REWARD_END_GAME, REWARD_GEM_COLLECTED,
 };
 
 #[test]
@@ -214,6 +214,41 @@ fn test_reward_finish() {
     .unwrap();
     w.reset();
     assert_eq!(w.step(&[Action::East]).unwrap(), 2f32);
+}
+
+#[test]
+fn test_reward_arrive_only_once() {
+    let mut w = World::try_from(
+        "
+    S0 . G
+    S1 X X",
+    )
+    .unwrap();
+    w.reset();
+    assert_eq!(w.step(&[Action::East, Action::East]).unwrap(), 1f32);
+    assert_eq!(w.step(&[Action::East, Action::Stay]).unwrap(), 1f32);
+    assert_eq!(w.step(&[Action::Stay, Action::Stay]).unwrap(), 0f32);
+    assert_eq!(w.step(&[Action::South, Action::Stay]).unwrap(), 2f32);
+}
+
+/// After forcing the state of the environment, make sure that
+/// the reward is correct, and does not include the reward of
+/// forcing the state.
+#[test]
+fn test_reward_after_forced_state() {
+    let mut w = World::try_from(
+        "
+    S0 . G
+    S1 X X",
+    )
+    .unwrap();
+    w.reset();
+    let state = WorldState {
+        agents_positions: vec![(0, 1), (1, 1)],
+        gems_collected: vec![false],
+    };
+    w.force_state(&state).unwrap();
+    assert_eq!(w.step(&[Action::East, Action::Stay]).unwrap(), 1f32);
 }
 
 #[test]

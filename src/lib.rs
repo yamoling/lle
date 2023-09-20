@@ -23,4 +23,4 @@ pub use reward::{
     REWARD_GEM_COLLECTED,
 };
 pub use tiles::{Exit, Floor, Gem, Laser, LaserSource, Start, Tile, Wall};
-pub use world::{RuntimeWorldError, World};
+pub use world::{RuntimeWorldError, World, WorldState};
