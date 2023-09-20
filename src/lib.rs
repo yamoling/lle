@@ -6,9 +6,9 @@ mod parsing;
 //mod planning;
 // mod observations;
 pub mod rendering;
-mod reward;
+pub mod reward;
 mod tiles;
-pub mod utils;
+mod utils;
 mod world;
 
 /// Position with (i, j) coordinates

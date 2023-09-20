@@ -1,11 +1,8 @@
-use std::rc::Rc;
-
 use numpy::PyArray1;
 use pyo3::{exceptions, prelude::*, types::PyDict};
 
 use crate::{
-    parsing::parse, parsing::ParseError, Position, Renderer, RuntimeWorldError, TeamReward, Tile,
-    World,
+    parsing::parse, parsing::ParseError, Position, Renderer, RuntimeWorldError, Tile, World,
 };
 
 use super::{
