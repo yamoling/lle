@@ -3,9 +3,7 @@ from abc import ABC, abstractmethod
 from enum import IntEnum
 import numpy as np
 import cv2
-
-# pylint: disable=no-name-in-module
-from lle import World
+from lle import World, AgentId, Position
 
 
 class ObservationType(IntEnum):
@@ -235,11 +233,11 @@ class PartialGenerator(ObservationGenerator):
 
     def observe(self) -> np.ndarray[np.float32, Any]:
         obs = np.zeros((self._world.n_agents, *self._shape), dtype=np.float32)
-        for a, agent_pos in enumerate(self._world.agents_positions):
-            agent_pos = np.array(agent_pos)
+        for a, pos in enumerate(self._world.agents_positions):
+            agent_pos = np.array(pos)
             # Agents positions
-            for a2, other_pos in enumerate(self._world.agents_positions):
-                other_pos = np.array(other_pos)
+            for a2, pos2 in enumerate(self._world.agents_positions):
+                other_pos = np.array(pos2)
                 self.encode_layer(obs[a, a2], agent_pos, np.array([other_pos]))
             # Gems
             self.encode_layer(obs[a, self.GEM], agent_pos, np.array([gem_pos for gem_pos, gem in self._world.gems if not gem.is_collected]))
@@ -248,15 +246,19 @@ class PartialGenerator(ObservationGenerator):
             # Walls
             self.encode_layer(obs[a, self.WALL], agent_pos, np.array([wall_pos for wall_pos in self._world.wall_pos]))
             # Lasers
-            d = {}
-            for laser_pos, laser in self._world.lasers:
-                if laser.is_on:
-                    lasers: list = d.get(laser.agent_id, [])
-                    lasers.append(laser_pos)
-                    d[laser.agent_id] = lasers
-            for agent_id, laser in d.items():
-                self.encode_layer(obs[a, self.LASER_0 + agent_id], agent_pos, np.array(laser))
+            laser_positions = self._get_lasers_positions()
+            for agent_id, positions in laser_positions.items():
+                self.encode_layer(obs[a, self.LASER_0 + agent_id], agent_pos, np.array(positions))
             # Laser sources
             for pos, source in self._world.laser_sources:
                 self.encode_layer(obs[a, self.LASER_0 + source.agent_id], agent_pos, np.array([pos]), fill_value=-1.0)
         return obs
+
+    def _get_lasers_positions(self) -> dict[AgentId, list[Position]]:
+        laser_positions = dict[AgentId, list[Position]]()
+        for laser_pos, laser in self._world.lasers:
+            if laser.is_on:
+                lasers = laser_positions.get(laser.agent_id, [])
+                lasers.append(laser_pos)
+                laser_positions[laser.agent_id] = lasers
+        return laser_positions

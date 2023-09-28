@@ -1,7 +1,24 @@
-from typing import Tuple
+__all__ = [
+    "Action",
+    "World",
+    "WorldState",
+    "Agent",
+    "Gem",
+    "Laser",
+    "LaserSource",
+    "Direction",
+    "REWARD_AGENT_DIED",
+    "REWARD_AGENT_JUST_ARRIVED",
+    "REWARD_END_GAME",
+    "REWARD_GEM_COLLECTED",
+    "LLE",
+    "ObservationType",
+    "Position",
+    "AgentId",
+]
 
+from .types import Position, AgentId
 
-# pylint: disable=no-name-in-module
 from .lle import (
     Action,
     World,
@@ -18,6 +35,3 @@ from .lle import (
 )
 from .env import LLE
 from .observations import ObservationType
-
-Position = Tuple[int, int]
-AgentId = int

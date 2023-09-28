@@ -1,5 +1,6 @@
-from typing import List, Tuple
+from typing import List, Tuple, final
 
+@final
 class Action:
     """Enumeration of all possible actions."""
 

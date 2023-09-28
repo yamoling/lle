@@ -1,3 +1,6 @@
+from typing import final
+
+@final
 class Direction:
     NORTH: "Direction"
     SOUTH: "Direction"

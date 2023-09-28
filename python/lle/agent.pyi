@@ -1,5 +1,7 @@
-AgentId = int
+from typing import final
+from .types import AgentId
 
+@final
 class Agent:
     @property
     def num(self) -> AgentId:

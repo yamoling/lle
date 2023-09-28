@@ -1,11 +1,12 @@
-from typing import Tuple, List, Any
-from lle import Position
+from typing import Tuple, List, Any, final
 import numpy as np
 
 from .action import Action
 from .agent import Agent
 from .tiles import Gem, LaserSource, Laser
+from .types import Position
 
+@final
 class WorldState:
     def __init__(self, agent_positions: List[Position], gems_collected: List[bool]):
         """Construct a WorldState from the position of each agent and the collection status of each gem."""
@@ -18,6 +19,7 @@ class WorldState:
     def __hash__(self) -> int: ...
     def __eq__(self, __value: object) -> bool: ...
 
+@final
 class World:
     def __init__(self, world_str: str):
         """Constructs a World from a string.
@@ -32,15 +34,16 @@ class World:
     def done(self) -> bool:
         """Whether the game is over, i.e. agents can no longer perform actions.
         This happens when an agent is dead or all agents are on fini tiles."""
+        ...
     @property
     def width(self) -> int:
-        """The width of the gridworld."""
+        """The width (in number of tiles) of the gridworld."""
     @property
     def height(self) -> int:
-        """The height of the gridworld."""
+        """The height (in number of tiles) of the gridworld."""
     @property
     def image_dimensions(self) -> Tuple[int, int]:
-        """The dimensions of the image redered (width, height)"""
+        """The dimensions (in pixels) of the image redered (width, height)"""
     @property
     def gems_collected(self) -> int:
         """The number of gems collected by the agents so far in the episode."""

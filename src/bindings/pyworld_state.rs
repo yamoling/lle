@@ -7,14 +7,17 @@ use crate::{world::WorldState, Position};
 #[derive(Clone, Hash)]
 pub struct PyWorldState {
     #[pyo3(get, set)]
+    /// The position of each agent.
     agents_positions: Vec<Position>,
     #[pyo3(get, set)]
+    /// The collection status of each gem.
     gems_collected: Vec<bool>,
 }
 
 #[pymethods]
 impl PyWorldState {
     #[new]
+    /// Construct a WorldState from the position of each agent and the collection status of each gem.
     pub fn new(agents_positions: Vec<Position>, gems_collected: Vec<bool>) -> Self {
         Self {
             agents_positions,
