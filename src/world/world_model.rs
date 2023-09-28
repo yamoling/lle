@@ -12,10 +12,8 @@ use crate::{
     reward::RewardCollector,
     tiles::{Gem, Laser, LaserSource, Tile},
     utils::find_duplicates,
-    Action, AgentId, Exit, Position, RuntimeWorldError,
+    Action, AgentId, Exit, Position, RuntimeWorldError, WorldState,
 };
-
-use super::WorldState;
 
 pub struct World {
     width: usize,
@@ -29,6 +27,7 @@ pub struct World {
 
     agents: Vec<Agent>,
     start_positions: Vec<Position>,
+    void_positions: Vec<Position>,
     exits: Vec<(Position, Rc<Exit>)>,
     agent_positions: Vec<Position>,
     wall_positions: Vec<Position>,
@@ -38,7 +37,6 @@ pub struct World {
     done: bool,
 }
 
-/// Methods for Rust usage
 impl World {
     pub fn new(
         grid: Vec<Vec<Rc<dyn Tile>>>,
@@ -46,6 +44,7 @@ impl World {
         lasers: Vec<(Position, Rc<Laser>)>,
         sources: Vec<(Position, Rc<LaserSource>)>,
         start_positions: Vec<Position>,
+        void_positions: Vec<Position>,
         exits: Vec<(Position, Rc<Exit>)>,
         walls_positions: Vec<Position>,
         world_str: &str,
@@ -61,6 +60,7 @@ impl World {
             height: grid.len(),
             agent_positions: start_positions.clone(),
             wall_positions: walls_positions,
+            void_positions,
             agents,
             exits,
             gems,
@@ -142,6 +142,10 @@ impl World {
 
     pub fn exits(&self) -> impl Iterator<Item = (&Position, &Exit)> {
         self.exits.iter().map(|(pos, exit)| (pos, exit.as_ref()))
+    }
+
+    pub fn void_positions(&self) -> impl Iterator<Item = &Position> {
+        self.void_positions.iter()
     }
 
     pub fn lasers(&self) -> impl Iterator<Item = (&Position, &Laser)> {

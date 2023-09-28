@@ -379,3 +379,12 @@ fn test_set_state_available_actions() {
     assert!(actions[0].contains(&Action::Stay));
     assert!(actions[0].contains(&Action::East));
 }
+
+#[test]
+fn test_die_in_void() {
+    let mut w = World::try_from("S0 V X").unwrap();
+    w.reset();
+    w.step(&[Action::East]).unwrap();
+    assert!(w.agents[0].is_dead());
+    assert!(w.done());
+}

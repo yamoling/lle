@@ -2,7 +2,7 @@ use std::{cell::Cell, rc::Rc};
 
 use crate::{
     reward::RewardCollector,
-    tiles::{Direction, LaserBeam},
+    tiles::{Direction, LaserBeam, Void},
     AgentId, Exit, Floor, Gem, Laser, LaserSource, Position, Start, TeamReward, Tile, Wall, World,
 };
 
@@ -14,6 +14,7 @@ pub fn parse(world_str: &str) -> Result<World, ParseError> {
     let mut grid = vec![];
     let mut gems: Vec<(Position, Rc<Gem>)> = vec![];
     let mut start_positions: Vec<(AgentId, Position)> = vec![];
+    let mut void_positions: Vec<Position> = vec![];
     let mut exits: Vec<(Position, Rc<Exit>)> = vec![];
     let mut walls_positions: Vec<Position> = vec![];
     let mut sources: Vec<(Position, Rc<LaserSource>)> = vec![];
@@ -62,6 +63,10 @@ pub fn parse(world_str: &str) -> Result<World, ParseError> {
                     let source = Rc::new(LaserSource::new(direction, agent_num));
                     sources.push(((i, j), source.clone()));
                     source
+                }
+                'V' => {
+                    void_positions.push((i, j));
+                    Rc::new(Void::new(reward_model.clone()))
                 }
                 other => {
                     return Err(ParseError::InvalidTile {
@@ -115,6 +120,7 @@ pub fn parse(world_str: &str) -> Result<World, ParseError> {
         lasers,
         sources,
         start_positions,
+        void_positions,
         exits,
         walls_positions,
         world_str,

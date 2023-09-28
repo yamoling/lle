@@ -3,7 +3,7 @@ from threading import Thread
 import pytest
 from copy import deepcopy
 
-from lle import World, WorldState, Action, REWARD_END_GAME, REWARD_AGENT_JUST_ARRIVED, REWARD_GEM_COLLECTED
+from lle import World, WorldState, Action, REWARD_END_GAME, REWARD_AGENT_JUST_ARRIVED, REWARD_GEM_COLLECTED, REWARD_AGENT_DIED
 
 
 def test_available_actions():
@@ -114,13 +114,11 @@ def test_arrive_reward_only_once():
         assert world.step(action) == reward
 
 
-def test_reward_after_forced_state():
-    world = World(
-        """
-    S0 . G
-    S1 X X
-"""
-    )
+def test_void_reward():
+    world = World("S0 V X")
+    world.reset()
+    assert world.step([Action.EAST]) == REWARD_AGENT_DIED
+    assert world.done
 
 
 def test_collect_reward():

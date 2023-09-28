@@ -1,8 +1,11 @@
 use crate::{
     agent::{Agent, AgentId},
     rendering::{TileVisitor, VisitorData},
+    reward::RewardCollector,
+    RewardEvent,
 };
-use std::cell::Cell;
+use core::panic;
+use std::{cell::Cell, rc::Rc};
 
 pub trait Tile {
     fn pre_enter(&self, agent: &Agent);
@@ -81,6 +84,56 @@ impl Tile for Wall {
 
     fn accept(&self, _visitor: &dyn TileVisitor, _data: &mut VisitorData) {
         // Nothing to do here as it is statically rendered
+    }
+}
+
+pub struct Void {
+    agent: Cell<Option<AgentId>>,
+    reward_model: Rc<dyn RewardCollector>,
+}
+
+impl Void {
+    pub fn new(reward_model: Rc<dyn RewardCollector>) -> Self {
+        Self {
+            agent: Cell::new(None),
+            reward_model,
+        }
+    }
+}
+
+impl Tile for Void {
+    fn agent(&self) -> Option<AgentId> {
+        self.agent.get()
+    }
+
+    fn pre_enter(&self, _agent: &Agent) {}
+
+    fn enter(&self, agent: &mut Agent) {
+        agent.die();
+        self.reward_model.update(RewardEvent::AgentDied {
+            agent_id: agent.id(),
+        });
+        self.agent.set(Some(agent.id()));
+    }
+
+    fn leave(&self) -> AgentId {
+        panic!("Cannot leave a void: the game should be over !")
+    }
+
+    fn is_occupied(&self) -> bool {
+        self.agent.get().is_some()
+    }
+
+    fn is_waklable(&self) -> bool {
+        true
+    }
+
+    fn reset(&self) {
+        self.agent.set(None);
+    }
+
+    fn accept(&self, _visitor: &dyn TileVisitor, _data: &mut VisitorData) {
+        // Nothing to do
     }
 }
 

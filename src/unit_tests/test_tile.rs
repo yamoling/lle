@@ -88,3 +88,14 @@ fn test_laser_agent_dies() {
     laser.enter(&mut agent);
     assert!(agent.is_dead());
 }
+
+#[test]
+fn test_void_agent_dies() {
+    let mut agent = Agent::new(0);
+    let void = crate::tiles::Void::default();
+    void.pre_enter(&agent);
+    assert!(!void.is_occupied());
+    assert!(agent.is_alive());
+    void.enter(&mut agent);
+    assert!(agent.is_dead());
+}
