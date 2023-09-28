@@ -39,13 +39,6 @@ testpaths = ["python/tests"]
 
 [tool.pylint.format]
 max-line-length = 140
-# Disable 'import-error' for .lle
-[tool.pylint.MISCELLANEOUS]
-# ignored-modules = "lle,lle.lle,action,world,agent,tiles, direction" # Activating this line works locally but not as a distributed package
-# ignore-patterns=".*.pyi" # Do not lint stub files
-
-[tool.pylint."MESSAGES CONTROL"]
-disable = []
 
 
 [tool.ruff]
