@@ -1,4 +1,4 @@
-from typing import Any, Literal, Iterable
+from typing import Any, Literal
 from lle import World, Action
 import cv2
 import numpy as np
@@ -43,7 +43,7 @@ class LLE(RLEnv[DiscreteActionSpace]):
                 available_actions[agent, action.value] = 1
         return available_actions
 
-    def step(self, actions: Iterable[int]):
+    def step(self, actions: np.ndarray[np.int32, Any]):
         reward = self.world.step([Action(a) for a in actions])
         obs_data = self.world_observer.observe()
         obs = Observation(obs_data, self.get_avail_actions(), self.get_state())

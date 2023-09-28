@@ -265,7 +265,7 @@ smac = ["smac @ git+https://github.com/oxwhirl/smac.git"]
 type = "git"
 url = "https://github.com/yamoling/rlenv.git"
 reference = "HEAD"
-resolved_reference = "7ffa0ec9afb75943e27542dd42f43a81a8c778bf"
+resolved_reference = "6309c2fb42a2759935677349f50f029a8a505578"
 
 [[package]]
 name = "tomli"

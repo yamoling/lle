@@ -67,4 +67,6 @@ jobs:
           poetry run pip install maturin
           poetry run maturin develop --release
           poetry run pytest
+      - name: Mypy stub check
+        run: stubtest --allowlist python/allowlist.txt lle
         

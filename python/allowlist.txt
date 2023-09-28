@@ -1,0 +1,15 @@
+# Do not warn for __deepcopy__ not being mentioned in the python stubs
+[a-zA-Z.]*.__deepcopy__
+
+# Do not warn for the imports that are not found in the stubs
+lle.tiles
+lle.world
+lle.direction
+lle.agent
+lle.action
+
+# The Tile class is just there to be subclassed but does not actually exist
+lle.lle.Tile
+
+# Error such that the 'render' method would be abstract at runtime... -> Ignore it
+lle.env.RLEnv.render
