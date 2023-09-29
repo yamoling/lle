@@ -1,6 +1,7 @@
 use std::env;
 use std::fs;
 use std::path::Path;
+use toml::{Table, Value};
 
 const RESOURCES: &str = "resources/sprites";
 
@@ -90,7 +91,38 @@ fn include_sprites_in_binary() {
     fs::write(dest_path, res).unwrap();
 }
 
+fn add_version_number_from_cargo_to_pyproject() {
+    let content = fs::read_to_string("pyproject.toml").unwrap();
+    let mut table = content.parse::<Table>().unwrap();
+    println!("Before: {:#?}", table);
+    match table.get_mut("tool").unwrap() {
+        toml::Value::Table(tool) => match tool.get_mut("poetry").unwrap() {
+            Value::Table(poetry) => match poetry.get_mut("version").unwrap() {
+                Value::String(version) => {
+                    println!("version: {version}");
+                    *version = env::var("CARGO_PKG_VERSION").unwrap();
+                }
+                _ => panic!("version is not a string"),
+            },
+            other => panic!("poetry is not a table: {:#?}", other),
+        },
+        _ => panic!("tool is not a table"),
+    };
+    println!("After: {:#?}", table);
+    fs::write("pyproject.toml", table.to_string()).unwrap();
+}
+
+fn make_readme() {
+    let readme = fs::read_to_string("docs/readme_pypi.md").unwrap();
+    let mut readme = readme.replace("lvl6-annotated.png", "docs/lvl6-annotated.png");
+    readme.push_str(&fs::read_to_string("docs/readme_build.md").unwrap());
+    fs::write("readme.md", readme).unwrap();
+}
+
 fn main() {
-    println!("cargo:rerun-if-changed=build.rs");
     include_sprites_in_binary();
+    add_version_number_from_cargo_to_pyproject();
+    make_readme();
+
+    println!("cargo:rerun-if-changed=build.rs");
 }

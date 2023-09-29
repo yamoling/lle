@@ -1,7 +1,7 @@
 # Laser Learning Environment (LLE)
 LLE is a fast Multi-Agent Reinforcement Learning environment written in Rust which has proven to be a difficult exploration benchmark so far.
 
-![LLE](docs/lvl6-annotated.png)
+![LLE](lvl6-annotated.png)
 
 ## Overview
 The agents start in the start tiles, must collect the gems and finish the game by reaching the exit tiles. There are five actions: North, South, East, West and Stay. 
@@ -56,26 +56,4 @@ from lle import LLE
 env = LLE.from_str("S0 G X")
 obs = env.reset()
 obs, reward, done, info = env.step([0]) # Actions are now integers
-```
-## Building
-This project has been set up using [Poetry](https://python-poetry.org/). To build the project, run the following commands:
-```bash
-poetry shell
-poetry install
-maturin develop  # For development
-maturin build    # For distribution
-```
-
-## Tests
-This project **does not** respect Rust unit tests convention and takes inspiration from [this structure](http://xion.io/post/code/rust-unit-test-placement.html). Unit tests are in the `src/unit_tests` folder and are explicitely linked to in each file with the `#path` directive. 
-Integration tests are written on the python side.
-
-Run unit tests with 
-```bash
-cargo test
-```
-
-Run integration tests with
-```bash
-pytest
 ```
