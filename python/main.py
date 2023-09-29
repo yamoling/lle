@@ -3,28 +3,19 @@ from lle import World, Action, REWARD_END_GAME, REWARD_AGENT_JUST_ARRIVED, REWAR
 
 world = World(
     """
-    S0 X . .
-    .  . . .
-    G  . . .
+    S0 X V .
+    .  . . V
+    G  . V .
     """
 )
 
+import cv2
+import time
 
-def play():
-    """Collect the gem and finish the game. Check that the reward is is correct when collecting it."""
-    world.reset()
-    world.step([Action.SOUTH])
-    reward = world.step([Action.SOUTH])
-    assert reward == REWARD_GEM_COLLECTED
-    assert not world.done
-    r = world.step([Action.NORTH])
-    assert r == 0
-    r = world.step([Action.NORTH])
-    assert r == 0
-    reward = world.step([Action.EAST])
-    assert world.done
-    assert reward == REWARD_END_GAME + REWARD_AGENT_JUST_ARRIVED
-
-
-for _ in range(10):
-    play()
+world.reset()
+img = world.get_image()
+cv2.imshow("image", img)
+cv2.waitKey(0)
+time.sleep(0.5)
+cv2.imshow("image", img)
+cv2.waitKey(0)

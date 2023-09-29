@@ -13,3 +13,4 @@ REWARD_END_GAME: float
 """The reward for finishing the game."""
 REWARD_GEM_COLLECTED: float
 """The reward for collecting a gem."""
+__version__: str

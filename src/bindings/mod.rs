@@ -23,5 +23,6 @@ pub fn lle(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add("REWARD_AGENT_JUST_ARRIVED", REWARD_AGENT_JUST_ARRIVED)?;
     m.add("REWARD_END_GAME", REWARD_END_GAME)?;
     m.add("REWARD_GEM_COLLECTED", REWARD_GEM_COLLECTED)?;
+    m.add("__version__", crate::VERSION)?;
     Ok(())
 }

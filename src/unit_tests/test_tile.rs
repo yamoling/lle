@@ -1,6 +1,10 @@
 use std::{cell::Cell, rc::Rc};
 
-use crate::{agent::Agent, tiles::LaserBeam, AgentId, Floor, Gem, Laser, Start, TeamReward, Tile};
+use crate::{
+    agent::Agent,
+    tiles::{LaserBeam, Void},
+    AgentId, Floor, Gem, Laser, Start, TeamReward, Tile,
+};
 
 fn make_laser(agent_id: AgentId, length: usize) -> Laser {
     let wrapped = Rc::new(Floor::default());
@@ -92,7 +96,8 @@ fn test_laser_agent_dies() {
 #[test]
 fn test_void_agent_dies() {
     let mut agent = Agent::new(0);
-    let void = crate::tiles::Void::default();
+    let collector = TeamReward::new(1);
+    let void = Void::new(Rc::new(collector));
     void.pre_enter(&agent);
     assert!(!void.is_occupied());
     assert!(agent.is_alive());

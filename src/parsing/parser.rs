@@ -61,6 +61,7 @@ pub fn parse(world_str: &str) -> Result<World, ParseError> {
                     let direction = Direction::try_from(&token[2..]).unwrap();
                     let agent_num = token[1..2].parse().unwrap();
                     let source = Rc::new(LaserSource::new(direction, agent_num));
+                    walls_positions.push((i, j));
                     sources.push(((i, j), source.clone()));
                     source
                 }

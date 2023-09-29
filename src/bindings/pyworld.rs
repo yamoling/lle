@@ -74,27 +74,38 @@ impl PyWorld {
     }
 
     #[getter]
+    /// The list of the positions of the void tiles
+    pub fn void_pos(&self) -> Vec<Position> {
+        self.world.void_positions().copied().collect()
+    }
+
+    #[getter]
+    /// The proportion of agents that have reached an exit tile.
     fn exit_rate(&self) -> f32 {
         let n_arrived = self.world.n_agents_arrived() as f32;
         n_arrived / (self.world.n_agents() as f32)
     }
 
     #[getter]
+    /// The number of gems collected so far (since the last reset).
     fn gems_collected(&self) -> usize {
         self.world.n_gems_collected()
     }
 
     #[getter]
+    /// The positions of the agents.
     fn agents_positions(&self) -> Vec<Position> {
         self.world.agents_positions().clone()
     }
 
     #[getter]
+    /// The positions of the wall tiles.
     fn wall_pos(&self) -> Vec<Position> {
         self.world.walls().copied().collect()
     }
 
     #[getter]
+    /// The gems with their respective position.
     fn gems(&self) -> Vec<(Position, PyGem)> {
         self.world
             .gems()
@@ -103,6 +114,7 @@ impl PyWorld {
     }
 
     #[getter]
+    /// The lasers with their respective position.
     fn lasers(&self) -> Vec<(Position, PyLaser)> {
         self.world
             .lasers()
@@ -121,6 +133,7 @@ impl PyWorld {
     }
 
     #[getter]
+    /// The laser sources with their respective position.
     fn laser_sources(&self) -> Vec<(Position, PyLaserSource)> {
         self.world
             .laser_sources()
@@ -129,10 +142,12 @@ impl PyWorld {
     }
 
     #[getter]
+    /// The positions of the exit tiles.
     fn exit_pos(&self) -> Vec<Position> {
         self.world.exits().map(|(pos, _)| pos).copied().collect()
     }
 
+    /// Perform a step in the world and returns the reward for that transition.
     pub fn step(&mut self, actions: Vec<PyAction>) -> PyResult<f32> {
         let actions: Vec<_> = actions.into_iter().map(|a| a.action).collect();
         match self.world.step(&actions) {
@@ -154,10 +169,13 @@ impl PyWorld {
         }
     }
 
+    /// Reset the world to its original state.
     pub fn reset(&mut self) {
         self.world.reset();
     }
 
+    /// Return the available actions for each agent.
+    /// `world.available_actions()[i]` is the list of available actions for agent i.
     pub fn available_actions(&self) -> Vec<Vec<PyAction>> {
         self.world
             .available_actions()
@@ -167,6 +185,7 @@ impl PyWorld {
     }
 
     #[getter]
+    /// Return the list of agents.
     pub fn agents(&self) -> Vec<PyAgent> {
         self.world
             .agents()
@@ -176,6 +195,7 @@ impl PyWorld {
     }
 
     #[getter]
+    /// Whether the last transition yielded a terminal state.
     pub fn done(&self) -> bool {
         self.world.done()
     }
@@ -184,6 +204,7 @@ impl PyWorld {
         self.clone()
     }
 
+    /// Renders the world as an image and returns it in a numpy array.
     fn get_image(self_: PyRef<'_, Self>) -> PyResult<PyObject> {
         let dims = self_.image_dimensions();
         let dims = (dims.1 as usize, dims.0 as usize, 3);
@@ -194,6 +215,7 @@ impl PyWorld {
         Ok(res.into_py(py))
     }
 
+    /// Force the world to a specific state
     fn set_state(&mut self, state: PyWorldState) -> PyResult<()> {
         match self.world.force_state(&state.into()) {
             Ok(_) => Ok(()),
@@ -201,6 +223,7 @@ impl PyWorld {
         }
     }
 
+    /// Return the current state of the world (that can be set with `world.set_state`)
     fn get_state(&self) -> PyWorldState {
         let state = self.world.get_state();
         PyWorldState::new(state.agents_positions, state.gems_collected)

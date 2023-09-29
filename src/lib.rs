@@ -24,3 +24,6 @@ pub use reward::{
 };
 pub use tiles::{Exit, Floor, Gem, Laser, LaserSource, Start, Tile, Wall};
 pub use world::{RuntimeWorldError, World, WorldState};
+
+// Include the version number of the crate from the build script
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");

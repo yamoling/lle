@@ -9,7 +9,7 @@ classifiers = [
 
 [tool.poetry]
 name = "lle"
-version = "0.1.0"
+version = "0.1.1"
 description = "Laser Learning Environment (LLE) for Multi-Agent Reinforcement Learning"
 authors = ["Yannick Molinghen <yannick.molinghen@ulb.be>"]
 readme = "README.md"

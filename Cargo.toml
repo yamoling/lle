@@ -1,6 +1,6 @@
 [package]
 name = "lle"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -10,8 +10,8 @@ name = "lle"
 # crate-type = ["cdylib"] 
 
 [dependencies]
-image = "0.24.6"
+image = "0.24"
 itertools = "0.11.0"
 lazy_static = "1.4.0"
-numpy = "0.19.0"
-pyo3 = "0.19.0"
+numpy = "0.19"
+pyo3 = "0.19"

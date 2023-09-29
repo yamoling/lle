@@ -68,6 +68,9 @@ class World:
     def wall_pos(self) -> List[Position]:
         """The position of every wall."""
     @property
+    def void_pos(self) -> List[Position]:
+        """The position of every void tile."""
+    @property
     def laser_sources(self) -> List[Tuple[Position, LaserSource]]:
         """The position of every laser source."""
     @property

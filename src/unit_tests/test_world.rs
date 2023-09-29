@@ -57,8 +57,9 @@ fn test_tile_type() {
         .filter(|(pos, _)| pos.0 == 1 && pos.1 == 1)
         .count();
     assert!(n_exits_at_1_1 == 1);
+    assert!(world.wall_positions.len() == 2);
     assert!(world.wall_positions.contains(&(1, 2)));
-    assert!(world.wall_positions.len() == 1);
+    assert!(world.wall_positions.contains(&(1, 0)));
 }
 
 #[test]

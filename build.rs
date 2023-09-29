@@ -74,12 +74,11 @@ fn make_const(name: &str, the_type: &str, value: &str) -> String {
     format!("pub const {}: {} = {};\n", name, the_type, value)
 }
 
-fn main() {
+fn include_sprites_in_binary() {
     let out_dir = env::var_os("OUT_DIR").unwrap();
     let cwd = env::current_dir().unwrap();
     // Append '/' to cwd
     let cwd = format!("{}/", cwd.to_str().unwrap());
-    let dest_path = Path::new(&out_dir).join("constants.rs");
 
     let mut res = agent_files(&cwd);
     res.push_str(&laser_files(&cwd));
@@ -87,7 +86,11 @@ fn main() {
     res.push_str(&format!(
         "pub const GEM_BYTES: &[u8] = include_bytes!(r#\"{cwd}/{RESOURCES}/gem.png\"#);\n",
     ));
-
+    let dest_path = Path::new(&out_dir).join("constants.rs");
     fs::write(dest_path, res).unwrap();
+}
+
+fn main() {
     println!("cargo:rerun-if-changed=build.rs");
+    include_sprites_in_binary();
 }

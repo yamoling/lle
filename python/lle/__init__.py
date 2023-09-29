@@ -1,4 +1,5 @@
 __all__ = [
+    "__version__",
     "Action",
     "World",
     "WorldState",
@@ -20,6 +21,7 @@ __all__ = [
 from .types import Position, AgentId
 
 from .lle import (
+    __version__,
     Action,
     World,
     WorldState,
