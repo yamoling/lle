@@ -8,6 +8,8 @@ class Tile:
 @final
 class Gem(Tile):
     is_collected: bool
+    def __str__(self) -> str: ...
+    def __repr__(self) -> str: ...
 
 @final
 class Laser(Tile):
@@ -15,8 +17,12 @@ class Laser(Tile):
     is_off: bool
     agent_id: AgentId
     direction: Direction
+    def __str__(self) -> str: ...
+    def __repr__(self) -> str: ...
 
 @final
 class LaserSource(Tile):
     agent_id: AgentId
     direction: Direction
+    def __str__(self) -> str: ...
+    def __repr__(self) -> str: ...

@@ -24,6 +24,21 @@ impl PyGem {
     }
 }
 
+#[pymethods]
+impl PyGem {
+    pub fn __str__(&self) -> String {
+        let agent = match self.agent {
+            Some(agent) => agent.to_string(),
+            None => String::from("None"),
+        };
+        format!("Gem(is_collected={}, agent={agent})", self.is_collected)
+    }
+
+    pub fn __repr__(&self) -> String {
+        self.__str__()
+    }
+}
+
 #[pyclass(name = "Laser")]
 pub struct PyLaser {
     #[pyo3(get, set)]
@@ -55,8 +70,26 @@ impl PyLaser {
 #[pymethods]
 impl PyLaser {
     #[getter]
-    fn is_off(&self) -> bool {
+    pub fn is_off(&self) -> bool {
         !self.is_on
+    }
+
+    pub fn __str__(&self) -> String {
+        let agent = match self.agent {
+            Some(agent) => agent.to_string(),
+            None => String::from("None"),
+        };
+
+        format!(
+            "Laser(is_on={}, direction={}, agent_id={}, agent={agent})",
+            self.is_on,
+            self.direction.name(),
+            self.agent_id
+        )
+    }
+
+    pub fn __repr__(&self) -> String {
+        self.__str__()
     }
 }
 
@@ -86,5 +119,17 @@ impl PyLaserSource {
     #[getter]
     fn agent(&self) -> Option<AgentId> {
         self.source.agent()
+    }
+
+    pub fn __str__(&self) -> String {
+        format!(
+            "LaserSource(direction={}, agent_id={})",
+            self.direction().name(),
+            self.source.agent_id(),
+        )
+    }
+
+    pub fn __repr__(&self) -> String {
+        self.__str__()
     }
 }

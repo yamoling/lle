@@ -33,7 +33,7 @@ impl PyDirection {
     };
 
     #[getter]
-    fn name(&self) -> String {
+    pub fn name(&self) -> String {
         self.direction.to_string()
     }
 }
