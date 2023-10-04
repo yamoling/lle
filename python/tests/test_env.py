@@ -15,7 +15,7 @@ def test_available_actions():
 """
     )
     env.reset()
-    available_actions = env.get_avail_actions()
+    available_actions = env.available_actions()
     # Agent 0
     assert available_actions[0, Action.NORTH.value] == 1
     assert available_actions[0, Action.EAST.value] == 0
