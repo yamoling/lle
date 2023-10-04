@@ -95,7 +95,7 @@ pub fn parse(world_str: &str) -> Result<World, ParseError> {
             return Err(ParseError::NoAgents);
         }
         // There are enough start/exit tiles
-        if start_positions.len() != exits.len() {
+        if start_positions.len() < exits.len() {
             return Err(ParseError::NotEnoughExitTiles {
                 n_starts: start_positions.len(),
                 n_exits: exits.len(),
