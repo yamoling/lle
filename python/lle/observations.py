@@ -1,20 +1,21 @@
 from typing import Any
 from abc import ABC, abstractmethod
-from enum import IntEnum
+from enum import Enum
 import numpy as np
 import cv2
 from lle import World, AgentId, Position
 
 
-class ObservationType(IntEnum):
+class ObservationType(Enum):
     """The different observation types for the World"""
 
+    RELATIVE_POSITIONS = 0
     STATE = 0
     RGB_IMAGE = 1
     LAYERED = 2
     FLATTENED = 3
     PARTIAL_3x3 = 4
-    PARTIAL_5x5 = 4
+    PARTIAL_5x5 = 5
 
     @staticmethod
     def from_str(s: str) -> "ObservationType":
@@ -28,7 +29,7 @@ class ObservationType(IntEnum):
     def get_observation_generator(self, world: World) -> "ObservationGenerator":
         """Get the observation generator for the observation type"""
         match self:
-            case ObservationType.STATE:
+            case ObservationType.STATE | ObservationType.RELATIVE_POSITIONS:
                 return StateGenerator(world)
             case ObservationType.RGB_IMAGE:
                 return RGBImage(world)
