@@ -11,7 +11,7 @@ from .observations import ObservationType
 class LLE(RLEnv[DiscreteActionSpace]):
     """Laser Learning Environment (LLE)"""
 
-    def __init__(self, world: World, obs_type: ObservationType | str = ObservationType.RELATIVE_POSITIONS):
+    def __init__(self, world: World, obs_type: ObservationType | str = ObservationType.STATE):
         self.world = world
         super().__init__(DiscreteActionSpace(self.world.n_agents, Action.N, [a.name for a in Action.ALL]))
         if isinstance(obs_type, str):

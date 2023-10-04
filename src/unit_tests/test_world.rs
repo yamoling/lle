@@ -1,7 +1,8 @@
 use core::panic;
 
 use crate::{
-    agent::Agent, tiles::Laser, world::WorldState, Action, ParseError, RuntimeWorldError, World,
+    agent::Agent, reward, tiles::Laser, world::WorldState, Action, ParseError, RuntimeWorldError,
+    World,
 };
 
 fn get_laser(world: &World, pos: (usize, usize)) -> &Laser {
@@ -388,4 +389,47 @@ fn test_die_in_void() {
     w.step(&[Action::East]).unwrap();
     assert!(w.agents[0].is_dead());
     assert!(w.done());
+}
+
+#[test]
+fn test_reward_less_agents_than_exits() {
+    let mut w = World::try_from(
+        "
+        S0 .
+        X  X",
+    )
+    .unwrap();
+    w.reset();
+    assert_eq!(w.n_agents(), 1);
+    let r = w.step(&[Action::South]).unwrap();
+    assert_eq!(
+        r,
+        reward::REWARD_AGENT_JUST_ARRIVED + reward::REWARD_END_GAME
+    );
+}
+
+#[test]
+fn test_reward_less_agents_than_exits2() {
+    let mut w = World::try_from(
+        "
+        . . . . .
+        . @ . . .
+        . @ X @ X
+       S0 . . . . 
+        V V V V V",
+    )
+    .unwrap();
+    assert_eq!(w.n_agents(), 1);
+    w.reset();
+
+    let state = WorldState {
+        agents_positions: [(1, 2)].into(),
+        gems_collected: [].into(),
+    };
+    w.force_state(&state).unwrap();
+    let r = w.step(&[Action::South]).unwrap();
+    assert_eq!(
+        r,
+        reward::REWARD_AGENT_JUST_ARRIVED + reward::REWARD_END_GAME
+    );
 }

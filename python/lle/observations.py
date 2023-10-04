@@ -9,7 +9,7 @@ from lle import World, AgentId, Position
 class ObservationType(IntEnum):
     """The different observation types for the World"""
 
-    RELATIVE_POSITIONS = 0
+    STATE = 0
     RGB_IMAGE = 1
     LAYERED = 2
     FLATTENED = 3
@@ -28,8 +28,8 @@ class ObservationType(IntEnum):
     def get_observation_generator(self, world: World) -> "ObservationGenerator":
         """Get the observation generator for the observation type"""
         match self:
-            case ObservationType.RELATIVE_POSITIONS:
-                return RelativePosition(world)
+            case ObservationType.STATE:
+                return StateGenerator(world)
             case ObservationType.RGB_IMAGE:
                 return RGBImage(world)
             case ObservationType.LAYERED:
@@ -66,7 +66,7 @@ class ObservationGenerator(ABC):
         self._world = new_world
 
 
-class RelativePosition(ObservationGenerator):
+class StateGenerator(ObservationGenerator):
     def __init__(self, world) -> None:
         super().__init__(world)
         self.n_gems = world.n_gems
@@ -81,7 +81,7 @@ class RelativePosition(ObservationGenerator):
 
     @property
     def obs_type(self) -> ObservationType:
-        return ObservationType.RELATIVE_POSITIONS
+        return ObservationType.STATE
 
     @property
     def shape(self):
