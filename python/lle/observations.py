@@ -1,15 +1,15 @@
 from typing import Any
 from abc import ABC, abstractmethod
-from enum import Enum
+from enum import IntEnum
 import numpy as np
 import cv2
 from lle import World, AgentId, Position
 
 
-class ObservationType(Enum):
+class ObservationType(IntEnum):
     """The different observation types for the World"""
 
-    RELATIVE_POSITIONS = 0
+    RELATIVE_POSITIONS = -1
     STATE = 0
     RGB_IMAGE = 1
     LAYERED = 2
@@ -174,7 +174,7 @@ class Layered(ObservationGenerator):
 
 
 class FlattenedLayered(ObservationGenerator):
-    def __init__(self, world) -> None:
+    def __init__(self, world):
         super().__init__(world)
         self.layered = Layered(world)
         size = 1
