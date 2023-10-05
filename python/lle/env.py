@@ -84,6 +84,13 @@ class LLE(RLEnv[DiscreteActionSpace]):
     def from_file(path: str, obs_type: ObservationType = ObservationType.FLATTENED) -> "LLE":
         return LLE(World.from_file(path), obs_type)
 
+    @staticmethod
+    def level(level: int, obs_type: ObservationType = ObservationType.FLATTENED) -> "LLE":
+        """Load a level from the levels folder"""
+        if level <= 0 or level > 6:
+            raise NotImplementedError("Only levels 1-6 are implemented")
+        return LLE(World.from_file(f"level{level}"), obs_type)
+
     def seed(self, _seed_value: int):
         return
 
