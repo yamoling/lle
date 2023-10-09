@@ -3,7 +3,11 @@ build-backend = "maturin"
 requires = ["maturin>=1.1,<2.0"]
 
 [project]
-classifiers = ["Programming Language :: Rust", "Programming Language :: Python :: Implementation :: CPython", "Programming Language :: Python :: Implementation :: PyPy"]
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
 description = "A fast Multi-Agent Reinforcement Learning Environment"
 name = "laser-learning-environment"
 readme = "readme.md"
@@ -23,6 +27,7 @@ version = "0.1.5"
 [tool.poetry.dependencies]
 numpy = "^1.25.0"
 python = ">=3.10"
+opencv-python = "^4.8.1.78"
 
 [tool.poetry.dependencies.rlenv]
 git = "https://github.com/yamoling/rlenv.git"
