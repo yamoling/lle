@@ -87,6 +87,9 @@ fn include_sprites_in_binary() {
     res.push_str(&format!(
         "pub const GEM_BYTES: &[u8] = include_bytes!(r#\"{cwd}/{RESOURCES}/gem.png\"#);\n",
     ));
+    res.push_str(&format!(
+        "pub const VOID_BYTES: &[u8] = include_bytes!(r#\"{cwd}/{RESOURCES}/void.png\"#);\n",
+    ));
     let dest_path = Path::new(&out_dir).join("constants.rs");
     fs::write(dest_path, res).unwrap();
 }

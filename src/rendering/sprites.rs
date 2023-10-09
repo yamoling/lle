@@ -35,6 +35,10 @@ lazy_static! {
         image::load_from_memory_with_format(GEM_BYTES, image::ImageFormat::Png)
             .unwrap()
             .to_rgba8();
+    pub static ref VOID: RgbImage =
+        image::load_from_memory_with_format(VOID_BYTES, image::ImageFormat::Png)
+            .unwrap()
+            .to_rgb8();
     pub static ref AGENTS: [RgbaImage; 4] = load_rgba(&AGENT_BYTES).try_into().unwrap();
     pub static ref HORIZONTAL_LASERS: [RgbaImage; 4] =
         load_rgba(&HORIZONTAL_LASER_BYTES).try_into().unwrap();

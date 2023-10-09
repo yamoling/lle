@@ -15,7 +15,6 @@ import time
 world.reset()
 img = world.get_image()
 cv2.imshow("image", img)
-cv2.waitKey(0)
 time.sleep(0.5)
 cv2.imshow("image", img)
-cv2.waitKey(0)
+input()

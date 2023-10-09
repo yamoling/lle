@@ -1,4 +1,4 @@
-use image::{GenericImage, ImageBuffer, Rgb, RgbImage, RgbaImage};
+use image::{GenericImage, Rgb, RgbImage, RgbaImage};
 
 use super::{sprites, TileVisitor, AGENT_COLOURS, BLACK, GRID_GREY};
 use crate::{
@@ -80,8 +80,10 @@ impl Renderer {
         for pos in world.void_positions() {
             let x = pos.1 as u32 * TILE_SIZE;
             let y = pos.0 as u32 * TILE_SIZE;
-            let black_square = ImageBuffer::from_pixel(TILE_SIZE, TILE_SIZE, BLACK);
-            self.static_frame.copy_from(&black_square, x, y).unwrap();
+            // copy the void image to the static one
+            self.static_frame
+                .copy_from(&(*sprites::VOID), x, y)
+                .unwrap();
         }
     }
 
