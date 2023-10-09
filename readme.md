@@ -77,5 +77,6 @@ cargo test
 
 Run integration tests with
 ```bash
+maturin develop
 pytest
 ```
