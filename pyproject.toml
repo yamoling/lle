@@ -3,10 +3,14 @@ build-backend = "maturin"
 requires = ["maturin>=1.1,<2.0"]
 
 [project]
-classifiers = ["Programming Language :: Rust", "Programming Language :: Python :: Implementation :: CPython", "Programming Language :: Python :: Implementation :: PyPy"]
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
 description = "A fast Multi-Agent Reinforcement Learning Environment"
 name = "laser-learning-environment"
-readme = "docs/readme_pypi.md"
+readme = "readme.md"
 requires-python = ">=3.10"
 
 [tool.maturin]
