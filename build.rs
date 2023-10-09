@@ -112,7 +112,7 @@ fn add_version_number_from_cargo_to_pyproject() {
     fs::write("pyproject.toml", table.to_string()).unwrap();
 }
 
-fn make_readme() {
+fn _make_readme() {
     let readme = fs::read_to_string("docs/readme_pypi.md").unwrap();
     let mut readme = readme.replace("lvl6-annotated.png", "docs/lvl6-annotated.png");
     readme.push_str(&fs::read_to_string("docs/readme_build.md").unwrap());
@@ -122,7 +122,7 @@ fn make_readme() {
 fn main() {
     include_sprites_in_binary();
     add_version_number_from_cargo_to_pyproject();
-    make_readme();
+    // make_readme();
 
     println!("cargo:rerun-if-changed=build.rs");
 }
