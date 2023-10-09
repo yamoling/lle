@@ -1,17 +1,20 @@
 # Laser Learning Environment (LLE)
-LLE is a fast Multi-Agent Reinforcement Learning environment written in Rust which has proven to be a difficult exploration benchmark so far.
+LLE is a fast Multi-Agent Reinforcement Learning environment written in Rust which has proven to be a difficult exploration benchmark so far. The agents start in the start tiles, must collect the gems and finish the game by reaching the exit tiles. There are five actions: North, South, East, West and Stay. 
+
+When an agent enters a laser of its own colour, it blocks it. Otherwise, it dies and the game ends.
 
 ![LLE](docs/lvl6-annotated.png)
 
-## Overview
-The agents start in the start tiles, must collect the gems and finish the game by reaching the exit tiles. There are five actions: North, South, East, West and Stay. 
-
-When an agent enters a laser of its own colour, it blocks it. Otherwise, it dies and the game ends.
+## Installation
+To use the environment
+```bash
+pip install laser-learning-environment # Stable release
+pip install git+https://github.com/yamoling/lle # latest push on master
+```
 
 ## Citing our work
 The paper has been presented at EWRL 2023.
 [https://openreview.net/pdf?id=IPfdjr4rIs](https://openreview.net/pdf?id=IPfdjr4rIs)
-
 
 ```
 @inproceedings{molinghen2023lle,
@@ -23,6 +26,14 @@ The paper has been presented at EWRL 2023.
 }
 ```
 
+## Development
+If you want to modify the environment, you can clone the repo, install the python dependencies then compile it with `maturin`.
+```
+git clone https://github.com/yamoling/lle
+poetry shell # start the virtual environment
+poetry install
+maturin develop # install lle locally
+```
 
 ## Usage
 ### Low level control
@@ -77,5 +88,6 @@ cargo test
 
 Run integration tests with
 ```bash
+maturin develop
 pytest
 ```
