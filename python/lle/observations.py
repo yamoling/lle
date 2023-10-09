@@ -16,6 +16,7 @@ class ObservationType(IntEnum):
     FLATTENED = 3
     PARTIAL_3x3 = 4
     PARTIAL_5x5 = 5
+    LAYERED_PADDED = 6
 
     @staticmethod
     def from_str(s: str) -> "ObservationType":
@@ -26,7 +27,7 @@ class ObservationType(IntEnum):
                 return enum
         raise ValueError(f"'{s}' does not match any enum name from ObservationType")
 
-    def get_observation_generator(self, world: World) -> "ObservationGenerator":
+    def get_observation_generator(self, world: World, padding_size: int = 0) -> "ObservationGenerator":
         """Get the observation generator for the observation type"""
         match self:
             case ObservationType.STATE | ObservationType.RELATIVE_POSITIONS:
@@ -39,6 +40,8 @@ class ObservationType(IntEnum):
                 return FlattenedLayered(world)
             case ObservationType.PARTIAL_3x3:
                 return PartialGenerator(world, 3)
+            case ObservationType.LAYERED_PADDED:
+                return LayeredPadded(world, padding_size)
             case other:
                 raise ValueError(f"Unknown observation type: {other}")
 
@@ -105,15 +108,18 @@ class RGBImage(ObservationGenerator):
         return (3, 160, 120)
 
 
-class Layered(ObservationGenerator):
+class LayeredPadded(ObservationGenerator):
     """
     Layered observation of the map (walls, lasers, ...).
+    
+    The padding size allows a fixed-size representation for different numbers of agents
 
     Example with 4 agents:
         - Layer 0:  1 at agent 0 location
         - Layer 1:  1 at agent 1 location
         - Layer 2:  1 at agent 2 location
         - Layer 3:  1 at agent 3 location
+        - Layers [padding_size]: zero matrices
         - Layer 4:  1 at wall locations
         - Layer 5: -1 at laser 0 sources and 1 at laser 0 beams
         - Layer 6: -1 at laser 1 sources and 1 at laser 1 beams
@@ -123,17 +129,18 @@ class Layered(ObservationGenerator):
         - Layer 10: 1 at end tile locations
     """
 
-    def __init__(self, world) -> None:
+    def __init__(self, world, padding_size) -> None:
         super().__init__(world)
         self.width = world.width
         self.height = world.height
         self.n_agents = world.n_agents
-        self._shape = (world.n_agents * 2 + 3, world.height, world.width)
+        self.padding_size = padding_size
+        self._shape = (world.n_agents * 2 + self.padding_size + 3, world.height, world.width)
         self.A0 = 0
-        self.WALL = self.A0 + world.n_agents
-        self.LASER_0 = self.WALL + 1
-        self.GEM = self.LASER_0 + world.n_agents
-        self.EXIT = self.GEM + 1
+        self.WALL = self.A0 + self.padding_size + world.n_agents
+        self.LASER_0 = self.WALL + self.padding_size + 1
+        self.GEM = self.LASER_0 + self.padding_size + world.n_agents
+        self.EXIT = self.GEM + self.padding_size + 1
 
         self.static_obs = self._setup()
 
@@ -172,7 +179,11 @@ class Layered(ObservationGenerator):
     def obs_type(self) -> ObservationType:
         return ObservationType.LAYERED
 
-
+class Layered(LayeredPadded):
+    def __init__(self, world: World):
+        super().__init__(world, padding_size=0)
+        
+        
 class FlattenedLayered(ObservationGenerator):
     def __init__(self, world):
         super().__init__(world)
