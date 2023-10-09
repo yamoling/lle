@@ -119,7 +119,6 @@ class LayeredPadded(ObservationGenerator):
         - Layer 1:  1 at agent 1 location
         - Layer 2:  1 at agent 2 location
         - Layer 3:  1 at agent 3 location
-        - Layers [padding_size]: zero matrices
         - Layer 4:  1 at wall locations
         - Layer 5: -1 at laser 0 sources and 1 at laser 0 beams
         - Layer 6: -1 at laser 1 sources and 1 at laser 1 beams
@@ -133,14 +132,13 @@ class LayeredPadded(ObservationGenerator):
         super().__init__(world)
         self.width = world.width
         self.height = world.height
-        self.n_agents = world.n_agents
-        self.padding_size = padding_size
-        self._shape = (world.n_agents * 2 + self.padding_size + 3, world.height, world.width)
+        self.n_agents = world.n_agents + padding_size
+        self._shape = (self.n_agents * 2 + 3, world.height, world.width)
         self.A0 = 0
-        self.WALL = self.A0 + self.padding_size + world.n_agents
-        self.LASER_0 = self.WALL + self.padding_size + 1
-        self.GEM = self.LASER_0 + self.padding_size + world.n_agents
-        self.EXIT = self.GEM + self.padding_size + 1
+        self.WALL = self.A0 + self.n_agents
+        self.LASER_0 = self.WALL + 1
+        self.GEM = self.LASER_0 + self.n_agents
+        self.EXIT = self.GEM + 1
 
         self.static_obs = self._setup()
 
