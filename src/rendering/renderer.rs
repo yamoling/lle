@@ -81,9 +81,10 @@ impl Renderer {
             let x = pos.1 as u32 * TILE_SIZE;
             let y = pos.0 as u32 * TILE_SIZE;
             // copy the void image to the static one
-            self.static_frame
-                .copy_from(&(*sprites::VOID), x, y)
-                .unwrap();
+            add_transparent_image(&mut self.static_frame, &sprites::VOID, x, y);
+            // self.static_frame
+            //     .copy_from(&(*sprites::VOID), x, y)
+            //     .unwrap();
         }
     }
 

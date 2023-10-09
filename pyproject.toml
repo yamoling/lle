@@ -18,7 +18,7 @@ authors = ["Yannick Molinghen <yannick.molinghen@ulb.be>"]
 description = "Laser Learning Environment (LLE) for Multi-Agent Reinforcement Learning"
 name = "lle"
 readme = "README.md"
-version = "0.1.4"
+version = "0.1.5"
 
 [tool.poetry.dependencies]
 numpy = "^1.25.0"
