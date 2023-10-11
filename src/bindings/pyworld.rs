@@ -1,9 +1,5 @@
 use numpy::PyArray1;
-use pyo3::{
-    exceptions,
-    prelude::*,
-    types::{PyBytes, PyDict},
-};
+use pyo3::{exceptions, prelude::*, types::PyDict};
 
 use crate::{
     parsing::parse, parsing::ParseError, Position, Renderer, RuntimeWorldError, Tile, World,

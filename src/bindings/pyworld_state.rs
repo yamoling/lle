@@ -1,10 +1,5 @@
 use crate::{world::WorldState, Position};
-use pyo3::{
-    exceptions,
-    prelude::*,
-    pyclass::CompareOp,
-    types::{PyBytes, PyDict},
-};
+use pyo3::{exceptions, prelude::*, pyclass::CompareOp, types::PyDict};
 use std::hash::{Hash, Hasher};
 
 #[pyclass(name = "WorldState", module = "lle")]
