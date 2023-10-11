@@ -258,7 +258,9 @@ impl World {
             .agent_positions
             .iter()
             .zip(actions)
-            .map(|(pos, action)| (action + pos).unwrap())
+            .map(|(pos, action)| {
+                (action + pos).expect("Error while computing new positions: got usize underflow")
+            })
             .collect::<Vec<_>>();
 
         // Check for vertex conflicts

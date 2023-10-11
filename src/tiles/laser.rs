@@ -35,14 +35,16 @@ impl Display for Direction {
 }
 
 impl TryFrom<&str> for Direction {
-    type Error = &'static str;
+    type Error = String;
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         match value {
             "N" => Ok(Direction::North),
             "E" => Ok(Direction::East),
             "S" => Ok(Direction::South),
             "W" => Ok(Direction::West),
-            _ => Err("Invalid direction"),
+            other => Err(format!(
+                "Invalid direction: {other}. Expected one of {{N, E, S, W}}."
+            )),
         }
     }
 }

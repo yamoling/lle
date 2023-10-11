@@ -38,7 +38,10 @@ pub fn parse(world_str: &str) -> Result<World, ParseError> {
                     gem
                 }
                 'S' => {
-                    let agent_id = token[1..].parse().unwrap();
+                    let agent_id = token[1..].parse().unwrap_or_else(|_| {
+                        panic!("Could not parse the id of the agent for tile {token} at i={i} and j={j}.
+                        Start tiles should be of the form 'S<agent_id>' where <agent_id> is a number.")
+                    });
                     // Check for duplicate agent ids
                     for (id, other_pos) in &start_positions {
                         if *id == agent_id {
@@ -59,7 +62,7 @@ pub fn parse(world_str: &str) -> Result<World, ParseError> {
                 }
                 'L' => {
                     let direction = Direction::try_from(&token[2..]).unwrap();
-                    let agent_num = token[1..2].parse().unwrap();
+                    let agent_num = token[1..2].parse().unwrap_or_else(|_| panic!("Could not parse the id of the agent for tile {token} at i={i} and j={j}."));
                     let source = Rc::new(LaserSource::new(direction, agent_num));
                     walls_positions.push((i, j));
                     sources.push(((i, j), source.clone()));

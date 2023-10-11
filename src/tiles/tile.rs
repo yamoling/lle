@@ -40,7 +40,7 @@ impl Tile for Floor {
     }
 
     fn leave(&self) -> AgentId {
-        self.agent.take().unwrap()
+        self.agent.take().expect("Can not call leave() because there is no agent on this tile.\nMaybe you forgot to perform a world.reset()?")
     }
 
     fn agent(&self) -> Option<AgentId> {

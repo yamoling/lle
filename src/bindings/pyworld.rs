@@ -211,7 +211,9 @@ impl PyWorld {
         let py = self_.py();
         let img = self_.renderer.update(&self_.world);
         let buffer = img.into_raw();
-        let res = PyArray1::from_vec(py, buffer).reshape(dims).unwrap();
+        let res = PyArray1::from_vec(py, buffer)
+            .reshape(dims)
+            .unwrap_or_else(|_| panic!("Could not reshape the image to {dims:?}"));
         Ok(res.into_py(py))
     }
 
