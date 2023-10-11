@@ -2,7 +2,7 @@ use pyo3::prelude::*;
 
 use crate::agent::Agent;
 
-#[pyclass(unsendable, name = "Agent")]
+#[pyclass(name = "Agent")]
 #[derive(Clone)]
 pub struct PyAgent {
     pub agent: Agent,

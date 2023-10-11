@@ -14,12 +14,14 @@ use super::{
     pyworld_state::PyWorldState,
 };
 
-#[pyclass(unsendable, name = "World", module = "lle")]
+#[pyclass(name = "World", module = "lle")]
 #[derive(Clone)]
 pub struct PyWorld {
     world: World,
     renderer: Renderer,
 }
+
+unsafe impl Send for PyWorld {}
 
 #[pymethods]
 impl PyWorld {
