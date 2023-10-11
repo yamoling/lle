@@ -86,7 +86,14 @@ class World:
     def exit_rate(self) -> float:
         """The ratio of agents that have exited the world (i.e. enter the elevator)"""
     def step(self, actions: List[Action]) -> float:
-        """Perform an action for each agent in the world and return the collective step reward."""
+        """
+        Perform an action for each agent in the world and return the collective step reward.
+        
+        if a single agent is dead, the total reward is -1.
+        for each gem collected, we add 1 to the total reward.
+        for each agent that has exited the world, we add 1 to the total reward.
+        if all agents have exited the world, we add 1 .
+        """
     def reset(self):
         """Reset the world to its initial state."""
     def available_actions(self) -> List[List[Action]]:
