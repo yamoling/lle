@@ -1,9 +1,13 @@
-use pyo3::{exceptions, prelude::*, pyclass::CompareOp, types::PyDict};
+use crate::{world::WorldState, Position};
+use pyo3::{
+    exceptions,
+    prelude::*,
+    pyclass::CompareOp,
+    types::{PyBytes, PyDict},
+};
 use std::hash::{Hash, Hasher};
 
-use crate::{world::WorldState, Position};
-
-#[pyclass(name = "WorldState")]
+#[pyclass(name = "WorldState", module = "lle")]
 #[derive(Clone, Hash)]
 pub struct PyWorldState {
     #[pyo3(get, set)]
@@ -27,6 +31,21 @@ impl PyWorldState {
 
     fn __deepcopy__(&self, _memo: &PyDict) -> Self {
         self.clone()
+    }
+
+    fn __getstate__(&self) -> PyResult<(Vec<bool>, Vec<Position>)> {
+        Ok((self.gems_collected.clone(), self.agents_positions.clone()))
+    }
+
+    fn __setstate__(&mut self, state: (Vec<bool>, Vec<Position>)) -> PyResult<()> {
+        let (gems_collected, agents_positions) = state;
+        self.gems_collected = gems_collected;
+        self.agents_positions = agents_positions;
+        Ok(())
+    }
+
+    pub fn __getnewargs__(&self) -> PyResult<(Vec<Position>, Vec<bool>)> {
+        Ok((vec![], vec![]))
     }
 
     fn __str__(&self) -> String {

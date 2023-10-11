@@ -1,8 +1,13 @@
 use numpy::PyArray1;
-use pyo3::{exceptions, prelude::*, types::PyDict};
+use pyo3::{
+    exceptions,
+    prelude::*,
+    types::{PyBytes, PyDict},
+};
 
 use crate::{
     parsing::parse, parsing::ParseError, Position, Renderer, RuntimeWorldError, Tile, World,
+    WorldState,
 };
 
 use super::{
@@ -13,7 +18,7 @@ use super::{
     pyworld_state::PyWorldState,
 };
 
-#[pyclass(unsendable, name = "World")]
+#[pyclass(unsendable, name = "World", module = "lle")]
 #[derive(Clone)]
 pub struct PyWorld {
     world: World,
@@ -211,16 +216,11 @@ impl PyWorld {
         self.world.done()
     }
 
-    pub fn __deepcopy__(&self, _memo: &PyDict) -> Self {
-        self.clone()
-    }
-
     /// Renders the world as an image and returns it in a numpy array.
-    fn get_image(self_: PyRef<'_, Self>) -> PyResult<PyObject> {
-        let dims = self_.image_dimensions();
+    fn get_image(&self, py: Python) -> PyResult<PyObject> {
+        let dims = self.image_dimensions();
         let dims = (dims.1 as usize, dims.0 as usize, 3);
-        let py = self_.py();
-        let img = self_.renderer.update(&self_.world);
+        let img = self.renderer.update(&self.world);
         let buffer = img.into_raw();
         let res = PyArray1::from_vec(py, buffer)
             .reshape(dims)
@@ -241,6 +241,55 @@ impl PyWorld {
         let state = self.world.get_state();
         PyWorldState::new(state.agents_positions, state.gems_collected)
     }
+
+    pub fn __deepcopy__(&self, _memo: &PyDict) -> Self {
+        self.clone()
+    }
+
+    pub fn __getnewargs__(&self) -> PyResult<(String,)> {
+        Ok((String::from("S0 X"),))
+    }
+
+    /// Enable serialisation with pickle
+    pub fn __getstate__(&self) -> PyResult<(String, Vec<bool>, Vec<Position>)> {
+        let state = self.world.get_state();
+        let data = (
+            self.world_string(),
+            state.gems_collected.clone(),
+            state.agents_positions.clone(),
+        );
+        Ok(data)
+    }
+
+    pub fn __setstate__(&mut self, state: (String, Vec<bool>, Vec<Position>)) -> PyResult<()> {
+        let world = match parse(&state.0) {
+            Ok(world) => world,
+            Err(e) => panic!("Could not parse the world: {:?}", e),
+        };
+        self.world = world;
+        self.renderer = Renderer::new(&self.world);
+        self.world
+            .force_state(&WorldState {
+                gems_collected: state.1,
+                agents_positions: state.2,
+            })
+            .unwrap();
+        Ok(())
+    }
+
+    // /// Enable pickle serialisation
+    // pub fn __getstate__(self_: PyRef<'_, Self>) -> &'_ PyDict {
+    //     let py = self_.py();
+    //     let res = PyDict::new(py);
+    //     res.set_item("world_str", self_.world_string()).unwrap();
+    //     let state = self_.world.get_state();
+    //     res.set_item("gems_collected", state.gems_collected)
+    //         .unwrap();
+    //     res.set_item("agents_positions", state.agents_positions)
+    //         .unwrap();
+    //     println!("getstate: {:?}", res);
+    //     res
+    // }
 }
 
 fn parse_error_to_exception(error: ParseError) -> PyErr {
