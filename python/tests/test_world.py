@@ -411,3 +411,10 @@ def test_world_state_hash_neq():
 
     assert hash(s1) != hash(s2)
     assert s1 != s2
+
+
+def test_get_standard_level():
+    for i in range(1, 7):
+        World.level(i)
+        World.from_file(f"lvl{i}")
+        World.from_file(f"level{i}")

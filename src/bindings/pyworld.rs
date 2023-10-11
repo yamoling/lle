@@ -42,6 +42,17 @@ impl PyWorld {
         Ok(PyWorld { world, renderer })
     }
 
+    #[staticmethod]
+    fn level(level: usize) -> PyResult<Self> {
+        match World::get_level(level) {
+            Ok(world) => {
+                let renderer = Renderer::new(&world);
+                Ok(PyWorld { world, renderer })
+            }
+            Err(err) => Err(parse_error_to_exception(err)),
+        }
+    }
+
     #[getter]
     fn world_string(&self) -> String {
         self.world.world_string().into()
@@ -265,6 +276,12 @@ fn parse_error_to_exception(error: ParseError) -> PyErr {
             col,
         } => exceptions::PyValueError::new_err(format!(
             "Invalid tile '{tile_str}' at position ({line}, {col})"
+        )),
+        ParseError::InvalidLevel { asked, min, max } => exceptions::PyValueError::new_err(format!(
+            "Invalid level: {asked}. Expected a level between {min} and {max}.",
+            asked = asked,
+            min = min,
+            max = max
         )),
     }
 }

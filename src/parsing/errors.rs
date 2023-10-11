@@ -14,6 +14,11 @@ pub enum ParseError {
     InvalidFileName {
         file_name: String,
     },
+    InvalidLevel {
+        asked: usize,
+        min: usize,
+        max: usize,
+    },
     NotEnoughExitTiles {
         n_starts: usize,
         n_exits: usize,

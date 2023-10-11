@@ -1,7 +1,6 @@
 mod action;
 mod agent;
 mod bindings;
-mod levels;
 mod parsing;
 //mod planning;
 // mod observations;

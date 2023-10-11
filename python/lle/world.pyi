@@ -32,9 +32,10 @@ class World:
         """The number of agents in the world."""
     @property
     def done(self) -> bool:
-        """Whether the game is over, i.e. agents can no longer perform actions.
-        This happens when an agent is dead or all agents are on fini tiles."""
-        ...
+        """
+        Whether the game is over, i.e. agents can no longer perform actions.
+        This happens when an agent has died or when all agents are on exit tiles.
+        """
     @property
     def width(self) -> int:
         """The width (in number of tiles) of the gridworld."""
@@ -88,11 +89,12 @@ class World:
     def step(self, actions: List[Action]) -> float:
         """
         Perform an action for each agent in the world and return the collective step reward.
-        
-        if a single agent is dead, the total reward is -1.
-        for each gem collected, we add 1 to the total reward.
-        for each agent that has exited the world, we add 1 to the total reward.
-        if all agents have exited the world, we add 1 .
+
+        Unless at least an agent dies, the step reward is the sum of the following:
+            - REWARD_GEM_COLLECTED for each gem collected at this time step
+            - REWARD_AGENT_JUST_ARRIVED for each agent that has reached an exit tile
+            - REWARD_END_GAME if all agents have exited the world
+        If an agent dies, the step reward is REWARD_AGENT_DIED times the number of dead agents.
         """
     def reset(self):
         """Reset the world to its initial state."""
@@ -107,7 +109,14 @@ class World:
     def get_state(self) -> WorldState:
         """Return a state representation of the world."""
     def set_state(self, state: WorldState):
-        """Force the world to a given state."""
+        """
+        Force the world to a given state.
+
+        A ValueError is raised if the state is invalid.
+        """
     @staticmethod
     def from_file(filename: str) -> "World":
-        """Create a world from file or a standard level (`"level1"` -`"level6"`)."""
+        """Parse the content `filename` to create a World."""
+    @staticmethod
+    def level(level: int) -> "World":
+        """Retrieve the standard level (bewteen `1` and `6`)."""

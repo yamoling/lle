@@ -438,3 +438,10 @@ fn test_standard_levels() {
         World::from_file(&name).unwrap();
     }
 }
+
+#[test]
+fn test_get_level() {
+    for level in 1..7 {
+        World::get_level(level).unwrap();
+    }
+}

@@ -7,13 +7,14 @@ use std::{
 
 use crate::{
     agent::Agent,
-    levels,
     parsing::{parse, ParseError},
     reward::RewardCollector,
     tiles::{Gem, Laser, LaserSource, Tile},
     utils::find_duplicates,
     Action, AgentId, Exit, Position, RuntimeWorldError, WorldState,
 };
+
+use super::levels;
 
 pub struct World {
     width: usize,
@@ -344,8 +345,19 @@ impl World {
         Ok(())
     }
 
+    pub fn get_level(level: usize) -> Result<Self, ParseError> {
+        let content = levels::LEVELS
+            .get(level - 1)
+            .ok_or(ParseError::InvalidLevel {
+                asked: level,
+                min: 1,
+                max: levels::LEVELS.len(),
+            })?;
+        Self::try_from(content.to_string())
+    }
+
     pub fn from_file(file: &str) -> Result<Self, ParseError> {
-        if let Some(world_str) = levels::get_level(file) {
+        if let Some(world_str) = levels::get_level_str(file) {
             return World::try_from(world_str);
         }
         let file = match File::open(file) {

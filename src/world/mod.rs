@@ -1,4 +1,5 @@
 mod errors;
+mod levels;
 mod world_model;
 mod world_state;
 
