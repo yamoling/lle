@@ -5,7 +5,6 @@ import cv2
 import numpy as np
 
 from rlenv import RLEnv, DiscreteActionSpace, Observation
-import rlenv
 from .observations import ObservationType
 
 
@@ -93,18 +92,3 @@ class LLE(RLEnv[DiscreteActionSpace]):
 
     def seed(self, _seed_value: int):
         return
-
-    @override
-    def kwargs(self) -> dict[str, Any]:
-        return {
-            "world_string": self.world.world_string,
-            "obs_type": self._obs_type.name,
-        }
-
-    @classmethod
-    def from_summary(cls, summary: dict[str, Any]):
-        kwargs = summary[cls.__name__]
-        return cls.from_str(kwargs["world_string"], ObservationType.from_str(kwargs["obs_type"]))
-
-
-rlenv.register(LLE)

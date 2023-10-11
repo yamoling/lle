@@ -242,6 +242,9 @@ impl PyWorld {
         self.clone()
     }
 
+    /// This method is called to instantiate the object before deserialisation.
+    /// It required "default arguments" to be provided to the __new__ method
+    /// before replacing them by the actual values in __setstate__.
     pub fn __getnewargs__(&self) -> PyResult<(String,)> {
         Ok((String::from("S0 X"),))
     }
