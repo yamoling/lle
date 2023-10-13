@@ -1,4 +1,6 @@
-from lle import World, WorldState
+from lle import World, WorldState, LLE, ObservationType
+from serde.json import to_json
+import json
 import pickle
 import random
 
@@ -26,3 +28,13 @@ def test_pickle_world():
             deserialised = pickle.loads(serialised)
             assert world.get_state() == deserialised.get_state()
             i += 1
+
+
+def test_lle_json():
+    env = LLE.level(6, ObservationType.FLATTENED)
+    data = to_json(env)
+    as_dict = json.loads(data)
+    assert as_dict["name"] == "LLE-lvl6"
+    assert as_dict["n_agents"] == 4
+    assert as_dict["n_actions"] == 5
+    assert as_dict["obs_type"] == ObservationType.FLATTENED.name
