@@ -54,20 +54,20 @@ impl Renderer {
             self.draw_laser_source(source, x, y);
         }
 
-        // Start
-        for (id, pos) in world.starts() {
-            let x = pos.1 as u32 * TILE_SIZE;
-            let y = pos.0 as u32 * TILE_SIZE;
-            draw_rectangle(
-                &mut self.static_frame,
-                x,
-                y,
-                TILE_SIZE,
-                TILE_SIZE,
-                AGENT_COLOURS[id],
-                3,
-            );
-        }
+        // Start -> do not draw start tiles anymore
+        // for (id, pos) in world.starts() {
+        //     let x = pos.1 as u32 * TILE_SIZE;
+        //     let y = pos.0 as u32 * TILE_SIZE;
+        //     draw_rectangle(
+        //         &mut self.static_frame,
+        //         x,
+        //         y,
+        //         TILE_SIZE,
+        //         TILE_SIZE,
+        //         AGENT_COLOURS[id],
+        //         3,
+        //     );
+        // }
 
         // Exit
         for (&(i, j), _) in world.exits() {
