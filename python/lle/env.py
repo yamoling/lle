@@ -1,6 +1,7 @@
 from typing import Any, Literal
 from typing_extensions import override
 from lle import World, Action
+from dataclasses import dataclass
 import cv2
 import numpy as np
 
@@ -8,8 +9,11 @@ from rlenv import RLEnv, DiscreteActionSpace, Observation
 from .observations import ObservationType
 
 
+@dataclass
 class LLE(RLEnv[DiscreteActionSpace]):
     """Laser Learning Environment (LLE)"""
+
+    obs_type: ObservationType
 
     def __init__(self, world: World, obs_type: ObservationType | str = ObservationType.STATE):
         self.world = world
