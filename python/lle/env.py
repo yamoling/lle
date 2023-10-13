@@ -88,7 +88,9 @@ class LLE(RLEnv[DiscreteActionSpace]):
         """Load a level from the levels folder"""
         if level <= 0 or level > 6:
             raise NotImplementedError("Only levels 1-6 are implemented")
-        return LLE(World.from_file(f"level{level}"), obs_type)
+        env = LLE(World.from_file(f"level{level}"), obs_type)
+        env.name = f"{env.name}-lvl{level}"
+        return env
 
     def seed(self, _seed_value: int):
         return

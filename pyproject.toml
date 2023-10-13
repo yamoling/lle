@@ -7,7 +7,7 @@ classifiers = ["Programming Language :: Rust", "Programming Language :: Python :
 description = "A fast Multi-Agent Reinforcement Learning Environment"
 name = "laser-learning-environment"
 readme = "readme.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<4.0"
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
@@ -23,7 +23,7 @@ version = "0.1.8"
 [tool.poetry.dependencies]
 numpy = "^1.25.0"
 opencv-python = "^4.8.1.78"
-python = ">=3.10"
+python = ">=3.10,<4.0"
 
 [tool.poetry.dependencies.rlenv]
 git = "https://github.com/yamoling/rlenv.git"

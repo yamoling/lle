@@ -102,7 +102,7 @@ def test_action_meanings():
 .  . .
 .  . ."""
     )
-    assert env.action_meanings == [a.name for a in Action.ALL]
+    assert env.action_space.action_names == [a.name for a in Action.ALL]
 
 
 def test_deep_copy():
