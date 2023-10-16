@@ -1,6 +1,10 @@
 # Do not warn for __deepcopy__ not being mentioned in the python stubs
 [a-zA-Z.]*.__deepcopy__
 
+# Ignore problems due to pyserde decorators
+.*.__serde__
+lle.env.serde
+
 # Do not warn for the imports that are not found in the stubs
 lle.tiles
 lle.world
