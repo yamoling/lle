@@ -17,7 +17,7 @@ class Action:
     """List of all variants"""
 
     def __init__(self, action_num: int):
-        """Create an action from an integer identifier. Invalid values (< 0 or > 5) raise a ValueError."""
+        """Create an action from an integer identifier. Invalid values (< 0 or > 4) raise a ValueError."""
     @property
     def delta(self) -> Tuple[int, int]:
         """The delta (i, j) in coordinates for this action."""
