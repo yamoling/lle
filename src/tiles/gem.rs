@@ -3,7 +3,7 @@ use std::{cell::Cell, rc::Rc};
 use crate::{
     agent::{Agent, AgentId},
     rendering::{TileVisitor, VisitorData},
-    reward::RewardCollector,
+    reward::RewardModel,
     RewardEvent,
 };
 
@@ -12,11 +12,11 @@ use super::{Floor, Tile};
 pub struct Gem {
     floor: Floor,
     collected: Cell<bool>,
-    reward_collector: Rc<dyn RewardCollector>,
+    reward_collector: Rc<dyn RewardModel>,
 }
 
 impl Gem {
-    pub fn new(reward_collector: Rc<dyn RewardCollector>) -> Self {
+    pub fn new(reward_collector: Rc<dyn RewardModel>) -> Self {
         Self {
             floor: Floor::default(),
             collected: Cell::new(false),

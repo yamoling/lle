@@ -102,7 +102,6 @@ fn add_version_number_from_cargo_to_pyproject() {
         toml::Value::Table(tool) => match tool.get_mut("poetry").unwrap() {
             Value::Table(poetry) => match poetry.get_mut("version").unwrap() {
                 Value::String(version) => {
-                    println!("version: {version}");
                     *version = env::var("CARGO_PKG_VERSION").unwrap();
                 }
                 _ => panic!("version is not a string"),

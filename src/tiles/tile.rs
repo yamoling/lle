@@ -1,7 +1,7 @@
 use crate::{
     agent::{Agent, AgentId},
     rendering::{TileVisitor, VisitorData},
-    reward::RewardCollector,
+    reward::RewardModel,
     RewardEvent,
 };
 use core::panic;
@@ -89,11 +89,11 @@ impl Tile for Wall {
 
 pub struct Void {
     agent: Cell<Option<AgentId>>,
-    reward_model: Rc<dyn RewardCollector>,
+    reward_model: Rc<dyn RewardModel>,
 }
 
 impl Void {
-    pub fn new(reward_model: Rc<dyn RewardCollector>) -> Self {
+    pub fn new(reward_model: Rc<dyn RewardModel>) -> Self {
         Self {
             agent: Cell::new(None),
             reward_model,

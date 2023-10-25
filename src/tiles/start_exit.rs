@@ -3,7 +3,7 @@ use std::rc::Rc;
 use crate::{
     agent::{Agent, AgentId},
     rendering::{TileVisitor, VisitorData},
-    reward::RewardCollector,
+    reward::RewardModel,
     RewardEvent,
 };
 
@@ -54,11 +54,11 @@ impl Tile for Start {
 
 pub struct Exit {
     floor: Floor,
-    collector: Rc<dyn RewardCollector>,
+    collector: Rc<dyn RewardModel>,
 }
 
 impl Exit {
-    pub fn new(collector: Rc<dyn RewardCollector>) -> Self {
+    pub fn new(collector: Rc<dyn RewardModel>) -> Self {
         Self {
             floor: Floor::default(),
             collector,

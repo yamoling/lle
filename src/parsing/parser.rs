@@ -1,7 +1,7 @@
 use std::{cell::Cell, rc::Rc};
 
 use crate::{
-    reward::RewardCollector,
+    reward::RewardModel,
     tiles::{Direction, LaserBeam, Void},
     AgentId, Exit, Floor, Gem, Laser, LaserSource, Position, Start, TeamReward, Tile, Wall, World,
 };
@@ -136,7 +136,7 @@ pub fn parse(world_str: &str) -> Result<World, ParseError> {
 fn laser_setup(
     grid: &mut Vec<Vec<Rc<dyn Tile>>>,
     laser_sources: &[(Position, Rc<LaserSource>)],
-    reward_model: Rc<dyn RewardCollector>,
+    reward_model: Rc<dyn RewardModel>,
 ) -> Vec<(Position, Rc<Laser>)> {
     let mut lasers = vec![];
     let width = grid[0].len() as i32;

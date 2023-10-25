@@ -3,7 +3,7 @@ use std::cell::Cell;
 use crate::RewardEvent;
 
 use super::{
-    RewardCollector, REWARD_AGENT_DIED, REWARD_AGENT_JUST_ARRIVED, REWARD_END_GAME,
+    RewardModel, REWARD_AGENT_DIED, REWARD_AGENT_JUST_ARRIVED, REWARD_END_GAME,
     REWARD_GEM_COLLECTED,
 };
 
@@ -40,7 +40,7 @@ impl Clone for TeamReward {
     }
 }
 
-impl RewardCollector for TeamReward {
+impl RewardModel for TeamReward {
     fn update(&self, event: RewardEvent) {
         // If the agent has died,
         if let RewardEvent::AgentDied { .. } = &event {
@@ -89,10 +89,8 @@ impl RewardCollector for TeamReward {
     fn consume(&self) -> f32 {
         let n_deads = self.n_dead.get();
         let reward = self.step_reward.get();
-
         self.n_dead.set(0);
         self.step_reward.set(0f32);
-
         if n_deads > 0 {
             return -(n_deads as f32);
         }

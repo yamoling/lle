@@ -8,13 +8,13 @@ use std::{
 use crate::{
     agent::Agent,
     parsing::{parse, ParseError},
-    reward::RewardCollector,
+    reward::RewardModel,
     tiles::{Gem, Laser, LaserSource, Tile},
     utils::find_duplicates,
     Action, AgentId, Exit, Position, RuntimeWorldError, WorldState,
 };
 
-use super::levels;
+use super::{end_game_strategy::DoneStrategy, levels};
 
 pub struct World {
     width: usize,
@@ -33,12 +33,14 @@ pub struct World {
     agent_positions: Vec<Position>,
     wall_positions: Vec<Position>,
 
-    reward_model: Rc<dyn RewardCollector>,
+    reward_model: Rc<dyn RewardModel>,
+    done_strategy: DoneStrategy,
     available_actions: Vec<Vec<Action>>,
     done: bool,
 }
 
 impl World {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         grid: Vec<Vec<Rc<dyn Tile>>>,
         gems: Vec<(Position, Rc<Gem>)>,
@@ -49,7 +51,7 @@ impl World {
         exits: Vec<(Position, Rc<Exit>)>,
         walls_positions: Vec<Position>,
         world_str: &str,
-        reward_model: Rc<dyn RewardCollector>,
+        reward_model: Rc<dyn RewardModel>,
     ) -> Self {
         let agents = start_positions
             .iter()
@@ -62,6 +64,7 @@ impl World {
             agent_positions: start_positions.clone(),
             wall_positions: walls_positions,
             void_positions,
+            done_strategy: DoneStrategy::Cooperarive,
             agents,
             exits,
             gems,
@@ -153,7 +156,11 @@ impl World {
         self.lasers.iter().map(|(pos, laser)| (pos, laser.as_ref()))
     }
 
-    fn update(&mut self) {
+    pub fn set_done_strategy(&mut self, done_strategy: DoneStrategy) {
+        self.done_strategy = done_strategy;
+    }
+
+    fn compute_available_actions(&self) -> Vec<Vec<Action>> {
         let mut available_actions = vec![];
         for (agent, agent_pos) in izip!(&self.agents, &self.agent_positions) {
             let mut agent_actions = vec![Action::Stay];
@@ -170,9 +177,12 @@ impl World {
             }
             available_actions.push(agent_actions);
         }
-        self.available_actions = available_actions;
-        self.done =
-            self.agents.iter().any(|a| a.is_dead()) || self.agents.iter().all(|a| a.has_arrived());
+        available_actions
+    }
+
+    fn update(&mut self) {
+        self.available_actions = self.compute_available_actions();
+        self.done = self.done_strategy.is_done(self);
     }
 
     fn solve_vertex_conflicts(new_pos: &mut [Position], old_pos: &[Position]) {

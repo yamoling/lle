@@ -445,3 +445,65 @@ fn test_get_level() {
         World::get_level(level).unwrap();
     }
 }
+
+#[test]
+fn test_force_state() {
+    let mut w = World::try_from(
+        "
+        S0 . G
+        X  . .
+    ",
+    )
+    .unwrap();
+    w.reset();
+    let s = WorldState {
+        agents_positions: [(1, 2)].into(),
+        gems_collected: [true].into(),
+    };
+    w.force_state(&s).unwrap();
+    assert_eq!(w.agents_positions()[0], (1, 2));
+    let gem = w.gems().next().unwrap().1;
+    assert!(gem.is_collected());
+    assert!(!w.done());
+}
+
+#[test]
+fn test_force_end_state() {
+    let mut w = World::try_from(
+        "
+        S0 . G
+        X  . .
+    ",
+    )
+    .unwrap();
+    w.reset();
+    let s = WorldState {
+        agents_positions: [(1, 0)].into(),
+        gems_collected: [true].into(),
+    };
+    w.force_state(&s).unwrap();
+    assert_eq!(w.agents_positions()[0], (1, 0));
+    let gem = w.gems().next().unwrap().1;
+    assert!(gem.is_collected());
+    assert!(w.done());
+}
+
+#[test]
+fn test_force_state_agent_dies() {
+    let mut w = World::try_from(
+        "
+        S0 S1 G
+        X  X L0W
+    ",
+    )
+    .unwrap();
+    w.reset();
+
+    let s = WorldState {
+        agents_positions: [(1, 0), (1, 1)].into(),
+        gems_collected: [false; 1].into(),
+    };
+    w.force_state(&s).unwrap();
+    assert!(w.agents()[1].is_dead());
+    assert!(w.done());
+}

@@ -3,7 +3,7 @@ use std::{cell::Cell, fmt::Display, rc::Rc};
 use crate::{
     agent::{Agent, AgentId},
     rendering::{TileVisitor, VisitorData},
-    reward::RewardCollector,
+    reward::RewardModel,
     RewardEvent,
 };
 
@@ -85,7 +85,7 @@ pub struct Laser {
     agent_id: AgentId,
     beam: LaserBeam,
     wrapped: Rc<dyn Tile>,
-    collector: Rc<dyn RewardCollector>,
+    collector: Rc<dyn RewardModel>,
 }
 
 impl Laser {
@@ -94,7 +94,7 @@ impl Laser {
         direction: Direction,
         wrapped: Rc<dyn Tile>,
         beam: LaserBeam,
-        collector: Rc<dyn RewardCollector>,
+        collector: Rc<dyn RewardModel>,
     ) -> Self {
         Self {
             agent_id,

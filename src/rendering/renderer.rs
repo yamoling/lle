@@ -1,6 +1,6 @@
 use image::{GenericImage, Rgb, RgbImage, RgbaImage};
 
-use super::{sprites, TileVisitor, AGENT_COLOURS, BLACK, GRID_GREY};
+use super::{sprites, TileVisitor, BLACK, GRID_GREY};
 use crate::{
     tiles::{Direction, Gem, Laser, LaserSource},
     World,
