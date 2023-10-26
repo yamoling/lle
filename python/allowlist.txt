@@ -1,18 +1,16 @@
-# Do not warn for __deepcopy__ not being mentioned in the python stubs
-[a-zA-Z.]*.__deepcopy__
-
 # Ignore problems due to pyserde decorators
 .*.__serde__
 lle.env.serde
 
-# Do not warn for the imports that are not found in the stubs
+# Ignore the .pyi file import that fail
 lle.tiles
 lle.world
 lle.direction
 lle.agent
 lle.action
+lle.event
 
-# The Tile class is just there to be subclassed but does not actually exist
+# The Tile class is just there to be subclassed in Python but does not actually exist
 lle.lle.Tile
 
 # Error such that the 'render' method would be abstract at runtime... -> Ignore it

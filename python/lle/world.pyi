@@ -1,6 +1,7 @@
 from typing import Tuple, List, Any, final
 import numpy as np
 
+from .event import WorldEvent
 from .action import Action
 from .agent import Agent
 from .tiles import Gem, LaserSource, Laser
@@ -18,39 +19,49 @@ class WorldState:
         """The collection status of each gem."""
     def __hash__(self) -> int: ...
     def __eq__(self, __value: object) -> bool: ...
+    def __str__(self) -> str: ...
+    def __repr__(self) -> str: ...
+    def __deepcopy__(self, memo: Any) -> "WorldState": ...
 
 @final
 class World:
+    n_agents: int
+    """The number of agents in the world."""
+    width: int
+    """The width (in number of tiles) of the gridworld."""
+    height: int
+    """The height (in number of tiles) of the gridworld."""
+    image_dimensions: Tuple[int, int]
+    """The dimensions (in pixels) of the image redered (width, height)"""
+    n_gems: int
+    """The total number of gems in the world."""
+    gems: List[Tuple[Position, Gem]]
+    """The list of gems in the world"""
+    exit_pos: List[Position]
+    """The positions of each exit tile."""
+    wall_pos: List[Position]
+    """The position of every wall tile."""
+    void_pos: List[Position]
+    """The position of every void tile."""
+    laser_sources: List[Tuple[Position, LaserSource]]
+    """The position of every laser source."""
+    lasers: List[Tuple[Position, Laser]]
+    """The position of every laser."""
+    agents_positions: List[Position]
+    """The current position of each agent"""
+    world_string: str
+    """The string upon which the world has been constructed."""
+
     def __init__(self, world_str: str):
         """Constructs a World from a string.
         Raises:
             - RuntimeError if the file is not a valid level.
             - ValueError if the file is not a valid level (inconsistent dimensions or invalid grid).
         """
-    @property
-    def n_agents(self) -> int:
-        """The number of agents in the world."""
-    @property
-    def done(self) -> bool:
-        """
-        Whether the game is over, i.e. agents can no longer perform actions.
-        This happens when an agent has died or when all agents are on exit tiles.
-        """
-    @property
-    def width(self) -> int:
-        """The width (in number of tiles) of the gridworld."""
-    @property
-    def height(self) -> int:
-        """The height (in number of tiles) of the gridworld."""
-    @property
-    def image_dimensions(self) -> Tuple[int, int]:
-        """The dimensions (in pixels) of the image redered (width, height)"""
+    def __deepcopy__(self, memo: Any) -> "World": ...
     @property
     def gems_collected(self) -> int:
         """The number of gems collected by the agents so far in the episode."""
-    @property
-    def n_gems(self) -> int:
-        """The total number of gems in the world."""
     @property
     def agents(self) -> List[Agent]:
         """
@@ -59,42 +70,10 @@ class World:
         Note: This operation is rather costly because the agents are copied everytime this
         property is accessed.
         """
-    @property
-    def gems(self) -> List[Tuple[Position, Gem]]:
-        """The list of gems in the world."""
-    @property
-    def exit_pos(self) -> List[Position]:
-        """The list of exit positions for each agent."""
-    @property
-    def wall_pos(self) -> List[Position]:
-        """The position of every wall."""
-    @property
-    def void_pos(self) -> List[Position]:
-        """The position of every void tile."""
-    @property
-    def laser_sources(self) -> List[Tuple[Position, LaserSource]]:
-        """The position of every laser source."""
-    @property
-    def lasers(self) -> List[Tuple[Position, Laser]]:
-        """The position of every laser."""
-    @property
-    def agents_positions(self) -> List[Position]:
-        """Return the list of agent positions"""
-    @property
-    def world_string(self) -> str:
-        """The string upon which the world was constructed."""
-    @property
-    def exit_rate(self) -> float:
-        """The ratio of agents that have exited the world (i.e. enter the elevator)"""
-    def step(self, actions: List[Action]) -> float:
+    def step(self, actions: List[Action]) -> list[WorldEvent]:
         """
-        Perform an action for each agent in the world and return the collective step reward.
-
-        Unless at least an agent dies, the step reward is the sum of the following:
-            - REWARD_GEM_COLLECTED for each gem collected at this time step
-            - REWARD_AGENT_JUST_ARRIVED for each agent that has reached an exit tile
-            - REWARD_END_GAME if all agents have exited the world
-        If an agent dies, the step reward is REWARD_AGENT_DIED times the number of dead agents.
+        Perform an action for each agent in the world and return the list of
+        events that occurred by peforming this step.
         """
     def reset(self):
         """Reset the world to its initial state."""
@@ -119,4 +98,4 @@ class World:
         """Parse the content `filename` to create a World."""
     @staticmethod
     def level(level: int) -> "World":
-        """Retrieve the standard level (bewteen `1` and `6`)."""
+        """Retrieve the standard level (between `1` and `6`)."""

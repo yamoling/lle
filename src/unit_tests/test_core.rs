@@ -1,9 +1,10 @@
 use core::panic;
 
 use crate::{
-    agent::Agent, reward, tiles::Laser, world::WorldState, Action, ParseError, RuntimeWorldError,
-    World,
+    agent::Agent, core::WorldState, tiles::Laser, Action, ParseError, RuntimeWorldError, WorldEvent,
 };
+
+use super::World;
 
 fn get_laser(world: &World, pos: (usize, usize)) -> &Laser {
     for (p, laser) in &world.lasers {
@@ -149,7 +150,6 @@ fn test_facing_lasers() {
     .unwrap();
     w.reset();
     w.step(&[Action::West, Action::West]).unwrap();
-    assert!(!w.done());
     assert!(w.agents().iter().all(Agent::is_alive));
     for i in 1..3 {
         let lasers = get_lasers(&w, (i, 2));
@@ -172,7 +172,6 @@ fn test_facing_lasers_agent_dies() {
     .unwrap();
     w.reset();
     w.step(&[Action::West, Action::Stay]).unwrap();
-    assert!(w.done());
     assert!(w.agents[0].is_dead());
 }
 
@@ -185,68 +184,6 @@ fn test_empty_world() {
         }
     }
     panic!("Should not be able to build a world from an empty string")
-}
-
-#[test]
-fn test_force_state() {
-    let mut w = World::try_from(
-        "
-        S0 . G
-        X  . .
-    ",
-    )
-    .unwrap();
-    w.reset();
-    let s = WorldState {
-        agents_positions: [(1, 2)].into(),
-        gems_collected: [true].into(),
-    };
-    w.force_state(&s).unwrap();
-    assert_eq!(w.agents_positions()[0], (1, 2));
-    let gem = &w.gems[0].1;
-    assert!(gem.is_collected());
-    assert!(!w.done());
-}
-
-#[test]
-fn test_force_end_state() {
-    let mut w = World::try_from(
-        "
-        S0 . G
-        X  . .
-    ",
-    )
-    .unwrap();
-    w.reset();
-    let s = WorldState {
-        agents_positions: [(1, 0)].into(),
-        gems_collected: [true].into(),
-    };
-    w.force_state(&s).unwrap();
-    assert_eq!(w.agents_positions()[0], (1, 0));
-    let gem = &w.gems[0].1;
-    assert!(gem.is_collected());
-    assert!(w.done());
-}
-
-#[test]
-fn test_force_state_agent_dies() {
-    let mut w = World::try_from(
-        "
-        S0 S1 G
-        X  X L0W
-    ",
-    )
-    .unwrap();
-    w.reset();
-
-    let s = WorldState {
-        agents_positions: [(1, 0), (1, 1)].into(),
-        gems_collected: [false; 1].into(),
-    };
-    w.force_state(&s).unwrap();
-    assert!(w.agents[1].is_dead());
-    assert!(w.done());
 }
 
 #[test]
@@ -388,48 +325,186 @@ fn test_die_in_void() {
     w.reset();
     w.step(&[Action::East]).unwrap();
     assert!(w.agents[0].is_dead());
-    assert!(w.done());
 }
 
 #[test]
-fn test_reward_less_agents_than_exits() {
-    let mut w = World::try_from(
-        "
-        S0 .
-        X  X",
-    )
-    .unwrap();
-    w.reset();
-    assert_eq!(w.n_agents(), 1);
-    let r = w.step(&[Action::South]).unwrap();
-    assert_eq!(
-        r,
-        reward::REWARD_AGENT_JUST_ARRIVED + reward::REWARD_END_GAME
-    );
+fn test_num_gems_collected() {
+    let mut world = World::try_from("S0 G X").unwrap();
+    world.reset();
+    assert_eq!(world.n_gems_collected(), 0);
+    world.step(&[Action::East]).unwrap();
+    assert_eq!(world.n_gems_collected(), 1);
+    world.step(&[Action::Stay]).unwrap();
+    assert_eq!(world.n_gems_collected(), 1);
+    world.step(&[Action::East]).unwrap();
+    assert_eq!(world.n_gems_collected(), 1);
 }
 
 #[test]
-fn test_reward_less_agents_than_exits2() {
+fn test_num_agents_arrived() {
+    let mut world = World::try_from("S0 G X").unwrap();
+    world.reset();
+    assert_eq!(world.n_agents_arrived(), 0);
+    world.step(&[Action::East]).unwrap();
+    assert_eq!(world.n_agents_arrived(), 0);
+    world.step(&[Action::Stay]).unwrap();
+    assert_eq!(world.n_agents_arrived(), 0);
+    world.step(&[Action::East]).unwrap();
+    assert_eq!(world.n_agents_arrived(), 1);
+}
+
+#[test]
+fn parse_inconsistent_row_lengths() {
+    match World::try_from(
+        "X S0 .
+         . .",
+    ) {
+        Ok(_) => panic!("Should not be able to parse worlds with inconsistent row lengths"),
+        Err(e) => match e {
+            ParseError::InconsistentDimensions {
+                actual_n_cols,
+                expected_n_cols,
+                row,
+            } => {
+                assert_eq!(actual_n_cols, 2);
+                assert_eq!(expected_n_cols, 3);
+                assert_eq!(row, 1);
+            }
+            _ => panic!("Expected InconsistentDimensions, got {e:?}"),
+        },
+    }
+}
+
+#[test]
+fn parse_inconsistent_start_exit_tiles() {
+    match World::try_from("S1 S0 X") {
+        Ok(_) => panic!("Should not be able to parse worlds with #exit < #start"),
+        Err(e) => match e {
+            ParseError::NotEnoughExitTiles { n_exits, n_starts } => {
+                assert_eq!(n_starts, 2);
+                assert_eq!(n_exits, 1);
+            }
+            _ => panic!("Expected InconsistentNumberOfAgents, got {e:?}"),
+        },
+    }
+}
+
+#[test]
+fn parse_no_agents() {
+    match World::try_from(". . G") {
+        Ok(_) => panic!("Should not be able to create worlds without agents"),
+        Err(e) => match e {
+            ParseError::NoAgents => {}
+            _ => panic!("Expected NoAgents, got {e:?}"),
+        },
+    }
+}
+
+#[test]
+fn test_vertex_conflict() {
     let mut w = World::try_from(
         "
-        . . . . .
-        . @ . . .
-        . @ X @ X
-       S0 . . . . 
-        V V V V V",
+    S0 X .
+    .  . .
+    S1 X .",
     )
     .unwrap();
-    assert_eq!(w.n_agents(), 1);
     w.reset();
+    w.step(&[Action::South, Action::North]).unwrap();
+    let pos = w.agents_positions();
+    assert_eq!(pos[0], (0, 0));
+    assert_eq!(pos[1], (2, 0));
+}
 
-    let state = WorldState {
+#[test]
+fn test_reset() {
+    let mut w = World::try_from("S0 G X").unwrap();
+    for _ in 0..10 {
+        w.reset();
+        assert_eq!(w.agents_positions()[0], (0, 0));
+        assert_eq!(
+            w.step(&[Action::East]).unwrap(),
+            vec![WorldEvent::GemCollected { agent_id: 0 }]
+        );
+        assert_eq!(
+            w.step(&[Action::East]).unwrap(),
+            vec![WorldEvent::AgentExit { agent_id: 0 }]
+        );
+    }
+}
+
+#[test]
+fn test_standard_levels() {
+    for level in 1..7 {
+        let name = format!("level{}", level);
+        World::from_file(&name).unwrap();
+        let name = format!("lvl{}", level);
+        World::from_file(&name).unwrap();
+    }
+}
+
+#[test]
+fn test_get_level() {
+    for level in 1..7 {
+        World::get_level(level).unwrap();
+    }
+}
+
+#[test]
+fn test_force_state() {
+    let mut w = World::try_from(
+        "
+        S0 . G
+        X  . .
+    ",
+    )
+    .unwrap();
+    w.reset();
+    let s = WorldState {
         agents_positions: [(1, 2)].into(),
-        gems_collected: [].into(),
+        gems_collected: [true].into(),
     };
-    w.force_state(&state).unwrap();
-    let r = w.step(&[Action::South]).unwrap();
-    assert_eq!(
-        r,
-        reward::REWARD_AGENT_JUST_ARRIVED + reward::REWARD_END_GAME
-    );
+    w.force_state(&s).unwrap();
+    assert_eq!(w.agents_positions()[0], (1, 2));
+    let gem = w.gems().next().unwrap().1;
+    assert!(gem.is_collected());
+}
+
+#[test]
+fn test_force_end_state() {
+    let mut w = World::try_from(
+        "
+        S0 . G
+        X  . .
+    ",
+    )
+    .unwrap();
+    w.reset();
+    let s = WorldState {
+        agents_positions: [(1, 0)].into(),
+        gems_collected: [true].into(),
+    };
+    w.force_state(&s).unwrap();
+    assert_eq!(w.agents_positions()[0], (1, 0));
+    let gem = w.gems().next().unwrap().1;
+    assert!(gem.is_collected());
+}
+
+#[test]
+fn test_force_state_agent_dies() {
+    let mut w = World::try_from(
+        "
+        S0 S1 G
+        X  X L0W
+    ",
+    )
+    .unwrap();
+    w.reset();
+
+    let s = WorldState {
+        agents_positions: [(1, 0), (1, 1)].into(),
+        gems_collected: [false; 1].into(),
+    };
+    w.force_state(&s).unwrap();
+    assert!(w.agents()[1].is_dead());
 }

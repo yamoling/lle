@@ -1,6 +1,7 @@
 use crate::{
     agent::{Agent, AgentId},
     rendering::{TileVisitor, VisitorData},
+    WorldEvent,
 };
 
 use super::{Direction, Tile, Wall};
@@ -39,8 +40,8 @@ impl Tile for LaserSource {
         self.wall.reset();
     }
 
-    fn enter(&self, agent: &mut Agent) {
-        self.wall.enter(agent);
+    fn enter(&self, agent: &mut Agent) -> Option<WorldEvent> {
+        self.wall.enter(agent)
     }
 
     fn leave(&self) -> AgentId {

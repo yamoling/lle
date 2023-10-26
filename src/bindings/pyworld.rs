@@ -2,20 +2,19 @@ use numpy::PyArray1;
 use pyo3::{exceptions, prelude::*, types::PyDict};
 
 use crate::{
-    parsing::parse, parsing::ParseError, Position, Renderer, RuntimeWorldError, Tile, World,
-    WorldState,
+    ParseError, Position, Renderer, RuntimeWorldError, Tile, World, WorldEvent, WorldState,
 };
 
 use super::{
     pyaction::PyAction,
     pyagent::PyAgent,
     pydirection::PyDirection,
+    pyevent::{PyEventType, PyWorldEvent},
     pytile::{PyGem, PyLaser, PyLaserSource},
     pyworld_state::PyWorldState,
 };
 
 #[pyclass(name = "World", module = "lle")]
-#[derive(Clone)]
 pub struct PyWorld {
     world: World,
     renderer: Renderer,
@@ -27,7 +26,7 @@ unsafe impl Send for PyWorld {}
 impl PyWorld {
     #[new]
     pub fn new(map_str: String) -> PyResult<Self> {
-        let world = match parse(&map_str) {
+        let world = match World::try_from(map_str) {
             Ok(world) => world,
             Err(e) => return Err(parse_error_to_exception(e)),
         };
@@ -94,13 +93,6 @@ impl PyWorld {
     }
 
     #[getter]
-    /// The proportion of agents that have reached an exit tile.
-    fn exit_rate(&self) -> f32 {
-        let n_arrived = self.world.n_agents_arrived() as f32;
-        n_arrived / (self.world.n_agents() as f32)
-    }
-
-    #[getter]
     /// The number of gems collected so far (since the last reset).
     fn gems_collected(&self) -> usize {
         self.world.n_gems_collected()
@@ -161,11 +153,29 @@ impl PyWorld {
         self.world.exits().map(|(pos, _)| pos).copied().collect()
     }
 
-    /// Perform a step in the world and returns the reward for that transition.
-    pub fn step(&mut self, actions: Vec<PyAction>) -> PyResult<f32> {
+    /// Perform a step in the world and returns the events that heppened during that transition.
+    pub fn step(&mut self, actions: Vec<PyAction>) -> PyResult<Vec<PyWorldEvent>> {
         let actions: Vec<_> = actions.into_iter().map(|a| a.action).collect();
         match self.world.step(&actions) {
-            Ok(r) => Ok(r),
+            Ok(events) => {
+                let events: Vec<PyWorldEvent> = events.iter().map(|e| {
+                    match e {
+                        WorldEvent::AgentExit { agent_id } => PyWorldEvent::new(
+                            PyEventType::AgentExit,
+                            *agent_id,
+                        ),
+                        WorldEvent::GemCollected { agent_id } => PyWorldEvent::new(
+                            PyEventType::GemCollected,
+                            *agent_id,
+                        ),
+                        WorldEvent::AgentDied { agent_id } => PyWorldEvent::new(
+                            PyEventType::AgentDied,
+                            *agent_id,
+                        ),
+                    }
+                }).collect();
+                Ok(events)
+            },
             Err(e) => match e {
                 RuntimeWorldError::InvalidAction {
                     agent_id,
@@ -206,12 +216,6 @@ impl PyWorld {
             .iter()
             .map(|a| PyAgent { agent: a.clone() })
             .collect()
-    }
-
-    #[getter]
-    /// Whether the last transition yielded a terminal state.
-    pub fn done(&self) -> bool {
-        self.world.done()
     }
 
     /// Renders the world as an image and returns it in a numpy array.
@@ -255,7 +259,7 @@ impl PyWorld {
     pub fn __getstate__(&self) -> PyResult<(String, Vec<bool>, Vec<Position>)> {
         let state = self.world.get_state();
         let data = (
-            self.world_string(),
+            self.world.world_string().to_owned(),
             state.gems_collected.clone(),
             state.agents_positions.clone(),
         );
@@ -263,11 +267,10 @@ impl PyWorld {
     }
 
     pub fn __setstate__(&mut self, state: (String, Vec<bool>, Vec<Position>)) -> PyResult<()> {
-        let world = match parse(&state.0) {
-            Ok(world) => world,
+        self.world = match World::try_from(state.0) {
+            Ok(core) => core,
             Err(e) => panic!("Could not parse the world: {:?}", e),
         };
-        self.world = world;
         self.renderer = Renderer::new(&self.world);
         self.world
             .force_state(&WorldState {
@@ -277,20 +280,17 @@ impl PyWorld {
             .unwrap();
         Ok(())
     }
+}
 
-    // /// Enable pickle serialisation
-    // pub fn __getstate__(self_: PyRef<'_, Self>) -> &'_ PyDict {
-    //     let py = self_.py();
-    //     let res = PyDict::new(py);
-    //     res.set_item("world_str", self_.world_string()).unwrap();
-    //     let state = self_.world.get_state();
-    //     res.set_item("gems_collected", state.gems_collected)
-    //         .unwrap();
-    //     res.set_item("agents_positions", state.agents_positions)
-    //         .unwrap();
-    //     println!("getstate: {:?}", res);
-    //     res
-    // }
+impl Clone for PyWorld {
+    fn clone(&self) -> Self {
+        let core = self.world.clone();
+        let renderer = Renderer::new(&core);
+        PyWorld {
+            world: core,
+            renderer,
+        }
+    }
 }
 
 fn parse_error_to_exception(error: ParseError) -> PyErr {

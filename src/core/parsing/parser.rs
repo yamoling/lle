@@ -1,16 +1,14 @@
 use std::{cell::Cell, rc::Rc};
 
 use crate::{
-    reward::RewardCollector,
+    core::World,
     tiles::{Direction, LaserBeam, Void},
-    AgentId, Exit, Floor, Gem, Laser, LaserSource, Position, Start, TeamReward, Tile, Wall, World,
+    AgentId, Exit, Floor, Gem, Laser, LaserSource, Position, Start, Tile, Wall,
 };
 
 use crate::ParseError;
 
 pub fn parse(world_str: &str) -> Result<World, ParseError> {
-    let n_agents = world_str.matches('S').count();
-    let reward_model = Rc::new(TeamReward::new(n_agents as u32));
     let mut grid = vec![];
     let mut gems: Vec<(Position, Rc<Gem>)> = vec![];
     let mut start_positions: Vec<(AgentId, Position)> = vec![];
@@ -33,7 +31,7 @@ pub fn parse(world_str: &str) -> Result<World, ParseError> {
                     Rc::new(Wall::default())
                 }
                 'G' => {
-                    let gem = Rc::new(Gem::new(reward_model.clone()));
+                    let gem = Rc::new(Gem::default());
                     gems.push(((i, j), gem.clone()));
                     gem
                 }
@@ -56,7 +54,7 @@ pub fn parse(world_str: &str) -> Result<World, ParseError> {
                     Rc::new(Start::new(agent_id))
                 }
                 'X' => {
-                    let exit = Rc::new(Exit::new(reward_model.clone()));
+                    let exit = Rc::new(Exit::default());
                     exits.push(((i, j), exit.clone()));
                     exit
                 }
@@ -70,7 +68,7 @@ pub fn parse(world_str: &str) -> Result<World, ParseError> {
                 }
                 'V' => {
                     void_positions.push((i, j));
-                    Rc::new(Void::new(reward_model.clone()))
+                    Rc::new(Void::default())
                 }
                 other => {
                     return Err(ParseError::InvalidTile {
@@ -90,7 +88,7 @@ pub fn parse(world_str: &str) -> Result<World, ParseError> {
     // Sort start positions
     start_positions.sort_by(|(id_a, _), (id_b, _)| id_a.cmp(id_b));
     let start_positions: Vec<Position> = start_positions.iter().map(|(_, pos)| *pos).collect();
-    let lasers = laser_setup(&mut grid, &sources, reward_model.clone());
+    let lasers = laser_setup(&mut grid, &sources);
 
     // Sanity check
     {
@@ -128,7 +126,6 @@ pub fn parse(world_str: &str) -> Result<World, ParseError> {
         exits,
         walls_positions,
         world_str,
-        reward_model,
     ))
 }
 
@@ -136,7 +133,6 @@ pub fn parse(world_str: &str) -> Result<World, ParseError> {
 fn laser_setup(
     grid: &mut Vec<Vec<Rc<dyn Tile>>>,
     laser_sources: &[(Position, Rc<LaserSource>)],
-    reward_model: Rc<dyn RewardCollector>,
 ) -> Vec<(Position, Rc<Laser>)> {
     let mut lasers = vec![];
     let width = grid[0].len() as i32;
@@ -163,13 +159,7 @@ fn laser_setup(
         for (i, pos) in beam_pos.iter().enumerate() {
             let beam = LaserBeam::new(beam[i..].to_vec());
             let wrapped = grid[pos.0].remove(pos.1);
-            let laser = Rc::new(Laser::new(
-                source.agent_id(),
-                dir,
-                wrapped,
-                beam,
-                reward_model.clone(),
-            ));
+            let laser = Rc::new(Laser::new(source.agent_id(), dir, wrapped, beam));
             lasers.push((*pos, laser.clone()));
             grid[pos.0].insert(pos.1, laser);
         }

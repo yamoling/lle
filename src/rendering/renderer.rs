@@ -1,9 +1,9 @@
 use image::{GenericImage, Rgb, RgbImage, RgbaImage};
 
-use super::{sprites, TileVisitor, AGENT_COLOURS, BLACK, GRID_GREY};
+use super::{sprites, TileVisitor, BLACK, GRID_GREY};
 use crate::{
+    core::World,
     tiles::{Direction, Gem, Laser, LaserSource},
-    World,
 };
 
 use super::{BACKGROUND_GREY, TILE_SIZE};
@@ -22,15 +22,15 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(world: &World) -> Self {
-        let pixel_width = world.width() as u32 * TILE_SIZE + 1;
-        let pixel_height = world.height() as u32 * TILE_SIZE + 1;
+    pub fn new(core: &World) -> Self {
+        let pixel_width = core.width() as u32 * TILE_SIZE + 1;
+        let pixel_height = core.height() as u32 * TILE_SIZE + 1;
         let mut renderer = Self {
             static_frame: image::RgbImage::new(pixel_width, pixel_height),
             pixel_width,
             pixel_height,
         };
-        renderer.static_rendering(world);
+        renderer.static_rendering(core);
         renderer
     }
 
@@ -215,3 +215,7 @@ impl TileVisitor for Renderer {
         // The below tile should draw the agent
     }
 }
+
+#[cfg(test)]
+#[path = "../unit_tests/test_renderer.rs"]
+mod test_renderer;
