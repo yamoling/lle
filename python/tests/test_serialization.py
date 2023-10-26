@@ -21,7 +21,7 @@ def test_pickle_world():
         world = World.level(lvl)
         world.reset()
         i = 0
-        while i < 20 and not world.done:
+        while i < 20:
             actions = [random.choice(a) for a in world.available_actions()]
             world.step(actions)
             serialised = pickle.dumps(world)

@@ -1,4 +1,4 @@
-from lle import World, Action, REWARD_END_GAME, REWARD_AGENT_JUST_ARRIVED, REWARD_GEM_COLLECTED
+from lle import World, Action, REWARD_END_GAME, REWARD_AGENT_EXIT, REWARD_GEM_COLLECTED
 
 
 world = World(

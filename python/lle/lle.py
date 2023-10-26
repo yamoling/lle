@@ -3,11 +3,12 @@ from .world import World, WorldState
 from .agent import Agent
 from .tiles import Gem, Laser, LaserSource, Tile
 from .direction import Direction
+from .event import WorldEvent, EventType
 
 # Constants
 REWARD_AGENT_DIED: float
 """The penalty for dying."""
-REWARD_AGENT_JUST_ARRIVED: float
+REWARD_AGENT_EXIT: float
 """The reward for arriving on an exit tile."""
 REWARD_END_GAME: float
 """The reward for finishing the game."""

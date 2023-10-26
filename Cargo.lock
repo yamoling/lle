@@ -258,7 +258,7 @@ checksum = "a08173bc88b7955d1b3145aa561539096c421ac8debde8cbc3612ec635fee29b"
 
 [[package]]
 name = "lle"
-version = "0.1.8"
+version = "0.1.9"
 dependencies = [
  "image",
  "itertools",

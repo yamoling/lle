@@ -1,29 +1,20 @@
-use std::{cell::Cell, rc::Rc};
+use std::cell::Cell;
 
 use crate::{
     agent::{Agent, AgentId},
     rendering::{TileVisitor, VisitorData},
-    reward::RewardModel,
-    RewardEvent,
+    WorldEvent,
 };
 
 use super::{Floor, Tile};
 
+#[derive(Default)]
 pub struct Gem {
     floor: Floor,
     collected: Cell<bool>,
-    reward_collector: Rc<dyn RewardModel>,
 }
 
 impl Gem {
-    pub fn new(reward_collector: Rc<dyn RewardModel>) -> Self {
-        Self {
-            floor: Floor::default(),
-            collected: Cell::new(false),
-            reward_collector,
-        }
-    }
-
     pub fn collect(&self) {
         self.collected.set(true);
     }
@@ -43,14 +34,15 @@ impl Tile for Gem {
         self.floor.reset();
     }
 
-    fn enter(&self, agent: &mut Agent) {
+    fn enter(&self, agent: &mut Agent) -> Option<WorldEvent> {
+        self.floor.enter(agent);
         if !self.collected.get() {
             self.collected.set(true);
-            self.reward_collector.update(RewardEvent::GemCollected {
+            return Some(WorldEvent::GemCollected {
                 agent_id: agent.id(),
             });
         }
-        self.floor.enter(agent);
+        None
     }
 
     fn leave(&self) -> AgentId {

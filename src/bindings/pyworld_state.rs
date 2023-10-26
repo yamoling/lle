@@ -1,4 +1,4 @@
-use crate::{world::WorldState, Position};
+use crate::{core::WorldState, Position};
 use pyo3::{exceptions, prelude::*, pyclass::CompareOp, types::PyDict};
 use std::hash::{Hash, Hasher};
 

@@ -3,8 +3,7 @@ use std::{cell::Cell, fmt::Display, rc::Rc};
 use crate::{
     agent::{Agent, AgentId},
     rendering::{TileVisitor, VisitorData},
-    reward::RewardModel,
-    RewardEvent,
+    WorldEvent,
 };
 
 use super::Tile;
@@ -85,7 +84,6 @@ pub struct Laser {
     agent_id: AgentId,
     beam: LaserBeam,
     wrapped: Rc<dyn Tile>,
-    collector: Rc<dyn RewardModel>,
 }
 
 impl Laser {
@@ -94,14 +92,12 @@ impl Laser {
         direction: Direction,
         wrapped: Rc<dyn Tile>,
         beam: LaserBeam,
-        collector: Rc<dyn RewardModel>,
     ) -> Self {
         Self {
             agent_id,
             direction,
             wrapped,
             beam,
-            collector,
         }
     }
 
@@ -139,15 +135,15 @@ impl Tile for Laser {
         }
     }
 
-    fn enter(&self, agent: &mut Agent) {
-        self.wrapped.enter(agent);
+    fn enter(&self, agent: &mut Agent) -> Option<WorldEvent> {
         // Note: turning off the beam happens in `pre_enter`
         if self.beam.is_on() && agent.id() != self.agent_id {
             agent.die();
-            self.collector.update(RewardEvent::AgentDied {
+            return Some(WorldEvent::AgentDied {
                 agent_id: agent.id(),
             });
         }
+        self.wrapped.enter(agent)
     }
 
     fn leave(&self) -> AgentId {

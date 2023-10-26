@@ -1,10 +1,7 @@
-use std::rc::Rc;
-
 use crate::{
     agent::{Agent, AgentId},
     rendering::{TileVisitor, VisitorData},
-    reward::RewardModel,
-    RewardEvent,
+    WorldEvent,
 };
 
 use super::{Floor, Tile};
@@ -35,8 +32,9 @@ impl Tile for Start {
         self.floor.reset();
     }
 
-    fn enter(&self, agent: &mut Agent) {
+    fn enter(&self, agent: &mut Agent) -> Option<WorldEvent> {
         self.floor.enter(agent);
+        None
     }
 
     fn leave(&self) -> AgentId {
@@ -52,18 +50,9 @@ impl Tile for Start {
     }
 }
 
+#[derive(Default)]
 pub struct Exit {
     floor: Floor,
-    collector: Rc<dyn RewardModel>,
-}
-
-impl Exit {
-    pub fn new(collector: Rc<dyn RewardModel>) -> Self {
-        Self {
-            floor: Floor::default(),
-            collector,
-        }
-    }
 }
 
 impl Tile for Exit {
@@ -75,12 +64,12 @@ impl Tile for Exit {
         self.floor.reset();
     }
 
-    fn enter(&self, agent: &mut Agent) {
+    fn enter(&self, agent: &mut Agent) -> Option<WorldEvent> {
         self.floor.enter(agent);
-        self.collector.update(RewardEvent::AgentExit {
-            agent_id: agent.id(),
-        });
         agent.arrive();
+        Some(WorldEvent::AgentExit {
+            agent_id: agent.id(),
+        })
     }
 
     fn leave(&self) -> AgentId {

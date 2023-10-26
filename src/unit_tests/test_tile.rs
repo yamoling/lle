@@ -3,7 +3,7 @@ use std::{cell::Cell, rc::Rc};
 use crate::{
     agent::Agent,
     tiles::{LaserBeam, Void},
-    AgentId, Floor, Gem, Laser, Start, TeamReward, Tile,
+    AgentId, Floor, Gem, Laser, Start, Tile,
 };
 
 fn make_laser(agent_id: AgentId, length: usize) -> Laser {
@@ -11,8 +11,7 @@ fn make_laser(agent_id: AgentId, length: usize) -> Laser {
     let mut beam = Vec::with_capacity(4);
     (0..length).for_each(|_| beam.push(Rc::new(Cell::new(true))));
     let beam = LaserBeam::new(beam);
-    let rm = Rc::new(TeamReward::new(1));
-    Laser::new(agent_id, crate::tiles::Direction::East, wrapped, beam, rm)
+    Laser::new(agent_id, crate::tiles::Direction::East, wrapped, beam)
 }
 
 #[test]
@@ -35,7 +34,7 @@ fn test_start() {
 #[test]
 fn test_gem() {
     let mut agent = Agent::new(3);
-    let gem = Gem::new(Rc::new(TeamReward::new(3)));
+    let gem = Gem::default();
     gem.reset();
     assert_eq!(gem.agent(), None);
     assert!(!gem.is_collected());
@@ -96,8 +95,7 @@ fn test_laser_agent_dies() {
 #[test]
 fn test_void_agent_dies() {
     let mut agent = Agent::new(0);
-    let collector = TeamReward::new(1);
-    let void = Void::new(Rc::new(collector));
+    let void = Void::default();
     void.pre_enter(&agent);
     assert!(!void.is_occupied());
     assert!(agent.is_alive());

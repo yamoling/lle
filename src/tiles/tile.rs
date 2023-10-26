@@ -1,16 +1,15 @@
 use crate::{
     agent::{Agent, AgentId},
     rendering::{TileVisitor, VisitorData},
-    reward::RewardModel,
-    RewardEvent,
+    WorldEvent,
 };
 use core::panic;
-use std::{cell::Cell, rc::Rc};
+use std::cell::Cell;
 
 pub trait Tile {
     fn pre_enter(&self, agent: &Agent);
     fn reset(&self);
-    fn enter(&self, agent: &mut Agent);
+    fn enter(&self, agent: &mut Agent) -> Option<WorldEvent>;
     fn leave(&self) -> AgentId;
     fn agent(&self) -> Option<AgentId>;
     fn is_waklable(&self) -> bool {
@@ -35,8 +34,9 @@ impl Tile for Floor {
         self.agent.set(None);
     }
 
-    fn enter(&self, agent: &mut Agent) {
+    fn enter(&self, agent: &mut Agent) -> Option<WorldEvent> {
         self.agent.set(Some(agent.id()));
+        None
     }
 
     fn leave(&self) -> AgentId {
@@ -62,7 +62,7 @@ impl Tile for Wall {
 
     fn reset(&self) {}
 
-    fn enter(&self, _agent: &mut Agent) {
+    fn enter(&self, _agent: &mut Agent) -> Option<WorldEvent> {
         panic!("Cannot enter a wall")
     }
 
@@ -87,18 +87,9 @@ impl Tile for Wall {
     }
 }
 
+#[derive(Default)]
 pub struct Void {
     agent: Cell<Option<AgentId>>,
-    reward_model: Rc<dyn RewardModel>,
-}
-
-impl Void {
-    pub fn new(reward_model: Rc<dyn RewardModel>) -> Self {
-        Self {
-            agent: Cell::new(None),
-            reward_model,
-        }
-    }
 }
 
 impl Tile for Void {
@@ -108,12 +99,12 @@ impl Tile for Void {
 
     fn pre_enter(&self, _agent: &Agent) {}
 
-    fn enter(&self, agent: &mut Agent) {
+    fn enter(&self, agent: &mut Agent) -> Option<WorldEvent> {
         agent.die();
-        self.reward_model.update(RewardEvent::AgentDied {
-            agent_id: agent.id(),
-        });
         self.agent.set(Some(agent.id()));
+        Some(WorldEvent::AgentDied {
+            agent_id: agent.id(),
+        })
     }
 
     fn leave(&self) -> AgentId {

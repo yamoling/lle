@@ -1,8 +1,11 @@
-use crate::{world::DoneStrategy, Action, World};
+use crate::{
+    world::{Core, DoneStrategy},
+    Action,
+};
 
 #[test]
 fn test_done_strategy_one_agent_exits() {
-    let mut w = World::try_from(
+    let mut w = Core::try_from(
         "
         S0 S1 G
         X  X .
@@ -19,7 +22,7 @@ fn test_done_strategy_one_agent_exits() {
 
 #[test]
 fn test_done_strategy_one_agent_dies_and_exits() {
-    let mut w = World::try_from(
+    let mut w = Core::try_from(
         "
         S0 S1 G
         X  X  L0W
@@ -36,7 +39,7 @@ fn test_done_strategy_one_agent_dies_and_exits() {
 
 #[test]
 fn test_competitive_done_strategy_one_agent_dies() {
-    let mut w = World::try_from(
+    let mut w = Core::try_from(
         "
         S0 S1 X
         X  .  L0W

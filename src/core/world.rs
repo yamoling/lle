@@ -1,3 +1,4 @@
+/// The core logic of LLE, which should not be parametrisable.
 use itertools::izip;
 use std::{
     fs::File,
@@ -7,14 +8,16 @@ use std::{
 
 use crate::{
     agent::Agent,
-    parsing::{parse, ParseError},
-    reward::RewardModel,
     tiles::{Gem, Laser, LaserSource, Tile},
     utils::find_duplicates,
     Action, AgentId, Exit, Position, RuntimeWorldError, WorldState,
 };
 
-use super::{end_game_strategy::DoneStrategy, levels};
+use super::{
+    levels,
+    parsing::{parse, ParseError},
+    WorldEvent,
+};
 
 pub struct World {
     width: usize,
@@ -33,10 +36,7 @@ pub struct World {
     agent_positions: Vec<Position>,
     wall_positions: Vec<Position>,
 
-    reward_model: Rc<dyn RewardModel>,
-    done_strategy: DoneStrategy,
     available_actions: Vec<Vec<Action>>,
-    done: bool,
 }
 
 impl World {
@@ -51,7 +51,6 @@ impl World {
         exits: Vec<(Position, Rc<Exit>)>,
         walls_positions: Vec<Position>,
         world_str: &str,
-        reward_model: Rc<dyn RewardModel>,
     ) -> Self {
         let agents = start_positions
             .iter()
@@ -64,7 +63,6 @@ impl World {
             agent_positions: start_positions.clone(),
             wall_positions: walls_positions,
             void_positions,
-            done_strategy: DoneStrategy::Cooperarive,
             agents,
             exits,
             gems,
@@ -72,10 +70,8 @@ impl World {
             grid,
             lasers,
             start_positions,
-            available_actions: vec![],
-            done: false,
             world_string: world_str.into(),
-            reward_model,
+            available_actions: vec![],
         }
     }
 
@@ -122,10 +118,6 @@ impl World {
         self.height
     }
 
-    pub fn done(&self) -> bool {
-        self.done
-    }
-
     pub fn walls(&self) -> impl Iterator<Item = &Position> {
         self.wall_positions.iter()
     }
@@ -156,15 +148,11 @@ impl World {
         self.lasers.iter().map(|(pos, laser)| (pos, laser.as_ref()))
     }
 
-    pub fn set_done_strategy(&mut self, done_strategy: DoneStrategy) {
-        self.done_strategy = done_strategy;
-    }
-
     fn compute_available_actions(&self) -> Vec<Vec<Action>> {
         let mut available_actions = vec![];
         for (agent, agent_pos) in izip!(&self.agents, &self.agent_positions) {
             let mut agent_actions = vec![Action::Stay];
-            if !agent.has_arrived() {
+            if agent.is_alive() && !agent.has_arrived() {
                 for action in [Action::North, Action::East, Action::South, Action::West] {
                     if let Ok(pos) = &action + agent_pos {
                         if let Some(tile) = self.at(pos) {
@@ -178,11 +166,6 @@ impl World {
             available_actions.push(agent_actions);
         }
         available_actions
-    }
-
-    fn update(&mut self) {
-        self.available_actions = self.compute_available_actions();
-        self.done = self.done_strategy.is_done(self);
     }
 
     fn solve_vertex_conflicts(new_pos: &mut [Position], old_pos: &[Position]) {
@@ -238,15 +221,11 @@ impl World {
         for agent in &mut self.agents {
             agent.reset();
         }
-        self.reward_model.reset();
-        self.update();
+        self.available_actions = self.compute_available_actions();
     }
 
     /// Perform one step in the environment and return the corresponding reward.
-    pub fn step(&mut self, actions: &[Action]) -> Result<f32, RuntimeWorldError> {
-        if self.done {
-            return Err(RuntimeWorldError::WorldIsDone);
-        }
+    pub fn step(&mut self, actions: &[Action]) -> Result<Vec<WorldEvent>, RuntimeWorldError> {
         if self.n_agents() != actions.len() {
             return Err(RuntimeWorldError::InvalidNumberOfActions {
                 given: actions.len(),
@@ -288,16 +267,18 @@ impl World {
                 self.grid[new_i][new_j].pre_enter(agent);
             }
         }
-
+        let mut events = vec![];
         for (agent, action, new_pos) in izip!(&mut self.agents, actions, &new_positions) {
             if *action != Action::Stay {
                 let (i, j) = *new_pos;
-                self.grid[i][j].enter(agent);
+                if let Some(event) = self.grid[i][j].enter(agent) {
+                    events.push(event);
+                }
             }
         }
         self.agent_positions = new_positions;
-        self.update();
-        Ok(self.reward_model.consume())
+        self.available_actions = self.compute_available_actions();
+        Ok(events)
     }
 
     pub fn get_state(&self) -> WorldState {
@@ -311,7 +292,10 @@ impl World {
         }
     }
 
-    pub fn force_state(&mut self, state: &WorldState) -> Result<(), RuntimeWorldError> {
+    pub fn force_state(
+        &mut self,
+        state: &WorldState,
+    ) -> Result<Vec<WorldEvent>, RuntimeWorldError> {
         if state.gems_collected.len() != self.n_gems() {
             return Err(RuntimeWorldError::InvalidNumberOfGems {
                 given: state.gems_collected.len(),
@@ -340,19 +324,18 @@ impl World {
                 gem.collect();
             }
         }
-        // ONLY then, reset the reward model (after gems have been collected & before entering the tiles).
-        self.reward_model.reset();
         self.agent_positions = state.agents_positions.to_vec();
         for ((i, j), agent) in izip!(&self.agent_positions, &self.agents) {
             self.grid[*i][*j].pre_enter(agent);
         }
+        let mut events = vec![];
         for ((i, j), agent) in izip!(&self.agent_positions, &mut self.agents) {
-            self.grid[*i][*j].enter(agent);
+            if let Some(event) = self.grid[*i][*j].enter(agent) {
+                events.push(event);
+            }
         }
-        // Finally, consume the reward of the "force state" step
-        self.reward_model.consume();
-        self.update();
-        Ok(())
+        self.available_actions = self.compute_available_actions();
+        Ok(events)
     }
 
     pub fn get_level(level: usize) -> Result<Self, ParseError> {
@@ -403,12 +386,12 @@ impl TryFrom<&str> for World {
 
 impl Clone for World {
     fn clone(&self) -> Self {
-        let mut world = Self::try_from(self.world_string.clone()).unwrap();
-        world.force_state(&self.get_state()).unwrap();
-        world
+        let mut core = Self::try_from(self.world_string.clone()).unwrap();
+        core.force_state(&self.get_state()).unwrap();
+        core
     }
 }
 
 #[cfg(test)]
-#[path = "../unit_tests/test_world.rs"]
-mod tests;
+#[path = "../unit_tests/test_core.rs"]
+mod test_core;

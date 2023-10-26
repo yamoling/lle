@@ -1,12 +1,12 @@
 from typing import Any, Literal
 from typing_extensions import override
-from lle import World, Action
 from dataclasses import dataclass
 from serde import serde
 import cv2
 import numpy as np
 
-from rlenv import RLEnv, DiscreteActionSpace, Observation
+from lle import World, Action, EventType, WorldState, REWARD_AGENT_DIED, REWARD_AGENT_EXIT, REWARD_END_GAME, REWARD_GEM_COLLECTED
+from rlenv import RLEnv, DiscreteActionSpace, Observation, StepData
 from .observations import ObservationType
 
 
@@ -19,13 +19,16 @@ class LLE(RLEnv[DiscreteActionSpace]):
 
     def __init__(self, world: World, obs_type: ObservationType | str = ObservationType.STATE):
         self.world = world
-        super().__init__(DiscreteActionSpace(self.world.n_agents, Action.N, [a.name for a in Action.ALL]))
+        super().__init__(DiscreteActionSpace(world.n_agents, Action.N, [a.name for a in Action.ALL]))
         if isinstance(obs_type, str):
             obs_type = ObservationType.from_str(obs_type)
         self.obs_type = obs_type.name
         self.world_observer = obs_type.get_observation_generator(self.world)
         self._state_observer = ObservationType.FLATTENED.get_observation_generator(self.world)
         self._obs_type = obs_type
+
+        self.done = False
+        self.n_arrived = 0
 
     @property
     def width(self) -> int:
@@ -37,7 +40,7 @@ class LLE(RLEnv[DiscreteActionSpace]):
 
     @property
     def state_shape(self):
-        return self._state_observer.shape
+        return self.get_state().shape
 
     @property
     def observation_shape(self):
@@ -53,26 +56,49 @@ class LLE(RLEnv[DiscreteActionSpace]):
 
     @override
     def step(self, actions: np.ndarray[np.int32, Any]):
-        reward = self.world.step([Action(a) for a in actions])
+        assert not self.done, "Can not play when the game is done !"
+        events = self.world.step([Action(a) for a in actions])
+        reward = 0.0
+        death_reward = 0.0
+        for event in events:
+            match event.event_type:
+                case EventType.AGENT_DIED:
+                    death_reward += REWARD_AGENT_DIED
+                    self.done = True
+                case EventType.GEM_COLLECTED:
+                    reward += REWARD_GEM_COLLECTED
+                case EventType.AGENT_EXIT:
+                    reward += REWARD_AGENT_EXIT
+                    self.n_arrived += 1
+        if death_reward != 0:
+            reward = death_reward
+        elif self.n_arrived == self.n_agents:
+            reward += REWARD_END_GAME
+            self.done = True
+
         obs_data = self.world_observer.observe()
         obs = Observation(obs_data, self.available_actions(), self.get_state())
-        info = {"gems_collected": self.world.gems_collected, "exit_rate": self.world.exit_rate}
-        return obs, reward, self.world.done, False, info
+        info = {"gems_collected": self.world.gems_collected, "exit_rate": self.n_arrived / self.n_agents}
+        return StepData(obs, reward, self.done, False, info)
 
     @override
     def reset(self):
         self.world.reset()
+        self.done = False
+        self.n_arrived = 0
         obs = self.world_observer.observe()
         return Observation(obs, self.available_actions(), self.get_state())
 
     @override
     def get_state(self) -> np.ndarray[np.float32, Any]:
-        return self._state_observer.observe()[0]
+        state = self.world.get_state()
+        gems_collected = np.array(state.gems_collected, dtype=np.float32)
+        agents_positions = np.array(state.agents_positions, dtype=np.float32).reshape(-1)
+        return np.concatenate([gems_collected, agents_positions])
 
     @override
     def render(self, mode: Literal["human", "rgb_array"] = "human"):
         image = self.world.get_image()
-        # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         match mode:
             case "human":
                 cv2.imshow("LLE", image)
@@ -93,11 +119,16 @@ class LLE(RLEnv[DiscreteActionSpace]):
     @staticmethod
     def level(level: int, obs_type: ObservationType = ObservationType.FLATTENED) -> "LLE":
         """Load a level from the levels folder"""
-        if level <= 0 or level > 6:
-            raise NotImplementedError("Only levels 1-6 are implemented")
-        env = LLE(World.from_file(f"level{level}"), obs_type)
+        env = LLE(World.level(level), obs_type)
         env.name = f"{env.name}-lvl{level}"
         return env
 
     def seed(self, _seed_value: int):
+        # There is nothing random in the world to seed.
         return
+
+    def set_state(self, state: WorldState):
+        self.world.set_state(state)
+        agents = self.world.agents
+        self.done = any(agent.is_dead for agent in agents) or all(agent.has_arrived for agent in agents)
+        self.n_arrived = sum(agent.has_arrived for agent in agents)
