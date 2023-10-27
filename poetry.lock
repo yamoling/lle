@@ -993,7 +993,7 @@ smac = ["smac @ git+https://github.com/oxwhirl/smac.git"]
 [package.source]
 type = "git"
 url = "https://github.com/yamoling/rlenv.git"
-reference = "HEAD"
+reference = "v0.4.2"
 resolved_reference = "e5a326b49b91f9feb5015b26551b1a50611ff36b"
 
 [[package]]
@@ -1112,4 +1112,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<4.0"
-content-hash = "cd214c89f05d4d34b9c9de55402c84da6e37305eeffd946c42e39b45ae3364eb"
+content-hash = "1a50d78f11f80b9098d4a71eb2a4798d3caa70e74131930ce1d9f924c00d8bf4"
