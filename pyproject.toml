@@ -33,6 +33,7 @@ git = "https://github.com/yamoling/rlenv.git"
 maturin = "^1.1.0"
 mypy = "^1.5.1"
 pytest = "^7.4.0"
+ipykernel = "^6.26.0"
 
 [tool.pylint.format]
 max-line-length = 140
