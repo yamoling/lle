@@ -3,7 +3,7 @@
 lle.env.serde
 
 # Ignore the .pyi file import that fail
-lle.tiles
+lle.tile
 lle.world
 lle.direction
 lle.agent

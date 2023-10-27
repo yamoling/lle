@@ -4,7 +4,7 @@ import numpy as np
 from .event import WorldEvent
 from .action import Action
 from .agent import Agent
-from .tiles import Gem, LaserSource, Laser
+from .tile import Gem, LaserSource, Laser
 from .types import Position
 
 @final
