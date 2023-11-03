@@ -1,11 +1,11 @@
-from typing import Any, Literal
+from typing import Any, Literal, ClassVar
 from typing_extensions import override
 from dataclasses import dataclass
 from serde import serde
 import cv2
 import numpy as np
 
-from lle import World, Action, EventType, WorldState, REWARD_AGENT_DIED, REWARD_AGENT_EXIT, REWARD_END_GAME, REWARD_GEM_COLLECTED
+from lle import World, Action, EventType, WorldState
 from rlenv import RLEnv, DiscreteActionSpace, Observation, StepData
 from .observations import ObservationType
 
@@ -16,6 +16,11 @@ class LLE(RLEnv[DiscreteActionSpace]):
     """Laser Learning Environment (LLE)"""
 
     obs_type: str
+
+    REWARD_DEATH: ClassVar[float] = -1.0
+    REWARD_GEM: ClassVar[float] = 1.0
+    REWARD_EXIT: ClassVar[float] = 1.0
+    REWARD_DONE: ClassVar[float] = 1.0
 
     def __init__(self, world: World, obs_type: ObservationType | str = ObservationType.STATE):
         self.world = world
@@ -63,17 +68,17 @@ class LLE(RLEnv[DiscreteActionSpace]):
         for event in events:
             match event.event_type:
                 case EventType.AGENT_DIED:
-                    death_reward += REWARD_AGENT_DIED
+                    death_reward += LLE.REWARD_DEATH
                     self.done = True
                 case EventType.GEM_COLLECTED:
-                    reward += REWARD_GEM_COLLECTED
+                    reward += LLE.REWARD_GEM
                 case EventType.AGENT_EXIT:
-                    reward += REWARD_AGENT_EXIT
+                    reward += LLE.REWARD_EXIT
                     self.n_arrived += 1
         if death_reward != 0:
             reward = death_reward
         elif self.n_arrived == self.n_agents:
-            reward += REWARD_END_GAME
+            reward += LLE.REWARD_DONE
             self.done = True
 
         obs_data = self.world_observer.observe()
