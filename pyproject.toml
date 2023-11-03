@@ -5,13 +5,13 @@ requires = ["maturin>=1.1,<2.0"]
 [project]
 classifiers = [
     "Programming Language :: Rust",
-    "Programming Language :: Python :: Implementation :: CPython",
-    "Programming Language :: Python :: Implementation :: PyPy",
+    "Programming Language :: Python :: 3",
 ]
 description = "A fast Multi-Agent Reinforcement Learning Environment"
 name = "laser-learning-environment"
 readme = "readme.md"
 requires-python = ">=3.10,<4.0"
+
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
