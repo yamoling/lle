@@ -57,12 +57,12 @@ L0E . .  .  . . @
 
     # Move the agent to the end location and check the available actions
     for _ in range(3):
-        obs, *_ = env.step([Action.SOUTH.value, Action.SOUTH.value])
+        obs, *_ = env.step(np.array([Action.SOUTH.value, Action.SOUTH.value]))
         check_available_actions(
             obs.available_actions,
             [[Action.NORTH, Action.SOUTH, Action.WEST, Action.STAY], [Action.NORTH, Action.SOUTH, Action.EAST, Action.STAY]],
         )
-    obs, *_ = env.step([Action.SOUTH.value, Action.SOUTH.value])
+    obs, *_ = env.step(np.array([Action.SOUTH.value, Action.SOUTH.value]))
     check_available_actions(obs.available_actions, [[Action.STAY] * 2])
 
 
@@ -113,11 +113,11 @@ def test_deep_copy():
     env.reset()
     copy.reset()
 
-    _, _, done, _, _ = env.step([Action.EAST.value])
+    _, _, done, _, _ = env.step(np.array([Action.EAST.value]))
     assert done
     # If the deepcopy is not correct, the copy should also be done and the game should crash
     # If the deepcopy is properly done, then the copy should not be done
-    _, _, done, _, _ = copy.step([Action.STAY.value])
+    _, _, done, _, _ = copy.step(np.array([Action.STAY.value]))
     assert not done
 
 
@@ -129,15 +129,15 @@ def test_move_end_game():
     .  . .""",
     )
     env.reset()
-    env.step([Action.SOUTH.value])
+    env.step(np.array([Action.SOUTH.value]))
     assert not env.done
-    env.step([Action.SOUTH.value])
+    env.step(np.array([Action.SOUTH.value]))
     assert not env.done
-    env.step([Action.EAST.value])
+    env.step(np.array([Action.EAST.value]))
     assert not env.done
-    env.step([Action.NORTH.value])
+    env.step(np.array([Action.NORTH.value]))
     assert not env.done
-    env.step([Action.NORTH.value])
+    env.step(np.array([Action.NORTH.value]))
     assert env.done
 
 
@@ -150,7 +150,7 @@ def test_time_reward():
     )
     env.reset()
     for action in Action.ALL:
-        _obs, reward, *_ = env.step([action.value])
+        _obs, reward, *_ = env.step(np.array([action.value]))
         assert reward == 0
 
 
@@ -163,8 +163,8 @@ def test_finish_reward():
 @ @ @  @ @ @"""
     )
     env.reset()
-    env.step([Action.EAST.value])
-    reward = env.step([Action.SOUTH.value])[1]
+    env.step(np.array([Action.EAST.value]))
+    reward = env.step(np.array([Action.SOUTH.value]))[1]
     assert reward == LLE.REWARD_DONE + LLE.REWARD_EXIT
 
 
@@ -187,13 +187,13 @@ def test_arrive_reward_only_once():
     ]
     env.reset()
     for action, reward in action_rewards:
-        assert env.step([a.value for a in action])[1] == reward
+        assert env.step(np.array([a.value for a in action]))[1] == reward
 
 
 def test_void_reward():
     env = LLE.from_str("S0 V X")
     env.reset()
-    assert env.step([Action.EAST.value])[1] == LLE.REWARD_DEATH
+    assert env.step(np.array([Action.EAST.value]))[1] == LLE.REWARD_DEATH
     assert env.done
 
 
@@ -204,8 +204,8 @@ def test_collect_reward():
 G  . . ."""
     )
     env.reset()
-    env.step([Action.SOUTH.value])
-    reward = env.step([Action.SOUTH.value])[1]
+    env.step(np.array([Action.SOUTH.value]))
+    reward = env.step(np.array([Action.SOUTH.value]))[1]
     assert reward == LLE.REWARD_GEM
 
 
@@ -221,15 +221,15 @@ def test_reward_after_reset():
     def play():
         """Collect the gem and finish the game. Check that the reward is is correct when collecting it."""
         env.reset()
-        env.step([Action.SOUTH.value])
-        reward = env.step([Action.SOUTH.value]).reward
+        env.step(np.array([Action.SOUTH.value]))
+        reward = env.step(np.array([Action.SOUTH.value])).reward
         assert reward == LLE.REWARD_GEM
         assert not env.done
-        r = env.step([Action.NORTH.value]).reward
+        r = env.step(np.array([Action.NORTH.value])).reward
         assert r == 0
-        r = env.step([Action.NORTH.value]).reward
+        r = env.step(np.array([Action.NORTH.value])).reward
         assert r == 0
-        reward = env.step([Action.EAST.value]).reward
+        reward = env.step(np.array([Action.EAST.value])).reward
         assert env.done
         assert reward == LLE.REWARD_DONE + LLE.REWARD_EXIT
 
@@ -249,7 +249,7 @@ def test_reward_after_set_state():
     env.reset()
     state = WorldState([(0, 1), (1, 1)], [False])
     env.set_state(state)
-    assert env.step([Action.EAST.value, Action.STAY.value]).reward == 1.0
+    assert env.step(np.array([Action.EAST.value, Action.STAY.value])).reward == 1.0
 
 
 def test_reward_set_state_all_arrived():
@@ -261,13 +261,13 @@ def test_reward_set_state_all_arrived():
     env.reset()
     state = WorldState([(0, 2), (1, 1)], [True])
     env.set_state(state)
-    assert env.step([Action.SOUTH.value, Action.STAY.value]) != LLE.REWARD_DONE + LLE.REWARD_EXIT
+    assert env.step(np.array([Action.SOUTH.value, Action.STAY.value])) != LLE.REWARD_DONE + LLE.REWARD_EXIT
 
 
 def test_set_state():
     env = LLE.from_str("S0 G X")
     env.reset()
-    env.step([Action.EAST.value])
+    env.step(np.array([Action.EAST.value]))
     env.set_state(WorldState([(0, 0)], [False]))
     assert env.world.agents_positions == [(0, 0)]
     assert env.world.gems_collected == 0
@@ -288,9 +288,9 @@ def test_reward():
     """
     )
     env.reset()
-    assert env.step([Action.EAST.value]).reward == LLE.REWARD_GEM
-    assert env.step([Action.EAST.value]).reward == 0.0
-    assert env.step([Action.SOUTH.value]).reward == LLE.REWARD_EXIT + LLE.REWARD_DONE
+    assert env.step(np.array([Action.EAST.value])).reward == LLE.REWARD_GEM
+    assert env.step(np.array([Action.EAST.value])).reward == 0.0
+    assert env.step(np.array([Action.SOUTH.value])).reward == LLE.REWARD_EXIT + LLE.REWARD_DONE
 
 
 def test_reward_death():
@@ -301,7 +301,7 @@ def test_reward_death():
     """
     )
     env.reset()
-    assert env.step([Action.STAY.value, Action.EAST.value]).reward == LLE.REWARD_DEATH
+    assert env.step(np.array([Action.STAY.value, Action.EAST.value])).reward == LLE.REWARD_DEATH
     assert env.done
 
 
@@ -313,7 +313,7 @@ def test_reward_collect_and_death():
     """
     )
     env.reset()
-    assert env.step([Action.STAY.value, Action.EAST.value]).reward == LLE.REWARD_DEATH
+    assert env.step(np.array([Action.STAY.value, Action.EAST.value])).reward == LLE.REWARD_DEATH
     assert env.done
 
 

@@ -130,7 +130,7 @@ impl Tile for Laser {
 
     fn pre_enter(&self, agent: &Agent) {
         self.wrapped.pre_enter(agent);
-        if agent.id() == self.agent_id {
+        if agent.is_alive() && agent.id() == self.agent_id {
             self.beam.turn_off();
         }
     }
