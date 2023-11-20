@@ -7,10 +7,6 @@ __all__ = [
     "Laser",
     "LaserSource",
     "Direction",
-    "REWARD_AGENT_DIED",
-    "REWARD_AGENT_EXIT",
-    "REWARD_END_GAME",
-    "REWARD_GEM_COLLECTED",
     "LLE",
     "World",
     "ObservationType",
@@ -34,10 +30,6 @@ from .lle import (
     Laser,
     LaserSource,
     Direction,
-    REWARD_AGENT_DIED,
-    REWARD_AGENT_EXIT,
-    REWARD_END_GAME,
-    REWARD_GEM_COLLECTED,
 )
 from .env import LLE
 from .observations import ObservationType

@@ -1,9 +1,8 @@
-import random
 from threading import Thread
 import pytest
 from copy import deepcopy
 
-from lle import World, WorldState, Action, REWARD_END_GAME, REWARD_AGENT_EXIT, REWARD_GEM_COLLECTED, REWARD_AGENT_DIED
+from lle import World, WorldState, Action
 
 
 def test_available_actions():

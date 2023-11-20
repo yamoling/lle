@@ -1,4 +1,4 @@
-use lle::{Action, ParseError, RuntimeWorldError, World, WorldState};
+use lle::{Action, ParseError, RuntimeWorldError, World, WorldEvent, WorldState};
 
 #[test]
 fn test_available_actions() {
@@ -219,4 +219,40 @@ fn test_force_state_agent_dies() {
     assert!(!w.agents()[1].has_arrived());
     // Agent 1 should be dead
     assert!(w.agents()[1].is_dead());
+}
+
+#[test]
+/// In this test, agent 1 is standing in a laser of his own colour.
+/// When it moves North, it should die from laser 2.
+/// It is expected that the laser 1 should be released when agent 1 dies.
+fn test_dead_agent_does_not_block_the_laser() {
+    let mut w = World::try_from(
+        "
+        S0 .   G  X
+        .  .  L2W X
+        .  S1  .  X 
+        . L1N  .  S2",
+    )
+    .unwrap();
+    w.reset();
+    let mut n_agents_dead = 0;
+    for event in w
+        .step(&[Action::East, Action::North, Action::Stay])
+        .unwrap()
+    {
+        match event {
+            WorldEvent::AgentDied { agent_id } => {
+                assert!(agent_id == 0 || agent_id == 1);
+                n_agents_dead += 1;
+            }
+            other => panic!("Expected AgentDied, got {:?}", other),
+        }
+    }
+    assert_eq!(n_agents_dead, 2);
+    // Check that the laser 1 is not blocked anymore
+    for (pos, l) in w.lasers() {
+        if *pos == (0, 1) {
+            assert!(l.is_on());
+        }
+    }
 }

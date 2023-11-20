@@ -11,10 +11,7 @@ pub type Position = (usize, usize);
 
 pub use action::Action;
 pub use agent::AgentId;
-pub use core::{
-    ParseError, RuntimeWorldError, World, WorldEvent, WorldState, REWARD_AGENT_DIED,
-    REWARD_AGENT_EXIT, REWARD_END_GAME, REWARD_GEM_COLLECTED,
-};
+pub use core::{ParseError, RuntimeWorldError, World, WorldEvent, WorldState};
 pub use rendering::Renderer;
 pub use tiles::{Exit, Floor, Gem, Laser, LaserSource, Start, Tile, Wall};
 

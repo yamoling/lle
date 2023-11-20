@@ -9,7 +9,7 @@ from .types import Position
 
 @final
 class WorldState:
-    def __init__(self, agent_positions: List[Position], gems_collected: List[bool]):
+    def __init__(self, agents_positions: List[Position], gems_collected: List[bool]):
         """Construct a WorldState from the position of each agent and the collection status of each gem."""
     @property
     def agents_positions(self) -> List[Position]:
