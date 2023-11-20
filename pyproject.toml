@@ -46,6 +46,8 @@ max-line-length = 140
 [tool.pytest.ini_options]
 pythonpath = ["python"]
 testpaths = ["python/tests"]
+# By default, run tests on two cores with xdist
+addopts = "-n 2"
 
 [tool.ruff]
 line-length = 140

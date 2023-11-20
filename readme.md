@@ -5,24 +5,75 @@ When an agent enters a laser of its own colour, it blocks it. Otherwise, it dies
 
 ![LLE](docs/lvl6-annotated.png)
 
+# Quick start
 ## Installation
-To use the environment
+You can install the Laser Learning Environment with pip. It also requires the Rust compiler to be installed.
 ```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 pip install laser-learning-environment # Stable release
 pip install git+https://github.com/yamoling/lle # latest push on master
 ```
 
+## Usage
+LLE can be used at two levels of abstraction: as an `RLEnv` for cooperative multi-agent reinforcement learning or as a `World` for many other purposes.
+### For cooperative multi-agent reinforcement learning
+The `LLE` class inherits from the `RLEnv` class in the [rlenv](https://github.com/yamoling/rlenv) framework. Here is an example with the following map: ![LLE](docs/3x1.png)
+
+
+```python
+from lle import LLE
+import numpy as np
+import random
+
+env = LLE.from_str("S0 G X") # Create an environment from a string
+# env = LLE.level(6)         # Or use a pre-defined level (1 to 6)
+done = truncated = False
+obs = env.reset()
+while not done or truncated:
+    # env.render() # Uncomment to render
+    available_indices = [np.nonzero(available)[0] for available in obs.available_actions]
+    actions = [random.choice(indices) for indices in available_indices]
+    obs, reward, done, truncated, info = env.step(actions)
+```
+
+
+### For other purposes or fine grained control
+The `World` class provides fine grained control on the environment by exposing the state of the world and the events that happen when the agents move.
+
+```python
+from lle import World, Action, EventType
+
+world = World("S0 G X")  # Linear world with start S0, gem G and exit X
+world.reset()
+available_actions = world.available_actions()[0]  # [Action.STAY, Action.EAST]
+events = world.step([Action.EAST])
+assert events[0].event_type == EventType.GEM_COLLECTED
+events = world.step([Action.EAST])
+assert events[0].event_type == EventType.AGENT_EXIT
+```
+
+You can also access and force the state of the world
+```python
+state = world.get_state()
+...
+world.set_state(state)
+```
+
+You can query the world on the tiles with `world.start_pos`, `world.exit_pos`, `world.gem_pos`, ...
+
+
+
+
 ## Citing our work
-The paper has been presented at EWRL 2023.
-[https://openreview.net/pdf?id=IPfdjr4rIs](https://openreview.net/pdf?id=IPfdjr4rIs)
+The environment has been presented at [EWRL 2023](https://openreview.net/pdf?id=IPfdjr4rIs) and at [BNAIC 2023](https://bnaic2023.tudelft.nl/static/media/BNAICBENELEARN_2023_paper_124.c9f5d29e757e5ee27c44.pdf) where it received the best paper award.
 
 ```
 @inproceedings{molinghen2023lle,
   title={Laser Learning Environment: A new environment for coordination-critical multi-agent tasks},
   author={Molinghen, Yannick and Avalos, Raphaël and Van Achter, Mark and Nowé, Ann and Lenaerts, Tom},
   year={2023},
-  series={European Workshop on Reinforcement Learning},
-  booktitle={EWRL 2023}
+  series={Benelux Conference on Artificial Intelligence},
+  booktitle={BNAIC 2023}
 }
 ```
 
@@ -35,39 +86,7 @@ poetry install
 maturin develop # install lle locally
 ```
 
-## Usage
-### Low level control
-The `World` class is the low-level object that you can work with. 
 
-```python
-from lle import World, Action
-world = World("S0 G X") # Linear world with start S0, gem G and exit X
-world.reset()
-available_actions = world.available_actions[0] # Action.STAY, Action.EAST
-reward = world.step([Action.EAST])
-reward = world.step([Action.EAST])
-assert world.done
-```
-
-You can also access and force the state of the world
-```python
-state = world.get_state()
-...
-world.set_state(state)
-```
-
-You can query the world on the tiles with `world.start_pos`, `world.exit_pos`, `world.gem_pos`, ...
-
-### High-Level control
-You can also use LLE as an `RLEnv` with the `lle.LLE` class. This class is a wrapper around the `World` class that implements the `RLEnv` interface. 
-
-
-```python
-from lle import LLE
-env = LLE.from_str("S0 G X")
-obs = env.reset()
-obs, reward, done, info = env.step([0]) # Actions are now integers
-```
 ## Building
 This project has been set up using [Poetry](https://python-poetry.org/). To build the project, run the following commands:
 ```bash
