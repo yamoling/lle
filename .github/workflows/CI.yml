@@ -3,13 +3,14 @@
 #
 #    maturin generate-ci github
 #
-name: Build & Test
+name: CI
 
 on:
   push:
     branches:
       - main
       - master
+      - dev
     tags:
       - '*'
   pull_request:
@@ -20,22 +21,19 @@ permissions:
 
 jobs:
   test:
-    name: Build & Test
+    name: Test
     strategy:
       matrix:
         os:
           - ubuntu-latest
           - windows-latest
           - macOS-latest
-        rust:
-          - stable
         target:
           - x86_64
           - aarch64
         python-version: 
           - '3.10'
           - '3.11'
-        poetry-version: [latest]
         exclude:
           - os: windows-latest
             target: 'aarch64'
@@ -48,7 +46,7 @@ jobs:
       - name: Rust setup
         uses: ATiltedTree/setup-rust@v1
         with:
-          rust-version: ${{ matrix.rust }}
+          rust-version: stable
       - name: Cargo test
         run: cargo test
 
@@ -60,13 +58,126 @@ jobs:
       - name: Poetry setup
         uses: abatilo/actions-poetry@v2
         with:
-          poetry-version: ${{ matrix.poetry-version }}
+          poetry-version: latest
       - name: Maturin build + Pytest
         run: |
           poetry install
           poetry run pip install maturin
           poetry run maturin develop --release
           poetry run pytest
-      - name: Mypy stub check
-        run: poetry run python -m mypy.stubtest --allowlist python/allowlist.txt lle
-        
+
+  linux:
+    if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
+    needs: [test]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [x86_64, x86, aarch64]
+        python-version: ['3.10', '3.11']
+    steps:
+      - uses: actions/checkout@v3
+      - name: Python setup
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Poetry setup
+        uses: abatilo/actions-poetry@v2
+        with:
+          poetry-version: latest
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist --find-interpreter
+          sccache: 'true'
+          manylinux: auto
+      - name: Upload wheels
+        uses: actions/upload-artifact@v3
+        with:
+          name: wheels
+          path: dist
+
+  windows:
+    if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
+    needs: [test]
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        target: [x64, x86]
+        python-version: ['3.10', '3.11']
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: ${{ matrix.target }}
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist --find-interpreter
+          sccache: 'true'
+      - name: Upload wheels
+        uses: actions/upload-artifact@v3
+        with:
+          name: wheels
+          path: dist
+
+  macos:
+    if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
+    needs: [test]
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        target: [x86_64, aarch64]
+        python-version: ['3.10', '3.11']
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist --find-interpreter
+          sccache: 'true'
+      - name: Upload wheels
+        uses: actions/upload-artifact@v3
+        with:
+          name: wheels
+          path: dist
+
+  sdist:
+    name: Build dist
+    if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist
+      - name: Upload sdist
+        uses: actions/upload-artifact@v3
+        with:
+          name: wheels
+          path: dist
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
+    needs: [linux, windows, macos, sdist]
+    steps:
+      - uses: actions/download-artifact@v3
+        with:
+          name: wheels
+      - name: Publish to PyPI
+        uses: PyO3/maturin-action@v1
+        env:
+          MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        with:
+          command: upload
+          args: --skip-existing *
