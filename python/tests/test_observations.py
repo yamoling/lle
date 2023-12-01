@@ -1,7 +1,7 @@
 import numpy as np
 
 from lle import World, Action, ObservationType
-from lle.observations import PartialGenerator
+from lle.observations import PartialGenerator, Layered
 
 
 def test_observation_gem_collected():
@@ -85,7 +85,8 @@ def test_observe_layered_gems_walls():
     layers = observer.observe()
     LASER_0_LAYER = world.n_agents + 1
     WALL_LAYER = world.n_agents
-    GEM_LAYER = world.n_agents * 2 + 1
+    VOID_LAYER = world.n_agents * 2 + 1
+    GEM_LAYER = VOID_LAYER + 1
     EXIT_LAYER = -1
 
     for i, j in world.wall_pos:
@@ -99,6 +100,26 @@ def test_observe_layered_gems_walls():
             assert np.all(layers[:, LASER_0_LAYER + laser.agent_id, i, j] == 1)
     for (i, j), source in world.laser_sources:
         assert np.all(layers[:, LASER_0_LAYER + source.agent_id, i, j] == -1)
+    assert np.all(layers[:, VOID_LAYER] == 0)
+
+
+def test_observe_layered_void():
+    world = World(
+        """
+    V . . S0
+    . . . .
+    V V G X"""
+    )
+    observer = Layered(world)
+    world.reset()
+    layers = observer.observe()
+    positions = [(0, 0), (2, 0), (2, 1)]
+    for i in range(world.height):
+        for j in range(world.width):
+            if (i, j) in positions:
+                assert np.all(layers[:, observer.VOID, i, j] == 1.0)
+            else:
+                assert np.all(layers[:, observer.VOID, i, j] == 0.0)
 
 
 def test_observe_flattened():
@@ -112,12 +133,12 @@ def test_observe_flattened():
 """
     )
     observer = ObservationType.FLATTENED.get_observation_generator(world)
-    assert observer.shape == (5 * 5 * (world.n_agents * 2 + 3),)
+    assert observer.shape == (5 * 5 * (world.n_agents * 2 + 4),)
     world.reset()
     obs = observer.observe()
     assert obs.shape == (
         1,
-        (world.n_agents * 2 + 3) * 5 * 5,
+        (world.n_agents * 2 + 4) * 5 * 5,
     )
 
 

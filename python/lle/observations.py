@@ -78,7 +78,9 @@ class StateGenerator(ObservationGenerator):
 
     def observe(self):
         positions = np.tile((self._world.agents_positions / self.dimensions).flatten(), (self._world.n_agents, 1))
-        gems_collected = np.tile(np.array([not gem.is_collected for _, gem in self._world.gems], dtype=np.float32), (self._world.n_agents, 1))
+        gems_collected = np.tile(
+            np.array([not gem.is_collected for _, gem in self._world.gems], dtype=np.float32), (self._world.n_agents, 1)
+        )
         return np.concatenate([positions, gems_collected], axis=1).astype(np.float32)
 
     @property
@@ -122,21 +124,23 @@ class LayeredPadded(ObservationGenerator):
         - Layer 6: -1 at laser 1 sources and 1 at laser 1 beams
         - Layer 7: -1 at laser 2 sources and 1 at laser 2 beams
         - Layer 8: -1 at laser 3 sources and 1 at laser 3 beams
-        - Layer 9:  1 at gem locations
-        - Layer 10: 1 at end tile locations
+        - Layer 9: 1 at the void locations
+        - Layer 10:  1 at gem locations
+        - Layer 11: 1 at end tile locations
     """
 
-    def __init__(self, world, padding_size) -> None:
+    def __init__(self, world: World, padding_size: int):
         super().__init__(world)
         self.width = world.width
         self.height = world.height
         self.n_agents = world.n_agents + padding_size
-        self._shape = (self.n_agents * 2 + 3, world.height, world.width)
         self.A0 = 0
         self.WALL = self.A0 + self.n_agents
         self.LASER_0 = self.WALL + 1
-        self.GEM = self.LASER_0 + self.n_agents
+        self.VOID = self.LASER_0 + self.n_agents
+        self.GEM = self.VOID + 1
         self.EXIT = self.GEM + 1
+        self._shape = (self.EXIT + 1, world.height, world.width)
 
         self.static_obs = self._setup()
 
@@ -152,6 +156,9 @@ class LayeredPadded(ObservationGenerator):
         for (i, j), source in self._world.laser_sources:
             obs[self.LASER_0 + source.agent_id, i, j] = -1.0
             obs[self.WALL, i, j] = 1.0
+
+        for i, j in self._world.void_pos:
+            obs[self.VOID, i, j] = 1.0
 
         return obs
 
