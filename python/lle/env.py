@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 
 from lle import World, Action, EventType, WorldState
-from rlenv import RLEnv, DiscreteActionSpace, Observation, StepData
+from rlenv import RLEnv, DiscreteActionSpace, Observation
 from .observations import ObservationType
 
 
@@ -24,14 +24,15 @@ class LLE(RLEnv[DiscreteActionSpace]):
 
     def __init__(self, world: World, obs_type: ObservationType | str = ObservationType.STATE):
         self.world = world
-        super().__init__(DiscreteActionSpace(world.n_agents, Action.N, [a.name for a in Action.ALL]))
         if isinstance(obs_type, str):
             obs_type = ObservationType.from_str(obs_type)
         self.obs_type = obs_type.name
-        self.world_observer = obs_type.get_observation_generator(self.world)
-        self._state_observer = ObservationType.FLATTENED.get_observation_generator(self.world)
-        self._obs_type = obs_type
-
+        self.world_observer = obs_type.get_observation_generator(world)
+        super().__init__(
+            DiscreteActionSpace(world.n_agents, Action.N, [a.name for a in Action.ALL]),
+            observation_shape=self.world_observer.shape,
+            state_shape=self.get_state().shape,
+        )
         self.done = False
         self.n_arrived = 0
 
@@ -42,14 +43,6 @@ class LLE(RLEnv[DiscreteActionSpace]):
     @property
     def height(self) -> int:
         return self.world.height
-
-    @property
-    def state_shape(self):
-        return self.get_state().shape
-
-    @property
-    def observation_shape(self):
-        return self.world_observer.shape
 
     @override
     def available_actions(self) -> np.ndarray[np.int32, Any]:
@@ -84,7 +77,7 @@ class LLE(RLEnv[DiscreteActionSpace]):
         obs_data = self.world_observer.observe()
         obs = Observation(obs_data, self.available_actions(), self.get_state())
         info = {"gems_collected": self.world.gems_collected, "exit_rate": self.n_arrived / self.n_agents}
-        return StepData(obs, reward, self.done, False, info)
+        return obs, reward, self.done, False, info
 
     @override
     def reset(self):
