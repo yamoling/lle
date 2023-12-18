@@ -160,6 +160,20 @@ fn test_facing_lasers() {
 }
 
 #[test]
+fn test_event_exit_when_staying() {
+    let mut w = World::try_from(
+        "S0 X .
+         S1 . X",
+    )
+    .unwrap();
+    w.reset();
+    // The first time the agent exits, an event should be generated
+    assert_eq!(1, w.step(&[Action::East, Action::Stay]).unwrap().len());
+    // The second time, no event should be generated
+    assert_eq!(0, w.step(&[Action::Stay, Action::Stay]).unwrap().len());
+}
+
+#[test]
 fn test_facing_lasers_agent_dies() {
     let mut w = World::try_from(
         "

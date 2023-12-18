@@ -2,8 +2,8 @@ use std::{cell::Cell, rc::Rc};
 
 use crate::{
     agent::Agent,
-    tiles::{LaserBeam, Void},
-    AgentId, Floor, Gem, Laser, Start, Tile,
+    tiles::{Floor, Gem, Laser, LaserBeam, Start, Void},
+    AgentId, Tile,
 };
 
 fn make_laser(agent_id: AgentId, length: usize) -> Laser {

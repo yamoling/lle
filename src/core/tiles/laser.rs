@@ -138,20 +138,21 @@ impl Tile for Laser {
     fn enter(&self, agent: &mut Agent) -> Option<WorldEvent> {
         // Note: turning off the beam happens in `pre_enter`
         if self.beam.is_on() && agent.id() != self.agent_id {
-            agent.die();
-            return Some(WorldEvent::AgentDied {
-                agent_id: agent.id(),
-            });
+            if agent.is_alive() {
+                agent.die();
+                self.beam.turn_on();
+                return Some(WorldEvent::AgentDied {
+                    agent_id: agent.id(),
+                });
+            }
+            return None;
         }
         self.wrapped.enter(agent)
     }
 
     fn leave(&self) -> AgentId {
-        let id = self.wrapped.leave();
-        if self.agent_id == id {
-            self.beam.turn_on();
-        }
-        id
+        self.beam.turn_on();
+        self.wrapped.leave()
     }
 
     fn agent(&self) -> Option<AgentId> {

@@ -100,11 +100,14 @@ impl Tile for Void {
     fn pre_enter(&self, _agent: &Agent) {}
 
     fn enter(&self, agent: &mut Agent) -> Option<WorldEvent> {
-        agent.die();
         self.agent.set(Some(agent.id()));
-        Some(WorldEvent::AgentDied {
-            agent_id: agent.id(),
-        })
+        if agent.is_alive() {
+            agent.die();
+            return Some(WorldEvent::AgentDied {
+                agent_id: agent.id(),
+            });
+        }
+        None
     }
 
     fn leave(&self) -> AgentId {
@@ -129,5 +132,5 @@ impl Tile for Void {
 }
 
 #[cfg(test)]
-#[path = "../unit_tests/test_tile.rs"]
+#[path = "../../unit_tests/test_tile.rs"]
 mod tests;

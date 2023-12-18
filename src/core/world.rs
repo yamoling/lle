@@ -8,9 +8,9 @@ use std::{
 
 use crate::{
     agent::Agent,
-    tiles::{Gem, Laser, LaserSource, Tile},
+    tiles::{Exit, Gem, Laser, LaserSource, Tile},
     utils::find_duplicates,
-    Action, AgentId, Exit, Position, RuntimeWorldError, WorldState,
+    Action, AgentId, Position, RuntimeWorldError, WorldState,
 };
 
 use super::{
@@ -256,29 +256,45 @@ impl World {
         // Check for vertex conflicts
         // If a new_pos occurs more than once, then set it back to its original position
         World::solve_vertex_conflicts(&mut new_positions, &self.agent_positions);
-
-        for (agent, action, old_pos, new_pos) in
-            izip!(&self.agents, actions, &self.agent_positions, &new_positions)
-        {
-            if *action != Action::Stay {
-                let (old_i, old_j) = *old_pos;
-                self.grid[old_i][old_j].leave();
-                let (new_i, new_j) = *new_pos;
-                self.grid[new_i][new_j].pre_enter(agent);
-            }
+        let (mut events, mut agent_died) = self.move_agents(&new_positions);
+        self.agent_positions = new_positions.clone();
+        // At this stage, all agents are on their new positions.
+        // However, some events (death) could still happen if an agent has died.
+        while agent_died {
+            let (additional_events, died2) = self.move_agents(&new_positions);
+            events = [events, additional_events].concat();
+            agent_died = died2;
         }
-        let mut events = vec![];
-        for (agent, action, new_pos) in izip!(&mut self.agents, actions, &new_positions) {
-            if *action != Action::Stay {
-                let (i, j) = *new_pos;
-                if let Some(event) = self.grid[i][j].enter(agent) {
-                    events.push(event);
-                }
-            }
-        }
-        self.agent_positions = new_positions;
         self.available_actions = self.compute_available_actions();
         Ok(events)
+    }
+
+    fn move_agents(&mut self, new_positions: &[Position]) -> (Vec<WorldEvent>, bool) {
+        // Leave old position
+        for (agent, pos) in izip!(&self.agents, &self.agent_positions) {
+            if agent.is_alive() {
+                let (i, j) = *pos;
+                self.grid[i][j].leave();
+            }
+        }
+        // Pre-enter
+        for (agent, pos) in izip!(&self.agents, new_positions) {
+            let (i, j) = *pos;
+            self.grid[i][j].pre_enter(agent);
+        }
+        // Enter
+        let mut events = vec![];
+        let mut agent_died = false;
+        for (agent, pos) in izip!(&mut self.agents, new_positions) {
+            let (i, j) = *pos;
+            if let Some(event) = self.grid[i][j].enter(agent) {
+                if let WorldEvent::AgentDied { .. } = event {
+                    agent_died = true;
+                }
+                events.push(event);
+            }
+        }
+        (events, agent_died)
     }
 
     pub fn get_state(&self) -> WorldState {
