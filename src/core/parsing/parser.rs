@@ -1,9 +1,8 @@
 use std::{cell::Cell, rc::Rc};
 
 use crate::{
-    core::World,
-    tiles::{Direction, LaserBeam, Void},
-    AgentId, Exit, Floor, Gem, Laser, LaserSource, Position, Start, Tile, Wall,
+    tiles::{Direction, Exit, Floor, Gem, Laser, LaserBeam, LaserSource, Start, Tile, Void, Wall},
+    AgentId, Position, World,
 };
 
 use crate::ParseError;
