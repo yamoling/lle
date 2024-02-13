@@ -3,10 +3,7 @@ build-backend = "maturin"
 requires = ["maturin>=1.1,<2.0"]
 
 [project]
-classifiers = [
-    "Programming Language :: Rust",
-    "Programming Language :: Python :: 3",
-]
+classifiers = ["Programming Language :: Rust", "Programming Language :: Python :: 3"]
 description = "A fast Multi-Agent Reinforcement Learning Environment"
 name = "laser-learning-environment"
 readme = "readme.md"
@@ -21,7 +18,7 @@ authors = ["Yannick Molinghen <yannick.molinghen@ulb.be>"]
 description = "Laser Learning Environment (LLE) for Multi-Agent Reinforcement Learning"
 name = "lle"
 readme = "readme.md"
-version = "0.1.11"
+version = "0.1.12"
 
 [tool.poetry.dependencies]
 numpy = "^1.25.0"

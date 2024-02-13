@@ -1,7 +1,3 @@
-import pytest
-import lle
-
-
 def test_level_generator():
     pass
     # env = lle.DynamicLaserEnv(width=5, height=5, num_agents=4, num_gems=5, num_lasers=1)

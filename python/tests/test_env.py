@@ -1,5 +1,5 @@
 from typing import Any
-from lle import LLE, Action, WorldState
+from lle import LLE, Action, WorldState, ObservationType
 from copy import deepcopy
 import numpy as np
 
@@ -84,13 +84,26 @@ G  . . ."""
     assert env.height == 3
 
 
-def test_state():
+def test_state_default():
+    env = LLE.from_str(
+        """S0 X .
+                        .  . .
+                        .  . ."""
+    )
+    assert env.state_shape == (env.n_agents * 2 + env.world.n_gems,)
+    env.reset()
+    state = env.get_state()
+    assert state.shape == env.state_shape
+
+
+def test_state_flattened():
     env = LLE.from_str(
         """S0 X .
 .  . .
-.  . ."""
+.  . .""",
+        state_type=ObservationType.FLATTENED,
     )
-    assert env.state_shape == (env.n_agents * 2 + env.world.n_gems,)
+    assert env.state_shape == (np.prod(env.state_shape),)
     env.reset()
     state = env.get_state()
     assert state.shape == env.state_shape

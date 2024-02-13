@@ -16,21 +16,27 @@ class LLE(RLEnv[DiscreteActionSpace]):
     """Laser Learning Environment (LLE)"""
 
     obs_type: str
+    state_type: str
 
     REWARD_DEATH: ClassVar[float] = -1.0
     REWARD_GEM: ClassVar[float] = 1.0
     REWARD_EXIT: ClassVar[float] = 1.0
     REWARD_DONE: ClassVar[float] = 1.0
 
-    def __init__(self, world: World, obs_type: ObservationType | str = ObservationType.STATE):
+    def __init__(
+        self,
+        world: World,
+        obs_type: ObservationType = ObservationType.STATE,
+        state_type: ObservationType = ObservationType.STATE,
+    ):
         self.world = world
-        if isinstance(obs_type, str):
-            obs_type = ObservationType.from_str(obs_type)
         self.obs_type = obs_type.name
-        self.world_observer = obs_type.get_observation_generator(world)
+        self.state_type = state_type.name
+        self.observation_generator = obs_type.get_observation_generator(world)
+        self.state_generator = state_type.get_observation_generator(world)
         super().__init__(
             DiscreteActionSpace(world.n_agents, Action.N, [a.name for a in Action.ALL]),
-            observation_shape=self.world_observer.shape,
+            observation_shape=self.observation_generator.shape,
             state_shape=self.get_state().shape,
         )
         self.done = False
@@ -74,7 +80,7 @@ class LLE(RLEnv[DiscreteActionSpace]):
             reward += LLE.REWARD_DONE
             self.done = True
 
-        obs_data = self.world_observer.observe()
+        obs_data = self.observation_generator.observe()
         obs = Observation(obs_data, self.available_actions(), self.get_state())
         info = {"gems_collected": self.world.gems_collected, "exit_rate": self.n_arrived / self.n_agents}
         return obs, reward, self.done, False, info
@@ -84,11 +90,14 @@ class LLE(RLEnv[DiscreteActionSpace]):
         self.world.reset()
         self.done = False
         self.n_arrived = 0
-        obs = self.world_observer.observe()
+        obs = self.observation_generator.observe()
         return Observation(obs, self.available_actions(), self.get_state())
 
     @override
     def get_state(self) -> np.ndarray[np.float32, Any]:
+        # We assume that the state is the same as the observation of the first agent
+        # of the observation generator.
+        return self.state_generator.observe()[0]
         state = self.world.get_state()
         gems_collected = np.array(state.gems_collected, dtype=np.float32)
         agents_positions = np.array(state.agents_positions, dtype=np.float32).reshape(-1)
@@ -107,17 +116,34 @@ class LLE(RLEnv[DiscreteActionSpace]):
                 raise NotImplementedError(f"Rendering mode not implemented: {other}")
 
     @staticmethod
-    def from_str(world_string: str, obs_type: ObservationType = ObservationType.FLATTENED) -> "LLE":
-        return LLE(World(world_string), obs_type)
+    def from_str(
+        world_string: str,
+        obs_type: ObservationType = ObservationType.FLATTENED,
+        state_type: ObservationType = ObservationType.STATE,
+    ):
+        return LLE(World(world_string), obs_type, state_type)
 
     @staticmethod
-    def from_file(path: str, obs_type: ObservationType = ObservationType.FLATTENED) -> "LLE":
-        return LLE(World.from_file(path), obs_type)
+    def from_file(
+        path: str,
+        obs_type: ObservationType = ObservationType.FLATTENED,
+        state_type: ObservationType = ObservationType.STATE,
+    ):
+        import os
+
+        env = LLE(World.from_file(path), obs_type, state_type)
+        filename = os.path.basename(path)
+        env.name = f"{env.name}-{filename}"
+        return env
 
     @staticmethod
-    def level(level: int, obs_type: ObservationType = ObservationType.FLATTENED) -> "LLE":
+    def level(
+        level: int,
+        obs_type: ObservationType = ObservationType.FLATTENED,
+        state_type: ObservationType = ObservationType.STATE,
+    ):
         """Load a level from the levels folder"""
-        env = LLE(World.level(level), obs_type)
+        env = LLE(World.level(level), obs_type, state_type)
         env.name = f"{env.name}-lvl{level}"
         return env
 

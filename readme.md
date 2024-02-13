@@ -7,10 +7,10 @@ When an agent enters a laser of its own colour, it blocks it. Otherwise, it dies
 
 # Quick start
 ## Installation
-You can install the Laser Learning Environment with pip. It also requires the Rust compiler to be installed.
+You can install the Laser Learning Environment with pip or poetry.
 ```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-pip install laser-learning-environment # Stable release
+pip install laser-learning-environment # Stable release with pip
+poetry add laser-learning-environment  # Stable release with poetry
 pip install git+https://github.com/yamoling/lle # latest push on master
 ```
 
@@ -26,6 +26,7 @@ import numpy as np
 import random
 
 env = LLE.from_str("S0 G X") # Create an environment from a string
+# env = LLE.from_file("text_file.txt") # or from a text file
 # env = LLE.level(6)         # Or use a pre-defined level (1 to 6)
 done = truncated = False
 obs = env.reset()
@@ -72,7 +73,7 @@ The environment has been presented at [EWRL 2023](https://openreview.net/pdf?id=
   title={Laser Learning Environment: A new environment for coordination-critical multi-agent tasks},
   author={Molinghen, Yannick and Avalos, Raphaël and Van Achter, Mark and Nowé, Ann and Lenaerts, Tom},
   year={2023},
-  series={Benelux Conference on Artificial Intelligence},
+  series={BeNeLux Artificial Intelligence Conference},
   booktitle={BNAIC 2023}
 }
 ```
