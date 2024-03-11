@@ -30,7 +30,7 @@ env = LLE.from_str("S0 G X") # Create an environment from a string
 # env = LLE.level(6)         # Or use a pre-defined level (1 to 6)
 done = truncated = False
 obs = env.reset()
-while not done or truncated:
+while not (done or truncated):
     # env.render() # Uncomment to render
     available_indices = [np.nonzero(available)[0] for available in obs.available_actions]
     actions = [random.choice(indices) for indices in available_indices]

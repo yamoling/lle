@@ -355,3 +355,15 @@ def test_force_state_agent_dies():
     s = WorldState([(1, 0), (1, 1)], [False])
     env.set_state(s)
     assert env.done
+
+
+def test_unit_state_size():
+    env = LLE.level(1)
+    assert env.unit_state_size == 2
+
+    env = LLE.level(1, state_type=ObservationType.FLATTENED)
+    try:
+        env.unit_state_size
+        assert False, "So far, only state generators of type `StateGenerator` have a `unit_state_size`."
+    except ValueError:
+        pass

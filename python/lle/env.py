@@ -7,7 +7,7 @@ import numpy as np
 
 from lle import World, Action, EventType, WorldState
 from rlenv import RLEnv, DiscreteActionSpace, Observation
-from .observations import ObservationType
+from .observations import ObservationType, StateGenerator
 
 
 @serde
@@ -49,6 +49,14 @@ class LLE(RLEnv[DiscreteActionSpace]):
     @property
     def height(self) -> int:
         return self.world.height
+
+    @property
+    def unit_state_size(self):
+        match self.state_generator:
+            case StateGenerator():
+                return self.state_generator.unit_size
+            case other:
+                raise ValueError(f"State type {other} does not support `unit_state_size`.")
 
     @override
     def available_actions(self) -> np.ndarray[np.int32, Any]:

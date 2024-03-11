@@ -91,6 +91,10 @@ class StateGenerator(ObservationGenerator):
     def shape(self):
         return (self._world.n_agents * 2 + self.n_gems,)
 
+    @property
+    def unit_size(self) -> int:
+        return 2
+
 
 class RGBImage(ObservationGenerator):
     def observe(self):
