@@ -277,7 +277,7 @@ def test_reward_set_state_all_arrived():
     state = WorldState([(0, 2), (1, 1)], [True])
     env.set_state(state)
     r = env.step(np.array([Action.SOUTH.value, Action.STAY.value]))[1]
-    assert r.item() != LLE.REWARD_DONE + LLE.REWARD_EXIT
+    assert r.item() == LLE.REWARD_DONE + LLE.REWARD_EXIT
 
 
 def test_set_state():
@@ -362,11 +362,11 @@ def test_force_state_agent_dies():
 
 def test_agent_state_size():
     env = LLE.level(1)
-    assert env.unit_state_size == 2
+    assert env.agent_state_size == 2
 
     env = LLE.level(1, state_type=ObservationType.FLATTENED)
     try:
-        env.unit_state_size
+        env.agent_state_size
         assert False, "So far, only state generators of type `StateGenerator` have a `agent_state_size`."
     except ValueError:
         pass

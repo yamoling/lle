@@ -60,7 +60,7 @@ class LLE(RLEnv[DiscreteActionSpace]):
         return self.world.height
 
     @property
-    def unit_state_size(self):
+    def agent_state_size(self):
         match self.state_generator:
             case StateGenerator():
                 return self.state_generator.unit_size
