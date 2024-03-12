@@ -1134,7 +1134,7 @@ cffi = {version = "*", markers = "implementation_name == \"pypy\""}
 
 [[package]]
 name = "rlenv"
-version = "0.4.6"
+version = "0.5.2"
 description = "A strongly typed Multi-Agent Reinforcement Learning framework"
 optional = false
 python-versions = ">=3.10,<4"
@@ -1159,8 +1159,8 @@ tests = ["gymnasium[accept-rom-license,atari] (>=0.28.1,<0.29.0)", "pettingzoo (
 [package.source]
 type = "git"
 url = "https://github.com/yamoling/rlenv.git"
-reference = "HEAD"
-resolved_reference = "a51df58a62975076ad2b3b289924a28b9b1c67c0"
+reference = "dev"
+resolved_reference = "9c22b450cbeafc4f582f87a49a46852e494bcd1e"
 
 [[package]]
 name = "scipy"
@@ -1320,4 +1320,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.13"
-content-hash = "cd20a93a605c55b90baf0380389f4d04b03f424c91c4ba0af5b7bc9c176de634"
+content-hash = "aa47fdd9dae8a1550e2516b903c3c7dc87c75cb69bee7787280e55bce79569fd"
