@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 
 from lle import World, Action, EventType, WorldState, WorldEvent
-from rlenv import RLEnv, DiscreteActionSpace, Observation
+from rlenv import RLEnv, DiscreteActionSpace, Observation, DiscreteSpace
 from .observations import ObservationType, StateGenerator
 
 
@@ -42,11 +42,15 @@ class LLE(RLEnv[DiscreteActionSpace]):
         self.state_type = state_type.name
         self.observation_generator = obs_type.get_observation_generator(world)
         self.state_generator = state_type.get_observation_generator(world)
+        if multi_objective:
+            reward_space = DiscreteSpace(4, ["death", "gem", "exit", "done"])
+        else:
+            reward_space = None
         super().__init__(
             DiscreteActionSpace(world.n_agents, Action.N, [a.name for a in Action.ALL]),
             observation_shape=self.observation_generator.shape,
             state_shape=self.get_state().shape,
-            reward_size=1 if not multi_objective else 4,
+            reward_space=reward_space,
         )
         self.done = False
         self.n_arrived = 0
