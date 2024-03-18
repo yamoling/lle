@@ -66,7 +66,7 @@ fn test_laser_basic() {
 fn test_laser_agent_survives() {
     let mut agent = Agent::new(0);
     let laser = make_laser(0, 3);
-    laser.pre_enter(&agent);
+    laser.pre_enter(&agent).unwrap();
     assert!(!laser.is_occupied());
     assert!(laser.is_off());
 
@@ -83,7 +83,7 @@ fn test_laser_agent_survives() {
 fn test_laser_agent_dies() {
     let mut agent = Agent::new(0);
     let laser = make_laser(2, 3);
-    laser.pre_enter(&agent);
+    laser.pre_enter(&agent).unwrap();
     assert!(!laser.is_occupied());
     assert!(laser.is_on());
     assert!(agent.is_alive());
@@ -96,7 +96,7 @@ fn test_laser_agent_dies() {
 fn test_void_agent_dies() {
     let mut agent = Agent::new(0);
     let void = Void::default();
-    void.pre_enter(&agent);
+    void.pre_enter(&agent).unwrap();
     assert!(!void.is_occupied());
     assert!(agent.is_alive());
     void.enter(&mut agent);

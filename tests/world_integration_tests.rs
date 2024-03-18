@@ -192,9 +192,16 @@ fn test_force_state_agents_have_exited() {
         agents_positions: [(1, 0)].into(),
         gems_collected: [true].into(),
     };
-    w.set_state(&s).unwrap();
+    let events = w.set_state(&s).unwrap();
     for agent in w.agents() {
         assert!(agent.has_arrived());
+    }
+    assert_eq!(events.len(), 1);
+    match &events[0] {
+        WorldEvent::AgentExit { agent_id } => {
+            assert_eq!(*agent_id, 0);
+        }
+        other => panic!("Expected AgentExit, got {:?}", other),
     }
 }
 
@@ -219,6 +226,28 @@ fn test_force_state_agent_dies() {
     assert!(!w.agents()[1].has_arrived());
     // Agent 1 should be dead
     assert!(w.agents()[1].is_dead());
+}
+
+#[test]
+fn test_set_invalid_state() {
+    let mut w = World::try_from(
+        "
+        S0 S1 X
+        @  @  X
+    ",
+    )
+    .unwrap();
+    w.reset();
+    match w.set_state(&WorldState {
+        agents_positions: vec![(1, 0), (1, 1)],
+        gems_collected: vec![],
+    }) {
+        Err(RuntimeWorldError::InvalidAgentPosition { .. }) => {}
+        other => panic!("Expected InvalidState, got {:?}", other),
+    }
+    let pos = w.agents_positions();
+    assert_eq!(pos[0], (0, 0));
+    assert_eq!(pos[1], (0, 1));
 }
 
 #[test]

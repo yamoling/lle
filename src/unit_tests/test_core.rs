@@ -85,7 +85,7 @@ fn test_start_pos_order() {
     assert_eq!(world.start_positions[1], (0, 0));
     assert_eq!(world.start_positions[0], (0, 1));
     world.reset();
-    assert_eq!(world.agent_positions, vec![(0, 1), (0, 0)]);
+    assert_eq!(world.agents_positions, vec![(0, 1), (0, 0)]);
     assert_eq!(world.start_positions, vec![(0, 1), (0, 0)]);
 }
 
@@ -96,7 +96,7 @@ fn test_start_pos_order_lvl6() {
     world.reset();
     for (id, pos) in world.starts() {
         assert_eq!(*pos, (0, id + 4));
-        assert_eq!(world.agent_positions[id], (0, id + 4));
+        assert_eq!(world.agents_positions[id], (0, id + 4));
     }
 }
 

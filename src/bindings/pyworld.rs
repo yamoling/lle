@@ -215,9 +215,9 @@ impl PyWorld {
     }
 
     /// Force the world to a specific state
-    fn set_state(&mut self, state: PyWorldState) -> PyResult<()> {
+    fn set_state(&mut self, state: PyWorldState) -> PyResult<Vec<PyWorldEvent>> {
         match self.world.set_state(&state.into()) {
-            Ok(_) => Ok(()),
+            Ok(events) => Ok(events.iter().map(|e| PyWorldEvent::from(e)).collect()),
             Err(e) => Err(runtime_error_to_pyexception(e)),
         }
     }

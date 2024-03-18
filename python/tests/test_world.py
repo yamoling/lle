@@ -2,7 +2,7 @@ from threading import Thread
 import pytest
 from copy import deepcopy
 
-from lle import World, WorldState, Action, ParsingError, InvalidActionError
+from lle import World, WorldState, Action, ParsingError, InvalidActionError, EventType
 
 
 def test_available_actions():
@@ -266,13 +266,17 @@ def test_set_state():
     world = World("S0 G X")
     world.reset()
     world.step([Action.EAST])
-    world.set_state(WorldState([(0, 0)], [False]))
+    events = world.set_state(WorldState([(0, 0)], [False]))
     assert world.agents_positions == [(0, 0)]
     assert world.gems_collected == 0
+    assert len(events) == 0
 
-    world.set_state(WorldState([(0, 2)], [True]))
+    events = world.set_state(WorldState([(0, 2)], [True]))
     assert world.agents_positions == [(0, 2)]
     assert world.gems_collected == 1
+    assert len(events) == 1
+    assert events[0].agent_id == 0
+    assert events[0].event_type == EventType.AGENT_EXIT
 
 
 def test_world_state_hash_eq():

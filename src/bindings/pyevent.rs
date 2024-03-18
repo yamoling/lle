@@ -1,4 +1,4 @@
-use crate::AgentId;
+use crate::{AgentId, WorldEvent};
 use pyo3::prelude::*;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -39,5 +39,19 @@ impl PyWorldEvent {
 
     fn __repr__(&self) -> String {
         self.__str__()
+    }
+}
+
+impl From<&WorldEvent> for PyWorldEvent {
+    fn from(val: &WorldEvent) -> Self {
+        let (event_type, agent_id) = match val {
+            WorldEvent::AgentExit { agent_id } => (PyEventType::AgentExit, agent_id),
+            WorldEvent::GemCollected { agent_id } => (PyEventType::GemCollected, agent_id),
+            WorldEvent::AgentDied { agent_id } => (PyEventType::AgentDied, agent_id),
+        };
+        PyWorldEvent {
+            agent_id: *agent_id,
+            event_type,
+        }
     }
 }

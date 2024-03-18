@@ -91,11 +91,12 @@ class World:
         """Return a rendered image of the world"""
     def get_state(self) -> WorldState:
         """Return a state representation of the world."""
-    def set_state(self, state: WorldState):
+    def set_state(self, state: WorldState) -> list[WorldEvent]:
         """
         Force the world to a given state.
 
-        Raises a `InvalidWorldStateError` if the state is invalid.
+        - Returns the list of events that occurred while agents entered their state.
+        - Raises a `InvalidWorldStateError` if the state is invalid.
         """
     @staticmethod
     def from_file(filename: str) -> "World":
