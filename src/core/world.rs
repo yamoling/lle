@@ -328,6 +328,7 @@ impl World {
                 return Err(RuntimeWorldError::OutOfWorldPosition { position: (*i, *j) });
             }
         }
+        let current_state = self.get_state();
 
         // Reset tiles and agents (but do not enter the new tiles)
         for row in &mut self.grid {
@@ -346,6 +347,8 @@ impl World {
         }
         for ((i, j), agent) in izip!(&state.agents_positions, &self.agents) {
             if let Err(reason) = self.grid[*i][*j].pre_enter(agent) {
+                // Reset the state
+                self.set_state(&current_state).unwrap();
                 return Err(RuntimeWorldError::InvalidAgentPosition {
                     position: (*i, *j),
                     reason,

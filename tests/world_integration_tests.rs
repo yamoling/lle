@@ -206,6 +206,33 @@ fn test_force_state_agents_have_exited() {
 }
 
 #[test]
+/// In this world state, agent 0 will block the laser.
+/// Agent 1 enters a wall, which is not possible, so the world should raise an error.
+/// We check that the laser is not blocked after the error and that the gem is not collected either.
+fn test_force_wrong_state_check_laser_not_blocked() {
+    let mut w = World::try_from(
+        "
+        S1  S0 X
+        L0E  G  X
+    ",
+    )
+    .unwrap();
+    w.reset();
+    let s = WorldState {
+        agents_positions: [(1, 1), (1, 0)].into(),
+        gems_collected: [true].into(),
+    };
+    let res = w.set_state(&s);
+    if let Err(RuntimeWorldError::InvalidAgentPosition { position, .. }) = res {
+        assert_eq!(position, (1, 0));
+    } else {
+        panic!("Expected InvalidAgentPosition, got {:?}", res);
+    }
+    assert!(w.lasers().all(|(_, l)| l.is_on()));
+    assert!(w.gems().all(|(_, g)| !g.is_collected()));
+}
+
+#[test]
 fn test_force_state_agent_dies() {
     let mut w = World::try_from(
         "
