@@ -81,7 +81,9 @@ impl Add<&Action> for &Position {
         let i = self.1 as i32 + dy;
 
         if j < 0 || i < 0 {
-            return Err(RuntimeWorldError::InvalidPosition { i, j });
+            return Err(RuntimeWorldError::OutOfWorldPosition {
+                position: (j as usize, i as usize),
+            });
         }
         Ok((j as usize, i as usize))
     }

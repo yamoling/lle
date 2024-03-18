@@ -2,7 +2,7 @@ from typing import List, Tuple, final
 
 @final
 class Action:
-    """Enumeration of all possible actions."""
+    """An action in the World."""
 
     NORTH: "Action"
     SOUTH: "Action"
@@ -11,16 +11,16 @@ class Action:
     STAY: "Action"
 
     N: int
-    """Enum cardinality"""
+    """The number of actions"""
 
     ALL: List["Action"]
-    """List of all variants"""
+    """Ordered list of all actions"""
 
     def __init__(self, action_num: int):
-        """Create an action from an integer identifier. Invalid values (< 0 or > 4) raise a ValueError."""
+        """Create an action from an integer identifier. Invalid values (< 0 or > 4) raise a `ValueError`."""
     @property
     def delta(self) -> Tuple[int, int]:
-        """The delta (i, j) in coordinates for this action."""
+        """The (i, j) position delta in coordinates for this action."""
     @property
     def value(self) -> int:
         """The integer value of this action."""

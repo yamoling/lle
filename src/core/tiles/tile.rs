@@ -7,7 +7,12 @@ use core::panic;
 use std::cell::Cell;
 
 pub trait Tile {
-    fn pre_enter(&self, agent: &Agent);
+    fn pre_enter(&self, _agent: &Agent) -> Result<(), String> {
+        if !self.is_waklable() {
+            return Err("Cannot walk on this tile".to_string());
+        }
+        Ok(())
+    }
     fn reset(&self);
     fn enter(&self, agent: &mut Agent) -> Option<WorldEvent>;
     fn leave(&self) -> AgentId;
@@ -28,8 +33,6 @@ pub struct Floor {
 }
 
 impl Tile for Floor {
-    fn pre_enter(&self, _agent: &Agent) {}
-
     fn reset(&self) {
         self.agent.set(None);
     }
@@ -56,8 +59,8 @@ impl Tile for Floor {
 pub struct Wall {}
 
 impl Tile for Wall {
-    fn pre_enter(&self, _agent: &Agent) {
-        panic!("Cannot pre-enter a wall")
+    fn pre_enter(&self, _agent: &Agent) -> Result<(), String> {
+        Err("Cannot pre-enter a wall".into())
     }
 
     fn reset(&self) {}
@@ -96,8 +99,6 @@ impl Tile for Void {
     fn agent(&self) -> Option<AgentId> {
         self.agent.get()
     }
-
-    fn pre_enter(&self, _agent: &Agent) {}
 
     fn enter(&self, agent: &mut Agent) -> Option<WorldEvent> {
         self.agent.set(Some(agent.id()));

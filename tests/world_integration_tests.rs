@@ -192,7 +192,7 @@ fn test_force_state_agents_have_exited() {
         agents_positions: [(1, 0)].into(),
         gems_collected: [true].into(),
     };
-    w.force_state(&s).unwrap();
+    w.set_state(&s).unwrap();
     for agent in w.agents() {
         assert!(agent.has_arrived());
     }
@@ -213,7 +213,7 @@ fn test_force_state_agent_dies() {
         agents_positions: [(1, 0), (1, 1)].into(),
         gems_collected: [false; 1].into(),
     };
-    w.force_state(&s).unwrap();
+    w.set_state(&s).unwrap();
     assert!(w.agents()[0].has_arrived());
     // Agent 1 should ne have arrived (it died before arriving)
     assert!(!w.agents()[1].has_arrived());

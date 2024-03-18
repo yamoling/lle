@@ -128,11 +128,12 @@ impl Tile for Laser {
         self.wrapped.reset();
     }
 
-    fn pre_enter(&self, agent: &Agent) {
-        self.wrapped.pre_enter(agent);
+    fn pre_enter(&self, agent: &Agent) -> Result<(), String> {
+        let res = self.wrapped.pre_enter(agent);
         if agent.is_alive() && agent.id() == self.agent_id {
             self.beam.turn_off();
         }
+        res
     }
 
     fn enter(&self, agent: &mut Agent) -> Option<WorldEvent> {

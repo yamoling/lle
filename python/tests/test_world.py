@@ -2,7 +2,7 @@ from threading import Thread
 import pytest
 from copy import deepcopy
 
-from lle import World, WorldState, Action
+from lle import World, WorldState, Action, ParsingError, InvalidActionError
 
 
 def test_available_actions():
@@ -26,7 +26,7 @@ def test_available_actions():
 
 def test_parse_wrong_worlds():
     # Not enough finish tiles for all the agents
-    with pytest.raises(ValueError):
+    with pytest.raises(ParsingError):
         World(
             """
             @ @  @ @
@@ -36,7 +36,7 @@ def test_parse_wrong_worlds():
         )
 
     # Zero agent in the environment
-    with pytest.raises(ValueError):
+    with pytest.raises(ParsingError):
         World("X G")
 
 
@@ -73,7 +73,7 @@ def test_walk_into_wall():
     )
     world.reset()
     world.step([Action.SOUTH])
-    with pytest.raises(ValueError):
+    with pytest.raises(InvalidActionError):
         world.step([Action.SOUTH])
 
 
@@ -103,15 +103,16 @@ G  . . ."""
 def test_vertex_conflict():
     world = World(
         """
-        S0 X  .  .
-        .  .  S1  .
+        .  X  .  .
+        S0 .  S1  .
         .  X  .  ."""
     )
     world.reset()
-    world.step([Action.SOUTH, Action.WEST])
+    state = world.get_state()
     # Move to provoke a vertex conflict -> observations should remain identical
-    with pytest.raises(ValueError) as _:
-        world.step([Action.STAY, Action.WEST])
+    world.step([Action.EAST, Action.WEST])
+    new_state = world.get_state()
+    assert state == new_state
 
 
 def test_swapping_conflict():
@@ -123,9 +124,11 @@ S0 X  .  .
     )
     world.reset()
     world.step([Action.SOUTH, Action.WEST])
-    # Move to provoke a swapping conflict -> observations should remain identical
-    with pytest.raises(ValueError) as _:
+    try:
         world.step([Action.EAST, Action.WEST])
+        raise Exception("These actions should not be allowed")
+    except InvalidActionError:
+        pass
 
 
 def test_walk_into_laser_source():

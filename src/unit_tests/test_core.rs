@@ -214,7 +214,7 @@ fn test_force_state_invalid_number_of_agents() {
         agents_positions: [(1, 2), (0, 0)].into(),
         gems_collected: [true].into(),
     };
-    match w.force_state(&s) {
+    match w.set_state(&s) {
         Err(e) => match e {
             RuntimeWorldError::InvalidNumberOfAgents {
                 given: actual,
@@ -243,7 +243,7 @@ fn test_force_state_invalid_number_of_gems() {
         agents_positions: [(1, 2)].into(),
         gems_collected: [true, false].into(),
     };
-    match w.force_state(&s) {
+    match w.set_state(&s) {
         Err(e) => match e {
             RuntimeWorldError::InvalidNumberOfGems {
                 given: actual,
@@ -280,7 +280,7 @@ fn test_complex_laser_blocking() {
         agents_positions: [(0, 2), (0, 3)].into(),
         gems_collected: [false; 5].into(),
     };
-    w.force_state(&state).unwrap();
+    w.set_state(&state).unwrap();
     let laser = get_laser(&w, (0, 3));
     assert!(laser.is_off());
     assert!(w.agents().iter().all(Agent::is_alive));
@@ -324,7 +324,7 @@ fn test_set_state_available_actions() {
         agents_positions: [(0, 0)].into(),
         gems_collected: [].into(),
     };
-    w.force_state(&s).unwrap();
+    w.set_state(&s).unwrap();
     let actions = w.available_actions();
     assert_eq!(actions.len(), 1);
     assert_eq!(actions[0].len(), 3);
@@ -478,7 +478,7 @@ fn test_force_state() {
         agents_positions: [(1, 2)].into(),
         gems_collected: [true].into(),
     };
-    w.force_state(&s).unwrap();
+    w.set_state(&s).unwrap();
     assert_eq!(w.agents_positions()[0], (1, 2));
     let gem = w.gems().next().unwrap().1;
     assert!(gem.is_collected());
@@ -498,7 +498,7 @@ fn test_force_end_state() {
         agents_positions: [(1, 0)].into(),
         gems_collected: [true].into(),
     };
-    w.force_state(&s).unwrap();
+    w.set_state(&s).unwrap();
     assert_eq!(w.agents_positions()[0], (1, 0));
     let gem = w.gems().next().unwrap().1;
     assert!(gem.is_collected());
@@ -519,6 +519,6 @@ fn test_force_state_agent_dies() {
         agents_positions: [(1, 0), (1, 1)].into(),
         gems_collected: [false; 1].into(),
     };
-    w.force_state(&s).unwrap();
+    w.set_state(&s).unwrap();
     assert!(w.agents()[1].is_dead());
 }

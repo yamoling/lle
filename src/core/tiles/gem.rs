@@ -25,8 +25,8 @@ impl Gem {
 }
 
 impl Tile for Gem {
-    fn pre_enter(&self, agent: &Agent) {
-        self.floor.pre_enter(agent);
+    fn pre_enter(&self, agent: &Agent) -> Result<(), String> {
+        self.floor.pre_enter(agent)
     }
 
     fn reset(&self) {

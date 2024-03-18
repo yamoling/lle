@@ -4,6 +4,8 @@ from .agent import Agent
 from .tile import Gem, Laser, LaserSource, Tile
 from .direction import Direction
 from .event import WorldEvent, EventType
+from .exceptions import InvalidActionError, InvalidLevelError, InvalidWorldStateError, ParsingError
+
 
 __version__: str
 
@@ -19,4 +21,8 @@ __all__ = [
     "Direction",
     "WorldEvent",
     "EventType",
+    "InvalidActionError",
+    "InvalidLevelError",
+    "InvalidWorldStateError",
+    "ParsingError",
 ]

@@ -32,8 +32,8 @@ impl LaserSource {
 }
 
 impl Tile for LaserSource {
-    fn pre_enter(&self, agent: &Agent) {
-        self.wall.pre_enter(agent);
+    fn pre_enter(&self, agent: &Agent) -> Result<(), String> {
+        self.wall.pre_enter(agent)
     }
 
     fn reset(&self) {

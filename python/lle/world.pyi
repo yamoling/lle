@@ -10,10 +10,10 @@ from .types import Position
 @final
 class WorldState:
     def __init__(self, agents_positions: List[Position], gems_collected: List[bool]):
-        """Construct a WorldState from the position of each agent and the collection status of each gem."""
+        """Construct a WorldState from the (i, j) position of each agent and the collection status of each gem."""
     @property
     def agents_positions(self) -> List[Position]:
-        """The position of each agent."""
+        """The (i, j) position of each agent."""
     @property
     def gems_collected(self) -> List[bool]:
         """The collection status of each gem."""
@@ -38,17 +38,17 @@ class World:
     gems: List[Tuple[Position, Gem]]
     """The list of gems in the world"""
     exit_pos: List[Position]
-    """The positions of each exit tile."""
+    """The (i, j) position of each exit tile."""
     wall_pos: List[Position]
-    """The position of every wall tile."""
+    """The (i, j) position of every wall tile."""
     void_pos: List[Position]
-    """The position of every void tile."""
+    """The (i, j) position of every void tile."""
     laser_sources: List[Tuple[Position, LaserSource]]
-    """The position of every laser source."""
+    """The (i, j) position of every laser source."""
     lasers: List[Tuple[Position, Laser]]
-    """The position of every laser."""
+    """The (i, j) position of every laser."""
     agents_positions: List[Position]
-    """The current position of each agent"""
+    """The current (i, j) position of each agent"""
     world_string: str
     """The string upon which the world has been constructed."""
 
@@ -74,6 +74,10 @@ class World:
         """
         Perform an action for each agent in the world and return the list of
         events that occurred by peforming this step.
+
+        Raise:
+            - `InvalidActionError` if an agent takes an action that is not available.
+            - `ValueError` if the number of actions is different from the number of agents
         """
     def reset(self):
         """Reset the world to its initial state."""
@@ -91,11 +95,18 @@ class World:
         """
         Force the world to a given state.
 
-        A ValueError is raised if the state is invalid.
+        Raises a `InvalidWorldStateError` if the state is invalid.
         """
     @staticmethod
     def from_file(filename: str) -> "World":
-        """Parse the content `filename` to create a World."""
+        """
+        Parse the content of `filename` to create a World.
+
+        Raise a `FileNotFoundError` if the file does not exist.
+        """
     @staticmethod
     def level(level: int) -> "World":
-        """Retrieve the standard level (between `1` and `6`)."""
+        """
+        Retrieve the standard level (between `1` and `6`).
+        A `ValueError` is raised if the level is invalid.
+        """

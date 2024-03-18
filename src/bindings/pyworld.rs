@@ -1,15 +1,14 @@
 use numpy::PyArray1;
-use pyo3::{exceptions, prelude::*, types::PyDict};
+use pyo3::{prelude::*, types::PyDict};
 
-use crate::{
-    ParseError, Position, Renderer, RuntimeWorldError, Tile, World, WorldEvent, WorldState,
-};
+use crate::{Position, Renderer, Tile, World, WorldEvent, WorldState};
 
 use super::{
     pyaction::PyAction,
     pyagent::PyAgent,
     pydirection::PyDirection,
     pyevent::{PyEventType, PyWorldEvent},
+    pyexceptions::{parse_error_to_exception, runtime_error_to_pyexception},
     pytile::{PyGem, PyLaser, PyLaserSource},
     pyworld_state::PyWorldState,
 };
@@ -153,43 +152,28 @@ impl PyWorld {
         self.world.exits().map(|(pos, _)| pos).copied().collect()
     }
 
-    /// Perform a step in the world and returns the events that heppened during that transition.
+    /// Perform a step in the world and returns the events that happened during that transition.
     pub fn step(&mut self, actions: Vec<PyAction>) -> PyResult<Vec<PyWorldEvent>> {
         let actions: Vec<_> = actions.into_iter().map(|a| a.action).collect();
         match self.world.step(&actions) {
             Ok(events) => {
-                let events: Vec<PyWorldEvent> = events.iter().map(|e| {
-                    match e {
-                        WorldEvent::AgentExit { agent_id } => PyWorldEvent::new(
-                            PyEventType::AgentExit,
-                            *agent_id,
-                        ),
-                        WorldEvent::GemCollected { agent_id } => PyWorldEvent::new(
-                            PyEventType::GemCollected,
-                            *agent_id,
-                        ),
-                        WorldEvent::AgentDied { agent_id } => PyWorldEvent::new(
-                            PyEventType::AgentDied,
-                            *agent_id,
-                        ),
-                    }
-                }).collect();
+                let events: Vec<PyWorldEvent> = events
+                    .iter()
+                    .map(|e| match e {
+                        WorldEvent::AgentExit { agent_id } => {
+                            PyWorldEvent::new(PyEventType::AgentExit, *agent_id)
+                        }
+                        WorldEvent::GemCollected { agent_id } => {
+                            PyWorldEvent::new(PyEventType::GemCollected, *agent_id)
+                        }
+                        WorldEvent::AgentDied { agent_id } => {
+                            PyWorldEvent::new(PyEventType::AgentDied, *agent_id)
+                        }
+                    })
+                    .collect();
                 Ok(events)
-            },
-            Err(e) => match e {
-                RuntimeWorldError::InvalidAction {
-                    agent_id,
-                    available,
-                    taken,
-                } => Err(exceptions::PyValueError::new_err(format!(
-                    "Invalid action for agent {agent_id}: available actions: {available:?}, taken action: {taken}",
-                ))),
-                RuntimeWorldError::WorldIsDone => Err(exceptions::PyValueError::new_err("World is done, cannot step anymore")),
-                RuntimeWorldError::InvalidNumberOfActions { given, expected } => Err(exceptions::PyValueError::new_err(format!(
-                    "Invalid number of actions: given {given}, expected {expected}",
-                ))),
-                other => panic!("Unexpected error: {:?}", other),
-            },
+            }
+            Err(e) => Err(runtime_error_to_pyexception(e)),
         }
     }
 
@@ -232,9 +216,9 @@ impl PyWorld {
 
     /// Force the world to a specific state
     fn set_state(&mut self, state: PyWorldState) -> PyResult<()> {
-        match self.world.force_state(&state.into()) {
+        match self.world.set_state(&state.into()) {
             Ok(_) => Ok(()),
-            Err(e) => Err(exceptions::PyValueError::new_err(format!("{e:?}"))),
+            Err(e) => Err(runtime_error_to_pyexception(e)),
         }
     }
 
@@ -273,7 +257,7 @@ impl PyWorld {
         };
         self.renderer = Renderer::new(&self.world);
         self.world
-            .force_state(&WorldState {
+            .set_state(&WorldState {
                 gems_collected: state.1,
                 agents_positions: state.2,
             })
@@ -290,48 +274,5 @@ impl Clone for PyWorld {
             world: core,
             renderer,
         }
-    }
-}
-
-fn parse_error_to_exception(error: ParseError) -> PyErr {
-    match error {
-        ParseError::InvalidFileName { file_name } => {
-            exceptions::PyFileNotFoundError::new_err(file_name)
-        }
-
-        ParseError::DuplicateStartTile {
-            agent_id,
-            start1,
-            start2,
-        } => exceptions::PyValueError::new_err(format!(
-            "Agent {agent_id} has two start tiles: {start1:?} and {start2:?}"
-        )),
-        ParseError::InconsistentDimensions {
-            expected_n_cols,
-            actual_n_cols,
-            row,
-        } => exceptions::PyValueError::new_err(format!(
-            "Inconsistent number of columns in row {}: expected {}, got {}",
-            row, expected_n_cols, actual_n_cols
-        )),
-        ParseError::NotEnoughExitTiles { n_starts, n_exits } => exceptions::PyValueError::new_err(
-            format!("Not enough exit tiles: {n_starts} starts, {n_exits} exits"),
-        ),
-        ParseError::EmptyWorld => exceptions::PyValueError::new_err("Empty world: no tiles"),
-        ParseError::NoAgents => exceptions::PyValueError::new_err("No agents in the world"),
-
-        ParseError::InvalidTile {
-            tile_str,
-            line,
-            col,
-        } => exceptions::PyValueError::new_err(format!(
-            "Invalid tile '{tile_str}' at position ({line}, {col})"
-        )),
-        ParseError::InvalidLevel { asked, min, max } => exceptions::PyValueError::new_err(format!(
-            "Invalid level: {asked}. Expected a level between {min} and {max}.",
-            asked = asked,
-            min = min,
-            max = max
-        )),
     }
 }
