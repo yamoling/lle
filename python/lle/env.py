@@ -71,6 +71,9 @@ class LLE(RLEnv[DiscreteActionSpace]):
             case other:
                 raise ValueError(f"State type {other} does not support `unit_state_size`.")
 
+    def get_observation(self):
+        return Observation(self.observation_generator.observe(), self.available_actions(), self.get_state())
+
     @override
     def available_actions(self) -> np.ndarray[np.int32, Any]:
         available_actions = np.zeros((self.n_agents, self.n_actions), dtype=np.int64)
@@ -97,10 +100,8 @@ class LLE(RLEnv[DiscreteActionSpace]):
         else:
             reward = self._reward_classic(events)
 
-        obs_data = self.observation_generator.observe()
-        obs = Observation(obs_data, self.available_actions(), self.get_state())
         info = {"gems_collected": self.world.gems_collected, "exit_rate": self.n_arrived / self.n_agents}
-        return obs, reward, self.done, False, info
+        return self.get_observation(), reward, self.done, False, info
 
     def _reward_classic(self, events: list[WorldEvent]):
         reward = 0.0
@@ -143,8 +144,7 @@ class LLE(RLEnv[DiscreteActionSpace]):
         self.world.reset()
         self.done = False
         self.n_arrived = 0
-        obs = self.observation_generator.observe()
-        return Observation(obs, self.available_actions(), self.get_state())
+        return self.get_observation()
 
     @override
     def get_state(self) -> np.ndarray[np.float32, Any]:

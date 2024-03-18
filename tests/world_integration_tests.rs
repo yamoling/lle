@@ -312,3 +312,24 @@ fn test_dead_agent_does_not_block_the_laser() {
         }
     }
 }
+
+#[test]
+fn world_state_equal() {
+    let mut w = World::try_from(
+        "
+        S0 . G
+        .  . X
+    ",
+    )
+    .unwrap();
+    w.reset();
+    let s1 = w.get_state();
+    let s2 = w.get_state();
+    assert_eq!(s1, s2);
+    w.step(&[Action::Stay]).unwrap();
+    let s3 = w.get_state();
+    assert_eq!(s1, s3);
+    w.step(&[Action::East]).unwrap();
+    let s4 = w.get_state();
+    assert_ne!(s3, s4);
+}

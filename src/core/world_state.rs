@@ -1,7 +1,7 @@
 use crate::Position;
 use std::hash::Hash;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorldState {
     pub agents_positions: Vec<Position>,
     pub gems_collected: Vec<bool>,

@@ -2,7 +2,7 @@ from threading import Thread
 import pytest
 from copy import deepcopy
 
-from lle import World, WorldState, Action, ParsingError, InvalidActionError, EventType
+from lle import World, WorldState, Action, ParsingError, InvalidActionError, EventType, InvalidWorldStateError
 
 
 def test_available_actions():
@@ -277,6 +277,24 @@ def test_set_state():
     assert len(events) == 1
     assert events[0].agent_id == 0
     assert events[0].event_type == EventType.AGENT_EXIT
+
+
+def test_set_invalid_state():
+    world = World(
+        """
+        S1  S0 X
+        L0E  G  X"""
+    )
+    world.reset()
+    # Wrong number of gems
+    with pytest.raises(InvalidWorldStateError):
+        world.set_state(WorldState([(0, 0), (0, 1)], [True, True]))
+    # Wrong number of agents
+    with pytest.raises(InvalidWorldStateError):
+        world.set_state(WorldState([(0, 0)], [True]))
+    # Invalid agent position (out of bounds)
+    with pytest.raises(InvalidWorldStateError):
+        world.set_state(WorldState([(1, 1), (1, 0)], [True]))
 
 
 def test_world_state_hash_eq():
