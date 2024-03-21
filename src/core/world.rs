@@ -323,6 +323,14 @@ impl World {
                 expected: self.n_agents(),
             });
         }
+        // If any position is present twice, then the state is invalid
+        if find_duplicates(&state.agents_positions).iter().any(|&b| b) {
+            return Err(RuntimeWorldError::InvalidWorldState {
+                reason: "There are two agents at the same position".into(),
+                state: state.clone(),
+            });
+        }
+
         for (i, j) in &state.agents_positions {
             if *i >= self.height || *j >= self.width {
                 return Err(RuntimeWorldError::OutOfWorldPosition { position: (*i, *j) });

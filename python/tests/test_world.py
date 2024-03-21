@@ -295,6 +295,9 @@ def test_set_invalid_state():
     # Invalid agent position (out of bounds)
     with pytest.raises(InvalidWorldStateError):
         world.set_state(WorldState([(1, 1), (1, 0)], [True]))
+    # Two agents on the same position
+    with pytest.raises(InvalidWorldStateError):
+        world.set_state(WorldState([(0, 0), (0, 0)], [True]))
 
 
 def test_world_state_hash_eq():
