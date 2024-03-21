@@ -115,8 +115,8 @@ pub fn runtime_error_to_pyexception(error: RuntimeWorldError) -> PyErr {
             ))
         }
         RuntimeWorldError::InvalidAction { .. } => panic!("Already handled above"),
-        RuntimeWorldError::InvalidWorldState { reason, .. } => {
-            InvalidWorldStateError::new_err(format!("Invalid world state: {reason}"))
-        }
+        RuntimeWorldError::InvalidWorldState { reason, state } => InvalidWorldStateError::new_err(
+            format!("Invalid world state: {reason}. Wrong state: {state:?}"),
+        ),
     }
 }
