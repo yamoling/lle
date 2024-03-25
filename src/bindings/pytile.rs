@@ -93,7 +93,7 @@ impl PyLaser {
     }
 }
 
-#[pyclass(name = "LaserSource")]
+#[pyclass(name = "LaserSource", unsendable)]
 pub struct PyLaserSource {
     source: LaserSource,
 }
@@ -119,6 +119,10 @@ impl PyLaserSource {
     #[getter]
     fn agent(&self) -> Option<AgentId> {
         self.source.agent()
+    }
+
+    fn set_agent_id(&self, agent_id: AgentId) {
+        self.source.set_agent_id(agent_id);
     }
 
     pub fn __str__(&self) -> String {

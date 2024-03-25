@@ -327,3 +327,23 @@ def test_get_standard_level():
         World.level(i)
         World.from_file(f"lvl{i}")
         World.from_file(f"level{i}")
+
+
+def test_change_laser_colour():
+    world = World(
+        """
+        X L0S .
+        .  .  S1
+        X  .  S0"""
+    )
+    world.reset()
+    world.step([Action.STAY, Action.WEST])
+    assert world.agents[1].is_dead, "Agent 1 should be dead"
+
+    world.reset()
+    _, source = world.laser_sources[0]
+    source.set_agent_id(1)
+    world.step([Action.STAY, Action.WEST])
+    assert world.agents[1].is_alive, "Agent 1 should be alive"
+    world.step([Action.WEST, Action.WEST])
+    assert world.agents[0].is_dead, "Agent 0 should be dead in the laser"

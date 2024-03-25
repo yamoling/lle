@@ -81,7 +81,7 @@ impl LaserBeam {
 
 pub struct Laser {
     direction: Direction,
-    agent_id: AgentId,
+    agent_id: Cell<AgentId>,
     beam: LaserBeam,
     wrapped: Rc<dyn Tile>,
 }
@@ -94,7 +94,7 @@ impl Laser {
         beam: LaserBeam,
     ) -> Self {
         Self {
-            agent_id,
+            agent_id: Cell::new(agent_id),
             direction,
             wrapped,
             beam,
@@ -102,7 +102,11 @@ impl Laser {
     }
 
     pub fn agent_id(&self) -> AgentId {
-        self.agent_id
+        self.agent_id.get()
+    }
+
+    pub fn set_agent_id(&self, agent_id: AgentId) {
+        self.agent_id.set(agent_id);
     }
 
     pub fn wrapped(&self) -> &dyn Tile {
@@ -130,7 +134,7 @@ impl Tile for Laser {
 
     fn pre_enter(&self, agent: &Agent) -> Result<(), String> {
         let res = self.wrapped.pre_enter(agent);
-        if agent.is_alive() && agent.id() == self.agent_id {
+        if agent.is_alive() && agent.id() == self.agent_id.get() {
             self.beam.turn_off();
         }
         res
@@ -138,7 +142,7 @@ impl Tile for Laser {
 
     fn enter(&self, agent: &mut Agent) -> Option<WorldEvent> {
         // Note: turning off the beam happens in `pre_enter`
-        if self.beam.is_on() && agent.id() != self.agent_id {
+        if self.beam.is_on() && agent.id() != self.agent_id.get() {
             if agent.is_alive() {
                 agent.die();
                 self.beam.turn_on();

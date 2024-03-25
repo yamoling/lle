@@ -1,16 +1,22 @@
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
+
 use crate::{
     agent::{Agent, AgentId},
     rendering::{TileVisitor, VisitorData},
     WorldEvent,
 };
 
-use super::{Direction, Tile, Wall};
+use super::{Direction, Laser, Tile, Wall};
 
 #[derive(Clone)]
 pub struct LaserSource {
     wall: Wall,
+    laser_tiles: RefCell<Vec<Rc<Laser>>>,
     direction: Direction,
-    agent_id: AgentId,
+    agent_id: Cell<AgentId>,
 }
 
 impl LaserSource {
@@ -18,16 +24,28 @@ impl LaserSource {
         Self {
             wall: Wall {},
             direction,
-            agent_id,
+            agent_id: Cell::new(agent_id),
+            laser_tiles: RefCell::new(vec![]),
         }
     }
 
     pub fn agent_id(&self) -> AgentId {
-        self.agent_id
+        self.agent_id.get()
     }
 
     pub fn direction(&self) -> Direction {
         self.direction
+    }
+
+    pub fn add_laser_tile(&self, laser_tile: Rc<Laser>) {
+        self.laser_tiles.borrow_mut().push(laser_tile);
+    }
+
+    pub fn set_agent_id(&self, agent_id: AgentId) {
+        self.agent_id.set(agent_id);
+        self.laser_tiles.borrow_mut().iter().for_each(|laser| {
+            laser.set_agent_id(agent_id);
+        });
     }
 }
 

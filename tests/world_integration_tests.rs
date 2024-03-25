@@ -333,3 +333,31 @@ fn world_state_equal() {
     let s4 = w.get_state();
     assert_ne!(s3, s4);
 }
+
+#[test]
+fn change_laser_id() {
+    let mut w = World::try_from(
+        "
+        S0 .   G  X
+        .  .  L0W .
+        .  S1  .  X 
+        .  .   .  .",
+    )
+    .unwrap();
+    w.reset();
+    assert!(w.lasers().all(|(_, l)| l.agent_id() == 0));
+    let (_, source) = w.laser_sources().next().unwrap();
+    source.set_agent_id(1);
+    assert_eq!(source.agent_id(), 1);
+    assert!(w.lasers().all(|(_, l)| l.agent_id() == 1));
+
+    // Kill agent 0 in the laser
+    let events = w.step(&[Action::South, Action::Stay]).unwrap();
+    assert_eq!(events.len(), 1);
+    match &events[0] {
+        WorldEvent::AgentDied { agent_id } => {
+            assert_eq!(*agent_id, 0);
+        }
+        other => panic!("Expected AgentDied, got {:?}", other),
+    }
+}
