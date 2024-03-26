@@ -238,3 +238,17 @@ def test_partial_3x3_lasers():
 
     assert obs0[observer.LASER_0 + 1, 2, 1] == -1
     assert obs0[observer.LASER_0 + 1, 2, 2] == 1
+
+
+def test_padded_layered():
+    world = World("S0 X")
+    baseline = ObservationType.LAYERED.get_observation_generator(world)
+    obs = ObservationType.LAYERED_PADDED_1AGENT.get_observation_generator(world)
+    assert obs.shape[0] == baseline.shape[0] + 2
+    assert obs.shape[1:] == baseline.shape[1:]
+    obs = ObservationType.LAYERED_PADDED_2AGENTS.get_observation_generator(world)
+    assert obs.shape[0] == baseline.shape[0] + 4
+    assert obs.shape[1:] == baseline.shape[1:]
+    obs = ObservationType.LAYERED_PADDED_3AGENTS.get_observation_generator(world)
+    assert obs.shape[0] == baseline.shape[0] + 6
+    assert obs.shape[1:] == baseline.shape[1:]

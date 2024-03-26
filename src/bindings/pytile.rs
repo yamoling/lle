@@ -93,10 +93,12 @@ impl PyLaser {
     }
 }
 
-#[pyclass(name = "LaserSource", unsendable)]
+#[pyclass(name = "LaserSource")]
 pub struct PyLaserSource {
     source: LaserSource,
 }
+
+unsafe impl Send for PyLaserSource {}
 
 impl PyLaserSource {
     pub fn new(source: LaserSource) -> Self {

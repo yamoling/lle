@@ -17,6 +17,9 @@ class ObservationType(IntEnum):
     PARTIAL_3x3 = 4
     PARTIAL_5x5 = 5
     LAYERED_PADDED = 6
+    LAYERED_PADDED_1AGENT = 7
+    LAYERED_PADDED_2AGENTS = 8
+    LAYERED_PADDED_3AGENTS = 9
 
     @staticmethod
     def from_str(s: str) -> "ObservationType":
@@ -42,6 +45,12 @@ class ObservationType(IntEnum):
                 return PartialGenerator(world, 3)
             case ObservationType.LAYERED_PADDED:
                 return LayeredPadded(world, padding_size)
+            case ObservationType.LAYERED_PADDED_1AGENT:
+                return LayeredPadded(world, 1)
+            case ObservationType.LAYERED_PADDED_2AGENTS:
+                return LayeredPadded(world, 2)
+            case ObservationType.LAYERED_PADDED_3AGENTS:
+                return LayeredPadded(world, 3)
             case other:
                 raise ValueError(f"Unknown observation type: {other}")
 

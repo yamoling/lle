@@ -1,4 +1,4 @@
-from typing import Any, Literal, ClassVar
+from typing import Any, Literal, ClassVar, Sequence
 from typing_extensions import override
 from dataclasses import dataclass
 from serde import serde
@@ -83,7 +83,7 @@ class LLE(RLEnv[DiscreteActionSpace]):
         return available_actions
 
     @override
-    def step(self, actions: np.ndarray[np.int32, Any]):
+    def step(self, actions: Sequence[int]):
         assert not self.done, "Can not play when the game is done !"
         events = self.world.step([Action(a) for a in actions])
 
@@ -151,10 +151,6 @@ class LLE(RLEnv[DiscreteActionSpace]):
         # We assume that the state is the same as the observation of the first agent
         # of the observation generator.
         return self.state_generator.observe()[0]
-        state = self.world.get_state()
-        gems_collected = np.array(state.gems_collected, dtype=np.float32)
-        agents_positions = np.array(state.agents_positions, dtype=np.float32).reshape(-1)
-        return np.concatenate([gems_collected, agents_positions])
 
     @override
     def render(self, mode: Literal["human", "rgb_array"] = "human"):
@@ -212,3 +208,7 @@ class LLE(RLEnv[DiscreteActionSpace]):
         agents = self.world.agents
         self.done = any(agent.is_dead for agent in agents) or all(agent.has_arrived for agent in agents)
         self.n_arrived = sum(agent.has_arrived for agent in agents)
+
+    @property
+    def max_score(self):
+        return self.n_agents * LLE.REWARD_EXIT + LLE.REWARD_DONE + LLE.REWARD_GEM * self.world.n_gems
