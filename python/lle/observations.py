@@ -242,7 +242,7 @@ class PartialGenerator(ObservationGenerator):
         assert square_size % 2 == 1, "Can only use odd numbers for the square size"
         self.size = square_size
         self._shape = (world.n_agents * 2 + 3, self.size, self.size)
-        self._center = np.array([(self.size - 1) / 2, (self.size - 1) / 2], dtype=np.int64)
+        self._center = self.size // 2
         self.WALL = world.n_agents
         self.LASER_0 = self.WALL + 1
         self.GEM = self.LASER_0 + world.n_agents
@@ -256,36 +256,33 @@ class PartialGenerator(ObservationGenerator):
     def obs_type(self) -> ObservationType:
         return ObservationType.PARTIAL_3x3
 
-    def encode_layer(self, layer: np.ndarray[np.float32, Any], origin: np.ndarray, positions: np.ndarray[np.int64, Any], fill_value=1.0):
+    def encode_layer(self, layer: np.ndarray[np.float32, Any], origin: Position, positions: list[Position], fill_value: float = 1.0):
         if len(positions) == 0:
             return
-        relative_positions = positions - origin
-        for pos in relative_positions:
-            if all(pos < self.size / 2):
-                i, j = pos + self._center
+        for i, j in positions:
+            i, j = i - origin[0] + self._center, j - origin[1] + self._center
+            if 0 <= i < self.size and 0 <= j < self.size:
                 layer[i, j] = fill_value
 
     def observe(self) -> np.ndarray[np.float32, Any]:
         obs = np.zeros((self._world.n_agents, *self._shape), dtype=np.float32)
-        for a, pos in enumerate(self._world.agents_positions):
-            agent_pos = np.array(pos)
+        for a, agent_pos in enumerate(self._world.agents_positions):
             # Agents positions
-            for a2, pos2 in enumerate(self._world.agents_positions):
-                other_pos = np.array(pos2)
-                self.encode_layer(obs[a, a2], agent_pos, np.array([other_pos]))
+            for a2, other_pos in enumerate(self._world.agents_positions):
+                self.encode_layer(obs[a, a2], agent_pos, [other_pos], 0)
             # Gems
-            self.encode_layer(obs[a, self.GEM], agent_pos, np.array([gem_pos for gem_pos, gem in self._world.gems if not gem.is_collected]))
+            self.encode_layer(obs[a, self.GEM], agent_pos, [gem_pos for gem_pos, gem in self._world.gems if not gem.is_collected])
             # Exits
-            self.encode_layer(obs[a, self.EXIT], agent_pos, np.array([exit_pos for exit_pos in self._world.exit_pos]))
+            self.encode_layer(obs[a, self.EXIT], agent_pos, [exit_pos for exit_pos in self._world.exit_pos])
             # Walls
-            self.encode_layer(obs[a, self.WALL], agent_pos, np.array([wall_pos for wall_pos in self._world.wall_pos]))
+            self.encode_layer(obs[a, self.WALL], agent_pos, [wall_pos for wall_pos in self._world.wall_pos])
             # Lasers
             laser_positions = self._get_lasers_positions()
             for agent_id, positions in laser_positions.items():
-                self.encode_layer(obs[a, self.LASER_0 + agent_id], agent_pos, np.array(positions))
+                self.encode_layer(obs[a, self.LASER_0 + agent_id], agent_pos, positions)
             # Laser sources
             for pos, source in self._world.laser_sources:
-                self.encode_layer(obs[a, self.LASER_0 + source.agent_id], agent_pos, np.array([pos]), fill_value=-1.0)
+                self.encode_layer(obs[a, self.LASER_0 + source.agent_id], agent_pos, [pos], fill_value=-1.0)
         return obs
 
     def _get_lasers_positions(self) -> dict[AgentId, list[Position]]:
