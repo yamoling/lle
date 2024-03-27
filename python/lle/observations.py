@@ -269,7 +269,7 @@ class PartialGenerator(ObservationGenerator):
         for a, agent_pos in enumerate(self._world.agents_positions):
             # Agents positions
             for a2, other_pos in enumerate(self._world.agents_positions):
-                self.encode_layer(obs[a, a2], agent_pos, [other_pos], 0)
+                self.encode_layer(obs[a, a2], agent_pos, [other_pos])
             # Gems
             self.encode_layer(obs[a, self.GEM], agent_pos, [gem_pos for gem_pos, gem in self._world.gems if not gem.is_collected])
             # Exits

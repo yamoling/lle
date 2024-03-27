@@ -219,6 +219,38 @@ def test_partial_3x3():
     assert obs1[observer.WALL, 0, 2] == 1
 
 
+def test_partial_7x7():
+    world = World(
+        """
+S0 S1 S2 S3 X X X X                  
+"""
+    )
+    world.reset()
+    observer = PartialGenerator(world, 7)
+    assert observer.shape[-2:] == (7, 7)
+    center = 3
+    observations = observer.observe()
+    # Only check the observation of the first agent
+    for agent_num, obs in enumerate(observations):
+        for other_agent_num in range(world.n_agents):
+            # Agents are side to side
+            i = center
+            j = center - agent_num + other_agent_num
+            assert obs[other_agent_num, i, j] == 1
+            # All other positions should be empty
+            obs[other_agent_num, i, j] = 0
+            assert np.all(obs[0] == 0)
+    # Exits
+    assert np.all(observations[0, observer.EXIT] == 0)
+    assert observations[1, observer.EXIT, center, center + 3] == 1
+    assert np.all(observations[2, observer.EXIT, center, center + 2 :] == 1)
+    assert np.all(observations[3, observer.EXIT, center, center + 1 :] == 1)
+    # Others
+    assert np.all(observations[:, observer.WALL] == 0)
+    assert np.all(observations[:, observer.GEM] == 0)
+    assert np.all(observations[:, observer.LASER_0 : observer.LASER_0 + world.n_agents] == 0)
+
+
 def test_partial_3x3_lasers():
     world = World(
         """
