@@ -124,25 +124,33 @@ impl Laser {
     pub fn direction(&self) -> Direction {
         self.direction
     }
+
+    pub fn turn_on(&self) {
+        self.beam.turn_on();
+    }
+
+    pub fn turn_off(&self) {
+        self.beam.turn_off();
+    }
 }
 
 impl Tile for Laser {
     fn reset(&self) {
-        self.beam.turn_on();
+        self.turn_on();
         self.wrapped.reset();
     }
 
     fn pre_enter(&self, agent: &Agent) -> Result<(), String> {
         let res = self.wrapped.pre_enter(agent);
         if agent.is_alive() && agent.id() == self.agent_id.get() {
-            self.beam.turn_off();
+            self.turn_off();
         }
         res
     }
 
     fn enter(&self, agent: &mut Agent) -> Option<WorldEvent> {
         // Note: turning off the beam happens in `pre_enter`
-        if self.beam.is_on() && agent.id() != self.agent_id.get() {
+        if self.is_on() && agent.id() != self.agent_id.get() {
             if agent.is_alive() {
                 agent.die();
                 self.beam.turn_on();
@@ -156,7 +164,7 @@ impl Tile for Laser {
     }
 
     fn leave(&self) -> AgentId {
-        self.beam.turn_on();
+        self.turn_on();
         self.wrapped.leave()
     }
 

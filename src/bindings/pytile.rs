@@ -127,6 +127,14 @@ impl PyLaserSource {
         self.source.set_agent_id(agent_id);
     }
 
+    fn turn_on(&self) {
+        self.source.turn_on();
+    }
+
+    fn turn_off(&self) {
+        self.source.turn_off();
+    }
+
     pub fn __str__(&self) -> String {
         format!(
             "LaserSource(direction={}, agent_id={})",

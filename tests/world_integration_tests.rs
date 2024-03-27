@@ -361,3 +361,22 @@ fn change_laser_id() {
         other => panic!("Expected AgentDied, got {:?}", other),
     }
 }
+
+#[test]
+fn turn_off_laser_source() {
+    let mut w = World::try_from(
+        "
+        S0 .   G  X
+        .  .  L0W .
+        .  S1  .  X 
+        .  .   .  .",
+    )
+    .unwrap();
+    w.reset();
+    assert!(w.lasers().all(|(_, l)| l.is_on()));
+    let (_, source) = w.laser_sources().next().unwrap();
+    source.turn_off();
+    assert!(w.lasers().all(|(_, l)| l.is_off()));
+    source.turn_on();
+    assert!(w.lasers().all(|(_, l)| l.is_on()));
+}

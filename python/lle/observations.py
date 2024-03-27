@@ -1,6 +1,6 @@
 from typing import Any
 from abc import ABC, abstractmethod
-from enum import IntEnum
+from enum import IntEnum, auto
 import numpy as np
 import cv2
 from lle import World, AgentId, Position
@@ -9,17 +9,18 @@ from lle import World, AgentId, Position
 class ObservationType(IntEnum):
     """The different observation types for the World"""
 
-    RELATIVE_POSITIONS = -1
-    STATE = 0
-    RGB_IMAGE = 1
-    LAYERED = 2
-    FLATTENED = 3
-    PARTIAL_3x3 = 4
-    PARTIAL_5x5 = 5
-    LAYERED_PADDED = 6
-    LAYERED_PADDED_1AGENT = 7
-    LAYERED_PADDED_2AGENTS = 8
-    LAYERED_PADDED_3AGENTS = 9
+    RELATIVE_POSITIONS = auto()
+    STATE = auto()
+    RGB_IMAGE = auto()
+    LAYERED = auto()
+    FLATTENED = auto()
+    PARTIAL_3x3 = auto()
+    PARTIAL_5x5 = auto()
+    PARTIAL_7x7 = auto()
+    LAYERED_PADDED = auto()
+    LAYERED_PADDED_1AGENT = auto()
+    LAYERED_PADDED_2AGENTS = auto()
+    LAYERED_PADDED_3AGENTS = auto()
 
     @staticmethod
     def from_str(s: str) -> "ObservationType":
@@ -43,6 +44,10 @@ class ObservationType(IntEnum):
                 return FlattenedLayered(world)
             case ObservationType.PARTIAL_3x3:
                 return PartialGenerator(world, 3)
+            case ObservationType.PARTIAL_5x5:
+                return PartialGenerator(world, 5)
+            case ObservationType.PARTIAL_7x7:
+                return PartialGenerator(world, 7)
             case ObservationType.LAYERED_PADDED:
                 return LayeredPadded(world, padding_size)
             case ObservationType.LAYERED_PADDED_1AGENT:

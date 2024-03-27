@@ -31,5 +31,9 @@ class LaserSource(Tile):
     """The direction of the laser beam.."""
     def set_agent_id(self, agent_id: AgentId):
         """Change the 'colour' of the laser to the one of the agent given as argument."""
+    def turn_on(self):
+        """Turn the laser on."""
+    def turn_off(self):
+        """Turn the laser off."""
     def __str__(self) -> str: ...
     def __repr__(self) -> str: ...

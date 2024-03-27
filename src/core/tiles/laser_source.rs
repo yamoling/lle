@@ -37,6 +37,18 @@ impl LaserSource {
         self.direction
     }
 
+    pub fn turn_on(&self) {
+        self.laser_tiles.borrow_mut().iter().for_each(|laser| {
+            laser.turn_on();
+        });
+    }
+
+    pub fn turn_off(&self) {
+        self.laser_tiles.borrow_mut().iter().for_each(|laser| {
+            laser.turn_off();
+        });
+    }
+
     pub fn add_laser_tile(&self, laser_tile: Rc<Laser>) {
         self.laser_tiles.borrow_mut().push(laser_tile);
     }
