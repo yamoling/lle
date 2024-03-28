@@ -14,6 +14,10 @@ __all__ = [
     "AgentId",
     "WorldEvent",
     "EventType",
+    "InvalidActionError",
+    "InvalidLevelError",
+    "InvalidWorldStateError",
+    "ParsingError",
 ]
 
 from .types import Position, AgentId
@@ -30,6 +34,10 @@ from .lle import (
     Laser,
     LaserSource,
     Direction,
+    InvalidActionError,
+    InvalidLevelError,
+    InvalidWorldStateError,
+    ParsingError,
 )
 from .env import LLE
 from .observations import ObservationType

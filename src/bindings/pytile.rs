@@ -98,6 +98,8 @@ pub struct PyLaserSource {
     source: LaserSource,
 }
 
+unsafe impl Send for PyLaserSource {}
+
 impl PyLaserSource {
     pub fn new(source: LaserSource) -> Self {
         PyLaserSource { source }
@@ -119,6 +121,18 @@ impl PyLaserSource {
     #[getter]
     fn agent(&self) -> Option<AgentId> {
         self.source.agent()
+    }
+
+    fn set_agent_id(&self, agent_id: AgentId) {
+        self.source.set_agent_id(agent_id);
+    }
+
+    fn turn_on(&self) {
+        self.source.turn_on();
+    }
+
+    fn turn_off(&self) {
+        self.source.turn_off();
     }
 
     pub fn __str__(&self) -> String {

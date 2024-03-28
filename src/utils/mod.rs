@@ -1,3 +1,5 @@
+/// Find duplicates in a slice of values.
+/// Returns a vector of booleans where the value at index i is true if the value at index i is a duplicate.
 pub fn find_duplicates<T>(input: &[T]) -> Vec<bool>
 where
     T: PartialEq,

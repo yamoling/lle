@@ -33,7 +33,7 @@ pub struct World {
     start_positions: Vec<Position>,
     void_positions: Vec<Position>,
     exits: Vec<(Position, Rc<Exit>)>,
-    agent_positions: Vec<Position>,
+    agents_positions: Vec<Position>,
     wall_positions: Vec<Position>,
 
     available_actions: Vec<Vec<Action>>,
@@ -60,7 +60,7 @@ impl World {
         Self {
             width: grid[0].len(),
             height: grid.len(),
-            agent_positions: start_positions.clone(),
+            agents_positions: start_positions.clone(),
             wall_positions: walls_positions,
             void_positions,
             agents,
@@ -88,7 +88,7 @@ impl World {
     }
 
     pub fn agents_positions(&self) -> &Vec<Position> {
-        &self.agent_positions
+        &self.agents_positions
     }
 
     pub fn n_gems(&self) -> usize {
@@ -150,7 +150,7 @@ impl World {
 
     fn compute_available_actions(&self) -> Vec<Vec<Action>> {
         let mut available_actions = vec![];
-        for (agent, agent_pos) in izip!(&self.agents, &self.agent_positions) {
+        for (agent, agent_pos) in izip!(&self.agents, &self.agents_positions) {
             let mut agent_actions = vec![Action::Stay];
             if agent.is_alive() && !agent.has_arrived() {
                 for action in [Action::North, Action::East, Action::South, Action::West] {
@@ -211,11 +211,13 @@ impl World {
                 tile.reset();
             }
         }
-        self.agent_positions = self.start_positions.clone();
-        for ((i, j), agent) in izip!(&self.agent_positions, &self.agents) {
-            self.grid[*i][*j].pre_enter(agent);
+        self.agents_positions = self.start_positions.clone();
+        for ((i, j), agent) in izip!(&self.agents_positions, &self.agents) {
+            self.grid[*i][*j]
+                .pre_enter(agent)
+                .expect("The agent should be able to pre-enter");
         }
-        for ((i, j), agent) in izip!(&self.agent_positions, &mut self.agents) {
+        for ((i, j), agent) in izip!(&self.agents_positions, &mut self.agents) {
             self.grid[*i][*j].enter(agent);
         }
         for agent in &mut self.agents {
@@ -245,19 +247,17 @@ impl World {
             }
         }
         let mut new_positions = self
-            .agent_positions
+            .agents_positions
             .iter()
             .zip(actions)
-            .map(|(pos, action)| {
-                (action + pos).expect("Error while computing new positions: got usize underflow")
-            })
-            .collect::<Vec<_>>();
+            .map(|(pos, action)| (action + pos))
+            .collect::<Result<Vec<Position>, RuntimeWorldError>>()?;
 
         // Check for vertex conflicts
         // If a new_pos occurs more than once, then set it back to its original position
-        World::solve_vertex_conflicts(&mut new_positions, &self.agent_positions);
+        World::solve_vertex_conflicts(&mut new_positions, &self.agents_positions);
         let (mut events, mut agent_died) = self.move_agents(&new_positions);
-        self.agent_positions = new_positions.clone();
+        self.agents_positions = new_positions.clone();
         // At this stage, all agents are on their new positions.
         // However, some events (death) could still happen if an agent has died.
         while agent_died {
@@ -271,7 +271,7 @@ impl World {
 
     fn move_agents(&mut self, new_positions: &[Position]) -> (Vec<WorldEvent>, bool) {
         // Leave old position
-        for (agent, pos) in izip!(&self.agents, &self.agent_positions) {
+        for (agent, pos) in izip!(&self.agents, &self.agents_positions) {
             if agent.is_alive() {
                 let (i, j) = *pos;
                 self.grid[i][j].leave();
@@ -280,7 +280,9 @@ impl World {
         // Pre-enter
         for (agent, pos) in izip!(&self.agents, new_positions) {
             let (i, j) = *pos;
-            self.grid[i][j].pre_enter(agent);
+            self.grid[i][j]
+                .pre_enter(agent)
+                .expect("When moving agents, the pre-enter should not fail");
         }
         // Enter
         let mut events = vec![];
@@ -299,7 +301,7 @@ impl World {
 
     pub fn get_state(&self) -> WorldState {
         WorldState {
-            agents_positions: self.agent_positions.clone(),
+            agents_positions: self.agents_positions.clone(),
             gems_collected: self
                 .gems
                 .iter()
@@ -308,10 +310,7 @@ impl World {
         }
     }
 
-    pub fn force_state(
-        &mut self,
-        state: &WorldState,
-    ) -> Result<Vec<WorldEvent>, RuntimeWorldError> {
+    pub fn set_state(&mut self, state: &WorldState) -> Result<Vec<WorldEvent>, RuntimeWorldError> {
         if state.gems_collected.len() != self.n_gems() {
             return Err(RuntimeWorldError::InvalidNumberOfGems {
                 given: state.gems_collected.len(),
@@ -324,6 +323,20 @@ impl World {
                 expected: self.n_agents(),
             });
         }
+        // If any position is present twice, then the state is invalid
+        if find_duplicates(&state.agents_positions).iter().any(|&b| b) {
+            return Err(RuntimeWorldError::InvalidWorldState {
+                reason: "There are two agents at the same position".into(),
+                state: state.clone(),
+            });
+        }
+
+        for (i, j) in &state.agents_positions {
+            if *i >= self.height || *j >= self.width {
+                return Err(RuntimeWorldError::OutOfWorldPosition { position: (*i, *j) });
+            }
+        }
+        let current_state = self.get_state();
 
         // Reset tiles and agents (but do not enter the new tiles)
         for row in &mut self.grid {
@@ -340,12 +353,20 @@ impl World {
                 gem.collect();
             }
         }
-        self.agent_positions = state.agents_positions.to_vec();
-        for ((i, j), agent) in izip!(&self.agent_positions, &self.agents) {
-            self.grid[*i][*j].pre_enter(agent);
+        for ((i, j), agent) in izip!(&state.agents_positions, &self.agents) {
+            if let Err(reason) = self.grid[*i][*j].pre_enter(agent) {
+                // Reset the state
+                self.set_state(&current_state).unwrap();
+                return Err(RuntimeWorldError::InvalidAgentPosition {
+                    position: (*i, *j),
+                    reason,
+                });
+            }
         }
+        // Set the agents positions after the pre-enter in case it fails
+        self.agents_positions = state.agents_positions.to_vec();
         let mut events = vec![];
-        for ((i, j), agent) in izip!(&self.agent_positions, &mut self.agents) {
+        for ((i, j), agent) in izip!(&self.agents_positions, &mut self.agents) {
             if let Some(event) = self.grid[*i][*j].enter(agent) {
                 events.push(event);
             }
@@ -403,7 +424,7 @@ impl TryFrom<&str> for World {
 impl Clone for World {
     fn clone(&self) -> Self {
         let mut core = Self::try_from(self.world_string.clone()).unwrap();
-        core.force_state(&self.get_state()).unwrap();
+        core.set_state(&self.get_state()).unwrap();
         core
     }
 }

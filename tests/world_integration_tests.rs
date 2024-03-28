@@ -192,10 +192,44 @@ fn test_force_state_agents_have_exited() {
         agents_positions: [(1, 0)].into(),
         gems_collected: [true].into(),
     };
-    w.force_state(&s).unwrap();
+    let events = w.set_state(&s).unwrap();
     for agent in w.agents() {
         assert!(agent.has_arrived());
     }
+    assert_eq!(events.len(), 1);
+    match &events[0] {
+        WorldEvent::AgentExit { agent_id } => {
+            assert_eq!(*agent_id, 0);
+        }
+        other => panic!("Expected AgentExit, got {:?}", other),
+    }
+}
+
+#[test]
+/// In this world state, agent 0 will block the laser.
+/// Agent 1 enters a wall, which is not possible, so the world should raise an error.
+/// We check that the laser is not blocked after the error and that the gem is not collected either.
+fn test_force_wrong_state_check_laser_not_blocked() {
+    let mut w = World::try_from(
+        "
+        S1  S0 X
+        L0E  G  X
+    ",
+    )
+    .unwrap();
+    w.reset();
+    let s = WorldState {
+        agents_positions: [(1, 1), (1, 0)].into(),
+        gems_collected: [true].into(),
+    };
+    let res = w.set_state(&s);
+    if let Err(RuntimeWorldError::InvalidAgentPosition { position, .. }) = res {
+        assert_eq!(position, (1, 0));
+    } else {
+        panic!("Expected InvalidAgentPosition, got {:?}", res);
+    }
+    assert!(w.lasers().all(|(_, l)| l.is_on()));
+    assert!(w.gems().all(|(_, g)| !g.is_collected()));
 }
 
 #[test]
@@ -213,12 +247,34 @@ fn test_force_state_agent_dies() {
         agents_positions: [(1, 0), (1, 1)].into(),
         gems_collected: [false; 1].into(),
     };
-    w.force_state(&s).unwrap();
+    w.set_state(&s).unwrap();
     assert!(w.agents()[0].has_arrived());
     // Agent 1 should ne have arrived (it died before arriving)
     assert!(!w.agents()[1].has_arrived());
     // Agent 1 should be dead
     assert!(w.agents()[1].is_dead());
+}
+
+#[test]
+fn test_set_invalid_state() {
+    let mut w = World::try_from(
+        "
+        S0 S1 X
+        @  @  X
+    ",
+    )
+    .unwrap();
+    w.reset();
+    match w.set_state(&WorldState {
+        agents_positions: vec![(1, 0), (1, 1)],
+        gems_collected: vec![],
+    }) {
+        Err(RuntimeWorldError::InvalidAgentPosition { .. }) => {}
+        other => panic!("Expected InvalidState, got {:?}", other),
+    }
+    let pos = w.agents_positions();
+    assert_eq!(pos[0], (0, 0));
+    assert_eq!(pos[1], (0, 1));
 }
 
 #[test]
@@ -255,4 +311,72 @@ fn test_dead_agent_does_not_block_the_laser() {
             assert!(l.is_on());
         }
     }
+}
+
+#[test]
+fn world_state_equal() {
+    let mut w = World::try_from(
+        "
+        S0 . G
+        .  . X
+    ",
+    )
+    .unwrap();
+    w.reset();
+    let s1 = w.get_state();
+    let s2 = w.get_state();
+    assert_eq!(s1, s2);
+    w.step(&[Action::Stay]).unwrap();
+    let s3 = w.get_state();
+    assert_eq!(s1, s3);
+    w.step(&[Action::East]).unwrap();
+    let s4 = w.get_state();
+    assert_ne!(s3, s4);
+}
+
+#[test]
+fn change_laser_id() {
+    let mut w = World::try_from(
+        "
+        S0 .   G  X
+        .  .  L0W .
+        .  S1  .  X 
+        .  .   .  .",
+    )
+    .unwrap();
+    w.reset();
+    assert!(w.lasers().all(|(_, l)| l.agent_id() == 0));
+    let (_, source) = w.laser_sources().next().unwrap();
+    source.set_agent_id(1);
+    assert_eq!(source.agent_id(), 1);
+    assert!(w.lasers().all(|(_, l)| l.agent_id() == 1));
+
+    // Kill agent 0 in the laser
+    let events = w.step(&[Action::South, Action::Stay]).unwrap();
+    assert_eq!(events.len(), 1);
+    match &events[0] {
+        WorldEvent::AgentDied { agent_id } => {
+            assert_eq!(*agent_id, 0);
+        }
+        other => panic!("Expected AgentDied, got {:?}", other),
+    }
+}
+
+#[test]
+fn turn_off_laser_source() {
+    let mut w = World::try_from(
+        "
+        S0 .   G  X
+        .  .  L0W .
+        .  S1  .  X 
+        .  .   .  .",
+    )
+    .unwrap();
+    w.reset();
+    assert!(w.lasers().all(|(_, l)| l.is_on()));
+    let (_, source) = w.laser_sources().next().unwrap();
+    source.turn_off();
+    assert!(w.lasers().all(|(_, l)| l.is_off()));
+    source.turn_on();
+    assert!(w.lasers().all(|(_, l)| l.is_on()));
 }

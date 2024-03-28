@@ -1,6 +1,6 @@
 use std::{error::Error, fmt::Display};
 
-use crate::{agent::AgentId, Action};
+use crate::{agent::AgentId, Action, Position, WorldState};
 
 #[derive(Debug)]
 pub enum RuntimeWorldError {
@@ -17,15 +17,21 @@ pub enum RuntimeWorldError {
         given: usize,
         expected: usize,
     },
-    InvalidPosition {
-        i: i32,
-        j: i32,
+    InvalidAgentPosition {
+        position: Position,
+        reason: String,
+    },
+    OutOfWorldPosition {
+        position: Position,
     },
     InvalidNumberOfActions {
         given: usize,
         expected: usize,
     },
-    WorldIsDone,
+    InvalidWorldState {
+        reason: String,
+        state: WorldState,
+    },
 }
 
 impl Display for RuntimeWorldError {

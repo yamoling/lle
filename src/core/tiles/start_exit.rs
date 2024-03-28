@@ -25,8 +25,8 @@ impl Start {
 }
 
 impl Tile for Start {
-    fn pre_enter(&self, agent: &Agent) {
-        self.floor.pre_enter(agent);
+    fn pre_enter(&self, agent: &Agent) -> Result<(), String> {
+        self.floor.pre_enter(agent)
     }
     fn reset(&self) {
         self.floor.reset();
@@ -56,8 +56,8 @@ pub struct Exit {
 }
 
 impl Tile for Exit {
-    fn pre_enter(&self, agent: &Agent) {
-        self.floor.pre_enter(agent);
+    fn pre_enter(&self, agent: &Agent) -> Result<(), String> {
+        self.floor.pre_enter(agent)
     }
 
     fn reset(&self) {

@@ -2,7 +2,7 @@ from threading import Thread
 import pytest
 from copy import deepcopy
 
-from lle import World, WorldState, Action
+from lle import World, WorldState, Action, ParsingError, InvalidActionError, EventType, InvalidWorldStateError
 
 
 def test_available_actions():
@@ -26,7 +26,7 @@ def test_available_actions():
 
 def test_parse_wrong_worlds():
     # Not enough finish tiles for all the agents
-    with pytest.raises(ValueError):
+    with pytest.raises(ParsingError):
         World(
             """
             @ @  @ @
@@ -36,7 +36,7 @@ def test_parse_wrong_worlds():
         )
 
     # Zero agent in the environment
-    with pytest.raises(ValueError):
+    with pytest.raises(ParsingError):
         World("X G")
 
 
@@ -73,7 +73,7 @@ def test_walk_into_wall():
     )
     world.reset()
     world.step([Action.SOUTH])
-    with pytest.raises(ValueError):
+    with pytest.raises(InvalidActionError):
         world.step([Action.SOUTH])
 
 
@@ -103,15 +103,16 @@ G  . . ."""
 def test_vertex_conflict():
     world = World(
         """
-        S0 X  .  .
-        .  .  S1  .
+        .  X  .  .
+        S0 .  S1  .
         .  X  .  ."""
     )
     world.reset()
-    world.step([Action.SOUTH, Action.WEST])
+    state = world.get_state()
     # Move to provoke a vertex conflict -> observations should remain identical
-    with pytest.raises(ValueError) as _:
-        world.step([Action.STAY, Action.WEST])
+    world.step([Action.EAST, Action.WEST])
+    new_state = world.get_state()
+    assert state == new_state
 
 
 def test_swapping_conflict():
@@ -123,9 +124,11 @@ S0 X  .  .
     )
     world.reset()
     world.step([Action.SOUTH, Action.WEST])
-    # Move to provoke a swapping conflict -> observations should remain identical
-    with pytest.raises(ValueError) as _:
+    try:
         world.step([Action.EAST, Action.WEST])
+        raise Exception("These actions should not be allowed")
+    except InvalidActionError:
+        pass
 
 
 def test_walk_into_laser_source():
@@ -263,13 +266,38 @@ def test_set_state():
     world = World("S0 G X")
     world.reset()
     world.step([Action.EAST])
-    world.set_state(WorldState([(0, 0)], [False]))
+    events = world.set_state(WorldState([(0, 0)], [False]))
     assert world.agents_positions == [(0, 0)]
     assert world.gems_collected == 0
+    assert len(events) == 0
 
-    world.set_state(WorldState([(0, 2)], [True]))
+    events = world.set_state(WorldState([(0, 2)], [True]))
     assert world.agents_positions == [(0, 2)]
     assert world.gems_collected == 1
+    assert len(events) == 1
+    assert events[0].agent_id == 0
+    assert events[0].event_type == EventType.AGENT_EXIT
+
+
+def test_set_invalid_state():
+    world = World(
+        """
+        S1  S0 X
+        L0E  G  X"""
+    )
+    world.reset()
+    # Wrong number of gems
+    with pytest.raises(InvalidWorldStateError):
+        world.set_state(WorldState([(0, 0), (0, 1)], [True, True]))
+    # Wrong number of agents
+    with pytest.raises(InvalidWorldStateError):
+        world.set_state(WorldState([(0, 0)], [True]))
+    # Invalid agent position (out of bounds)
+    with pytest.raises(InvalidWorldStateError):
+        world.set_state(WorldState([(1, 1), (1, 0)], [True]))
+    # Two agents on the same position
+    with pytest.raises(InvalidWorldStateError):
+        world.set_state(WorldState([(0, 0), (0, 0)], [True]))
 
 
 def test_world_state_hash_eq():
@@ -299,3 +327,23 @@ def test_get_standard_level():
         World.level(i)
         World.from_file(f"lvl{i}")
         World.from_file(f"level{i}")
+
+
+def test_change_laser_colour():
+    world = World(
+        """
+        X L0S .
+        .  .  S1
+        X  .  S0"""
+    )
+    world.reset()
+    world.step([Action.STAY, Action.WEST])
+    assert world.agents[1].is_dead, "Agent 1 should be dead"
+
+    world.reset()
+    _, source = world.laser_sources[0]
+    source.set_agent_id(1)
+    world.step([Action.STAY, Action.WEST])
+    assert world.agents[1].is_alive, "Agent 1 should be alive"
+    world.step([Action.WEST, Action.WEST])
+    assert world.agents[0].is_dead, "Agent 0 should be dead in the laser"

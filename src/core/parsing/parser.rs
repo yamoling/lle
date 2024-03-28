@@ -160,6 +160,7 @@ fn laser_setup(
             let wrapped = grid[pos.0].remove(pos.1);
             let laser = Rc::new(Laser::new(source.agent_id(), dir, wrapped, beam));
             lasers.push((*pos, laser.clone()));
+            source.add_laser_tile(laser.clone());
             grid[pos.0].insert(pos.1, laser);
         }
     }
