@@ -83,7 +83,7 @@ class LLE(RLEnv[DiscreteActionSpace]):
         return available_actions
 
     @override
-    def step(self, actions: Sequence[int]):
+    def step(self, actions: Sequence[int] | np.ndarray[np.int32, Any]):
         assert not self.done, "Can not play when the game is done !"
         events = self.world.step([Action(a) for a in actions])
 
