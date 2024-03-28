@@ -1160,7 +1160,7 @@ tests = ["gymnasium[accept-rom-license,atari] (>=0.28.1,<0.29.0)", "pettingzoo (
 type = "git"
 url = "https://github.com/yamoling/rlenv.git"
 reference = "v1.0.0"
-resolved_reference = "6f67a664f5477b3a42f19e0e364b0be9b215bef4"
+resolved_reference = "a8284e292ee922f2df6f3d5ee5516f27b514810e"
 
 [[package]]
 name = "scipy"
