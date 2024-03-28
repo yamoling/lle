@@ -22,18 +22,13 @@ The `LLE` class inherits from the `RLEnv` class in the [rlenv](https://github.co
 
 ```python
 from lle import LLE
-import numpy as np
-import random
 
-env = LLE.from_str("S0 G X") # Create an environment from a string
-# env = LLE.from_file("text_file.txt") # or from a text file
-# env = LLE.level(6)         # Or use a pre-defined level (1 to 6)
+env = LLE.from_str("S0 G X")
 done = truncated = False
 obs = env.reset()
 while not (done or truncated):
     # env.render() # Uncomment to render
-    available_indices = [np.nonzero(available)[0] for available in obs.available_actions]
-    actions = [random.choice(indices) for indices in available_indices]
+    actions = env.action_space.sample(env.available_actions())
     obs, reward, done, truncated, info = env.step(actions)
 ```
 
@@ -57,7 +52,7 @@ You can also access and force the state of the world
 ```python
 state = world.get_state()
 ...
-world.set_state(state)
+events = world.set_state(state)
 ```
 
 You can query the world on the tiles with `world.start_pos`, `world.exit_pos`, `world.gem_pos`, ...
