@@ -380,3 +380,19 @@ fn turn_off_laser_source() {
     source.turn_on();
     assert!(w.lasers().all(|(_, l)| l.is_on()));
 }
+
+#[test]
+fn test_laser_id() {
+    let mut w = World::try_from(
+        "
+        S0 .   G  X
+        .  .  L0W .
+        .  S1  .  X 
+        .  .   .  .",
+    )
+    .unwrap();
+    w.reset();
+    let (_, source) = w.laser_sources().next().unwrap();
+    assert_eq!(source.laser_id(), 0);
+    assert!(w.lasers().all(|(_, l)| l.laser_id() == 0));
+}

@@ -127,6 +127,7 @@ impl PyWorld {
                 (
                     *pos,
                     PyLaser::new(
+                        laser.laser_id(),
                         laser.is_on(),
                         PyDirection::new(laser.direction()),
                         laser.agent_id(),

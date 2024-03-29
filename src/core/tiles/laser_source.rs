@@ -1,6 +1,7 @@
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,
+    sync::Mutex,
 };
 
 use crate::{
@@ -9,10 +10,14 @@ use crate::{
     WorldEvent,
 };
 
+pub type LaserId = usize;
 use super::{Direction, Laser, Tile, Wall};
+
+const NUM_LASERS: Mutex<LaserId> = Mutex::new(0);
 
 #[derive(Clone)]
 pub struct LaserSource {
+    laser_id: LaserId,
     wall: Wall,
     laser_tiles: RefCell<Vec<Rc<Laser>>>,
     direction: Direction,
@@ -21,7 +26,14 @@ pub struct LaserSource {
 
 impl LaserSource {
     pub fn new(direction: Direction, agent_id: AgentId) -> Self {
+        // Increment the number of lasers and get the new id
+        let binding = NUM_LASERS;
+        let mut num_lasers = binding.lock().unwrap();
+        let laser_id = *num_lasers;
+        *num_lasers += 1;
+
         Self {
+            laser_id,
             wall: Wall {},
             direction,
             agent_id: Cell::new(agent_id),
@@ -35,6 +47,10 @@ impl LaserSource {
 
     pub fn direction(&self) -> Direction {
         self.direction
+    }
+
+    pub fn laser_id(&self) -> LaserId {
+        self.laser_id
     }
 
     pub fn turn_on(&self) {

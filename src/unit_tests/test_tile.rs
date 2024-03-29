@@ -11,7 +11,7 @@ fn make_laser(agent_id: AgentId, length: usize) -> Laser {
     let mut beam = Vec::with_capacity(4);
     (0..length).for_each(|_| beam.push(Rc::new(Cell::new(true))));
     let beam = LaserBeam::new(beam);
-    Laser::new(agent_id, crate::tiles::Direction::East, wrapped, beam)
+    Laser::new(0, agent_id, crate::tiles::Direction::East, wrapped, beam)
 }
 
 #[test]

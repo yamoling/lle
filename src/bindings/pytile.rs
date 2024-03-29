@@ -2,7 +2,7 @@ use pyo3::prelude::*;
 
 use crate::{
     agent::AgentId,
-    tiles::{LaserSource, Tile},
+    tiles::{LaserId, LaserSource},
 };
 
 use super::pydirection::PyDirection;
@@ -49,16 +49,20 @@ pub struct PyLaser {
     agent_id: AgentId,
     #[pyo3(get, set)]
     agent: Option<AgentId>,
+    #[pyo3(get)]
+    laser_id: LaserId,
 }
 
 impl PyLaser {
     pub fn new(
+        laser_id: LaserId,
         is_on: bool,
         direction: PyDirection,
         agent_id: AgentId,
         agent: Option<AgentId>,
     ) -> Self {
         PyLaser {
+            laser_id,
             is_on,
             direction,
             agent,
@@ -81,7 +85,8 @@ impl PyLaser {
         };
 
         format!(
-            "Laser(is_on={}, direction={}, agent_id={}, agent={agent})",
+            "Laser(laser_id={}, is_on={}, direction={}, agent_id={}, agent={agent})",
+            self.laser_id,
             self.is_on,
             self.direction.name(),
             self.agent_id
@@ -119,8 +124,8 @@ impl PyLaserSource {
     }
 
     #[getter]
-    fn agent(&self) -> Option<AgentId> {
-        self.source.agent()
+    fn laser_id(&self) -> LaserId {
+        self.source.laser_id()
     }
 
     fn set_agent_id(&self, agent_id: AgentId) {
@@ -137,7 +142,8 @@ impl PyLaserSource {
 
     pub fn __str__(&self) -> String {
         format!(
-            "LaserSource(direction={}, agent_id={})",
+            "LaserSource(laser_id={}, direction={}, agent_id={})",
+            self.laser_id(),
             self.direction().name(),
             self.source.agent_id(),
         )

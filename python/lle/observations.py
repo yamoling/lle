@@ -1,6 +1,6 @@
 from typing import Any
 from abc import ABC, abstractmethod
-from enum import IntEnum, auto
+from enum import IntEnum
 import numpy as np
 import cv2
 from lle import World, AgentId, Position
@@ -9,18 +9,18 @@ from lle import World, AgentId, Position
 class ObservationType(IntEnum):
     """The different observation types for the World"""
 
-    RELATIVE_POSITIONS = auto()
-    STATE = auto()
-    RGB_IMAGE = auto()
-    LAYERED = auto()
-    FLATTENED = auto()
-    PARTIAL_3x3 = auto()
-    PARTIAL_5x5 = auto()
-    PARTIAL_7x7 = auto()
-    LAYERED_PADDED = auto()
-    LAYERED_PADDED_1AGENT = auto()
-    LAYERED_PADDED_2AGENTS = auto()
-    LAYERED_PADDED_3AGENTS = auto()
+    RELATIVE_POSITIONS = 0
+    STATE = 1
+    RGB_IMAGE = 2
+    LAYERED = 3
+    FLATTENED = 4
+    PARTIAL_3x3 = 5
+    PARTIAL_5x5 = 6
+    PARTIAL_7x7 = 7
+    LAYERED_PADDED = 8
+    LAYERED_PADDED_1AGENT = 9
+    LAYERED_PADDED_2AGENTS = 10
+    LAYERED_PADDED_3AGENTS = 11
 
     @staticmethod
     def from_str(s: str) -> "ObservationType":

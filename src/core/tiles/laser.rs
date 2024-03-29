@@ -6,7 +6,7 @@ use crate::{
     WorldEvent,
 };
 
-use super::Tile;
+use super::{laser_source::LaserId, Tile};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Direction {
@@ -80,6 +80,7 @@ impl LaserBeam {
 }
 
 pub struct Laser {
+    laser_id: LaserId,
     direction: Direction,
     agent_id: Cell<AgentId>,
     beam: LaserBeam,
@@ -88,17 +89,23 @@ pub struct Laser {
 
 impl Laser {
     pub fn new(
+        laser_id: LaserId,
         agent_id: AgentId,
         direction: Direction,
         wrapped: Rc<dyn Tile>,
         beam: LaserBeam,
     ) -> Self {
         Self {
+            laser_id,
             agent_id: Cell::new(agent_id),
             direction,
             wrapped,
             beam,
         }
+    }
+
+    pub fn laser_id(&self) -> LaserId {
+        self.laser_id
     }
 
     pub fn agent_id(&self) -> AgentId {

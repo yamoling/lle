@@ -137,6 +137,7 @@ fn laser_setup(
     let width = grid[0].len() as i32;
     let height: i32 = grid.len() as i32;
     for (pos, source) in laser_sources.iter() {
+        let laser_id = source.laser_id();
         let dir = source.direction();
         let delta = dir.delta();
         let (mut i, mut j) = (pos.0 as i32, pos.1 as i32);
@@ -158,7 +159,7 @@ fn laser_setup(
         for (i, pos) in beam_pos.iter().enumerate() {
             let beam = LaserBeam::new(beam[i..].to_vec());
             let wrapped = grid[pos.0].remove(pos.1);
-            let laser = Rc::new(Laser::new(source.agent_id(), dir, wrapped, beam));
+            let laser = Rc::new(Laser::new(laser_id, source.agent_id(), dir, wrapped, beam));
             lasers.push((*pos, laser.clone()));
             source.add_laser_tile(laser.clone());
             grid[pos.0].insert(pos.1, laser);
