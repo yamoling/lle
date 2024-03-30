@@ -76,3 +76,4 @@ docs/_build/
 .ruff_cache
 
 Cargo.lock
+poetry.lock
