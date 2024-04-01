@@ -41,13 +41,13 @@ impl PyGem {
 
 #[pyclass(name = "Laser")]
 pub struct PyLaser {
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     is_on: bool,
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     direction: PyDirection,
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     agent_id: AgentId,
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     agent: Option<AgentId>,
     #[pyo3(get)]
     laser_id: LaserId,

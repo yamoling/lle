@@ -347,3 +347,14 @@ def test_change_laser_colour():
     assert world.agents[1].is_alive, "Agent 1 should be alive"
     world.step([Action.WEST, Action.WEST])
     assert world.agents[0].is_dead, "Agent 0 should be dead in the laser"
+
+
+def test_laser_tile_state():
+    world = World("L0E S0 . X")
+    world.reset()
+    pos, laser = world.lasers[0]
+    assert pos == (0, 1)
+    assert laser.is_off
+
+    world.step([Action.EAST])
+    assert laser.is_on

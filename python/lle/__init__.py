@@ -12,6 +12,7 @@ __all__ = [
     "ObservationType",
     "Position",
     "AgentId",
+    "LaserId",
     "WorldEvent",
     "EventType",
     "InvalidActionError",
@@ -20,7 +21,7 @@ __all__ = [
     "ParsingError",
 ]
 
-from .types import Position, AgentId
+from .types import Position, AgentId, LaserId
 
 from .lle import (
     __version__,

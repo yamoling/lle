@@ -8,13 +8,8 @@ import random
 def test_pickle_world_state():
     for i in range(50):
         s = WorldState(
-            gems_collected=[
-                random.choice([True, False]) for _ in range(random.randint(0, 10))
-            ],
-            agents_positions=[
-                (random.randint(0, 50), random.randint(0, 90))
-                for _ in range(random.randint(0, 10))
-            ],
+            gems_collected=[random.choice([True, False]) for _ in range(random.randint(0, 10))],
+            agents_positions=[(random.randint(0, 50), random.randint(0, 90)) for _ in range(random.randint(0, 10))],
         )
         serialised = pickle.dumps(s)
         deserialised = pickle.loads(serialised)

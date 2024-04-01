@@ -1,13 +1,13 @@
 use numpy::PyArray1;
 use pyo3::{prelude::*, types::PyDict};
 
-use crate::{Position, Renderer, Tile, World, WorldEvent, WorldState};
+use crate::{Position, Renderer, Tile, World, WorldState};
 
 use super::{
     pyaction::PyAction,
     pyagent::PyAgent,
     pydirection::PyDirection,
-    pyevent::{PyEventType, PyWorldEvent},
+    pyevent::PyWorldEvent,
     pyexceptions::{parse_error_to_exception, runtime_error_to_pyexception},
     pytile::{PyGem, PyLaser, PyLaserSource},
     pyworld_state::PyWorldState,
@@ -158,20 +158,8 @@ impl PyWorld {
         let actions: Vec<_> = actions.into_iter().map(|a| a.action).collect();
         match self.world.step(&actions) {
             Ok(events) => {
-                let events: Vec<PyWorldEvent> = events
-                    .iter()
-                    .map(|e| match e {
-                        WorldEvent::AgentExit { agent_id } => {
-                            PyWorldEvent::new(PyEventType::AgentExit, *agent_id)
-                        }
-                        WorldEvent::GemCollected { agent_id } => {
-                            PyWorldEvent::new(PyEventType::GemCollected, *agent_id)
-                        }
-                        WorldEvent::AgentDied { agent_id } => {
-                            PyWorldEvent::new(PyEventType::AgentDied, *agent_id)
-                        }
-                    })
-                    .collect();
+                let events: Vec<PyWorldEvent> =
+                    events.iter().map(|e| PyWorldEvent::from(e)).collect();
                 Ok(events)
             }
             Err(e) => Err(runtime_error_to_pyexception(e)),

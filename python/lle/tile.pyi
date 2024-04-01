@@ -12,19 +12,29 @@ class Gem:
 
 @final
 class Laser:
-    agent: Optional[AgentId]
-    """The id of the agent currently standing on the tile, if any."""
-    is_on: bool
-    is_off: bool
-    agent_id: AgentId
-    """The id of the agent that can block the laser."""
-    direction: Direction
-    """The direction of the laser beam."""
-    def __str__(self) -> str: ...
-    def __repr__(self) -> str: ...
+    @property
+    def agent(self) -> Optional[AgentId]:
+        """The id of the agent currently standing on the tile, if any."""
+
+    @property
+    def is_on(self) -> bool:
+        """Whether the laser is on."""
+
+    @property
+    def is_off(self) -> bool:
+        """Whether the laser is off."""
+
+    @property
+    def agent_id(self) -> AgentId:
+        """The id of the agent that can block the laser."""
+    @property
+    def direction(self) -> Direction:
+        """The direction of the laser beam."""
     @property
     def laser_id(self) -> LaserId:
         """The ID of the laser."""
+    def __str__(self) -> str: ...
+    def __repr__(self) -> str: ...
 
 @final
 class LaserSource:
