@@ -9,9 +9,8 @@ lle.direction
 lle.agent
 lle.action
 lle.event
+lle.exceptions
 
 # The Tile class is just there to be subclassed in Python but does not actually exist
-lle.lle.Tile
+# lle.lle.Tile
 
-# Error such that the 'render' method would be abstract at runtime... -> Ignore it
-lle.env.RLEnv.render

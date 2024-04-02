@@ -91,14 +91,14 @@ def test_observe_layered_gems_walls():
 
     for i, j in world.wall_pos:
         assert np.all(layers[:, WALL_LAYER, i, j] == 1)
-    for (i, j), _ in world.gems:
+    for i, j in world.gems.keys():
         assert np.all(layers[:, GEM_LAYER, i, j] == 1)
     for i, j in world.exit_pos:
         assert np.all(layers[:, EXIT_LAYER, i, j] == 1)
     for (i, j), laser in world.lasers:
         if laser.is_on:
             assert np.all(layers[:, LASER_0_LAYER + laser.agent_id, i, j] == 1)
-    for (i, j), source in world.laser_sources:
+    for (i, j), source in world.laser_sources.items():
         assert np.all(layers[:, LASER_0_LAYER + source.agent_id, i, j] == -1)
     assert np.all(layers[:, VOID_LAYER] == 0)
 

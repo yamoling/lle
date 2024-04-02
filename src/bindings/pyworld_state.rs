@@ -24,7 +24,7 @@ impl PyWorldState {
         }
     }
 
-    fn __deepcopy__(&self, _memo: &PyDict) -> Self {
+    fn __deepcopy__(&self, _memo: &Bound<'_, PyDict>) -> Self {
         self.clone()
     }
 

@@ -74,3 +74,6 @@ docs/_build/
 .mypy_cache
 .env
 .ruff_cache
+
+Cargo.lock
+poetry.lock

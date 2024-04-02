@@ -1,6 +1,6 @@
 from typing import Any
 from abc import ABC, abstractmethod
-from enum import IntEnum, auto
+from enum import IntEnum
 import numpy as np
 import cv2
 from lle import World, AgentId, Position
@@ -9,18 +9,18 @@ from lle import World, AgentId, Position
 class ObservationType(IntEnum):
     """The different observation types for the World"""
 
-    RELATIVE_POSITIONS = auto()
-    STATE = auto()
-    RGB_IMAGE = auto()
-    LAYERED = auto()
-    FLATTENED = auto()
-    PARTIAL_3x3 = auto()
-    PARTIAL_5x5 = auto()
-    PARTIAL_7x7 = auto()
-    LAYERED_PADDED = auto()
-    LAYERED_PADDED_1AGENT = auto()
-    LAYERED_PADDED_2AGENTS = auto()
-    LAYERED_PADDED_3AGENTS = auto()
+    RELATIVE_POSITIONS = 0
+    STATE = 1
+    RGB_IMAGE = 2
+    LAYERED = 3
+    FLATTENED = 4
+    PARTIAL_3x3 = 5
+    PARTIAL_5x5 = 6
+    PARTIAL_7x7 = 7
+    LAYERED_PADDED = 8
+    LAYERED_PADDED_1AGENT = 9
+    LAYERED_PADDED_2AGENTS = 10
+    LAYERED_PADDED_3AGENTS = 11
 
     @staticmethod
     def from_str(s: str) -> "ObservationType":
@@ -93,7 +93,7 @@ class StateGenerator(ObservationGenerator):
     def observe(self):
         positions = np.tile((self._world.agents_positions / self.dimensions).flatten(), (self._world.n_agents, 1))
         gems_collected = np.tile(
-            np.array([not gem.is_collected for _, gem in self._world.gems], dtype=np.float32), (self._world.n_agents, 1)
+            np.array([not gem.is_collected for gem in self._world.gems.values()], dtype=np.float32), (self._world.n_agents, 1)
         )
         return np.concatenate([positions, gems_collected], axis=1).astype(np.float32)
 
@@ -171,7 +171,7 @@ class LayeredPadded(ObservationGenerator):
         for i, j in self._world.wall_pos:
             obs[self.WALL, i, j] = 1.0
 
-        for (i, j), source in self._world.laser_sources:
+        for (i, j), source in self._world.laser_sources.items():
             obs[self.LASER_0 + source.agent_id, i, j] = -1.0
             obs[self.WALL, i, j] = 1.0
 
@@ -185,7 +185,7 @@ class LayeredPadded(ObservationGenerator):
         for (i, j), laser in self._world.lasers:
             if laser.is_on:
                 obs[self.LASER_0 + laser.agent_id, i, j] = 1.0
-        for (i, j), gem in self._world.gems:
+        for (i, j), gem in self._world.gems.items():
             if not gem.is_collected:
                 obs[self.GEM, i, j] = 1.0
         for i, (y, x) in enumerate(self._world.agents_positions):
@@ -241,7 +241,8 @@ class PartialGenerator(ObservationGenerator):
         super().__init__(world)
         assert square_size % 2 == 1, "Can only use odd numbers for the square size"
         self.size = square_size
-        self._shape = (world.n_agents * 2 + 3, self.size, self.size)
+        # Each agent, each laser, walls, gems, exits
+        self._shape = (world.n_agents + world.n_agents + 3, self.size, self.size)
         self._center = self.size // 2
         self.WALL = world.n_agents
         self.LASER_0 = self.WALL + 1
@@ -271,7 +272,7 @@ class PartialGenerator(ObservationGenerator):
             for a2, other_pos in enumerate(self._world.agents_positions):
                 self.encode_layer(obs[a, a2], agent_pos, [other_pos])
             # Gems
-            self.encode_layer(obs[a, self.GEM], agent_pos, [gem_pos for gem_pos, gem in self._world.gems if not gem.is_collected])
+            self.encode_layer(obs[a, self.GEM], agent_pos, [gem_pos for gem_pos, gem in self._world.gems.items() if not gem.is_collected])
             # Exits
             self.encode_layer(obs[a, self.EXIT], agent_pos, [exit_pos for exit_pos in self._world.exit_pos])
             # Walls
@@ -281,7 +282,7 @@ class PartialGenerator(ObservationGenerator):
             for agent_id, positions in laser_positions.items():
                 self.encode_layer(obs[a, self.LASER_0 + agent_id], agent_pos, positions)
             # Laser sources
-            for pos, source in self._world.laser_sources:
+            for pos, source in self._world.laser_sources.items():
                 self.encode_layer(obs[a, self.LASER_0 + source.agent_id], agent_pos, [pos], fill_value=-1.0)
         return obs
 

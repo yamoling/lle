@@ -329,21 +329,82 @@ def test_get_standard_level():
         World.from_file(f"level{i}")
 
 
+def test_laser_tile_state():
+    world = World("L0E S0 . X")
+    world.reset()
+    for _, laser in world.lasers:
+        assert laser.is_off
+
+    world.step([Action.EAST])
+    for pos, laser in world.lasers:
+        match pos:
+            case (0, 1):
+                assert laser.is_on
+            case _:
+                assert laser.is_off
+
+
+def test_disable_deadly_laser_source_and_walk_into_it():
+    world = World(
+        """
+        L0E . . X
+        S0 S1 . X
+        """
+    )
+    world.reset()
+    source = world.laser_sources[0, 0]
+    world.disable_laser_source(source)
+    events = world.step([Action.STAY, Action.NORTH])
+    assert len(events) == 0
+    assert all(a.is_alive for a in world.agents)
+
+
 def test_change_laser_colour():
     world = World(
         """
-        X L0S .
-        .  .  S1
-        X  .  S0"""
+        L0E . .  .  X
+        L1E . S1 S0 X
+        """
     )
     world.reset()
-    world.step([Action.STAY, Action.WEST])
-    assert world.agents[1].is_dead, "Agent 1 should be dead"
+    lasers = dict(world.lasers)
+    sources = dict(world.laser_sources)
+    assert lasers[0, 1].agent_id == 0
+    assert lasers[1, 1].agent_id == 1
+    top_source = sources[0, 0]
 
+    NEW_COLOUR = 1
+    world.set_laser_colour(top_source, NEW_COLOUR)
     world.reset()
-    _, source = world.laser_sources[0]
-    source.set_agent_id(1)
-    world.step([Action.STAY, Action.WEST])
-    assert world.agents[1].is_alive, "Agent 1 should be alive"
-    world.step([Action.WEST, Action.WEST])
-    assert world.agents[0].is_dead, "Agent 0 should be dead in the laser"
+
+    # Check that all the laser tiles have changed their colour
+    for (i, _), laser in world.lasers:
+        if i == 0:
+            assert laser.agent_id == NEW_COLOUR
+    events = world.step([Action.NORTH, Action.NORTH])
+    assert len(events) == 0
+    assert all(a.is_alive for a in world.agents)
+
+
+def test_change_laser_colour_to_negative_colour():
+    world = World("L0E S0 . X")
+    world.reset()
+    source = world.laser_sources[0, 0]
+
+    try:
+        world.set_laser_colour(source, -1)
+        raise Exception("Negative colours are not allowed")
+    except ValueError:
+        pass
+
+
+def test_change_laser_colour_to_invalid_colour():
+    world = World("L0E S0 . X")
+    world.reset()
+    source = world.laser_sources[0, 0]
+
+    try:
+        world.set_laser_colour(source, 2)
+        raise Exception("This should not be allowed because there is only one agent in the world")
+    except ValueError:
+        pass

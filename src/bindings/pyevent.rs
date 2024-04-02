@@ -15,10 +15,10 @@ pub enum PyEventType {
 #[derive(Clone)]
 #[pyclass(name = "WorldEvent", module = "lle")]
 pub struct PyWorldEvent {
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     event_type: PyEventType,
     // pos: Position,
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     agent_id: AgentId,
 }
 

@@ -1,4 +1,4 @@
-from typing import Any, Literal, ClassVar, Sequence
+from typing import Any, Literal, ClassVar
 from typing_extensions import override
 from dataclasses import dataclass
 from serde import serde
@@ -75,15 +75,15 @@ class LLE(RLEnv[DiscreteActionSpace]):
         return Observation(self.observation_generator.observe(), self.available_actions(), self.get_state())
 
     @override
-    def available_actions(self) -> np.ndarray[np.int32, Any]:
-        available_actions = np.zeros((self.n_agents, self.n_actions), dtype=np.int64)
+    def available_actions(self):
+        available_actions = np.zeros((self.n_agents, self.n_actions), dtype=np.float32)
         for agent, actions in enumerate(self.world.available_actions()):
             for action in actions:
                 available_actions[agent, action.value] = 1
         return available_actions
 
     @override
-    def step(self, actions: Sequence[int] | np.ndarray[np.int32, Any]):
+    def step(self, actions: list[int] | np.ndarray[np.int32, Any]):
         assert not self.done, "Can not play when the game is done !"
         events = self.world.step([Action(a) for a in actions])
 

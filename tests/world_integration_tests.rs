@@ -1,4 +1,4 @@
-use lle::{Action, ParseError, RuntimeWorldError, World, WorldEvent, WorldState};
+use lle::{tiles::Laser, Action, ParseError, RuntimeWorldError, World, WorldEvent, WorldState};
 
 #[test]
 fn test_available_actions() {
@@ -363,7 +363,7 @@ fn change_laser_id() {
 }
 
 #[test]
-fn turn_off_laser_source() {
+fn disable_laser_source() {
     let mut w = World::try_from(
         "
         S0 .   G  X
@@ -375,8 +375,51 @@ fn turn_off_laser_source() {
     w.reset();
     assert!(w.lasers().all(|(_, l)| l.is_on()));
     let (_, source) = w.laser_sources().next().unwrap();
-    source.turn_off();
+    source.disable();
     assert!(w.lasers().all(|(_, l)| l.is_off()));
-    source.turn_on();
+    source.enable();
     assert!(w.lasers().all(|(_, l)| l.is_on()));
+}
+
+/// We check that disabling a laser source will turn off the lasers it is connected to,
+/// even when an agent walks into the beam and then walks back away.
+#[test]
+fn disable_laser_source_and_block_with_agent() {
+    let mut w = World::try_from("L0E . S0 X").unwrap();
+    w.reset();
+
+    fn get_laser_at(w: &World, pos: (usize, usize)) -> &Laser {
+        w.lasers()
+            .filter(|(p, _)| **p == pos)
+            .map(|(_, l)| l)
+            .collect::<Vec<_>>()
+            .first()
+            .unwrap()
+    }
+    let laser = get_laser_at(&w, (0, 1));
+    assert!(laser.is_on());
+    w.laser_sources().next().unwrap().1.disable();
+    assert!(laser.is_off());
+    w.step(&[Action::West]).unwrap();
+    let laser = get_laser_at(&w, (0, 2));
+    assert!(laser.is_off());
+    w.step(&[Action::East]).unwrap();
+    let laser = get_laser_at(&w, (0, 1));
+    assert!(laser.is_off());
+}
+
+#[test]
+fn test_laser_id() {
+    let mut w = World::try_from(
+        "
+        S0 .   G  X
+        .  .  L0W .
+        .  S1  .  X 
+        .  .   .  .",
+    )
+    .unwrap();
+    w.reset();
+    let (_, source) = w.laser_sources().next().unwrap();
+    assert_eq!(source.laser_id(), 0);
+    assert!(w.lasers().all(|(_, l)| l.laser_id() == 0));
 }

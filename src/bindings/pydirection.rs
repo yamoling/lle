@@ -2,13 +2,19 @@ use crate::tiles::Direction;
 use pyo3::{prelude::*, pyclass::CompareOp};
 
 #[pyclass(name = "Direction")]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PyDirection {
     direction: Direction,
 }
 
 impl PyDirection {
     pub fn new(direction: Direction) -> Self {
+        Self { direction }
+    }
+}
+
+impl From<Direction> for PyDirection {
+    fn from(direction: Direction) -> Self {
         Self { direction }
     }
 }

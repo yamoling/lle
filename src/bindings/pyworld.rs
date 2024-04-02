@@ -1,13 +1,14 @@
-use numpy::PyArray1;
-use pyo3::{prelude::*, types::PyDict};
+use std::collections::HashMap;
 
-use crate::{Position, Renderer, Tile, World, WorldEvent, WorldState};
+use numpy::{PyArray1, PyArrayMethods};
+use pyo3::{exceptions::PyValueError, prelude::*, types::PyDict};
+
+use crate::{AgentId, Position, Renderer, Tile, World, WorldState};
 
 use super::{
     pyaction::PyAction,
     pyagent::PyAgent,
-    pydirection::PyDirection,
-    pyevent::{PyEventType, PyWorldEvent},
+    pyevent::PyWorldEvent,
     pyexceptions::{parse_error_to_exception, runtime_error_to_pyexception},
     pytile::{PyGem, PyLaser, PyLaserSource},
     pyworld_state::PyWorldState,
@@ -111,7 +112,7 @@ impl PyWorld {
 
     #[getter]
     /// The gems with their respective position.
-    fn gems(&self) -> Vec<(Position, PyGem)> {
+    fn gems(&self) -> HashMap<Position, PyGem> {
         self.world
             .gems()
             .map(|(pos, gem)| (*pos, PyGem::new(gem.agent(), gem.is_collected())))
@@ -123,27 +124,68 @@ impl PyWorld {
     fn lasers(&self) -> Vec<(Position, PyLaser)> {
         self.world
             .lasers()
-            .map(|(pos, laser)| {
-                (
-                    *pos,
-                    PyLaser::new(
-                        laser.is_on(),
-                        PyDirection::new(laser.direction()),
-                        laser.agent_id(),
-                        laser.agent(),
-                    ),
-                )
-            })
+            .map(|(pos, laser)| (*pos, PyLaser::from(laser)))
             .collect()
     }
 
     #[getter]
     /// The laser sources with their respective position.
-    fn laser_sources(&self) -> Vec<(Position, PyLaserSource)> {
+    fn laser_sources(&self) -> HashMap<Position, PyLaserSource> {
         self.world
             .laser_sources()
-            .map(|(pos, laser_source)| (*pos, PyLaserSource::new(laser_source.clone())))
+            .map(|(pos, laser_source)| (*pos, PyLaserSource::from(laser_source)))
             .collect()
+    }
+
+    fn disable_laser_source(&self, laser_source: &PyLaserSource) -> PyResult<()> {
+        let id = laser_source.laser_id();
+        if let Some((_, source)) = self.world.laser_sources().find(|(_, l)| l.laser_id() == id) {
+            source.disable();
+            return Ok(());
+        }
+        return Err(PyValueError::new_err(format!(
+            "Laser source with laser_id {id} not found"
+        )));
+    }
+
+    fn enable_laser_source(&self, laser_source: &PyLaserSource) -> PyResult<()> {
+        let id = laser_source.laser_id();
+        if let Some((_, source)) = self.world.laser_sources().find(|(_, l)| l.laser_id() == id) {
+            source.enable();
+            return Ok(());
+        }
+        Err(PyValueError::new_err(format!(
+            "Laser source with laser_id {id} not found"
+        )))
+    }
+
+    fn set_laser_colour(&self, laser_source: &PyLaserSource, new_colour: i32) -> PyResult<()> {
+        let new_colour = match AgentId::try_from(new_colour) {
+            Ok(r) => r,
+            Err(_) => {
+                return Err(PyValueError::new_err(format!(
+                    "New colour {new_colour} must be >= 0"
+                )))
+            }
+        };
+        if laser_source.agent_id() == new_colour {
+            return Ok(());
+        }
+        if new_colour > self.world.n_agents() {
+            let n_agents = self.world.n_agents();
+            return Err(PyValueError::new_err(format!(
+                "New colour {new_colour} does not belong to an existing agent !\nThere are {n_agents} agents in the world, provide a value bewteen 0 and {} included.",
+                n_agents -1
+            )));
+        }
+        let id = laser_source.laser_id();
+        if let Some((_, source)) = self.world.laser_sources().find(|(_, l)| l.laser_id() == id) {
+            source.set_agent_id(new_colour);
+            return Ok(());
+        }
+        Err(PyValueError::new_err(format!(
+            "Laser source with laser_id {id} not found"
+        )))
     }
 
     #[getter]
@@ -157,20 +199,8 @@ impl PyWorld {
         let actions: Vec<_> = actions.into_iter().map(|a| a.action).collect();
         match self.world.step(&actions) {
             Ok(events) => {
-                let events: Vec<PyWorldEvent> = events
-                    .iter()
-                    .map(|e| match e {
-                        WorldEvent::AgentExit { agent_id } => {
-                            PyWorldEvent::new(PyEventType::AgentExit, *agent_id)
-                        }
-                        WorldEvent::GemCollected { agent_id } => {
-                            PyWorldEvent::new(PyEventType::GemCollected, *agent_id)
-                        }
-                        WorldEvent::AgentDied { agent_id } => {
-                            PyWorldEvent::new(PyEventType::AgentDied, *agent_id)
-                        }
-                    })
-                    .collect();
+                let events: Vec<PyWorldEvent> =
+                    events.iter().map(|e| PyWorldEvent::from(e)).collect();
                 Ok(events)
             }
             Err(e) => Err(runtime_error_to_pyexception(e)),
@@ -208,7 +238,7 @@ impl PyWorld {
         let dims = (dims.1 as usize, dims.0 as usize, 3);
         let img = self.renderer.update(&self.world);
         let buffer = img.into_raw();
-        let res = PyArray1::from_vec(py, buffer)
+        let res = PyArray1::from_vec_bound(py, buffer)
             .reshape(dims)
             .unwrap_or_else(|_| panic!("Could not reshape the image to {dims:?}"));
         Ok(res.into_py(py))
@@ -228,7 +258,7 @@ impl PyWorld {
         PyWorldState::new(state.agents_positions, state.gems_collected)
     }
 
-    pub fn __deepcopy__(&self, _memo: &PyDict) -> Self {
+    pub fn __deepcopy__(&self, _memo: &Bound<PyDict>) -> Self {
         self.clone()
     }
 
