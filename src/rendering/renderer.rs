@@ -47,28 +47,6 @@ impl Renderer {
                 .unwrap();
         }
 
-        // Laser sources
-        for (pos, source) in world.laser_sources() {
-            let x = pos.1 as u32 * TILE_SIZE;
-            let y = pos.0 as u32 * TILE_SIZE;
-            self.draw_laser_source(source, x, y);
-        }
-
-        // Start -> do not draw start tiles anymore
-        // for (id, pos) in world.starts() {
-        //     let x = pos.1 as u32 * TILE_SIZE;
-        //     let y = pos.0 as u32 * TILE_SIZE;
-        //     draw_rectangle(
-        //         &mut self.static_frame,
-        //         x,
-        //         y,
-        //         TILE_SIZE,
-        //         TILE_SIZE,
-        //         AGENT_COLOURS[id],
-        //         3,
-        //     );
-        // }
-
         // Exit
         for (&(i, j), _) in world.exits() {
             let x = j as u32 * TILE_SIZE;
@@ -82,21 +60,7 @@ impl Renderer {
             let y = pos.0 as u32 * TILE_SIZE;
             // copy the void image to the static one
             add_transparent_image(&mut self.static_frame, &sprites::VOID, x, y);
-            // self.static_frame
-            //     .copy_from(&(*sprites::VOID), x, y)
-            //     .unwrap();
         }
-    }
-
-    fn draw_laser_source(&mut self, laser_source: &LaserSource, x: u32, y: u32) {
-        let agent_id = laser_source.agent_id();
-        let source_sprite = match laser_source.direction() {
-            Direction::North => &sprites::LASER_SOURCES_NORTH[agent_id],
-            Direction::East => &sprites::LASER_SOURCES_EAST[agent_id],
-            Direction::South => &sprites::LASER_SOURCES_SOUTH[agent_id],
-            Direction::West => &sprites::LASER_SOURCES_WEST[agent_id],
-        };
-        self.static_frame.copy_from(source_sprite, x, y).unwrap();
     }
 
     pub fn update(&self, world: &World) -> RgbImage {
@@ -107,28 +71,28 @@ impl Renderer {
                 y: pos.0 as u32 * TILE_SIZE,
                 frame: &mut frame,
             };
-            if laser.is_on() {
-                let agent_id = laser.agent_id();
-                let laser_sprite = match laser.direction() {
-                    Direction::North | Direction::South => &sprites::VERTICAL_LASERS[agent_id],
-                    Direction::East | Direction::West => &sprites::HORIZONTAL_LASERS[agent_id],
-                };
-                add_transparent_image(data.frame, laser_sprite, data.x, data.y);
-            }
-            // Draw the tile below the laser
-            laser.wrapped().accept(self, &mut data);
+            self.visit_laser(laser, &mut data);
         }
         for (pos, gem) in world.gems() {
-            let x = pos.1 as u32 * TILE_SIZE;
-            let y = pos.0 as u32 * TILE_SIZE;
-            if !gem.is_collected() {
-                add_transparent_image(&mut frame, &sprites::GEM, x, y);
-            }
+            let mut data = VisitorData {
+                x: pos.1 as u32 * TILE_SIZE,
+                y: pos.0 as u32 * TILE_SIZE,
+                frame: &mut frame,
+            };
+            self.visit_gem(gem, &mut data);
         }
         for (id, pos) in world.agents_positions().iter().enumerate() {
             let x = pos.1 as u32 * TILE_SIZE;
             let y = pos.0 as u32 * TILE_SIZE;
             add_transparent_image(&mut frame, &sprites::AGENTS[id], x, y);
+        }
+        for (pos, source) in world.laser_sources() {
+            let mut data = VisitorData {
+                x: pos.1 as u32 * TILE_SIZE,
+                y: pos.0 as u32 * TILE_SIZE,
+                frame: &mut frame,
+            };
+            self.visit_laser_source(source, &mut data);
         }
         draw_grid(&mut frame);
         frame
@@ -214,8 +178,31 @@ impl TileVisitor for Renderer {
         laser.wrapped().accept(self, data);
         // The below tile should draw the agent
     }
+
+    fn visit_laser_source(&self, source: &LaserSource, data: &mut VisitorData) {
+        let agent_id = source.agent_id();
+        let source_sprite = match source.direction() {
+            Direction::North => &sprites::LASER_SOURCES_NORTH[agent_id],
+            Direction::East => &sprites::LASER_SOURCES_EAST[agent_id],
+            Direction::South => &sprites::LASER_SOURCES_SOUTH[agent_id],
+            Direction::West => &sprites::LASER_SOURCES_WEST[agent_id],
+        };
+        data.frame.copy_from(source_sprite, data.x, data.y).unwrap();
+    }
 }
 
 #[cfg(test)]
-#[path = "../unit_tests/test_renderer.rs"]
-mod test_renderer;
+mod test_renderer {
+    use crate::{rendering::TILE_SIZE, Renderer, World};
+
+    #[test]
+    fn pixel_dimensions() {
+        let world = World::try_from("S0 . X").unwrap();
+        let renderer = Renderer::new(&world);
+        assert_eq!(TILE_SIZE * world.width() as u32 + 1, renderer.pixel_width());
+        assert_eq!(
+            TILE_SIZE * world.height() as u32 + 1,
+            renderer.pixel_height()
+        );
+    }
+}
