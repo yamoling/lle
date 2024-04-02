@@ -17,6 +17,7 @@ const NUM_LASERS: Mutex<LaserId> = Mutex::new(0);
 
 #[derive(Clone)]
 pub struct LaserSource {
+    enabled: Cell<bool>,
     laser_id: LaserId,
     wall: Wall,
     laser_tiles: RefCell<Vec<Rc<Laser>>>,
@@ -33,12 +34,17 @@ impl LaserSource {
         *num_lasers += 1;
 
         Self {
+            enabled: Cell::new(true),
             laser_id,
             wall: Wall {},
             direction,
             agent_id: Cell::new(agent_id),
             laser_tiles: RefCell::new(vec![]),
         }
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        self.enabled.get()
     }
 
     pub fn agent_id(&self) -> AgentId {
@@ -53,15 +59,17 @@ impl LaserSource {
         self.laser_id
     }
 
-    pub fn turn_on(&self) {
-        self.laser_tiles.borrow_mut().iter().for_each(|laser| {
-            laser.turn_on();
+    pub fn enable(&self) {
+        self.enabled.set(true);
+        self.laser_tiles.borrow().iter().for_each(|laser| {
+            laser.enable();
         });
     }
 
-    pub fn turn_off(&self) {
-        self.laser_tiles.borrow_mut().iter().for_each(|laser| {
-            laser.turn_off();
+    pub fn disable(&self) {
+        self.enabled.set(false);
+        self.laser_tiles.borrow().iter().for_each(|laser| {
+            laser.disable();
         });
     }
 

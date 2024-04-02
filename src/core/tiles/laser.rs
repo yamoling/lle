@@ -85,6 +85,7 @@ pub struct Laser {
     agent_id: Cell<AgentId>,
     beam: LaserBeam,
     wrapped: Rc<dyn Tile>,
+    disabled: Cell<bool>,
 }
 
 impl Laser {
@@ -101,6 +102,7 @@ impl Laser {
             direction,
             wrapped,
             beam,
+            disabled: Cell::new(false),
         }
     }
 
@@ -128,11 +130,32 @@ impl Laser {
         self.beam.is_off()
     }
 
+    pub fn is_enabled(&self) -> bool {
+        !self.disabled.get()
+    }
+
+    pub fn is_disabled(&self) -> bool {
+        self.disabled.get()
+    }
+
     pub fn direction(&self) -> Direction {
         self.direction
     }
 
+    pub fn disable(&self) {
+        self.disabled.set(true);
+        self.turn_off();
+    }
+
+    pub fn enable(&self) {
+        self.disabled.set(false);
+        self.turn_on();
+    }
+
     pub fn turn_on(&self) {
+        if self.disabled.get() {
+            return;
+        }
         self.beam.turn_on();
     }
 
@@ -149,6 +172,9 @@ impl Tile for Laser {
 
     fn pre_enter(&self, agent: &Agent) -> Result<(), String> {
         let res = self.wrapped.pre_enter(agent);
+        if self.disabled.get() {
+            return res;
+        }
         if agent.is_alive() && agent.id() == self.agent_id.get() {
             self.turn_off();
         }

@@ -5,7 +5,7 @@ from .event import WorldEvent
 from .action import Action
 from .agent import Agent
 from .tile import Gem, LaserSource, Laser
-from .types import Position
+from .types import Position, AgentId
 
 @final
 class WorldState:
@@ -35,18 +35,30 @@ class World:
     """The dimensions (in pixels) of the image redered (width, height)"""
     n_gems: int
     """The total number of gems in the world."""
-    gems: List[Tuple[Position, Gem]]
-    """The list of gems in the world"""
+    gems: dict[Position, Gem]
+    """
+    The list of gems in the world
+    
+    Note: Accessing this attribute is costly because it creates the mapping on the fly every time.
+    """
     exit_pos: List[Position]
     """The (i, j) position of each exit tile."""
     wall_pos: List[Position]
     """The (i, j) position of every wall tile."""
     void_pos: List[Position]
     """The (i, j) position of every void tile."""
-    laser_sources: List[Tuple[Position, LaserSource]]
-    """The (i, j) position of every laser source."""
+    laser_sources: dict[Position, LaserSource]
+    """
+    A mapping from positions to laser sources.
+    
+    Note: Accessing this attribute is costly because it creates the mapping on the fly every time.
+    """
     lasers: List[Tuple[Position, Laser]]
-    """The (i, j) position of every laser."""
+    """
+    The (i, j) position of every laser
+
+    Note: Accessing this attribute is costly because it creates the list on the fly for every call.
+    """
     agents_positions: List[Position]
     """The current (i, j) position of each agent"""
     world_string: str
@@ -98,6 +110,29 @@ class World:
         - Returns the list of events that occurred while agents entered their state.
         - Raises a `InvalidWorldStateError` if the state is invalid.
         """
+    def disable_laser_source(self, source: LaserSource):
+        """
+        Disable a laser source (deactivate all the beam from this source).
+
+        Raise a `ValueError` if a source with the same `LaserId` is not found.
+        """
+
+    def enable_laser_source(self, source: LaserSource):
+        """
+        Enable a laser source.
+
+        Raise a `ValueError` if a source with the same `LaserId` is not found.
+        """
+
+    def set_laser_colour(self, source: LaserSource, new_colour: AgentId):
+        """
+        Change the colour of a laser source (and of all corresponding laser tiles).
+
+        Raise a `ValueError` if
+            - a source with the same `LaserId` is not found
+            - the `new_colour` does not belong to an agent
+        """
+
     @staticmethod
     def from_file(filename: str) -> "World":
         """

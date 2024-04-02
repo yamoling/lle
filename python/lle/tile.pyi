@@ -4,9 +4,12 @@ from .types import AgentId, LaserId
 
 @final
 class Gem:
-    agent: Optional[AgentId]
-    """The id of the agent currently standing on the tile, if any."""
-    is_collected: bool
+    @property
+    def agent(self) -> Optional[AgentId]:
+        """The id of the agent currently standing on the tile, if any."""
+    @property
+    def is_collected(self) -> bool:
+        """Whether the gem has been collected or not."""
     def __str__(self) -> str: ...
     def __repr__(self) -> str: ...
 
@@ -33,6 +36,14 @@ class Laser:
     @property
     def laser_id(self) -> LaserId:
         """The ID of the laser."""
+
+    @property
+    def is_enabled(self) -> bool:
+        """Whether the laser is enabled."""
+
+    @property
+    def is_disabled(self) -> bool:
+        """Whether the laser is disabled."""
     def __str__(self) -> str: ...
     def __repr__(self) -> str: ...
 
@@ -46,11 +57,5 @@ class LaserSource:
         """The ID of the laser."""
     direction: Direction
     """The direction of the laser beam.."""
-    def set_agent_id(self, agent_id: AgentId):
-        """Change the 'colour' of the laser to the one of the agent given as argument."""
-    def turn_on(self):
-        """Turn the laser on."""
-    def turn_off(self):
-        """Turn the laser off."""
     def __str__(self) -> str: ...
     def __repr__(self) -> str: ...
