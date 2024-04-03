@@ -138,12 +138,9 @@ impl PyWorld {
     }
 
     fn disable_laser_source(&self, laser_source: &PyLaserSource) -> PyResult<()> {
-        println!("Disabling laser source");
         let id = laser_source.laser_id();
         if let Some((_, source)) = self.world.laser_sources().find(|(_, l)| l.laser_id() == id) {
-            println!("Found laser source {source:#?}");
             source.disable();
-            println!("After disabling {source:#?}");
             return Ok(());
         }
         return Err(PyValueError::new_err(format!(
@@ -174,7 +171,7 @@ impl PyWorld {
         if laser_source.agent_id() == new_colour {
             return Ok(());
         }
-        if new_colour > self.world.n_agents() {
+        if new_colour >= self.world.n_agents() {
             let n_agents = self.world.n_agents();
             return Err(PyValueError::new_err(format!(
                 "New colour {new_colour} does not belong to an existing agent !\nThere are {n_agents} agents in the world, provide a value bewteen 0 and {} included.",

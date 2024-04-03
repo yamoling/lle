@@ -410,3 +410,9 @@ def test_change_laser_colour_to_invalid_colour():
         raise Exception("This should not be allowed because there is only one agent in the world")
     except ValueError:
         pass
+
+    try:
+        world.set_laser_colour(source, 1)
+        raise Exception("This should not be allowed because there is only one agent in the world")
+    except ValueError:
+        pass
