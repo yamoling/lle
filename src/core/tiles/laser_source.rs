@@ -1,21 +1,21 @@
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,
-    sync::Mutex,
+    sync::atomic::{AtomicUsize, Ordering},
 };
 
 use crate::{
     agent::{Agent, AgentId},
     rendering::{TileVisitor, VisitorData},
-    WorldEvent,
+    tiles::{Direction, Laser, Tile, Wall},
+    ParseError, WorldEvent,
 };
 
 pub type LaserId = usize;
-use super::{Direction, Laser, Tile, Wall};
 
-const NUM_LASERS: Mutex<LaserId> = Mutex::new(0);
+static NUM_LASERS: AtomicUsize = AtomicUsize::new(0);
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct LaserSource {
     enabled: Cell<bool>,
     laser_id: LaserId,
@@ -25,13 +25,26 @@ pub struct LaserSource {
     agent_id: Cell<AgentId>,
 }
 
+impl TryFrom<&str> for LaserSource {
+    type Error = ParseError;
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let direction = Direction::try_from(&value[2..]).unwrap();
+        let agent_id = match (&value[1..2]).parse::<AgentId>() {
+            Ok(agent_id) => agent_id,
+            Err(_) => {
+                return Err(ParseError::CanNotParseAgentId {
+                    given_agent_id: value[1..2].to_string(),
+                })
+            }
+        };
+        Ok(Self::new(direction, agent_id))
+    }
+}
+
 impl LaserSource {
     pub fn new(direction: Direction, agent_id: AgentId) -> Self {
         // Increment the number of lasers and get the new id
-        let binding = NUM_LASERS;
-        let mut num_lasers = binding.lock().unwrap();
-        let laser_id = *num_lasers;
-        *num_lasers += 1;
+        let laser_id = NUM_LASERS.fetch_add(1, Ordering::Relaxed);
 
         Self {
             enabled: Cell::new(true),

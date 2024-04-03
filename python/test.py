@@ -1,88 +1,94 @@
+import random
+from numpy import ndarray
+from rlenv.wrappers import RLEnvWrapper
+from lle import LLE, LaserSource
+from dataclasses import dataclass
+from serde import serde
 import lle
-
-
-env = lle.LLE.level(6)
-env.reset()
-positions_8 = lle.WorldState([(11, 3), (7, 4), (10, 3), (11, 6)], [False, False, False, False])
-positions_7 = lle.WorldState([(10, 4), (8, 6), (11, 3), (11, 7)], [False, False, False, False])
-
-actions_7 = [
-    [2, 0, 2, 2],
-    [2, 0, 2, 2],
-    [2, 2, 2, 2],
-    [2, 2, 2, 4],
-    [2, 2, 2, 4],
-    [2, 1, 2, 4],
-    [4, 0, 0, 4],
-    [4, 2, 0, 4],
-    [4, 2, 2, 4],
-    [4, 1, 2, 4],
-    [4, 2, 2, 4],
-    [4, 3, 1, 4],
-    [4, 2, 1, 4],
-    [4, 3, 3, 4],
-    [4, 3, 4, 4],
-    [4, 3, 4, 4],
-    [4, 3, 4, 4],
-    [4, 0, 4, 4],
-    [4, 3, 4, 4],
-    [4, 3, 4, 4],
-    [4, 1, 4, 4],
-    [4, 1, 4, 4],
-    [4, 1, 4, 4],
-    [4, 2, 4, 4],
-    [4, 2, 4, 4],
-    [4, 2, 4, 4],
-    [4, 2, 4, 4],
-    [4, 2, 4, 4],
-    [4, 1, 4, 4],
-]
-
-actions_8 = [
-    [2, 2, 2, 2],
-    [2, 0, 2, 2],
-    [2, 2, 2, 2],
-    [2, 2, 2, 2],
-    [2, 2, 2, 4],
-    [2, 2, 2, 4],
-    [4, 1, 2, 4],
-    [0, 0, 4, 4],
-    [0, 2, 4, 4],
-    [2, 2, 4, 4],
-    [2, 1, 4, 4],
-    [2, 2, 4, 4],
-    [1, 3, 4, 4],
-    [1, 2, 4, 4],
-    [3, 3, 4, 4],
-    [4, 3, 4, 4],
-    [4, 3, 4, 4],
-    [4, 3, 4, 4],
-    [4, 0, 4, 4],
-    [4, 3, 4, 4],
-    [4, 3, 4, 4],
-    [4, 1, 4, 4],
-    [4, 1, 4, 4],
-    [4, 1, 4, 4],
-    [4, 2, 4, 4],
-    [4, 2, 4, 4],
-    [4, 2, 4, 4],
-    [4, 2, 4, 4],
-    [4, 2, 4, 4],
-    [4, 1, 4, 4],
-]
-
-env.reset()
-env.set_state(positions_8)
-score = 0
-env.render("human")
 import time
+import matplotlib.pyplot as plt
 
-time.sleep(0.2)
-env.render("human")
-for action in actions_8:
+
+@serde
+@dataclass
+class LaserCurriculum(RLEnvWrapper):
+    def __init__(self, env: LLE):
+        super().__init__(env)
+        self.world = env.world
+        self.top_left_laser = self.world.laser_sources[0, 1]
+        self.top_laser = self.world.laser_sources[4, 0]
+        self.bot_laser = self.world.laser_sources[6, 12]
+        self.t = 0
+
+    def randomize(self, source: LaserSource, p_enabled: float, p_colour: float):
+        if random.random() <= p_enabled:
+            self.world.enable_laser_source(source)
+            if random.random() <= p_colour:
+                colour = random.randint(0, self.n_agents - 1)
+                self.world.set_laser_colour(source, colour)
+        else:
+            self.world.disable_laser_source(source)
+
+    def step(self, actions: list[int] | ndarray):
+        self.t += 1
+        return super().step(actions)
+
+    def reset(self):
+        """
+        - < 100k: disable all lasers
+        - < 200k: enable bottom laser with 50% probability
+        - < 300k: enable bottom laser with 50% probability with a random colour
+        - < 400k: enable bot + top laser with 50% probability. Top laser has a random colour.
+        - < 500k: enable bot + top laser with 50% probability. Both lasers have a random colour.
+        - < 600k: enable all lasers with random colours.
+        - < 700k: enable all lasers with original colours.
+        """
+        if self.t < 100_000:
+            self.world.disable_laser_source(self.top_left_laser)
+            self.world.disable_laser_source(self.top_laser)
+            self.world.disable_laser_source(self.bot_laser)
+        elif self.t < 200_000:
+            self.randomize(self.bot_laser, 0.5, 0.0)
+        elif self.t < 300_000:
+            self.randomize(self.bot_laser, 0.5, 1.0)
+        elif self.t < 400_000:
+            self.randomize(self.bot_laser, 0.5, 1.0)
+            self.randomize(self.top_laser, 0.5, 0.0)
+        elif self.t < 500_000:
+            self.randomize(self.bot_laser, 0.5, 1.0)
+            self.randomize(self.top_laser, 0.5, 1.0)
+        elif self.t < 600_000:
+            self.randomize(self.bot_laser, 1.0, 1.0)
+            self.randomize(self.top_laser, 1.0, 1.0)
+            self.randomize(self.top_left_laser, 1.0, 1.0)
+        elif self.t < 700_000:
+            self.world.enable_laser_source(self.top_left_laser)
+            self.world.enable_laser_source(self.bot_laser)
+            self.world.enable_laser_source(self.top_laser)
+            self.world.set_laser_colour(self.top_laser, 0)
+            self.world.set_laser_colour(self.bot_laser, 1)
+            self.world.set_laser_colour(self.top_left_laser, 2)
+
+        return super().reset()
+
+
+def show(world: lle.World):
+    world.reset()
+    img = world.get_image()
+    plt.imshow(img)
+    plt.show(block=False)
     input("Press Enter to continue...")
-    r = env.step(action)[1]
-    env.render("human")
-    print(r)
-    score += r
-print(score)
+
+
+world = lle.World.level(6)
+print(world.laser_sources)
+show(world)
+
+world.disable_laser_source(world.laser_sources[0, 1])
+show(world)
+
+
+world.disable_laser_source(world.laser_sources[4, 0])
+show(world)
+world.disable_laser_source(world.laser_sources[6, 12])
+show(world)

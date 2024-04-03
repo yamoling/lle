@@ -347,12 +347,12 @@ def test_laser_tile_state():
 def test_disable_deadly_laser_source_and_walk_into_it():
     world = World(
         """
-        L0E . . X
-        S0 S1 . X
+        L0S . L0W X
+        S0 S1  .  X
         """
     )
     world.reset()
-    source = world.laser_sources[0, 0]
+    source = world.laser_sources[0, 2]
     world.disable_laser_source(source)
     events = world.step([Action.STAY, Action.NORTH])
     assert len(events) == 0
@@ -362,26 +362,28 @@ def test_disable_deadly_laser_source_and_walk_into_it():
 def test_change_laser_colour():
     world = World(
         """
-        L0E . .  .  X
         L1E . S1 S0 X
+        L0E .  .  . X
         """
     )
     world.reset()
-    lasers = dict(world.lasers)
-    sources = dict(world.laser_sources)
-    assert lasers[0, 1].agent_id == 0
-    assert lasers[1, 1].agent_id == 1
-    top_source = sources[0, 0]
+    for (i, _), laser in world.lasers:
+        if i == 0:
+            assert laser.agent_id == 1
+        else:
+            assert laser.agent_id == 0
+
+    bot_source = world.laser_sources[1, 0]
 
     NEW_COLOUR = 1
-    world.set_laser_colour(top_source, NEW_COLOUR)
+    world.set_laser_colour(bot_source, NEW_COLOUR)
     world.reset()
 
     # Check that all the laser tiles have changed their colour
     for (i, _), laser in world.lasers:
-        if i == 0:
+        if i == 1:
             assert laser.agent_id == NEW_COLOUR
-    events = world.step([Action.NORTH, Action.NORTH])
+    events = world.step([Action.SOUTH, Action.SOUTH])
     assert len(events) == 0
     assert all(a.is_alive for a in world.agents)
 

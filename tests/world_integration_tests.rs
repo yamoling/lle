@@ -415,11 +415,70 @@ fn test_laser_id() {
         S0 .   G  X
         .  .  L0W .
         .  S1  .  X 
-        .  .   .  .",
+        .  .  L0W  .",
     )
     .unwrap();
     w.reset();
-    let (_, source) = w.laser_sources().next().unwrap();
-    assert_eq!(source.laser_id(), 0);
-    assert!(w.lasers().all(|(_, l)| l.laser_id() == 0));
+    let mut top_laser_id = None;
+    let mut bot_laser_id = None;
+    for ((i, j), source) in w.laser_sources() {
+        if *i == 1 {
+            top_laser_id = Some(source.laser_id());
+        } else if *i == 3 {
+            bot_laser_id = Some(source.laser_id());
+        } else {
+            panic!("Unexpected laser source at ({}, {})", i, j);
+        }
+    }
+
+    let top_laser_id = top_laser_id.unwrap();
+    let bot_laser_id = bot_laser_id.unwrap();
+
+    for ((i, j), l) in w.lasers() {
+        if *i == 1 {
+            assert_eq!(l.laser_id(), top_laser_id);
+        } else if *i == 3 {
+            assert_eq!(l.laser_id(), bot_laser_id);
+        } else {
+            panic!("Unexpected laser at ({}, {})", i, j);
+        }
+    }
+}
+
+#[test]
+fn test_disable_laser_then_reset_does_not_turn_on() {
+    let mut w = World::try_from("L0E . S0 X").unwrap();
+    w.reset();
+    w.laser_sources().next().unwrap().1.disable();
+    w.reset();
+    let laser = w.lasers().find(|(pos, _)| **pos == (0, 1)).unwrap().1;
+    assert!(!laser.is_enabled());
+    assert!(laser.is_disabled());
+    assert!(laser.is_off());
+}
+
+#[test]
+fn test_laser_sources_have_different_laser_ids() {
+    let mut w = World::try_from("L0E . L0E . X S0").unwrap();
+    w.reset();
+    let laser_ids = w
+        .laser_sources()
+        .map(|(_, l)| l.laser_id())
+        .collect::<Vec<_>>();
+    assert_eq!(laser_ids.len(), 2);
+    assert_ne!(laser_ids[0], laser_ids[1]);
+}
+
+#[test]
+fn test_wrong_agent_id_for_laser_source() {
+    match World::try_from("S0 L5S X") {
+        Ok(_) => panic!("Should not be able to parse world where a laser has an ID of an agent that does not exist."),
+        Err(e) => match e {
+            ParseError::InvalidLaserSourceAgentId { asked_id, n_agents } => {
+                assert_eq!(asked_id, 5);
+                assert_eq!(n_agents, 1);
+            },
+            other => panic!("Expected InvalidLaserSourceAgentId, got {:?}", other),
+        }
+    }
 }
