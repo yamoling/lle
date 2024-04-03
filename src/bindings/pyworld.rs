@@ -168,9 +168,6 @@ impl PyWorld {
                 )))
             }
         };
-        if laser_source.agent_id() == new_colour {
-            return Ok(());
-        }
         if new_colour >= self.world.n_agents() {
             let n_agents = self.world.n_agents();
             return Err(PyValueError::new_err(format!(
