@@ -1,4 +1,4 @@
-from lle import World, WorldState, LLE, ObservationType
+from lle import World, WorldState, LLE, ObservationType, LaserSource
 from serde.json import to_json
 import json
 import pickle
@@ -38,3 +38,13 @@ def test_lle_json():
     assert as_dict["n_agents"] == 4
     assert as_dict["n_actions"] == 5
     assert as_dict["obs_type"] == ObservationType.FLATTENED.name
+
+
+def test_pickle_laser_source():
+    world = World("L0E S0 X")
+    s = world.laser_sources[0, 0]
+    pickled = pickle.dumps(s)
+    deserialised: LaserSource = pickle.loads(pickled)
+    assert deserialised.agent_id == s.agent_id
+    assert deserialised.direction == s.direction
+    assert deserialised.laser_id == s.laser_id

@@ -1,16 +1,10 @@
 use crate::tiles::Direction;
 use pyo3::{prelude::*, pyclass::CompareOp};
 
-#[pyclass(name = "Direction")]
+#[pyclass(name = "Direction", module = "lle")]
 #[derive(Clone, Debug)]
 pub struct PyDirection {
     direction: Direction,
-}
-
-impl PyDirection {
-    pub fn new(direction: Direction) -> Self {
-        Self { direction }
-    }
 }
 
 impl From<Direction> for PyDirection {
@@ -21,6 +15,14 @@ impl From<Direction> for PyDirection {
 
 #[pymethods]
 impl PyDirection {
+    #[new]
+    /// This constructor is required for pickling but should not be used for any other purpose.
+    pub fn new() -> Self {
+        Self {
+            direction: Direction::North,
+        }
+    }
+
     #[classattr]
     const NORTH: Self = Self {
         direction: Direction::North,
@@ -59,5 +61,19 @@ impl PyDirection {
     #[getter]
     pub fn name(&self) -> String {
         self.direction.to_string()
+    }
+
+    pub fn __getstate__(&self) -> String {
+        match self.direction {
+            Direction::North => "N",
+            Direction::East => "E",
+            Direction::South => "S",
+            Direction::West => "W",
+        }
+        .to_string()
+    }
+
+    pub fn __setstate__(&mut self, state: String) {
+        self.direction = Direction::try_from(state.as_str()).unwrap();
     }
 }
