@@ -1,7 +1,6 @@
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,
-    sync::atomic::{AtomicUsize, Ordering},
 };
 
 use crate::{
@@ -13,8 +12,6 @@ use crate::{
 
 pub type LaserId = usize;
 
-static NUM_LASERS: AtomicUsize = AtomicUsize::new(0);
-
 #[derive(Clone, Debug)]
 pub struct LaserSource {
     enabled: Cell<bool>,
@@ -25,9 +22,8 @@ pub struct LaserSource {
     agent_id: Cell<AgentId>,
 }
 
-impl TryFrom<&str> for LaserSource {
-    type Error = ParseError;
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
+impl LaserSource {
+    pub fn from_str(value: &str, laser_id: LaserId) -> Result<Self, ParseError> {
         let direction = Direction::try_from(&value[2..]).unwrap();
         let agent_id = match (&value[1..2]).parse::<AgentId>() {
             Ok(agent_id) => agent_id,
@@ -37,15 +33,10 @@ impl TryFrom<&str> for LaserSource {
                 })
             }
         };
-        Ok(Self::new(direction, agent_id))
+        Ok(Self::new(direction, agent_id, laser_id))
     }
-}
 
-impl LaserSource {
-    pub fn new(direction: Direction, agent_id: AgentId) -> Self {
-        // Increment the number of lasers and get the new id
-        let laser_id = NUM_LASERS.fetch_add(1, Ordering::Relaxed);
-
+    pub fn new(direction: Direction, agent_id: AgentId, laser_id: LaserId) -> Self {
         Self {
             enabled: Cell::new(true),
             laser_id,

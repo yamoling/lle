@@ -58,7 +58,7 @@ pub fn parse(world_str: &str) -> Result<World, ParseError> {
                     exit
                 }
                 'L' => {
-                    let source = Rc::new(LaserSource::try_from(token)?);
+                    let source = Rc::new(LaserSource::from_str(token, sources.len())?);
                     walls_positions.push((i, j));
                     sources.push(((i, j), source.clone()));
                     source
