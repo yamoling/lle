@@ -72,23 +72,16 @@ class LaserCurriculum(RLEnvWrapper):
         return super().reset()
 
 
-def show(world: lle.World):
-    world.reset()
-    img = world.get_image()
-    plt.imshow(img)
-    plt.show(block=False)
-    input("Press Enter to continue...")
+env = LLE.level(6, obs_type=lle.ObservationType.LAYERED_PADDED)
+env = LaserCurriculum(env)
+env.reset()
 
-
-world = lle.World.level(6)
-print(world.laser_sources)
-show(world)
-
-world.disable_laser_source(world.laser_sources[0, 1])
-show(world)
-
-
-world.disable_laser_source(world.laser_sources[4, 0])
-show(world)
-world.disable_laser_source(world.laser_sources[6, 12])
-show(world)
+env.render("human")
+time.sleep(0.2)
+for t in range(0, 1_000_000, 100_000):
+    r = ""
+    while r != "n":
+        env.t = t
+        env.reset()
+        env.render("human")
+        r = input(f"'n' to continue to next step, any other key to generate a new environment for t={t}: ")
