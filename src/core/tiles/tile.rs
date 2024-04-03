@@ -55,7 +55,7 @@ impl Tile for Floor {
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct Wall {}
 
 impl Tile for Wall {

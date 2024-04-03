@@ -138,9 +138,12 @@ impl PyWorld {
     }
 
     fn disable_laser_source(&self, laser_source: &PyLaserSource) -> PyResult<()> {
+        println!("Disabling laser source");
         let id = laser_source.laser_id();
         if let Some((_, source)) = self.world.laser_sources().find(|(_, l)| l.laser_id() == id) {
+            println!("Found laser source {source:#?}");
             source.disable();
+            println!("After disabling {source:#?}");
             return Ok(());
         }
         return Err(PyValueError::new_err(format!(

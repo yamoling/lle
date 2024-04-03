@@ -1,4 +1,8 @@
-use std::{cell::Cell, fmt::Display, rc::Rc};
+use std::{
+    cell::Cell,
+    fmt::{Debug, Display},
+    rc::Rc,
+};
 
 use crate::{
     agent::{Agent, AgentId},
@@ -86,6 +90,18 @@ pub struct Laser {
     beam: LaserBeam,
     wrapped: Rc<dyn Tile>,
     disabled: Cell<bool>,
+}
+
+impl Debug for Laser {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Laser")
+            .field("laser_id", &self.laser_id)
+            .field("direction", &self.direction)
+            .field("agent_id", &self.agent_id.get())
+            .field("beam", &self.beam)
+            .field("disabled", &self.disabled.get())
+            .finish()
+    }
 }
 
 impl Laser {
@@ -186,7 +202,7 @@ impl Tile for Laser {
         if self.is_on() && agent.id() != self.agent_id.get() {
             if agent.is_alive() {
                 agent.die();
-                self.beam.turn_on();
+                self.turn_on();
                 return Some(WorldEvent::AgentDied {
                     agent_id: agent.id(),
                 });

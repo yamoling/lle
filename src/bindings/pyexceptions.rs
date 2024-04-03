@@ -71,6 +71,14 @@ pub fn parse_error_to_exception(error: ParseError) -> PyErr {
             line,
             col,
         } => format!("Invalid tile '{tile_str}' at position ({line}, {col})"),
+        ParseError::CanNotParseAgentId { given_agent_id } => {
+            format!("Can not parse agent id: {given_agent_id}. Expected an interger >= 0.")
+        }
+        ParseError::InvalidLaserSourceAgentId { asked_id, n_agents } => {
+            format!(
+                "Invalid laser source agent id: {asked_id}. There are only {n_agents} agents -> expected an id between 0 and {}.", n_agents -1
+            )
+        }
         ParseError::InvalidFileName { .. } | ParseError::InvalidLevel { .. } => {
             panic!("Already handled above")
         }
