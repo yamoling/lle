@@ -1,56 +1,11 @@
-use std::{
-    cell::Cell,
-    fmt::{Debug, Display},
-    rc::Rc,
-};
+use std::{cell::Cell, fmt::Debug, rc::Rc};
 
 use crate::{
     agent::{Agent, AgentId},
     rendering::{TileVisitor, VisitorData},
+    tiles::{Direction, LaserId, Tile},
     WorldEvent,
 };
-
-use super::{laser_source::LaserId, Tile};
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Direction {
-    North,
-    East,
-    South,
-    West,
-}
-
-impl Direction {
-    pub fn delta(&self) -> (i32, i32) {
-        match self {
-            Direction::North => (-1, 0),
-            Direction::East => (0, 1),
-            Direction::South => (1, 0),
-            Direction::West => (0, -1),
-        }
-    }
-}
-
-impl Display for Direction {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{self:?}")
-    }
-}
-
-impl TryFrom<&str> for Direction {
-    type Error = String;
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value {
-            "N" => Ok(Direction::North),
-            "E" => Ok(Direction::East),
-            "S" => Ok(Direction::South),
-            "W" => Ok(Direction::West),
-            other => Err(format!(
-                "Invalid direction: {other}. Expected one of {{N, E, S, W}}."
-            )),
-        }
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct LaserBeam {

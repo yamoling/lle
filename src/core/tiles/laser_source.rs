@@ -22,7 +22,14 @@ pub struct LaserSource {
     agent_id: Cell<AgentId>,
 }
 
+impl Into<String> for LaserSource {
+    fn into(self) -> String {
+        format!("L{}{}", self.agent_id.get(), self.direction)
+    }
+}
+
 impl LaserSource {
+    /// Note there is no "TryFrom" implementation for LaserSource because we need the laser_id.
     pub fn from_str(value: &str, laser_id: LaserId) -> Result<Self, ParseError> {
         let direction = Direction::try_from(&value[2..]).unwrap();
         let agent_id = match (&value[1..2]).parse::<AgentId>() {

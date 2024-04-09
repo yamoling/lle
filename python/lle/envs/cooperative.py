@@ -7,7 +7,7 @@ import numpy as np
 
 from lle import World, Action, EventType, WorldState, WorldEvent
 from rlenv import RLEnv, DiscreteActionSpace, Observation, DiscreteSpace
-from .observations import ObservationType, StateGenerator
+from lle.observations import ObservationType, StateGenerator
 
 
 @serde
@@ -76,10 +76,10 @@ class LLE(RLEnv[DiscreteActionSpace]):
 
     @override
     def available_actions(self):
-        available_actions = np.zeros((self.n_agents, self.n_actions), dtype=np.float32)
+        available_actions = np.full((self.n_agents, self.n_actions), False, dtype=bool)
         for agent, actions in enumerate(self.world.available_actions()):
             for action in actions:
-                available_actions[agent, action.value] = 1
+                available_actions[agent, action.value] = True
         return available_actions
 
     @override

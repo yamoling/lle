@@ -22,6 +22,13 @@ pub struct PyWorld {
 
 unsafe impl Send for PyWorld {}
 
+impl PyWorld {
+    pub fn from_world(world: World) -> Self {
+        let renderer = Renderer::new(&world);
+        PyWorld { world, renderer }
+    }
+}
+
 #[pymethods]
 impl PyWorld {
     #[new]
@@ -189,6 +196,11 @@ impl PyWorld {
     /// The positions of the exit tiles.
     fn exit_pos(&self) -> Vec<Position> {
         self.world.exits().map(|(pos, _)| pos).copied().collect()
+    }
+
+    #[getter]
+    fn start_pos(&self) -> Vec<Position> {
+        self.world.starts().collect()
     }
 
     /// Perform a step in the world and returns the events that happened during that transition.

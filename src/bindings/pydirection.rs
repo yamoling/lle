@@ -13,14 +13,28 @@ impl From<Direction> for PyDirection {
     }
 }
 
+impl Into<Direction> for PyDirection {
+    fn into(self) -> Direction {
+        self.direction
+    }
+}
+
+impl Into<&str> for PyDirection {
+    fn into(self) -> &'static str {
+        self.direction.into()
+    }
+}
+
 #[pymethods]
 impl PyDirection {
     #[new]
     /// This constructor is required for pickling but should not be used for any other purpose.
-    pub fn new() -> Self {
-        Self {
-            direction: Direction::North,
-        }
+    pub fn new(direction: String) -> PyResult<Self> {
+        let direction = match Direction::try_from(direction.as_str()) {
+            Ok(direction) => direction,
+            Err(e) => return Err(pyo3::exceptions::PyValueError::new_err(e.to_string())),
+        };
+        Ok(Self { direction })
     }
 
     #[classattr]
@@ -39,6 +53,20 @@ impl PyDirection {
     const WEST: Self = Self {
         direction: Direction::West,
     };
+
+    fn delta(&self) -> (i32, i32) {
+        self.direction.delta()
+    }
+
+    #[staticmethod]
+    fn from_str(direction: String) -> PyResult<Self> {
+        match Direction::try_from(direction.as_str()) {
+            Ok(direction) => Ok(Self { direction }),
+            Err(_) => Err(pyo3::exceptions::PyValueError::new_err(
+                "Invalid direction string.",
+            )),
+        }
+    }
 
     fn __richcmp__(&self, other: &Self, op: CompareOp) -> PyResult<bool> {
         match op {
@@ -71,6 +99,13 @@ impl PyDirection {
             Direction::West => "W",
         }
         .to_string()
+    }
+
+    /// This method is called to instantiate the object before deserialisation.
+    /// It required "default arguments" to be provided to the __new__ method
+    /// before replacing them by the actual values in __setstate__.
+    pub fn __getnewargs__(&self) -> PyResult<(String,)> {
+        Ok((String::from("N"),))
     }
 
     pub fn __setstate__(&mut self, state: String) {

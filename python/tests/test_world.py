@@ -5,6 +5,12 @@ from copy import deepcopy
 from lle import World, WorldState, Action, ParsingError, InvalidActionError, EventType, InvalidWorldStateError
 
 
+def test_world_tiles():
+    w = World("S0 . X")
+    assert w.start_pos == [(0, 0)]
+    assert w.exit_pos == [(0, 2)]
+
+
 def test_available_actions():
     world = World(
         """

@@ -17,18 +17,18 @@ def test_available_actions():
     env.reset()
     available_actions = env.available_actions()
     # Agent 0
-    assert available_actions[0, Action.NORTH.value] == 1
-    assert available_actions[0, Action.EAST.value] == 0
-    assert available_actions[0, Action.SOUTH.value] == 0
-    assert available_actions[0, Action.WEST.value] == 1
-    assert available_actions[0, Action.STAY.value] == 1
+    assert available_actions[0, Action.NORTH.value]
+    assert not available_actions[0, Action.EAST.value]
+    assert not available_actions[0, Action.SOUTH.value]
+    assert available_actions[0, Action.WEST.value]
+    assert available_actions[0, Action.STAY.value]
 
     # Agent 1
-    assert available_actions[1, Action.NORTH.value] == 0
-    assert available_actions[1, Action.EAST.value] == 0
-    assert available_actions[1, Action.SOUTH.value] == 0
-    assert available_actions[1, Action.WEST.value] == 1
-    assert available_actions[1, Action.STAY.value] == 1
+    assert not available_actions[1, Action.NORTH.value]
+    assert not available_actions[1, Action.EAST.value]
+    assert not available_actions[1, Action.SOUTH.value]
+    assert available_actions[1, Action.WEST.value]
+    assert available_actions[1, Action.STAY.value]
 
 
 def test_available_actions2():
@@ -45,10 +45,10 @@ L0E . .  .  . . @
     obs = env.reset()
 
     def check_available_actions(available: np.ndarray[np.int32, Any], expected_available: list[list[Action]]) -> bool:
-        available_actions = np.zeros((2, Action.N), dtype=np.int32)
+        available_actions = np.full((2, Action.N), False, dtype=bool)
         for agent_id, actions in enumerate(expected_available):
             for action in actions:
-                available_actions[agent_id, action.value] = 1
+                available_actions[agent_id, action.value] = True
         return np.array_equal(available, available_actions)
 
     assert check_available_actions(
