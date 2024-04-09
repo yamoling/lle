@@ -11,12 +11,11 @@ from .types import Position, AgentId
 class WorldState:
     def __init__(self, agents_positions: List[Position], gems_collected: List[bool]):
         """Construct a WorldState from the (i, j) position of each agent and the collection status of each gem."""
-    @property
-    def agents_positions(self) -> List[Position]:
-        """The (i, j) position of each agent."""
-    @property
-    def gems_collected(self) -> List[bool]:
-        """The collection status of each gem."""
+
+    agents_positions: List[Position]
+    """The (i, j) position of each agent."""
+    gems_collected: List[bool]
+    """The collection status of each gem."""
     def __hash__(self) -> int: ...
     def __eq__(self, __value: object) -> bool: ...
     def __str__(self) -> str: ...
@@ -25,6 +24,15 @@ class WorldState:
 
 @final
 class World:
+    def __init__(self, world_str: str):
+        """Constructs a World from a string.
+        Raises:
+            - RuntimeError if the file is not a valid level.
+            - ValueError if the file is not a valid level (inconsistent dimensions or invalid grid).
+        """
+    def __deepcopy__(self, memo: Any) -> "World": ...
+    agents_positions: List[Position]
+    """The current (i, j) position of each agent"""
     n_agents: int
     """The number of agents in the world."""
     width: int
@@ -41,6 +49,8 @@ class World:
     
     Note: Accessing this attribute is costly because it creates the mapping on the fly every time.
     """
+    start_pos: List[Position]
+    """The (i, j) position of each start tile."""
     exit_pos: List[Position]
     """The (i, j) position of each exit tile."""
     wall_pos: List[Position]
@@ -61,18 +71,9 @@ class World:
         - Accessing this attribute is costly because it creates the list on the fly for every call.
         - Since two lasers can cross, there can be duplicates in the positions.
     """
-    agents_positions: List[Position]
-    """The current (i, j) position of each agent"""
     world_string: str
     """The string upon which the world has been constructed."""
 
-    def __init__(self, world_str: str):
-        """Constructs a World from a string.
-        Raises:
-            - RuntimeError if the file is not a valid level.
-            - ValueError if the file is not a valid level (inconsistent dimensions or invalid grid).
-        """
-    def __deepcopy__(self, memo: Any) -> "World": ...
     @property
     def gems_collected(self) -> int:
         """The number of gems collected by the agents so far in the episode."""

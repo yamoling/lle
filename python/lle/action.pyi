@@ -18,6 +18,10 @@ class Action:
 
     def __init__(self, action_num: int):
         """Create an action from an integer identifier. Invalid values (< 0 or > 4) raise a `ValueError`."""
+
+    def opposite(self) -> Action:
+        """Return the opposite action."""
+
     @property
     def delta(self) -> Tuple[int, int]:
         """The (i, j) position delta in coordinates for this action."""

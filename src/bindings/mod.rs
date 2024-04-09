@@ -7,6 +7,7 @@ mod pyevent;
 mod pyexceptions;
 mod pytile;
 mod pyworld;
+mod pyworld_builder;
 mod pyworld_state;
 
 // pub use pyworld::PyWorld;
@@ -23,6 +24,7 @@ pub fn lle(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<pytile::PyGem>()?;
     m.add_class::<pytile::PyLaser>()?;
     m.add_class::<pytile::PyLaserSource>()?;
+    m.add_class::<pyworld_builder::PyWorldBuilder>()?;
     m.add(
         "InvalidWorldStateError",
         py.get_type_bound::<pyexceptions::InvalidWorldStateError>(),

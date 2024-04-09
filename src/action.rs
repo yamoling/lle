@@ -25,6 +25,16 @@ impl Action {
             Action::Stay => (0, 0),
         }
     }
+
+    pub fn opposite(&self) -> Action {
+        match self {
+            Action::North => Action::South,
+            Action::South => Action::North,
+            Action::East => Action::West,
+            Action::West => Action::East,
+            Action::Stay => Action::Stay,
+        }
+    }
 }
 
 impl Action {

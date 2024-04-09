@@ -10,7 +10,7 @@ use crate::{
     agent::Agent,
     tiles::{Exit, Gem, Laser, LaserSource, Tile},
     utils::find_duplicates,
-    Action, AgentId, Position, RuntimeWorldError, WorldState,
+    Action, Position, RuntimeWorldError, WorldState,
 };
 
 use super::{
@@ -132,8 +132,8 @@ impl World {
             .map(|(pos, source)| (pos, source.as_ref()))
     }
 
-    pub fn starts(&self) -> impl Iterator<Item = (AgentId, &Position)> {
-        self.start_positions.iter().enumerate()
+    pub fn starts(&self) -> impl Iterator<Item = Position> {
+        self.start_positions.clone().into_iter()
     }
 
     pub fn exits(&self) -> impl Iterator<Item = (&Position, &Exit)> {

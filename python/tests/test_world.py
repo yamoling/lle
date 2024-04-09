@@ -5,6 +5,12 @@ from copy import deepcopy
 from lle import World, WorldState, Action, ParsingError, InvalidActionError, EventType, InvalidWorldStateError
 
 
+def test_world_tiles():
+    w = World("S0 . X")
+    assert w.start_pos == [(0, 0)]
+    assert w.exit_pos == [(0, 2)]
+
+
 def test_available_actions():
     world = World(
         """
@@ -75,6 +81,19 @@ def test_walk_into_wall():
     world.step([Action.SOUTH])
     with pytest.raises(InvalidActionError):
         world.step([Action.SOUTH])
+
+
+def test_gem_collected_and_agent_died():
+    world = World(
+        """
+S0  G  X
+S1 L1N X"""
+    )
+    world.reset()
+    events = world.step([Action.EAST, Action.STAY])
+    assert len(events) == 1
+    assert events[0].event_type == EventType.AGENT_DIED
+    assert world.gems_collected == 0
 
 
 def test_world_gem_collected_and_agent_has_arrived():
