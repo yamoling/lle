@@ -83,6 +83,19 @@ def test_walk_into_wall():
         world.step([Action.SOUTH])
 
 
+def test_gem_collected_and_agent_died():
+    world = World(
+        """
+S0  G  X
+S1 L1N X"""
+    )
+    world.reset()
+    events = world.step([Action.EAST, Action.STAY])
+    assert len(events) == 1
+    assert events[0].event_type == EventType.AGENT_DIED
+    assert world.gems_collected == 0
+
+
 def test_world_gem_collected_and_agent_has_arrived():
     world = World(
         """

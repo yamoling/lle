@@ -17,6 +17,9 @@ class Direction:
     def delta(self) -> Tuple[int, int]:
         """The delta of this direction (di, dj)."""
 
+    def opposite(self) -> Direction:
+        """The opposite of this direction."""
+
     @property
     def name(self) -> str:
         """The string name of this direction."""

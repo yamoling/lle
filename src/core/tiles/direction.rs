@@ -17,6 +17,15 @@ impl Direction {
             Direction::West => (0, -1),
         }
     }
+
+    pub fn opposite(&self) -> Direction {
+        match self {
+            Direction::North => Direction::South,
+            Direction::East => Direction::West,
+            Direction::South => Direction::North,
+            Direction::West => Direction::East,
+        }
+    }
 }
 
 impl Display for Direction {

@@ -27,3 +27,10 @@ def test_delta():
     assert Direction.SOUTH.delta() == (1, 0)
     assert Direction.EAST.delta() == (0, 1)
     assert Direction.WEST.delta() == (0, -1)
+
+
+def test_opposite():
+    assert Direction.NORTH.opposite() == Direction.SOUTH
+    assert Direction.SOUTH.opposite() == Direction.NORTH
+    assert Direction.EAST.opposite() == Direction.WEST
+    assert Direction.WEST.opposite() == Direction.EAST

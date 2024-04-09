@@ -58,6 +58,10 @@ impl PyDirection {
         self.direction.delta()
     }
 
+    fn opposite(&self) -> PyDirection {
+        self.direction.opposite().into()
+    }
+
     #[staticmethod]
     fn from_str(direction: String) -> PyResult<Self> {
         match Direction::try_from(direction.as_str()) {

@@ -11,12 +11,11 @@ from .types import Position, AgentId
 class WorldState:
     def __init__(self, agents_positions: List[Position], gems_collected: List[bool]):
         """Construct a WorldState from the (i, j) position of each agent and the collection status of each gem."""
-    @property
-    def agents_positions(self) -> List[Position]:
-        """The (i, j) position of each agent."""
-    @property
-    def gems_collected(self) -> List[bool]:
-        """The collection status of each gem."""
+
+    agents_positions: List[Position]
+    """The (i, j) position of each agent."""
+    gems_collected: List[bool]
+    """The collection status of each gem."""
     def __hash__(self) -> int: ...
     def __eq__(self, __value: object) -> bool: ...
     def __str__(self) -> str: ...

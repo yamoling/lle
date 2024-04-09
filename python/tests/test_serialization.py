@@ -31,7 +31,7 @@ def test_pickle_world():
 
 
 def test_lle_json():
-    env = LLE.level(6, ObservationType.FLATTENED)
+    env = LLE.level(6).obs_type(ObservationType.FLATTENED).build()
     data = to_json(env)
     as_dict = json.loads(data)
     assert as_dict["name"] == "LLE-lvl6"

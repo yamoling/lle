@@ -1,5 +1,6 @@
 from typing import Any
 from lle import LLE, Action, WorldState, ObservationType
+from lle.envs.reward_strategy import REWARD_DEATH, REWARD_GEM, REWARD_EXIT, REWARD_DONE, RW_DEATH_IDX, RW_GEM_IDX, RW_EXIT_IDX, RW_DONE_IDX
 from copy import deepcopy
 import numpy as np
 
@@ -13,7 +14,7 @@ def test_available_actions():
 @ X  .  S1 @
 @ @  @  @  @
 """
-    )
+    ).build()
     env.reset()
     available_actions = env.available_actions()
     # Agent 0
@@ -41,7 +42,7 @@ L0E . .  .  . . @
 @   . .  .  . G @
 @   . X  X  . . @
 @   @ @  @  @ @ @"""
-    )
+    ).build()
     obs = env.reset()
 
     def check_available_actions(available: np.ndarray[np.int32, Any], expected_available: list[list[Action]]) -> bool:
@@ -71,7 +72,7 @@ def test_width_height():
         """S0 X .
 .  . .
 .  . ."""
-    )
+    ).build()
     assert env.width == 3
     assert env.height == 3
 
@@ -79,7 +80,7 @@ def test_width_height():
         """S0 X . .
 .  . . .
 G  . . ."""
-    )
+    ).build()
     assert env.width == 4
     assert env.height == 3
 
@@ -89,7 +90,7 @@ def test_state_default():
         """S0 X .
                         .  . .
                         .  . ."""
-    )
+    ).build()
     assert env.state_shape == (env.n_agents * 2 + env.world.n_gems,)
     env.reset()
     state = env.get_state()
@@ -97,11 +98,14 @@ def test_state_default():
 
 
 def test_state_flattened():
-    env = LLE.from_str(
-        """S0 X .
+    env = (
+        LLE.from_str(
+            """S0 X .
 .  . .
 .  . .""",
-        state_type=ObservationType.FLATTENED,
+        )
+        .state_type(ObservationType.FLATTENED)
+        .build()
     )
     assert env.state_shape == (np.prod(env.state_shape),)
     env.reset()
@@ -114,12 +118,12 @@ def test_action_meanings():
         """S0 X .
 .  . .
 .  . ."""
-    )
+    ).build()
     assert env.action_space.action_names == [a.name for a in Action.ALL]
 
 
 def test_deep_copy():
-    env = LLE.from_str("S0 X")
+    env = LLE.from_str("S0 X").build()
     copy = deepcopy(env)
     assert env is not copy
 
@@ -140,7 +144,7 @@ def test_move_end_game():
     S0 X .
     .  . .
     .  . .""",
-    )
+    ).build()
     env.reset()
     env.step([Action.SOUTH.value])
     assert not env.done
@@ -160,7 +164,7 @@ def test_time_reward():
     . .  . X
     . S0 . .
     . .  . ."""
-    )
+    ).build()
     env.reset()
     for action in Action.ALL:
         _obs, reward, *_ = env.step([action.value])
@@ -174,11 +178,11 @@ def test_finish_reward():
 @ . S0 . . @
 @ . .  X . @
 @ @ @  @ @ @"""
-    )
+    ).build()
     env.reset()
     env.step([Action.EAST.value])
     reward = env.step([Action.SOUTH.value])[1]
-    assert reward.item() == LLE.REWARD_DONE + LLE.REWARD_EXIT
+    assert reward.item() == REWARD_DONE + REWARD_EXIT
 
 
 def test_arrive_reward_only_once():
@@ -188,8 +192,7 @@ def test_arrive_reward_only_once():
     S0 . G
     S1 X X
 """,
-        multi_objective=False,
-    )
+    ).build()
     action_rewards = [
         ([Action.EAST, Action.STAY], 0),  # Agent 0
         ([Action.STAY, Action.EAST], 1),  # Agent 1 finishes the game
@@ -206,9 +209,9 @@ def test_arrive_reward_only_once():
 
 
 def test_void_reward():
-    env = LLE.from_str("S0 V X")
+    env = LLE.from_str("S0 V X").build()
     env.reset()
-    assert env.step([Action.EAST.value])[1].item() == LLE.REWARD_DEATH
+    assert env.step([Action.EAST.value])[1].item() == REWARD_DEATH
     assert env.done
 
 
@@ -217,11 +220,11 @@ def test_collect_reward():
         """S0 X . .
 .  . . .
 G  . . ."""
-    )
+    ).build()
     env.reset()
     env.step([Action.SOUTH.value])
     reward = env.step([Action.SOUTH.value])[1]
-    assert reward.item() == LLE.REWARD_GEM
+    assert reward.item() == REWARD_GEM
 
 
 def test_reward_after_reset():
@@ -231,14 +234,14 @@ def test_reward_after_reset():
     .  . . .
     G  . . .
     """
-    )
+    ).build()
 
     def play():
         """Collect the gem and finish the game. Check that the reward is is correct when collecting it."""
         env.reset()
         env.step([Action.SOUTH.value])
         reward = env.step([Action.SOUTH.value])[1].item()
-        assert reward == LLE.REWARD_GEM
+        assert reward == REWARD_GEM
         assert not env.done
         r = env.step([Action.NORTH.value])[1].item()
         assert r == 0
@@ -246,7 +249,7 @@ def test_reward_after_reset():
         assert r == 0
         reward = env.step([Action.EAST.value])[1].item()
         assert env.done
-        assert reward == LLE.REWARD_DONE + LLE.REWARD_EXIT
+        assert reward == REWARD_DONE + REWARD_EXIT
 
     for _ in range(10):
         play()
@@ -260,11 +263,11 @@ def test_reward_after_set_state():
         """
     S0 . G
     S1 X X""",
-    )
+    ).build()
     env.reset()
     state = WorldState([(0, 1), (1, 1)], [False])
     env.set_state(state)
-    assert env.step([Action.EAST.value, Action.STAY.value])[1].item() == LLE.REWARD_GEM
+    assert env.step([Action.EAST.value, Action.STAY.value])[1].item() == REWARD_GEM
 
 
 def test_reward_set_state_all_arrived():
@@ -272,16 +275,16 @@ def test_reward_set_state_all_arrived():
         """
     S0 . G
     S1 X X""",
-    )
+    ).build()
     env.reset()
     state = WorldState([(0, 2), (1, 1)], [True])
     env.set_state(state)
     r = env.step([Action.SOUTH.value, Action.STAY.value])[1]
-    assert r.item() == LLE.REWARD_DONE + LLE.REWARD_EXIT
+    assert r.item() == REWARD_DONE + REWARD_EXIT
 
 
 def test_set_state():
-    env = LLE.from_str("S0 G X")
+    env = LLE.from_str("S0 G X").build()
     env.reset()
     env.step([Action.EAST.value])
     env.set_state(WorldState([(0, 0)], [False]))
@@ -302,11 +305,11 @@ def test_reward():
     S0 G .
     .  . X
     """
-    )
+    ).build()
     env.reset()
-    assert env.step([Action.EAST.value])[1].item() == LLE.REWARD_GEM
+    assert env.step([Action.EAST.value])[1].item() == REWARD_GEM
     assert env.step([Action.EAST.value])[1].item() == 0.0
-    assert env.step([Action.SOUTH.value])[1].item() == LLE.REWARD_EXIT + LLE.REWARD_DONE
+    assert env.step([Action.SOUTH.value])[1].item() == REWARD_EXIT + REWARD_DONE
 
 
 def test_reward_death():
@@ -315,9 +318,9 @@ def test_reward_death():
     S0 L0S X
     S1  .  X
     """
-    )
+    ).build()
     env.reset()
-    assert env.step([Action.STAY.value, Action.EAST.value])[1].item() == LLE.REWARD_DEATH
+    assert env.step([Action.STAY.value, Action.EAST.value])[1].item() == REWARD_DEATH
     assert env.done
 
 
@@ -327,9 +330,9 @@ def test_reward_collect_and_death():
     S0 L0S X
     S1  G  X
     """
-    )
+    ).build()
     env.reset()
-    assert env.step([Action.STAY.value, Action.EAST.value])[1].item() == LLE.REWARD_DEATH
+    assert env.step([Action.STAY.value, Action.EAST.value])[1].item() == REWARD_DEATH
     assert env.done
 
 
@@ -339,7 +342,7 @@ def test_force_end_state():
         S0 . G
         X  . .
     """,
-    )
+    ).build()
     env.reset()
     s = WorldState([(1, 0)], [True])
     env.set_state(s)
@@ -352,7 +355,7 @@ def test_force_state_agent_dies():
         S0 S1 G
         X  X L0W
     """,
-    )
+    ).build()
     env.reset()
 
     s = WorldState([(1, 0), (1, 1)], [False])
@@ -361,10 +364,10 @@ def test_force_state_agent_dies():
 
 
 def test_agent_state_size():
-    env = LLE.level(1)
+    env = LLE.level(1).build()
     assert env.agent_state_size == 2
 
-    env = LLE.level(1, state_type=ObservationType.FLATTENED)
+    env = LLE.level(1).state_type(ObservationType.FLATTENED).build()
     try:
         env.agent_state_size
         assert False, "So far, only state generators of type `StateGenerator` have a `agent_state_size`."
@@ -373,20 +376,23 @@ def test_agent_state_size():
 
 
 def test_multi_objective_rewards():
-    env = LLE.from_str(
-        """
+    env = (
+        LLE.from_str(
+            """
     S0 G .
     .  . X
     """,
-        multi_objective=True,
+        )
+        .multi_objective()
+        .build()
     )
-    indices = [LLE.RW_GEM_IDX, LLE.RW_EXIT_IDX, LLE.RW_DONE_IDX, LLE.RW_DEATH_IDX]
+    indices = [RW_GEM_IDX, RW_EXIT_IDX, RW_DONE_IDX, RW_DEATH_IDX]
     env.reset()
     # Collect the gem
     reward = env.step([Action.EAST.value])[1]
-    assert reward[LLE.RW_GEM_IDX] == LLE.REWARD_GEM
+    assert reward[RW_GEM_IDX] == REWARD_GEM
     for idx in indices:
-        if idx != LLE.RW_GEM_IDX:
+        if idx != RW_GEM_IDX:
             assert reward[idx] == 0
 
     # Step east
@@ -394,23 +400,26 @@ def test_multi_objective_rewards():
     # Finish the level
     _, reward, done, *_ = env.step([Action.SOUTH.value])
     assert done
-    assert reward[LLE.RW_EXIT_IDX] == LLE.REWARD_EXIT
-    assert reward[LLE.RW_DONE_IDX] == LLE.REWARD_DONE
+    assert reward[RW_EXIT_IDX] == REWARD_EXIT
+    assert reward[RW_DONE_IDX] == REWARD_DONE
     for idx in indices:
-        if idx not in [LLE.RW_EXIT_IDX, LLE.RW_DONE_IDX]:
+        if idx not in [RW_EXIT_IDX, RW_DONE_IDX]:
             assert reward[idx] == 0
 
 
 def test_multi_objective_death():
-    env = LLE.from_str(
-        """
+    env = (
+        LLE.from_str(
+            """
     S0 L0S X
     S1  G  X
     """,
-        multi_objective=True,
+        )
+        .multi_objective()
+        .build()
     )
     env.reset()
     reward = env.step([Action.STAY.value, Action.EAST.value])[1]
-    assert reward[LLE.RW_DEATH_IDX] == LLE.REWARD_DEATH
-    for idx in [LLE.RW_GEM_IDX, LLE.RW_EXIT_IDX, LLE.RW_DONE_IDX]:
+    assert reward[RW_DEATH_IDX] == REWARD_DEATH
+    for idx in [RW_GEM_IDX, RW_EXIT_IDX, RW_DONE_IDX]:
         assert reward[idx] == 0

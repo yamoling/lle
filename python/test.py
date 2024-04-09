@@ -11,4 +11,3 @@ import matplotlib.pyplot as plt
 b = lle.AdversarialEnvLLE(10, 10, 2)
 b.reset()
 b.render()
-b.step()
