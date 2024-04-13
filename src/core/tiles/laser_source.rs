@@ -31,11 +31,11 @@ impl Into<String> for LaserSource {
 impl LaserSource {
     /// Note there is no "TryFrom" implementation for LaserSource because we need the laser_id.
     pub fn from_str(value: &str, laser_id: LaserId) -> Result<Self, ParseError> {
-        let direction = Direction::try_from(&value[2..]).unwrap();
+        let direction = Direction::try_from(value.chars().last().unwrap()).unwrap();
         let agent_id = match (&value[1..2]).parse::<AgentId>() {
             Ok(agent_id) => agent_id,
             Err(_) => {
-                return Err(ParseError::CanNotParseAgentId {
+                return Err(ParseError::InvalidAgentId {
                     given_agent_id: value[1..2].to_string(),
                 })
             }

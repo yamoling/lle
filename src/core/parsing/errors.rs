@@ -37,8 +37,12 @@ pub enum ParseError {
         asked_id: AgentId,
         n_agents: AgentId,
     },
-    CanNotParseAgentId {
+    InvalidAgentId {
         given_agent_id: String,
+    },
+    InvalidDirection {
+        given: String,
+        expected: String,
     },
 }
 
