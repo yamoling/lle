@@ -79,9 +79,12 @@ pub fn parse_error_to_exception(error: ParseError) -> PyErr {
                 "Invalid laser source agent id: {asked_id}. There are only {n_agents} agents -> expected an id between 0 and {}.", n_agents -1
             )
         }
+        ParseError::InvalidDirection { given, expected } => {
+            format!("Invalid direction: {given}. {expected}")   
+        }
         ParseError::InvalidFileName { .. } | ParseError::InvalidLevel { .. } => {
             panic!("Already handled above")
-        }
+        },
     };
     ParsingError::new_err(msg)
 }

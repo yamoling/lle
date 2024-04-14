@@ -44,7 +44,7 @@ impl TryFrom<&str> for Direction {
             "e" | "east" => Ok(Direction::East),
             "s" | "south" => Ok(Direction::South),
             "w" | "west" => Ok(Direction::West),
-            other => Err(ParseError::InvalidDirection { given: value.into(), expected: "{{N, E, S, W, north, east, south, west}}.".into() })
+            _ => Err(ParseError::InvalidDirection { given: value.into(), expected: "{{N, E, S, W, north, east, south, west}}.".into() })
             
         }
     }
