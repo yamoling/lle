@@ -137,7 +137,7 @@ class LLE(RLEnv[DiscreteActionSpace]):
             case StateGenerator():
                 return self.state_generator.unit_size
             case other:
-                raise ValueError(f"State type {other} does not support `unit_state_size`.")
+                raise NotImplementedError(f"State type {other} does not support `unit_state_size`.")
 
     def get_observation(self):
         return Observation(self.observation_generator.observe(), self.available_actions(), self.get_state())

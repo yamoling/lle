@@ -40,7 +40,7 @@ RW_DONE_IDX = 3
 
 class SingleObjective(RewardStrategy):
     def __init__(self, n_agents: int):
-        super().__init__(DiscreteSpace(1, ["default reward"]))
+        super().__init__(DiscreteSpace(1, ["Default"]))
         self.n_agents = n_agents
         self.n_arrived = 0
 
