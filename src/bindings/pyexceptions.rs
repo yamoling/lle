@@ -71,7 +71,7 @@ pub fn parse_error_to_exception(error: ParseError) -> PyErr {
             line,
             col,
         } => format!("Invalid tile '{tile_str}' at position ({line}, {col})"),
-        ParseError::CanNotParseAgentId { given_agent_id } => {
+        ParseError::InvalidAgentId { given_agent_id } => {
             format!("Can not parse agent id: {given_agent_id}. Expected an interger >= 0.")
         }
         ParseError::InvalidLaserSourceAgentId { asked_id, n_agents } => {

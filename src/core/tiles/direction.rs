@@ -1,5 +1,7 @@
 use std::fmt::Display;
 
+use crate::ParseError;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Direction {
     North,
@@ -35,18 +37,25 @@ impl Display for Direction {
 }
 
 impl TryFrom<&str> for Direction {
-    type Error = String;
+    type Error = ParseError;
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         match value.to_lowercase().as_str() {
             "n" | "north" => Ok(Direction::North),
             "e" | "east" => Ok(Direction::East),
             "s" | "south" => Ok(Direction::South),
             "w" | "west" => Ok(Direction::West),
-            other => Err(format!(
-                "Invalid direction: {other}. Expected one of {{N, E, S, W, north, east, south, west}}."
-            )),
+            other => Err(ParseError::InvalidDirection { given: value.into(), expected: "{{N, E, S, W, north, east, south, west}}.".into() })
+            
         }
     }
+}
+
+impl TryFrom<char> for Direction {
+    type Error = ParseError;
+    fn try_from(value: char) -> Result<Self, Self::Error> {
+        Direction::try_from(value.to_string().as_str())
+    }
+
 }
 
 impl Into<&str> for Direction {

@@ -28,32 +28,37 @@ class Builder:
     _death_strategy: DeathStrategy
     _reward_strategy: RewardStrategy
 
-    def __init__(self, world: World, env_name: str = "LLE"):
+    def __init__(self, world: World):
         self._world = world
         self._obs_type = ObservationType.LAYERED
         self._state_type = ObservationType.STATE
         self._death_strategy = DeathStrategy.END
         self._reward_strategy = SingleObjective(world.n_agents)
         self._multi_objective = False
-        self._env_name = env_name
+        self._env_name = LLE.__name__
 
     def obs_type(self, obs_type: ObservationType):
+        """
+        Set the observation type of the environment (already set to ObservationType.LAYERED by default).
+        """
         self._obs_type = obs_type
         return self
 
     def state_type(self, state_type: ObservationType):
+        """
+        Set the state type of the environment (already set to ObservationType.STATE by default).
+        """
         self._state_type = state_type
         return self
 
-    def multi_objective(self, multi_objective: bool = True):
-        if multi_objective:
-            self._reward_strategy = MultiObjective(self._world.n_agents)
-        else:
-            self._reward_strategy = SingleObjective(self._world.n_agents)
-        self._multi_objective = multi_objective
+    def multi_objective(self):
+        """Transform the reward strategy to a multi-objective one (single objective by default)."""
+        self._reward_strategy = MultiObjective(self._world.n_agents)
+        self._multi_objective = True
         return self
 
     def death_strategy(self, death_strategy: Literal["respawn", "end", "stay"]):
+        """Set the behaviour of the agents when they die (end the episode by default)."""
         match death_strategy:
             case "respawn":
                 raise NotImplementedError("Respawn strategy is not implemented yet.")
@@ -63,6 +68,11 @@ class Builder:
                 self._death_strategy = DeathStrategy.STAY
             case other:
                 raise ValueError(f"Invalid death strategy: {other}")
+        return self
+    
+    def name(self, name: str):
+        """Set the name of the environment."""
+        self._env_name = name
         return self
 
     def build(self):
@@ -127,7 +137,7 @@ class LLE(RLEnv[DiscreteActionSpace]):
             case StateGenerator():
                 return self.state_generator.unit_size
             case other:
-                raise ValueError(f"State type {other} does not support `unit_state_size`.")
+                raise NotImplementedError(f"State type {other} does not support `unit_state_size`.")
 
     def get_observation(self):
         return Observation(self.observation_generator.observe(), self.available_actions(), self.get_state())
@@ -209,12 +219,12 @@ class LLE(RLEnv[DiscreteActionSpace]):
     def from_file(path: str):
         import os
 
-        return Builder(World.from_file(path), env_name=f"LLE-{os.path.basename(path)}")
+        return Builder(World.from_file(path)).name(f"LLE-{os.path.basename(path)}")
 
     @staticmethod
     def level(level: int):
         """Load a level from the levels folder"""
-        return Builder(World.level(level), f"LLE-lvl{level}")
+        return Builder(World.level(level)).name(f"LLE-lvl{level}")
 
     def seed(self, _seed_value: int):
         # There is nothing random in the world to seed.

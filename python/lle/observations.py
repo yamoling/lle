@@ -1,8 +1,9 @@
+import math
+import cv2
 from typing import Any
 from abc import ABC, abstractmethod
 from enum import IntEnum
 import numpy as np
-import cv2
 from lle import World, AgentId, Position
 
 
@@ -226,6 +227,10 @@ class FlattenedLayered(ObservationGenerator):
     @property
     def shape(self):
         return self._shape
+
+    @property
+    def unit_size(self) -> int:
+        return 0
 
     def set_world(self, new_world: World):
         self.layered.set_world(new_world)
