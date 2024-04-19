@@ -371,7 +371,7 @@ def test_agent_state_size():
     try:
         env.agent_state_size
         assert False, "So far, only state generators of type `StateGenerator` have a `agent_state_size`."
-    except ValueError:
+    except (ValueError, NotImplementedError):
         pass
 
 

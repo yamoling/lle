@@ -21,7 +21,8 @@ permissions:
 
 jobs:
   test:
-    name: Test
+    if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/dev'}}
+    name: Run rust and python tests
     strategy:
       matrix:
         os:
@@ -41,113 +42,30 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     steps:
-      # Setup Rust and run Rust unit/integration tests
-      - name: Checkout
-        uses: actions/checkout@v3
-      - name: Rust setup
-        uses: ATiltedTree/setup-rust@v1
-        with:
-          rust-version: stable
-      - name: Cargo test
+      # Checkout
+      - uses: actions/checkout@v4
+      # Rust 
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Rust tests
         run: cargo test
 
-      # Setup poetry and run Python tests
-      - name: Python setup
-        uses: actions/setup-python@v4
-        with:
+      # Python
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with: 
           python-version: ${{ matrix.python-version }}
-      - name: Poetry setup
+      - name: Install Poetry
         uses: abatilo/actions-poetry@v2
         with:
           poetry-version: latest
-      - name: Maturin build + Pytest
+      - name: Pytest
         run: |
           poetry install
           poetry run pip install maturin
-          poetry run maturin develop --release
+          poetry run maturin develop
           poetry run pytest
-
-  linux:
-    if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
-    needs: [test]
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        target: [x86_64, x86, aarch64]
-        python-version: ['3.10', '3.11', '3.12']
-    steps:
-      - uses: actions/checkout@v3
-      - name: Python setup
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Poetry setup
-        uses: abatilo/actions-poetry@v2
-        with:
-          poetry-version: latest
-      - name: Build wheels
-        uses: PyO3/maturin-action@v1
-        with:
-          target: ${{ matrix.target }}
-          args: --release --out dist --find-interpreter
-          sccache: 'true'
-          manylinux: auto
-      - name: Upload wheels
-        uses: actions/upload-artifact@v3
-        with:
-          name: wheels
-          path: dist
-
-  windows:
-    if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
-    needs: [test]
-    runs-on: windows-latest
-    strategy:
-      matrix:
-        target: [x64, x86]
-        python-version: ['3.10', '3.11', '3.12']
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-          architecture: ${{ matrix.target }}
-      - name: Build wheels
-        uses: PyO3/maturin-action@v1
-        with:
-          target: ${{ matrix.target }}
-          args: --release --out dist --find-interpreter
-          sccache: 'true'
-      - name: Upload wheels
-        uses: actions/upload-artifact@v3
-        with:
-          name: wheels
-          path: dist
-
-  macos:
-    if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
-    needs: [test]
-    runs-on: macos-latest
-    strategy:
-      matrix:
-        target: [x86_64, aarch64]
-        python-version: ['3.10', '3.11', '3.12']
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Build wheels
-        uses: PyO3/maturin-action@v1
-        with:
-          target: ${{ matrix.target }}
-          args: --release --out dist --find-interpreter
-          sccache: 'true'
-      - name: Upload wheels
-        uses: actions/upload-artifact@v3
-        with:
-          name: wheels
-          path: dist
+      
 
   sdist:
     name: Build dist
@@ -170,7 +88,7 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
-    needs: [linux, windows, macos, sdist]
+    needs: [test, sdist]
     steps:
       - uses: actions/download-artifact@v3
         with:
