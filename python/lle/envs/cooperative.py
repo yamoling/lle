@@ -71,6 +71,7 @@ class Builder:
         """Set the behaviour of the agents when they die (end the episode by default)."""
         match death_strategy:
             case "respawn":
+                # TODO: agents should not be able to go on an other agent's respawn position
                 raise NotImplementedError("Respawn strategy is not implemented yet.")
             case "end":
                 self._death_strategy = DeathStrategy.END
@@ -158,17 +159,15 @@ class LLE(RLEnv[DiscreteActionSpace]):
     @override
     def available_actions(self):
         available_actions = np.full((self.n_agents, self.n_actions), False, dtype=bool)
-        if not self.walkable_lasers:    # apparently slow, so retrieve only if necessary
-            lasers = self.world.lasers
-            agents_pos = self.world.agents_positions
+        lasers = self.world.lasers
+        agents_pos = self.world.agents_positions
         for agent, actions in enumerate(self.world.available_actions()):
-            
             for action in actions:
                 if not self.walkable_lasers:
-                    agent_pos = agents_pos[agent] # type: ignore
+                    agent_pos = agents_pos[agent]
                     new_pos = (agent_pos[0] + action.delta[0], agent_pos[1] + action.delta[1])
                     # ignore action if new position is an active laser of another color
-                    if any(laser_pos == new_pos and laser.agent_id != agent and laser.is_on for laser_pos, laser in lasers): # type: ignore
+                    if any(laser_pos == new_pos and laser.agent_id != agent and laser.is_on for laser_pos, laser in lasers):
                         continue
                 available_actions[agent, action.value] = True
         return available_actions
