@@ -27,6 +27,7 @@ class Builder:
     _multi_objective: bool
     _death_strategy: DeathStrategy
     _reward_strategy: RewardStrategy
+    _walkable_lasers: bool
 
     def __init__(self, world: World):
         self._world = world
@@ -36,6 +37,7 @@ class Builder:
         self._reward_strategy = SingleObjective(world.n_agents)
         self._multi_objective = False
         self._env_name = LLE.__name__
+        self._walkable_lasers = True
 
     def obs_type(self, obs_type: ObservationType):
         """
@@ -49,6 +51,14 @@ class Builder:
         Set the state type of the environment (already set to ObservationType.STATE by default).
         """
         self._state_type = state_type
+        return self
+
+    def walkable_lasers(self, walkable_lasers: bool):
+        """
+        Set wheter the agents can walk on active laser of different color
+        Agent can still die if standing on a disabled laser tile that is reactivated
+        """
+        self._walkable_lasers = walkable_lasers
         return self
 
     def multi_objective(self):
@@ -83,6 +93,7 @@ class Builder:
             state_type=self._state_type,
             reward_strategy=self._reward_strategy,
             death_strategy=self._death_strategy,
+            walkable_lasers=self._walkable_lasers,
         )
 
 
@@ -104,6 +115,7 @@ class LLE(RLEnv[DiscreteActionSpace]):
         state_type: ObservationType = ObservationType.STATE,
         reward_strategy: Optional[RewardStrategy] = None,
         death_strategy: DeathStrategy = DeathStrategy.END,
+        walkable_lasers: bool = True,
     ):
         self.world = world
         self.obs_type = obs_type.name
@@ -112,6 +124,7 @@ class LLE(RLEnv[DiscreteActionSpace]):
         self.state_generator = state_type.get_observation_generator(world)
         self.death_strategy = death_strategy
         self.reward_strategy = reward_strategy or SingleObjective(world.n_agents)
+        self.walkable_lasers = walkable_lasers
 
         super().__init__(
             DiscreteActionSpace(world.n_agents, Action.N, [a.name for a in Action.ALL]),
@@ -145,8 +158,18 @@ class LLE(RLEnv[DiscreteActionSpace]):
     @override
     def available_actions(self):
         available_actions = np.full((self.n_agents, self.n_actions), False, dtype=bool)
+        if not self.walkable_lasers:    # apparently slow, so retrieve only if necessary
+            lasers = self.world.lasers
+            agents_pos = self.world.agents_positions
         for agent, actions in enumerate(self.world.available_actions()):
+            
             for action in actions:
+                if not self.walkable_lasers:
+                    agent_pos = agents_pos[agent] # type: ignore
+                    new_pos = (agent_pos[0] + action.delta[0], agent_pos[1] + action.delta[1])
+                    # ignore action if new position is an active laser of another color
+                    if any(laser_pos == new_pos and laser.agent_id != agent and laser.is_on for laser_pos, laser in lasers): # type: ignore
+                        continue
                 available_actions[agent, action.value] = True
         return available_actions
 
