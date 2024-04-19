@@ -119,4 +119,10 @@ impl PyAction {
     fn name(&self) -> String {
         self.action.to_string()
     }
+
+    fn opposite(&self) -> Self {
+        Self {
+            action: self.action.opposite().into(),
+        }
+    }
 }

@@ -1,88 +1,13 @@
+import random
+from numpy import ndarray
+from rlenv.wrappers import RLEnvWrapper
+from lle import LLE, LaserSource
+from dataclasses import dataclass
+from serde import serde
 import lle
-
-
-env = lle.LLE.level(6)
-env.reset()
-positions_8 = lle.WorldState([(11, 3), (7, 4), (10, 3), (11, 6)], [False, False, False, False])
-positions_7 = lle.WorldState([(10, 4), (8, 6), (11, 3), (11, 7)], [False, False, False, False])
-
-actions_7 = [
-    [2, 0, 2, 2],
-    [2, 0, 2, 2],
-    [2, 2, 2, 2],
-    [2, 2, 2, 4],
-    [2, 2, 2, 4],
-    [2, 1, 2, 4],
-    [4, 0, 0, 4],
-    [4, 2, 0, 4],
-    [4, 2, 2, 4],
-    [4, 1, 2, 4],
-    [4, 2, 2, 4],
-    [4, 3, 1, 4],
-    [4, 2, 1, 4],
-    [4, 3, 3, 4],
-    [4, 3, 4, 4],
-    [4, 3, 4, 4],
-    [4, 3, 4, 4],
-    [4, 0, 4, 4],
-    [4, 3, 4, 4],
-    [4, 3, 4, 4],
-    [4, 1, 4, 4],
-    [4, 1, 4, 4],
-    [4, 1, 4, 4],
-    [4, 2, 4, 4],
-    [4, 2, 4, 4],
-    [4, 2, 4, 4],
-    [4, 2, 4, 4],
-    [4, 2, 4, 4],
-    [4, 1, 4, 4],
-]
-
-actions_8 = [
-    [2, 2, 2, 2],
-    [2, 0, 2, 2],
-    [2, 2, 2, 2],
-    [2, 2, 2, 2],
-    [2, 2, 2, 4],
-    [2, 2, 2, 4],
-    [4, 1, 2, 4],
-    [0, 0, 4, 4],
-    [0, 2, 4, 4],
-    [2, 2, 4, 4],
-    [2, 1, 4, 4],
-    [2, 2, 4, 4],
-    [1, 3, 4, 4],
-    [1, 2, 4, 4],
-    [3, 3, 4, 4],
-    [4, 3, 4, 4],
-    [4, 3, 4, 4],
-    [4, 3, 4, 4],
-    [4, 0, 4, 4],
-    [4, 3, 4, 4],
-    [4, 3, 4, 4],
-    [4, 1, 4, 4],
-    [4, 1, 4, 4],
-    [4, 1, 4, 4],
-    [4, 2, 4, 4],
-    [4, 2, 4, 4],
-    [4, 2, 4, 4],
-    [4, 2, 4, 4],
-    [4, 2, 4, 4],
-    [4, 1, 4, 4],
-]
-
-env.reset()
-env.set_state(positions_8)
-score = 0
-env.render("human")
 import time
+import matplotlib.pyplot as plt
 
-time.sleep(0.2)
-env.render("human")
-for action in actions_8:
-    input("Press Enter to continue...")
-    r = env.step(action)[1]
-    env.render("human")
-    print(r)
-    score += r
-print(score)
+b = lle.AdversarialEnvLLE(10, 10, 2)
+b.reset()
+b.render()

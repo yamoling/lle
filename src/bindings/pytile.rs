@@ -2,7 +2,7 @@ use pyo3::prelude::*;
 
 use crate::{
     agent::AgentId,
-    tiles::{Laser, LaserId, LaserSource},
+    tiles::{Direction, Laser, LaserId, LaserSource},
     Tile,
 };
 
@@ -102,7 +102,7 @@ impl From<&Laser> for PyLaser {
     }
 }
 
-#[pyclass(name = "LaserSource")]
+#[pyclass(name = "LaserSource", module = "lle")]
 #[derive(Debug)]
 pub struct PyLaserSource {
     direction: PyDirection,
@@ -124,6 +124,17 @@ impl From<&LaserSource> for PyLaserSource {
 
 #[pymethods]
 impl PyLaserSource {
+    #[new]
+    /// This constructor is required for pickling but should not be used for any other purpose.
+    fn new() -> Self {
+        PyLaserSource {
+            direction: Direction::North.into(),
+            agent_id: 0,
+            laser_id: 0,
+            is_enabled: false,
+        }
+    }
+
     #[getter]
     pub fn is_enabled(&self) -> bool {
         self.is_enabled
@@ -155,5 +166,21 @@ impl PyLaserSource {
 
     pub fn __repr__(&self) -> String {
         self.__str__()
+    }
+
+    pub fn __getstate__(&self) -> (PyDirection, AgentId, LaserId, bool) {
+        (
+            self.direction.clone(),
+            self.agent_id,
+            self.laser_id,
+            self.is_enabled,
+        )
+    }
+
+    pub fn __setstate__(&mut self, state: (PyDirection, AgentId, LaserId, bool)) {
+        self.direction = state.0;
+        self.agent_id = state.1;
+        self.laser_id = state.2;
+        self.is_enabled = state.3;
     }
 }

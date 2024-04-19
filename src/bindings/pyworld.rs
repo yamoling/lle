@@ -22,6 +22,13 @@ pub struct PyWorld {
 
 unsafe impl Send for PyWorld {}
 
+impl PyWorld {
+    pub fn from_world(world: World) -> Self {
+        let renderer = Renderer::new(&world);
+        PyWorld { world, renderer }
+    }
+}
+
 #[pymethods]
 impl PyWorld {
     #[new]
@@ -168,10 +175,7 @@ impl PyWorld {
                 )))
             }
         };
-        if laser_source.agent_id() == new_colour {
-            return Ok(());
-        }
-        if new_colour > self.world.n_agents() {
+        if new_colour >= self.world.n_agents() {
             let n_agents = self.world.n_agents();
             return Err(PyValueError::new_err(format!(
                 "New colour {new_colour} does not belong to an existing agent !\nThere are {n_agents} agents in the world, provide a value bewteen 0 and {} included.",
@@ -192,6 +196,11 @@ impl PyWorld {
     /// The positions of the exit tiles.
     fn exit_pos(&self) -> Vec<Position> {
         self.world.exits().map(|(pos, _)| pos).copied().collect()
+    }
+
+    #[getter]
+    fn start_pos(&self) -> Vec<Position> {
+        self.world.starts().collect()
     }
 
     /// Perform a step in the world and returns the events that happened during that transition.

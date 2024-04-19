@@ -5,6 +5,12 @@ from copy import deepcopy
 from lle import World, WorldState, Action, ParsingError, InvalidActionError, EventType, InvalidWorldStateError
 
 
+def test_world_tiles():
+    w = World("S0 . X")
+    assert w.start_pos == [(0, 0)]
+    assert w.exit_pos == [(0, 2)]
+
+
 def test_available_actions():
     world = World(
         """
@@ -75,6 +81,19 @@ def test_walk_into_wall():
     world.step([Action.SOUTH])
     with pytest.raises(InvalidActionError):
         world.step([Action.SOUTH])
+
+
+def test_gem_collected_and_agent_died():
+    world = World(
+        """
+S0  G  X
+S1 L1N X"""
+    )
+    world.reset()
+    events = world.step([Action.EAST, Action.STAY])
+    assert len(events) == 1
+    assert events[0].event_type == EventType.AGENT_DIED
+    assert world.gems_collected == 0
 
 
 def test_world_gem_collected_and_agent_has_arrived():
@@ -347,12 +366,12 @@ def test_laser_tile_state():
 def test_disable_deadly_laser_source_and_walk_into_it():
     world = World(
         """
-        L0E . . X
-        S0 S1 . X
+        L0S . L0W X
+        S0 S1  .  X
         """
     )
     world.reset()
-    source = world.laser_sources[0, 0]
+    source = world.laser_sources[0, 2]
     world.disable_laser_source(source)
     events = world.step([Action.STAY, Action.NORTH])
     assert len(events) == 0
@@ -362,26 +381,28 @@ def test_disable_deadly_laser_source_and_walk_into_it():
 def test_change_laser_colour():
     world = World(
         """
-        L0E . .  .  X
         L1E . S1 S0 X
+        L0E .  .  . X
         """
     )
     world.reset()
-    lasers = dict(world.lasers)
-    sources = dict(world.laser_sources)
-    assert lasers[0, 1].agent_id == 0
-    assert lasers[1, 1].agent_id == 1
-    top_source = sources[0, 0]
+    for (i, _), laser in world.lasers:
+        if i == 0:
+            assert laser.agent_id == 1
+        else:
+            assert laser.agent_id == 0
+
+    bot_source = world.laser_sources[1, 0]
 
     NEW_COLOUR = 1
-    world.set_laser_colour(top_source, NEW_COLOUR)
+    world.set_laser_colour(bot_source, NEW_COLOUR)
     world.reset()
 
     # Check that all the laser tiles have changed their colour
     for (i, _), laser in world.lasers:
-        if i == 0:
+        if i == 1:
             assert laser.agent_id == NEW_COLOUR
-    events = world.step([Action.NORTH, Action.NORTH])
+    events = world.step([Action.SOUTH, Action.SOUTH])
     assert len(events) == 0
     assert all(a.is_alive for a in world.agents)
 
@@ -408,3 +429,34 @@ def test_change_laser_colour_to_invalid_colour():
         raise Exception("This should not be allowed because there is only one agent in the world")
     except ValueError:
         pass
+
+    try:
+        world.set_laser_colour(source, 1)
+        raise Exception("This should not be allowed because there is only one agent in the world")
+    except ValueError:
+        pass
+
+
+def test_change_laser_colour_back():
+    world = World(
+        """
+        L1E . S1 S0 X
+        L0E .  .  . X
+        """
+    )
+    world.reset()
+    bot_source = world.laser_sources[1, 0]
+    world.set_laser_colour(bot_source, 1)
+    world.reset()
+    assert world.laser_sources[1, 0].agent_id == 1
+    for _, laser in world.lasers:
+        assert laser.agent_id == 1
+
+    world.set_laser_colour(bot_source, 0)
+    world.reset()
+    assert world.laser_sources[1, 0].agent_id == 0
+    for (i, j), laser in world.lasers:
+        if i == 0:
+            assert laser.agent_id == 1
+        elif i == 1:
+            assert laser.agent_id == 0

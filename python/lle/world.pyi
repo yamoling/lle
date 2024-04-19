@@ -11,12 +11,11 @@ from .types import Position, AgentId
 class WorldState:
     def __init__(self, agents_positions: List[Position], gems_collected: List[bool]):
         """Construct a WorldState from the (i, j) position of each agent and the collection status of each gem."""
-    @property
-    def agents_positions(self) -> List[Position]:
-        """The (i, j) position of each agent."""
-    @property
-    def gems_collected(self) -> List[bool]:
-        """The collection status of each gem."""
+
+    agents_positions: List[Position]
+    """The (i, j) position of each agent."""
+    gems_collected: List[bool]
+    """The collection status of each gem."""
     def __hash__(self) -> int: ...
     def __eq__(self, __value: object) -> bool: ...
     def __str__(self) -> str: ...
@@ -25,6 +24,15 @@ class WorldState:
 
 @final
 class World:
+    def __init__(self, world_str: str):
+        """Constructs a World from a string.
+        Raises:
+            - RuntimeError if the file is not a valid level.
+            - ValueError if the file is not a valid level (inconsistent dimensions or invalid grid).
+        """
+    def __deepcopy__(self, memo: Any) -> "World": ...
+    agents_positions: List[Position]
+    """The current (i, j) position of each agent"""
     n_agents: int
     """The number of agents in the world."""
     width: int
@@ -41,6 +49,8 @@ class World:
     
     Note: Accessing this attribute is costly because it creates the mapping on the fly every time.
     """
+    start_pos: List[Position]
+    """The (i, j) position of each start tile."""
     exit_pos: List[Position]
     """The (i, j) position of each exit tile."""
     wall_pos: List[Position]
@@ -55,22 +65,15 @@ class World:
     """
     lasers: List[Tuple[Position, Laser]]
     """
-    The (i, j) position of every laser
+    The (i, j) position of every laser.
 
-    Note: Accessing this attribute is costly because it creates the list on the fly for every call.
+    Notes: 
+        - Accessing this attribute is costly because it creates the list on the fly for every call.
+        - Since two lasers can cross, there can be duplicates in the positions.
     """
-    agents_positions: List[Position]
-    """The current (i, j) position of each agent"""
     world_string: str
     """The string upon which the world has been constructed."""
 
-    def __init__(self, world_str: str):
-        """Constructs a World from a string.
-        Raises:
-            - RuntimeError if the file is not a valid level.
-            - ValueError if the file is not a valid level (inconsistent dimensions or invalid grid).
-        """
-    def __deepcopy__(self, memo: Any) -> "World": ...
     @property
     def gems_collected(self) -> int:
         """The number of gems collected by the agents so far in the episode."""
@@ -91,7 +94,7 @@ class World:
             - `InvalidActionError` if an agent takes an action that is not available.
             - `ValueError` if the number of actions is different from the number of agents
         """
-    def reset(self):
+    def reset(self) -> None:
         """Reset the world to its initial state."""
     def available_actions(self) -> List[List[Action]]:
         """
@@ -110,21 +113,21 @@ class World:
         - Returns the list of events that occurred while agents entered their state.
         - Raises a `InvalidWorldStateError` if the state is invalid.
         """
-    def disable_laser_source(self, source: LaserSource):
+    def disable_laser_source(self, source: LaserSource) -> None:
         """
         Disable a laser source (deactivate all the beam from this source).
 
         Raise a `ValueError` if a source with the same `LaserId` is not found.
         """
 
-    def enable_laser_source(self, source: LaserSource):
+    def enable_laser_source(self, source: LaserSource) -> None:
         """
         Enable a laser source.
 
         Raise a `ValueError` if a source with the same `LaserId` is not found.
         """
 
-    def set_laser_colour(self, source: LaserSource, new_colour: AgentId):
+    def set_laser_colour(self, source: LaserSource, new_colour: AgentId) -> None:
         """
         Change the colour of a laser source (and of all corresponding laser tiles).
 

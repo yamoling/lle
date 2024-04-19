@@ -33,6 +33,17 @@ pub enum ParseError {
         actual_n_cols: usize,
         row: usize,
     },
+    InvalidLaserSourceAgentId {
+        asked_id: AgentId,
+        n_agents: AgentId,
+    },
+    InvalidAgentId {
+        given_agent_id: String,
+    },
+    InvalidDirection {
+        given: String,
+        expected: String,
+    },
 }
 
 impl Display for ParseError {

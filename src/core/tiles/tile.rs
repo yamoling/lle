@@ -55,8 +55,26 @@ impl Tile for Floor {
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct Wall {}
+
+impl Into<String> for Wall {
+    fn into(self) -> String {
+        "@".to_string()
+    }
+}
+
+impl TryFrom<&str> for Wall {
+    type Error = String;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        if value == "@" {
+            Ok(Wall {})
+        } else {
+            Err("Invalid wall character".into())
+        }
+    }
+}
 
 impl Tile for Wall {
     fn pre_enter(&self, _agent: &Agent) -> Result<(), String> {

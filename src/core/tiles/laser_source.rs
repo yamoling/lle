@@ -1,21 +1,18 @@
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,
-    sync::Mutex,
 };
 
 use crate::{
     agent::{Agent, AgentId},
     rendering::{TileVisitor, VisitorData},
-    WorldEvent,
+    tiles::{Direction, Laser, Tile, Wall},
+    ParseError, WorldEvent,
 };
 
 pub type LaserId = usize;
-use super::{Direction, Laser, Tile, Wall};
 
-const NUM_LASERS: Mutex<LaserId> = Mutex::new(0);
-
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct LaserSource {
     enabled: Cell<bool>,
     laser_id: LaserId,
@@ -25,14 +22,28 @@ pub struct LaserSource {
     agent_id: Cell<AgentId>,
 }
 
-impl LaserSource {
-    pub fn new(direction: Direction, agent_id: AgentId) -> Self {
-        // Increment the number of lasers and get the new id
-        let binding = NUM_LASERS;
-        let mut num_lasers = binding.lock().unwrap();
-        let laser_id = *num_lasers;
-        *num_lasers += 1;
+impl Into<String> for LaserSource {
+    fn into(self) -> String {
+        format!("L{}{}", self.agent_id.get(), self.direction)
+    }
+}
 
+impl LaserSource {
+    /// Note there is no "TryFrom" implementation for LaserSource because we need the laser_id.
+    pub fn from_str(value: &str, laser_id: LaserId) -> Result<Self, ParseError> {
+        let direction = Direction::try_from(value.chars().last().unwrap()).unwrap();
+        let agent_id = match (&value[1..2]).parse::<AgentId>() {
+            Ok(agent_id) => agent_id,
+            Err(_) => {
+                return Err(ParseError::InvalidAgentId {
+                    given_agent_id: value[1..2].to_string(),
+                })
+            }
+        };
+        Ok(Self::new(direction, agent_id, laser_id))
+    }
+
+    pub fn new(direction: Direction, agent_id: AgentId, laser_id: LaserId) -> Self {
         Self {
             enabled: Cell::new(true),
             laser_id,

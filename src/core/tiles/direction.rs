@@ -1,3 +1,7 @@
+use std::fmt::Display;
+
+use crate::ParseError;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Direction {
     North,
@@ -15,17 +19,52 @@ impl Direction {
             Direction::West => (0, -1),
         }
     }
+
+    pub fn opposite(&self) -> Direction {
+        match self {
+            Direction::North => Direction::South,
+            Direction::East => Direction::West,
+            Direction::South => Direction::North,
+            Direction::West => Direction::East,
+        }
+    }
+}
+
+impl Display for Direction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
+    }
 }
 
 impl TryFrom<&str> for Direction {
-    type Error = &'static str;
+    type Error = ParseError;
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value {
-            "N" => Ok(Direction::North),
-            "E" => Ok(Direction::East),
-            "S" => Ok(Direction::South),
-            "W" => Ok(Direction::West),
-            _ => Err("Invalid direction"),
+        match value.to_lowercase().as_str() {
+            "n" | "north" => Ok(Direction::North),
+            "e" | "east" => Ok(Direction::East),
+            "s" | "south" => Ok(Direction::South),
+            "w" | "west" => Ok(Direction::West),
+            _ => Err(ParseError::InvalidDirection { given: value.into(), expected: "{{N, E, S, W, north, east, south, west}}.".into() })
+            
+        }
+    }
+}
+
+impl TryFrom<char> for Direction {
+    type Error = ParseError;
+    fn try_from(value: char) -> Result<Self, Self::Error> {
+        Direction::try_from(value.to_string().as_str())
+    }
+
+}
+
+impl Into<&str> for Direction {
+    fn into(self) -> &'static str {
+        match self {
+            Direction::North => "N",
+            Direction::East => "E",
+            Direction::South => "S",
+            Direction::West => "W",
         }
     }
 }

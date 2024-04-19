@@ -1,7 +1,7 @@
 use std::{cell::Cell, rc::Rc};
 
 use crate::{
-    tiles::{Direction, Exit, Floor, Gem, Laser, LaserBeam, LaserSource, Start, Tile, Void, Wall},
+    tiles::{Exit, Floor, Gem, Laser, LaserBeam, LaserSource, Start, Tile, Void, Wall},
     AgentId, Position, World,
 };
 
@@ -58,9 +58,7 @@ pub fn parse(world_str: &str) -> Result<World, ParseError> {
                     exit
                 }
                 'L' => {
-                    let direction = Direction::try_from(&token[2..]).unwrap();
-                    let agent_num = token[1..2].parse().unwrap_or_else(|_| panic!("Could not parse the id of the agent for tile {token} at i={i} and j={j}."));
-                    let source = Rc::new(LaserSource::new(direction, agent_num));
+                    let source = Rc::new(LaserSource::from_str(token, sources.len())?);
                     walls_positions.push((i, j));
                     sources.push(((i, j), source.clone()));
                     source
@@ -110,6 +108,18 @@ pub fn parse(world_str: &str) -> Result<World, ParseError> {
                     expected_n_cols: width,
                     actual_n_cols: row.len(),
                     row: i,
+                });
+            }
+        }
+
+        // All laser sources have a valid agent id
+        let n_agents = start_positions.len();
+        for (_, source) in &sources {
+            let agent_id = source.agent_id();
+            if agent_id >= n_agents {
+                return Err(ParseError::InvalidLaserSourceAgentId {
+                    asked_id: agent_id,
+                    n_agents,
                 });
             }
         }

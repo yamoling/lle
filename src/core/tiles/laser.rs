@@ -1,52 +1,11 @@
-use std::{cell::Cell, fmt::Display, rc::Rc};
+use std::{cell::Cell, fmt::Debug, rc::Rc};
 
 use crate::{
     agent::{Agent, AgentId},
     rendering::{TileVisitor, VisitorData},
+    tiles::{Direction, LaserId, Tile},
     WorldEvent,
 };
-
-use super::{laser_source::LaserId, Tile};
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Direction {
-    North,
-    East,
-    South,
-    West,
-}
-
-impl Direction {
-    pub fn delta(&self) -> (i32, i32) {
-        match self {
-            Direction::North => (-1, 0),
-            Direction::East => (0, 1),
-            Direction::South => (1, 0),
-            Direction::West => (0, -1),
-        }
-    }
-}
-
-impl Display for Direction {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{self:?}")
-    }
-}
-
-impl TryFrom<&str> for Direction {
-    type Error = String;
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value {
-            "N" => Ok(Direction::North),
-            "E" => Ok(Direction::East),
-            "S" => Ok(Direction::South),
-            "W" => Ok(Direction::West),
-            other => Err(format!(
-                "Invalid direction: {other}. Expected one of {{N, E, S, W}}."
-            )),
-        }
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct LaserBeam {
@@ -86,6 +45,18 @@ pub struct Laser {
     beam: LaserBeam,
     wrapped: Rc<dyn Tile>,
     disabled: Cell<bool>,
+}
+
+impl Debug for Laser {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Laser")
+            .field("laser_id", &self.laser_id)
+            .field("direction", &self.direction)
+            .field("agent_id", &self.agent_id.get())
+            .field("beam", &self.beam)
+            .field("disabled", &self.disabled.get())
+            .finish()
+    }
 }
 
 impl Laser {
@@ -186,7 +157,7 @@ impl Tile for Laser {
         if self.is_on() && agent.id() != self.agent_id.get() {
             if agent.is_alive() {
                 agent.die();
-                self.beam.turn_on();
+                self.turn_on();
                 return Some(WorldEvent::AgentDied {
                     agent_id: agent.id(),
                 });
