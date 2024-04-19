@@ -20,7 +20,6 @@ __all__ = [
     "InvalidWorldStateError",
     "ParsingError",
     "WorldBuilder",
-    "AdversarialEnvLLE",
 ]
 
 from .types import Position, AgentId, LaserId
@@ -43,5 +42,5 @@ from .lle import (
     ParsingError,
     WorldBuilder,
 )
-from .envs import LLE, AdversarialEnvLLE
+from .envs import LLE
 from .observations import ObservationType
