@@ -1,36 +1,31 @@
-use std::{
-    cell::{Cell, RefCell},
-    rc::Rc,
-};
+use std::sync::{Arc, Mutex};
 
 use crate::{
     agent::{Agent, AgentId},
     rendering::{TileVisitor, VisitorData},
-    tiles::{Direction, Laser, Tile, Wall},
-    ParseError, WorldEvent,
+    tiles::{Direction, Tile, Wall},
+    ParseError, Position, RuntimeWorldError, WorldEvent,
 };
+
+use super::LaserBeam;
 
 pub type LaserId = usize;
 
 #[derive(Clone, Debug)]
 pub struct LaserSource {
-    enabled: Cell<bool>,
-    laser_id: LaserId,
     wall: Wall,
-    laser_tiles: RefCell<Vec<Rc<Laser>>>,
-    direction: Direction,
-    agent_id: Cell<AgentId>,
+    beam: Arc<Mutex<LaserBeam>>,
 }
 
 impl Into<String> for LaserSource {
     fn into(self) -> String {
-        format!("L{}{}", self.agent_id.get(), self.direction)
+        format!("L{}{}", self.agent_id(), self.direction())
     }
 }
 
 impl LaserSource {
     /// Note there is no "TryFrom" implementation for LaserSource because we need the laser_id.
-    pub fn from_str(value: &str, laser_id: LaserId) -> Result<Self, ParseError> {
+    pub fn from_str(value: &str, laser_id: LaserId) -> Result<LaserBuilder, ParseError> {
         let direction = Direction::try_from(value.chars().last().unwrap()).unwrap();
         let agent_id = match (&value[1..2]).parse::<AgentId>() {
             Ok(agent_id) => agent_id,
@@ -40,76 +35,66 @@ impl LaserSource {
                 })
             }
         };
-        Ok(Self::new(direction, agent_id, laser_id))
+        Ok(LaserBuilder::new(direction, agent_id, laser_id))
     }
 
-    pub fn new(direction: Direction, agent_id: AgentId, laser_id: LaserId) -> Self {
-        Self {
-            enabled: Cell::new(true),
-            laser_id,
-            wall: Wall {},
-            direction,
-            agent_id: Cell::new(agent_id),
-            laser_tiles: RefCell::new(vec![]),
-        }
-    }
+    // pub fn new(direction: Direction, agent_id: AgentId, laser_id: LaserId) -> Self {
+    //     Self {
+    //         laser_id,
+    //         wall: Wall {},
+    //         direction,
+    //         agent_id,
+    //         beam: LaserBeam::new(vec![]),
+    //     }
+    // }
 
     pub fn is_enabled(&self) -> bool {
-        self.enabled.get()
+        self.beam.lock().unwrap().is_enabled()
     }
 
     pub fn agent_id(&self) -> AgentId {
-        self.agent_id.get()
+        self.beam.lock().unwrap().agent_id()
     }
 
     pub fn direction(&self) -> Direction {
-        self.direction
+        self.beam.lock().unwrap().direction()
     }
 
     pub fn laser_id(&self) -> LaserId {
-        self.laser_id
+        self.beam.lock().unwrap().laser_id()
     }
 
     pub fn enable(&self) {
-        self.enabled.set(true);
-        self.laser_tiles.borrow().iter().for_each(|laser| {
-            laser.enable();
-        });
+        self.beam.lock().unwrap().enable()
     }
 
     pub fn disable(&self) {
-        self.enabled.set(false);
-        self.laser_tiles.borrow().iter().for_each(|laser| {
-            laser.disable();
-        });
+        self.beam.lock().unwrap().disable()
     }
 
-    pub fn add_laser_tile(&self, laser_tile: Rc<Laser>) {
-        self.laser_tiles.borrow_mut().push(laser_tile);
+    pub fn set_agent_id(&mut self, agent_id: AgentId) {
+        self.beam.lock().unwrap().set_agent_id(agent_id)
     }
 
-    pub fn set_agent_id(&self, agent_id: AgentId) {
-        self.agent_id.set(agent_id);
-        self.laser_tiles.borrow_mut().iter().for_each(|laser| {
-            laser.set_agent_id(agent_id);
-        });
+    pub fn beam(&self) -> Arc<Mutex<LaserBeam>> {
+        self.beam.clone()
     }
 }
 
 impl Tile for LaserSource {
-    fn pre_enter(&self, agent: &Agent) -> Result<(), String> {
+    fn pre_enter(&mut self, agent: &Agent) -> Result<(), RuntimeWorldError> {
         self.wall.pre_enter(agent)
     }
 
-    fn reset(&self) {
+    fn reset(&mut self) {
         self.wall.reset();
     }
 
-    fn enter(&self, agent: &mut Agent) -> Option<WorldEvent> {
+    fn enter(&mut self, agent: &mut Agent) -> Option<WorldEvent> {
         self.wall.enter(agent)
     }
 
-    fn leave(&self) -> AgentId {
+    fn leave(&mut self) -> AgentId {
         self.wall.leave()
     }
 
@@ -123,5 +108,43 @@ impl Tile for LaserSource {
 
     fn accept(&self, _visitor: &dyn TileVisitor, _data: &mut VisitorData) {
         // Nothing to do here as it is statically rendered
+    }
+}
+
+pub struct LaserBuilder {
+    pub direction: Direction,
+    pub agent_id: AgentId,
+    pub laser_id: LaserId,
+    pub beam_pos: Vec<Position>,
+}
+
+impl LaserBuilder {
+    fn new(direction: Direction, agent_id: AgentId, laser_id: LaserId) -> Self {
+        Self {
+            direction,
+            agent_id,
+            laser_id,
+            beam_pos: vec![],
+        }
+    }
+
+    pub fn extend_beam(&mut self, pos: Position) {
+        self.beam_pos.push(pos);
+    }
+
+    pub fn build(&self) -> (LaserSource, Vec<Position>) {
+        let beam = Arc::new(Mutex::new(LaserBeam::new(
+            self.beam_pos.len(),
+            self.agent_id,
+            self.direction,
+            self.laser_id,
+        )));
+        (
+            LaserSource {
+                wall: Wall {},
+                beam,
+            },
+            self.beam_pos.clone(),
+        )
     }
 }

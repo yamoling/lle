@@ -3,7 +3,7 @@ use itertools::izip;
 use std::{
     fs::File,
     io::{BufReader, Read},
-    rc::Rc,
+    sync::{Arc, Mutex},
 };
 
 use crate::{
@@ -19,20 +19,26 @@ use super::{
     WorldEvent,
 };
 
+type SafeTile = Arc<Mutex<dyn Tile>>;
+type SafeGem = Arc<Mutex<Gem>>;
+type SafeLaser = Arc<Mutex<Laser>>;
+type SafeSource = Arc<Mutex<LaserSource>>;
+type SafeExit = Arc<Mutex<Exit>>;
+
 pub struct World {
     width: usize,
     height: usize,
     world_string: String,
 
-    grid: Vec<Vec<Rc<dyn Tile>>>,
-    gems: Vec<(Position, Rc<Gem>)>,
-    lasers: Vec<(Position, Rc<Laser>)>,
-    sources: Vec<(Position, Rc<LaserSource>)>,
+    grid: Vec<Vec<SafeTile>>,
+    gems: Vec<(Position, SafeGem)>,
+    lasers: Vec<(Position, SafeLaser)>,
+    sources: Vec<(Position, SafeSource)>,
 
     agents: Vec<Agent>,
     start_positions: Vec<Position>,
     void_positions: Vec<Position>,
-    exits: Vec<(Position, Rc<Exit>)>,
+    exits: Vec<(Position, SafeExit)>,
     agents_positions: Vec<Position>,
     wall_positions: Vec<Position>,
 
@@ -42,13 +48,13 @@ pub struct World {
 impl World {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        grid: Vec<Vec<Rc<dyn Tile>>>,
-        gems: Vec<(Position, Rc<Gem>)>,
-        lasers: Vec<(Position, Rc<Laser>)>,
-        sources: Vec<(Position, Rc<LaserSource>)>,
+        grid: Vec<Vec<SafeTile>>,
+        gems: Vec<(Position, SafeGem)>,
+        lasers: Vec<(Position, SafeLaser)>,
+        sources: Vec<(Position, SafeSource)>,
         start_positions: Vec<Position>,
         void_positions: Vec<Position>,
-        exits: Vec<(Position, Rc<Exit>)>,
+        exits: Vec<(Position, SafeExit)>,
         walls_positions: Vec<Position>,
         world_str: &str,
     ) -> Self {
@@ -102,7 +108,7 @@ impl World {
     pub fn n_gems_collected(&self) -> usize {
         self.gems
             .iter()
-            .filter(|(_, gem)| gem.is_collected())
+            .filter(|(_, gem)| gem.lock().unwrap().is_collected())
             .count()
     }
 
@@ -118,34 +124,32 @@ impl World {
         self.height
     }
 
-    pub fn walls(&self) -> impl Iterator<Item = &Position> {
-        self.wall_positions.iter()
+    pub fn walls(&self) -> Vec<Position> {
+        self.wall_positions.clone()
     }
 
-    pub fn gems(&self) -> impl Iterator<Item = (&Position, &Gem)> {
-        self.gems.iter().map(|(pos, gem)| (pos, gem.as_ref()))
+    pub fn gems(&self) -> Vec<(Position, SafeGem)> {
+        self.gems.clone()
     }
 
-    pub fn laser_sources(&self) -> impl Iterator<Item = (&Position, &LaserSource)> {
-        self.sources
-            .iter()
-            .map(|(pos, source)| (pos, source.as_ref()))
+    pub fn laser_sources(&self) -> Vec<(Position, SafeSource)> {
+        self.sources.clone()
     }
 
-    pub fn starts(&self) -> impl Iterator<Item = Position> {
-        self.start_positions.clone().into_iter()
+    pub fn starts(&self) -> Vec<Position> {
+        self.start_positions.clone()
     }
 
-    pub fn exits(&self) -> impl Iterator<Item = (&Position, &Exit)> {
-        self.exits.iter().map(|(pos, exit)| (pos, exit.as_ref()))
+    pub fn exits(&self) -> Vec<(Position, SafeExit)> {
+        self.exits.clone()
     }
 
-    pub fn void_positions(&self) -> impl Iterator<Item = &Position> {
-        self.void_positions.iter()
+    pub fn void_positions(&self) -> Vec<Position> {
+        self.void_positions.clone()
     }
 
-    pub fn lasers(&self) -> impl Iterator<Item = (&Position, &Laser)> {
-        self.lasers.iter().map(|(pos, laser)| (pos, laser.as_ref()))
+    pub fn lasers(&self) -> Vec<(Position, SafeLaser)> {
+        self.lasers.clone()
     }
 
     fn compute_available_actions(&self) -> Vec<Vec<Action>> {
@@ -156,6 +160,7 @@ impl World {
                 for action in [Action::North, Action::East, Action::South, Action::West] {
                     if let Ok(pos) = &action + agent_pos {
                         if let Some(tile) = self.at(pos) {
+                            let tile = tile.lock().unwrap();
                             if tile.is_waklable() && !tile.is_occupied() {
                                 agent_actions.push(action.clone());
                             }
@@ -184,17 +189,17 @@ impl World {
     }
 
     /// Creates an iterator over all tiles in the grid with their (i, j) coordinates
-    pub fn tiles(&self) -> impl Iterator<Item = ((u32, u32), &dyn Tile)> {
+    pub fn tiles(&self) -> Vec<(Position, SafeTile)> {
         let mut res = vec![];
         for (i, row) in self.grid.iter().enumerate() {
             for (j, tile) in row.iter().enumerate() {
-                res.push(((i as u32, j as u32), tile.as_ref()));
+                res.push(((i, j), tile.clone()));
             }
         }
-        res.into_iter()
+        res
     }
 
-    pub fn at(&self, pos: Position) -> Option<&dyn Tile> {
+    pub fn at(&self, pos: Position) -> Option<SafeTile> {
         let (i, j) = pos;
         if i >= self.height {
             return None;
@@ -202,23 +207,25 @@ impl World {
         if j >= self.width {
             return None;
         }
-        Some(self.grid[i][j].as_ref())
+        Some(self.grid[i][j].clone())
     }
 
     pub fn reset(&mut self) {
         for row in self.grid.iter_mut() {
             for tile in row.iter_mut() {
-                tile.reset();
+                tile.lock().unwrap().reset();
             }
         }
         self.agents_positions = self.start_positions.clone();
         for ((i, j), agent) in izip!(&self.agents_positions, &self.agents) {
             self.grid[*i][*j]
+                .lock()
+                .unwrap()
                 .pre_enter(agent)
                 .expect("The agent should be able to pre-enter");
         }
         for ((i, j), agent) in izip!(&self.agents_positions, &mut self.agents) {
-            self.grid[*i][*j].enter(agent);
+            self.grid[*i][*j].lock().unwrap().enter(agent);
         }
         for agent in &mut self.agents {
             agent.reset();
@@ -256,12 +263,12 @@ impl World {
         // Check for vertex conflicts
         // If a new_pos occurs more than once, then set it back to its original position
         World::solve_vertex_conflicts(&mut new_positions, &self.agents_positions);
-        let (mut events, mut agent_died) = self.move_agents(&new_positions);
+        let (mut events, mut agent_died) = self.move_agents(&new_positions)?;
         self.agents_positions = new_positions.clone();
         // At this stage, all agents are on their new positions.
         // However, some events (death) could still happen if an agent has died.
         while agent_died {
-            let (additional_events, died2) = self.move_agents(&new_positions);
+            let (additional_events, died2) = self.move_agents(&new_positions)?;
             events = [events, additional_events].concat();
             agent_died = died2;
         }
@@ -269,18 +276,23 @@ impl World {
         Ok(events)
     }
 
-    fn move_agents(&mut self, new_positions: &[Position]) -> (Vec<WorldEvent>, bool) {
+    fn move_agents(
+        &mut self,
+        new_positions: &[Position],
+    ) -> Result<(Vec<WorldEvent>, bool), RuntimeWorldError> {
         // Leave old position
         for (agent, pos) in izip!(&self.agents, &self.agents_positions) {
             if agent.is_alive() {
                 let (i, j) = *pos;
-                self.grid[i][j].leave();
+                self.grid[i][j].lock()?.leave();
             }
         }
         // Pre-enter
         for (agent, pos) in izip!(&self.agents, new_positions) {
             let (i, j) = *pos;
             self.grid[i][j]
+                .lock()
+                .unwrap()
                 .pre_enter(agent)
                 .expect("When moving agents, the pre-enter should not fail");
         }
@@ -289,14 +301,14 @@ impl World {
         let mut agent_died = false;
         for (agent, pos) in izip!(&mut self.agents, new_positions) {
             let (i, j) = *pos;
-            if let Some(event) = self.grid[i][j].enter(agent) {
+            if let Some(event) = self.grid[i][j].lock().unwrap().enter(agent) {
                 if let WorldEvent::AgentDied { .. } = event {
                     agent_died = true;
                 }
                 events.push(event);
             }
         }
-        (events, agent_died)
+        Ok((events, agent_died))
     }
 
     pub fn get_state(&self) -> WorldState {
@@ -305,7 +317,7 @@ impl World {
             gems_collected: self
                 .gems
                 .iter()
-                .map(|(_, gem)| gem.is_collected())
+                .map(|(_, gem)| gem.lock().unwrap().is_collected())
                 .collect(),
         }
     }
@@ -341,7 +353,7 @@ impl World {
         // Reset tiles and agents (but do not enter the new tiles)
         for row in &mut self.grid {
             for tile in row {
-                tile.reset();
+                tile.lock().unwrap().reset();
             }
         }
         for agent in &mut self.agents {
@@ -350,12 +362,24 @@ impl World {
         // Collect the necessary gems BEFORE entering the tiles with the agents
         for ((_, gem), &collect) in izip!(&self.gems, &state.gems_collected) {
             if collect {
-                gem.collect();
+                gem.lock().unwrap().collect();
             }
         }
         for ((i, j), agent) in izip!(&state.agents_positions, &self.agents) {
-            if let Err(reason) = self.grid[*i][*j].pre_enter(agent) {
-                // Reset the state
+            // BEWARE: we need to release the lock after the pre-enter, otherwise we will have a deadlock if there is a problem
+            // because the lock would not released until the end of the function.
+            let res = {
+                let tile = &self.grid[*i][*j];
+                let tile = &mut tile.lock()?;
+                tile.pre_enter(agent)
+            };
+            if let Err(error) = res {
+                let reason = match error {
+                    RuntimeWorldError::TileNotWalkable => "The tile is not walkable",
+                    _ => "Unknown reason",
+                }
+                .into();
+                // Reset the state to the one before the pre-enter
                 self.set_state(&current_state).unwrap();
                 return Err(RuntimeWorldError::InvalidAgentPosition {
                     position: (*i, *j),
@@ -367,7 +391,7 @@ impl World {
         self.agents_positions = state.agents_positions.to_vec();
         let mut events = vec![];
         for ((i, j), agent) in izip!(&self.agents_positions, &mut self.agents) {
-            if let Some(event) = self.grid[*i][*j].enter(agent) {
+            if let Some(event) = self.grid[*i][*j].lock()?.enter(agent) {
                 events.push(event);
             }
         }

@@ -1,10 +1,10 @@
-import math
 import cv2
 from typing import Any
 from abc import ABC, abstractmethod
 from enum import IntEnum
 import numpy as np
-from lle import World, AgentId, Position
+from lle import World
+from .types import AgentId, Position
 
 
 class ObservationType(IntEnum):

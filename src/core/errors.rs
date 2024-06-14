@@ -1,4 +1,4 @@
-use std::{error::Error, fmt::Display};
+use std::{error::Error, fmt::Display, sync::PoisonError};
 
 use crate::{agent::AgentId, Action, Position, WorldState};
 
@@ -32,6 +32,8 @@ pub enum RuntimeWorldError {
         reason: String,
         state: WorldState,
     },
+    TileNotWalkable,
+    MutexPoisoned,
 }
 
 impl Display for RuntimeWorldError {
@@ -41,3 +43,9 @@ impl Display for RuntimeWorldError {
 }
 
 impl Error for RuntimeWorldError {}
+
+impl<T> From<PoisonError<T>> for RuntimeWorldError {
+    fn from(_: PoisonError<T>) -> Self {
+        RuntimeWorldError::MutexPoisoned
+    }
+}

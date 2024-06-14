@@ -1,8 +1,13 @@
+use std::{
+    rc::Rc,
+    sync::{Arc, Mutex},
+};
+
 use pyo3::prelude::*;
 
 use crate::{
     agent::AgentId,
-    tiles::{Direction, Laser, LaserId, LaserSource},
+    tiles::{Direction, Gem, Laser, LaserId, LaserSource},
     Tile,
 };
 
@@ -10,10 +15,15 @@ use super::pydirection::PyDirection;
 
 #[pyclass(name = "Gem")]
 pub struct PyGem {
-    #[pyo3(get)]
-    agent: Option<AgentId>,
-    #[pyo3(get)]
-    is_collected: bool,
+    wrapped: Arc<Gem>,
+}
+
+impl From<Arc<Gem>> for PyGem {
+    fn from(gem: Arc<Gem>) -> Self {
+        PyGem {
+            wrapped: gem.clone(),
+        }
+    }
 }
 
 impl PyGem {
@@ -28,11 +38,17 @@ impl PyGem {
 #[pymethods]
 impl PyGem {
     pub fn __str__(&self) -> String {
-        let agent = match self.agent {
-            Some(agent) => agent.to_string(),
-            None => String::from("None"),
-        };
-        format!("Gem(is_collected={}, agent={agent})", self.is_collected)
+        format!("{:?}", self.wrapped.lock().unwrap())
+    }
+
+    #[getter]
+    pub fn agent(&self) -> Option<AgentId> {
+        self.wrapped.lock().unwrap().agent()
+    }
+
+    #[getter]
+    pub fn is_collected(&self) -> bool {
+        self.wrapped.lock().unwrap().is_collected()
     }
 
     pub fn __repr__(&self) -> String {

@@ -56,6 +56,6 @@ class LaserSource:
     def laser_id(self) -> LaserId:
         """The ID of the laser."""
     direction: Direction
-    """The direction of the laser beam.."""
+    """The direction of the laser beam."""
     def __str__(self) -> str: ...
     def __repr__(self) -> str: ...

@@ -48,7 +48,7 @@ impl Renderer {
         }
 
         // Exit
-        for (&(i, j), _) in world.exits() {
+        for ((i, j), _) in world.exits() {
             let x = j as u32 * TILE_SIZE;
             let y = i as u32 * TILE_SIZE;
             draw_rectangle(&mut self.static_frame, x, y, TILE_SIZE, TILE_SIZE, BLACK, 3);
@@ -71,7 +71,7 @@ impl Renderer {
                 y: pos.0 as u32 * TILE_SIZE,
                 frame: &mut frame,
             };
-            self.visit_laser(laser, &mut data);
+            self.visit_laser(&laser.lock().unwrap(), &mut data);
         }
         for (pos, gem) in world.gems() {
             let mut data = VisitorData {
@@ -79,7 +79,7 @@ impl Renderer {
                 y: pos.0 as u32 * TILE_SIZE,
                 frame: &mut frame,
             };
-            self.visit_gem(gem, &mut data);
+            self.visit_gem(&gem.lock().unwrap(), &mut data);
         }
         for (id, pos) in world.agents_positions().iter().enumerate() {
             let x = pos.1 as u32 * TILE_SIZE;
@@ -92,7 +92,7 @@ impl Renderer {
                 y: pos.0 as u32 * TILE_SIZE,
                 frame: &mut frame,
             };
-            self.visit_laser_source(source, &mut data);
+            self.visit_laser_source(&source.lock().unwrap(), &mut data);
         }
         draw_grid(&mut frame);
         frame
@@ -175,7 +175,7 @@ impl TileVisitor for Renderer {
             add_transparent_image(data.frame, laser_sprite, data.x, data.y);
         }
         // Draw the tile below the laser
-        laser.wrapped().accept(self, data);
+        laser.wrapped().lock().unwrap().accept(self, data);
         // The below tile should draw the agent
     }
 
