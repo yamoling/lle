@@ -96,7 +96,7 @@ impl PyWorld {
     #[getter]
     /// The list of the positions of the void tiles
     pub fn void_pos(&self) -> Vec<Position> {
-        self.world.void_positions().copied().collect()
+        self.world.void_positions()
     }
 
     #[getter]
@@ -114,7 +114,7 @@ impl PyWorld {
     #[getter]
     /// The positions of the wall tiles.
     fn wall_pos(&self) -> Vec<Position> {
-        self.world.walls().copied().collect()
+        self.world.walls()
     }
 
     #[getter]
@@ -122,7 +122,8 @@ impl PyWorld {
     fn gems(&self) -> HashMap<Position, PyGem> {
         self.world
             .gems()
-            .map(|(pos, gem)| (*pos, PyGem::new(gem.agent(), gem.is_collected())))
+            .iter()
+            .map(|(pos, gem)| (*pos, PyGem::from(gem)))
             .collect()
     }
 
@@ -131,6 +132,7 @@ impl PyWorld {
     fn lasers(&self) -> Vec<(Position, PyLaser)> {
         self.world
             .lasers()
+            .iter()
             .map(|(pos, laser)| (*pos, PyLaser::from(laser)))
             .collect()
     }
@@ -140,6 +142,7 @@ impl PyWorld {
     fn laser_sources(&self) -> HashMap<Position, PyLaserSource> {
         self.world
             .laser_sources()
+            .iter()
             .map(|(pos, laser_source)| (*pos, PyLaserSource::from(laser_source)))
             .collect()
     }

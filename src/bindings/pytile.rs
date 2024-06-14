@@ -1,7 +1,4 @@
-use std::{
-    rc::Rc,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 use pyo3::prelude::*;
 
@@ -15,22 +12,19 @@ use super::pydirection::PyDirection;
 
 #[pyclass(name = "Gem")]
 pub struct PyGem {
-    wrapped: Arc<Gem>,
+    wrapped: Arc<Mutex<Gem>>,
 }
 
-impl From<Arc<Gem>> for PyGem {
-    fn from(gem: Arc<Gem>) -> Self {
-        PyGem {
-            wrapped: gem.clone(),
-        }
+impl From<Arc<Mutex<Gem>>> for PyGem {
+    fn from(gem: Arc<Mutex<Gem>>) -> Self {
+        PyGem { wrapped: gem }
     }
 }
 
-impl PyGem {
-    pub fn new(agent: Option<AgentId>, is_collected: bool) -> Self {
+impl From<&Arc<Mutex<Gem>>> for PyGem {
+    fn from(gem: &Arc<Mutex<Gem>>) -> Self {
         PyGem {
-            agent,
-            is_collected,
+            wrapped: gem.clone(),
         }
     }
 }
@@ -58,44 +52,63 @@ impl PyGem {
 
 #[pyclass(name = "Laser")]
 pub struct PyLaser {
-    #[pyo3(get)]
-    is_on: bool,
-    #[pyo3(get)]
-    is_enabled: bool,
-    #[pyo3(get)]
-    direction: PyDirection,
-    #[pyo3(get)]
-    agent_id: AgentId,
-    #[pyo3(get)]
-    agent: Option<AgentId>,
-    #[pyo3(get)]
-    laser_id: LaserId,
+    wrapped: Arc<Mutex<Laser>>,
 }
 
 #[pymethods]
 impl PyLaser {
     #[getter]
+    pub fn is_on(&self) -> bool {
+        self.wrapped.lock().unwrap().is_on()
+    }
+
+    #[getter]
     pub fn is_off(&self) -> bool {
-        !self.is_on
+        !self.is_on()
+    }
+
+    #[getter]
+    pub fn is_enabled(&self) -> bool {
+        self.wrapped.lock().unwrap().is_enabled()
     }
 
     #[getter]
     pub fn is_disabled(&self) -> bool {
-        !self.is_enabled
+        !self.is_enabled()
+    }
+
+    #[getter]
+    pub fn direction(&self) -> PyDirection {
+        self.wrapped.lock().unwrap().direction().into()
+    }
+
+    #[getter]
+    pub fn agent_id(&self) -> AgentId {
+        self.wrapped.lock().unwrap().agent_id()
+    }
+
+    #[getter]
+    pub fn agent(&self) -> Option<AgentId> {
+        self.wrapped.lock().unwrap().agent()
+    }
+
+    #[getter]
+    pub fn laser_id(&self) -> LaserId {
+        self.wrapped.lock().unwrap().laser_id()
     }
 
     pub fn __str__(&self) -> String {
-        let agent = match self.agent {
+        let agent = match self.agent() {
             Some(agent) => agent.to_string(),
             None => String::from("None"),
         };
 
         format!(
             "Laser(laser_id={}, is_on={}, direction={}, agent_id={}, agent={agent})",
-            self.laser_id,
-            self.is_on,
-            self.direction.name(),
-            self.agent_id
+            self.laser_id(),
+            self.is_on(),
+            self.direction().name(),
+            self.agent_id()
         )
     }
 
@@ -105,15 +118,10 @@ impl PyLaser {
 }
 
 // Implement from and into
-impl From<&Laser> for PyLaser {
-    fn from(laser: &Laser) -> Self {
+impl From<&Arc<Mutex<Laser>>> for PyLaser {
+    fn from(laser: &Arc<Mutex<Laser>>) -> Self {
         PyLaser {
-            is_enabled: laser.is_enabled(),
-            agent: laser.agent(),
-            is_on: laser.is_on(),
-            direction: laser.direction().into(),
-            agent_id: laser.agent_id(),
-            laser_id: laser.laser_id(),
+            wrapped: laser.clone(),
         }
     }
 }
@@ -127,8 +135,8 @@ pub struct PyLaserSource {
     is_enabled: bool,
 }
 
-impl From<&LaserSource> for PyLaserSource {
-    fn from(source: &LaserSource) -> Self {
+impl From<&Arc<Mutex<LaserSource>>> for PyLaserSource {
+    fn from(source: &Arc<Mutex<LaserSource>>) -> Self {
         PyLaserSource {
             direction: source.direction().into(),
             agent_id: source.agent_id(),
