@@ -48,6 +48,10 @@ impl Tile for Start {
     fn accept(&self, _visitor: &dyn TileVisitor, _data: &mut VisitorData) {
         // Nothing to do
     }
+
+    fn to_string(&self) -> String {
+        format!("S{}", self.agent_id)
+    }
 }
 
 #[derive(Default)]
@@ -85,5 +89,9 @@ impl Tile for Exit {
 
     fn accept(&self, _visitor: &dyn TileVisitor, _data: &mut VisitorData) {
         // Nothing to do
+    }
+
+    fn to_string(&self) -> String {
+        "X".to_string()
     }
 }

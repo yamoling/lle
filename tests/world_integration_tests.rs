@@ -512,3 +512,19 @@ fn test_wrong_agent_id_for_laser_source() {
         }
     }
 }
+
+#[test]
+fn test_compute_world_string() {
+    let world = World::try_from("S0 L0S X").unwrap();
+    let initial_string = world.initial_world_string().trim();
+    let current_string = world.compute_world_string();
+    let current_string = current_string.trim();
+    assert_eq!(initial_string, current_string);
+
+    let (_, source) = &world.laser_sources()[0];
+    source.lock().unwrap().set_agent_id(1);
+    let expected = "S0 L1S X";
+    let res = world.compute_world_string();
+    let res = res.trim();
+    assert_eq!(expected, res);
+}

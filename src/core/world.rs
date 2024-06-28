@@ -85,8 +85,25 @@ impl World {
         self.agents.len()
     }
 
-    pub fn world_string(&self) -> &str {
+    /// The world string upon which the world has been created.
+    pub fn initial_world_string(&self) -> &str {
         &self.world_string
+    }
+
+    /// The current world string, taking into account the fact that some tiles may have changed (laser direction or colour).
+    pub fn compute_world_string(&self) -> String {
+        // Each tile is at most 4 characters long
+        const TILE_SIZE: usize = 4;
+        let mut world_str = String::with_capacity(self.width * self.height * TILE_SIZE);
+        for row in &self.grid {
+            for tile in row {
+                let tile = tile.lock().unwrap();
+                world_str.push_str(&tile.to_string());
+                world_str.push(' ');
+            }
+            world_str.push('\n');
+        }
+        world_str
     }
 
     pub fn agents(&self) -> &Vec<Agent> {

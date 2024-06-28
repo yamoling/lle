@@ -24,6 +24,7 @@ pub trait Tile {
     }
     /// Visitor pattern to render the tile
     fn accept(&self, visitor: &dyn TileVisitor, data: &mut VisitorData);
+    fn to_string(&self) -> String;
 }
 
 #[derive(Default, Debug)]
@@ -52,16 +53,14 @@ impl Tile for Floor {
     fn accept(&self, _visitor: &dyn TileVisitor, _data: &mut VisitorData) {
         // Nothing to do
     }
+
+    fn to_string(&self) -> String {
+        ".".to_string()
+    }
 }
 
 #[derive(Default, Clone, Debug)]
 pub struct Wall {}
-
-impl Into<String> for Wall {
-    fn into(self) -> String {
-        "@".to_string()
-    }
-}
 
 impl TryFrom<&str> for Wall {
     type Error = String;
@@ -101,6 +100,10 @@ impl Tile for Wall {
     fn accept(&self, _visitor: &dyn TileVisitor, _data: &mut VisitorData) {
         // Nothing to do here as it is statically rendered
     }
+
+    fn to_string(&self) -> String {
+        "@".to_string()
+    }
 }
 
 #[derive(Default)]
@@ -137,6 +140,10 @@ impl Tile for Void {
 
     fn accept(&self, _visitor: &dyn TileVisitor, _data: &mut VisitorData) {
         // Nothing to do
+    }
+
+    fn to_string(&self) -> String {
+        "V".to_string()
     }
 }
 

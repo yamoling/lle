@@ -2,10 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use pyo3::{exceptions::PyValueError, prelude::*};
 
-use crate::{
-    tiles::{LaserId, LaserSource},
-    AgentId, Position, World,
-};
+use crate::{tiles::LaserId, AgentId, Position, World};
 
 use super::{pydirection::PyDirection, pyexceptions::parse_error_to_exception, pyworld::PyWorld};
 

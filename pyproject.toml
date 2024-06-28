@@ -3,10 +3,7 @@ build-backend = "maturin"
 requires = ["maturin>=1.1,<2.0"]
 
 [project]
-classifiers = [
-    "Programming Language :: Rust",
-    "Programming Language :: Python :: 3",
-]
+classifiers = ["Programming Language :: Rust", "Programming Language :: Python :: 3"]
 description = "A fast Multi-Agent Reinforcement Learning Environment"
 name = "laser-learning-environment"
 readme = "readme.md"
@@ -26,7 +23,6 @@ version = "0.2.5"
 [tool.poetry.dependencies]
 numpy = "^1.25.0"
 opencv-python = "^4.8.1.78"
-pyserde = ">=0.19"
 python = ">=3.10,<3.13"
 
 [tool.poetry.dependencies.rlenv]

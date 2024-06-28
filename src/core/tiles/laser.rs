@@ -89,6 +89,9 @@ pub struct Laser {
     offset: usize,
 }
 
+unsafe impl Send for Laser {}
+unsafe impl Sync for Laser {}
+
 impl Debug for Laser {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Laser").field("beam", &self.beam).finish()
@@ -192,5 +195,9 @@ impl Tile for Laser {
 
     fn accept(&self, visitor: &dyn TileVisitor, data: &mut VisitorData) {
         visitor.visit_laser(self, data);
+    }
+
+    fn to_string(&self) -> String {
+        self.wrapped.lock().unwrap().to_string()
     }
 }

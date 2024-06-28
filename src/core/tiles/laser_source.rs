@@ -17,12 +17,6 @@ pub struct LaserSource {
     beam: Arc<Mutex<LaserBeam>>,
 }
 
-impl Into<String> for LaserSource {
-    fn into(self) -> String {
-        format!("L{}{}", self.agent_id(), self.direction())
-    }
-}
-
 impl LaserSource {
     /// Note there is no "TryFrom" implementation for LaserSource because we need the laser_id.
     pub fn from_str(value: &str, laser_id: LaserId) -> Result<LaserBuilder, ParseError> {
@@ -108,6 +102,11 @@ impl Tile for LaserSource {
 
     fn accept(&self, _visitor: &dyn TileVisitor, _data: &mut VisitorData) {
         // Nothing to do here as it is statically rendered
+    }
+
+    fn to_string(&self) -> String {
+        let direction_str: &str = self.direction().into();
+        format!("L{}{}", self.agent_id(), direction_str)
     }
 }
 

@@ -56,6 +56,14 @@ class LaserSource:
     def laser_id(self) -> LaserId:
         """The ID of the laser."""
     direction: Direction
+
+    def enable(self):
+        """Enable the laser."""
+    def disable(self):
+        """Disable the laser."""
+    def set_colour(self, colour: AgentId):
+        """Set the colour of the laser."""
+
     """The direction of the laser beam."""
     def __str__(self) -> str: ...
     def __repr__(self) -> str: ...

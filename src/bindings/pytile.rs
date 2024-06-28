@@ -4,7 +4,7 @@ use pyo3::prelude::*;
 
 use crate::{
     agent::AgentId,
-    tiles::{Direction, Gem, Laser, LaserId, LaserSource},
+    tiles::{Gem, Laser, LaserId, LaserSource},
     Tile,
 };
 
@@ -129,59 +129,67 @@ impl From<&Arc<Mutex<Laser>>> for PyLaser {
 #[pyclass(name = "LaserSource", module = "lle")]
 #[derive(Debug)]
 pub struct PyLaserSource {
-    direction: PyDirection,
-    agent_id: AgentId,
-    laser_id: LaserId,
-    is_enabled: bool,
+    wrapped: Arc<Mutex<LaserSource>>,
 }
 
 impl From<&Arc<Mutex<LaserSource>>> for PyLaserSource {
     fn from(source: &Arc<Mutex<LaserSource>>) -> Self {
         PyLaserSource {
-            direction: source.direction().into(),
-            agent_id: source.agent_id(),
-            laser_id: source.laser_id(),
-            is_enabled: source.is_enabled(),
+            wrapped: source.clone(),
         }
     }
 }
 
 #[pymethods]
 impl PyLaserSource {
-    #[new]
-    /// This constructor is required for pickling but should not be used for any other purpose.
-    fn new() -> Self {
-        PyLaserSource {
-            direction: Direction::North.into(),
-            agent_id: 0,
-            laser_id: 0,
-            is_enabled: false,
-        }
-    }
-
     #[getter]
     pub fn is_enabled(&self) -> bool {
-        self.is_enabled
+        self.wrapped.lock().unwrap().is_enabled()
     }
 
     #[getter]
     pub fn is_disabled(&self) -> bool {
-        !self.is_enabled
+        !self.is_enabled()
+    }
+
+    pub fn disable(&self) {
+        self.wrapped.lock().unwrap().disable();
+    }
+
+    pub fn enable(&self) {
+        self.wrapped.lock().unwrap().enable();
+    }
+
+    pub fn set_color(&self, agent_id: i32) -> PyResult<()> {
+        self.set_colour(agent_id)
+    }
+
+    pub fn set_colour(&self, agent_id: i32) -> PyResult<()> {
+        if agent_id < 0 {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "Agent ID must be positive",
+            ));
+        }
+        Ok(self
+            .wrapped
+            .lock()
+            .unwrap()
+            .set_agent_id(agent_id as AgentId))
     }
 
     #[getter]
     pub fn direction(&self) -> PyDirection {
-        self.direction.clone()
+        self.wrapped.lock().unwrap().direction().into()
     }
 
     #[getter]
     pub fn agent_id(&self) -> AgentId {
-        self.agent_id
+        self.wrapped.lock().unwrap().agent_id()
     }
 
     #[getter]
     pub fn laser_id(&self) -> LaserId {
-        self.laser_id
+        self.wrapped.lock().unwrap().laser_id()
     }
 
     pub fn __str__(&self) -> String {
@@ -190,21 +198,5 @@ impl PyLaserSource {
 
     pub fn __repr__(&self) -> String {
         self.__str__()
-    }
-
-    pub fn __getstate__(&self) -> (PyDirection, AgentId, LaserId, bool) {
-        (
-            self.direction.clone(),
-            self.agent_id,
-            self.laser_id,
-            self.is_enabled,
-        )
-    }
-
-    pub fn __setstate__(&mut self, state: (PyDirection, AgentId, LaserId, bool)) {
-        self.direction = state.0;
-        self.agent_id = state.1;
-        self.laser_id = state.2;
-        self.is_enabled = state.3;
     }
 }

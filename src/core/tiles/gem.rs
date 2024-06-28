@@ -56,4 +56,8 @@ impl Tile for Gem {
     fn accept(&self, visitor: &dyn TileVisitor, data: &mut VisitorData) {
         visitor.visit_gem(self, data);
     }
+
+    fn to_string(&self) -> String {
+        "G".to_string()
+    }
 }

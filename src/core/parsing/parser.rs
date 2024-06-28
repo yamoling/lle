@@ -169,7 +169,9 @@ fn laser_setup(
             lasers.push((*pos, laser.clone()));
             grid[pos.0].insert(pos.1, laser);
         }
-        sources.push((*pos, Arc::new(Mutex::new(source))));
+        let source = Arc::new(Mutex::new(source));
+        sources.push((*pos, source.clone()));
+        grid[pos.0][pos.1] = source;
     }
     (sources, lasers)
 }

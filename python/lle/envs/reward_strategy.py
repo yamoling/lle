@@ -4,10 +4,8 @@ import numpy.typing as npt
 from lle import WorldEvent, EventType
 from dataclasses import dataclass
 from rlenv import DiscreteSpace
-from serde import serde
 
 
-@serde
 @dataclass
 class RewardStrategy(ABC):
     name: str
@@ -18,12 +16,10 @@ class RewardStrategy(ABC):
         self.reward_space = space
 
     @abstractmethod
-    def reset(self):
-        ...
+    def reset(self): ...
 
     @abstractmethod
-    def compute_reward(self, events: list[WorldEvent]) -> npt.NDArray[np.float32]:
-        ...
+    def compute_reward(self, events: list[WorldEvent]) -> npt.NDArray[np.float32]: ...
 
 
 REWARD_DEATH = -1.0
