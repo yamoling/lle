@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
 use numpy::{PyArray1, PyArrayMethods};
-use pyo3::{exceptions::PyValueError, prelude::*, types::PyDict};
+use pyo3::{prelude::*, types::PyDict};
 
-use crate::{AgentId, Position, Renderer, Tile, World, WorldState};
+use crate::{Position, Renderer, World, WorldState};
 
 use super::{
     pyaction::PyAction,
@@ -64,7 +64,7 @@ impl PyWorld {
 
     #[getter]
     fn world_string(&self) -> String {
-        self.world.world_string().into()
+        self.world.initial_world_string().into()
     }
 
     #[getter]
@@ -96,7 +96,7 @@ impl PyWorld {
     #[getter]
     /// The list of the positions of the void tiles
     pub fn void_pos(&self) -> Vec<Position> {
-        self.world.void_positions().copied().collect()
+        self.world.void_positions()
     }
 
     #[getter]
@@ -114,7 +114,7 @@ impl PyWorld {
     #[getter]
     /// The positions of the wall tiles.
     fn wall_pos(&self) -> Vec<Position> {
-        self.world.walls().copied().collect()
+        self.world.walls()
     }
 
     #[getter]
@@ -122,7 +122,8 @@ impl PyWorld {
     fn gems(&self) -> HashMap<Position, PyGem> {
         self.world
             .gems()
-            .map(|(pos, gem)| (*pos, PyGem::new(gem.agent(), gem.is_collected())))
+            .iter()
+            .map(|(pos, gem)| (*pos, PyGem::from(gem)))
             .collect()
     }
 
@@ -131,6 +132,7 @@ impl PyWorld {
     fn lasers(&self) -> Vec<(Position, PyLaser)> {
         self.world
             .lasers()
+            .iter()
             .map(|(pos, laser)| (*pos, PyLaser::from(laser)))
             .collect()
     }
@@ -140,67 +142,25 @@ impl PyWorld {
     fn laser_sources(&self) -> HashMap<Position, PyLaserSource> {
         self.world
             .laser_sources()
+            .iter()
             .map(|(pos, laser_source)| (*pos, PyLaserSource::from(laser_source)))
             .collect()
-    }
-
-    fn disable_laser_source(&self, laser_source: &PyLaserSource) -> PyResult<()> {
-        let id = laser_source.laser_id();
-        if let Some((_, source)) = self.world.laser_sources().find(|(_, l)| l.laser_id() == id) {
-            source.disable();
-            return Ok(());
-        }
-        return Err(PyValueError::new_err(format!(
-            "Laser source with laser_id {id} not found"
-        )));
-    }
-
-    fn enable_laser_source(&self, laser_source: &PyLaserSource) -> PyResult<()> {
-        let id = laser_source.laser_id();
-        if let Some((_, source)) = self.world.laser_sources().find(|(_, l)| l.laser_id() == id) {
-            source.enable();
-            return Ok(());
-        }
-        Err(PyValueError::new_err(format!(
-            "Laser source with laser_id {id} not found"
-        )))
-    }
-
-    fn set_laser_colour(&self, laser_source: &PyLaserSource, new_colour: i32) -> PyResult<()> {
-        let new_colour = match AgentId::try_from(new_colour) {
-            Ok(r) => r,
-            Err(_) => {
-                return Err(PyValueError::new_err(format!(
-                    "New colour {new_colour} must be >= 0"
-                )))
-            }
-        };
-        if new_colour >= self.world.n_agents() {
-            let n_agents = self.world.n_agents();
-            return Err(PyValueError::new_err(format!(
-                "New colour {new_colour} does not belong to an existing agent !\nThere are {n_agents} agents in the world, provide a value bewteen 0 and {} included.",
-                n_agents -1
-            )));
-        }
-        let id = laser_source.laser_id();
-        if let Some((_, source)) = self.world.laser_sources().find(|(_, l)| l.laser_id() == id) {
-            source.set_agent_id(new_colour);
-            return Ok(());
-        }
-        Err(PyValueError::new_err(format!(
-            "Laser source with laser_id {id} not found"
-        )))
     }
 
     #[getter]
     /// The positions of the exit tiles.
     fn exit_pos(&self) -> Vec<Position> {
-        self.world.exits().map(|(pos, _)| pos).copied().collect()
+        self.world
+            .exits()
+            .iter()
+            .map(|(pos, _)| pos)
+            .copied()
+            .collect()
     }
 
     #[getter]
     fn start_pos(&self) -> Vec<Position> {
-        self.world.starts().collect()
+        self.world.starts().clone()
     }
 
     /// Perform a step in the world and returns the events that happened during that transition.
@@ -282,7 +242,7 @@ impl PyWorld {
     pub fn __getstate__(&self) -> PyResult<(String, Vec<bool>, Vec<Position>)> {
         let state = self.world.get_state();
         let data = (
-            self.world.world_string().to_owned(),
+            self.world.compute_world_string().to_owned(),
             state.gems_collected.clone(),
             state.agents_positions.clone(),
         );

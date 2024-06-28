@@ -1,7 +1,7 @@
 use crate::{
     agent::{Agent, AgentId},
     rendering::{TileVisitor, VisitorData},
-    WorldEvent,
+    RuntimeWorldError, WorldEvent,
 };
 
 use super::{Floor, Tile};
@@ -25,19 +25,19 @@ impl Start {
 }
 
 impl Tile for Start {
-    fn pre_enter(&self, agent: &Agent) -> Result<(), String> {
+    fn pre_enter(&mut self, agent: &Agent) -> Result<(), RuntimeWorldError> {
         self.floor.pre_enter(agent)
     }
-    fn reset(&self) {
+    fn reset(&mut self) {
         self.floor.reset();
     }
 
-    fn enter(&self, agent: &mut Agent) -> Option<WorldEvent> {
+    fn enter(&mut self, agent: &mut Agent) -> Option<WorldEvent> {
         self.floor.enter(agent);
         None
     }
 
-    fn leave(&self) -> AgentId {
+    fn leave(&mut self) -> AgentId {
         self.floor.leave()
     }
 
@@ -48,6 +48,10 @@ impl Tile for Start {
     fn accept(&self, _visitor: &dyn TileVisitor, _data: &mut VisitorData) {
         // Nothing to do
     }
+
+    fn to_string(&self) -> String {
+        format!("S{}", self.agent_id)
+    }
 }
 
 #[derive(Default)]
@@ -56,15 +60,15 @@ pub struct Exit {
 }
 
 impl Tile for Exit {
-    fn pre_enter(&self, agent: &Agent) -> Result<(), String> {
+    fn pre_enter(&mut self, agent: &Agent) -> Result<(), RuntimeWorldError> {
         self.floor.pre_enter(agent)
     }
 
-    fn reset(&self) {
+    fn reset(&mut self) {
         self.floor.reset();
     }
 
-    fn enter(&self, agent: &mut Agent) -> Option<WorldEvent> {
+    fn enter(&mut self, agent: &mut Agent) -> Option<WorldEvent> {
         self.floor.enter(agent);
         if !agent.has_arrived() {
             agent.arrive();
@@ -75,7 +79,7 @@ impl Tile for Exit {
         None
     }
 
-    fn leave(&self) -> AgentId {
+    fn leave(&mut self) -> AgentId {
         self.floor.leave()
     }
 
@@ -85,5 +89,9 @@ impl Tile for Exit {
 
     fn accept(&self, _visitor: &dyn TileVisitor, _data: &mut VisitorData) {
         // Nothing to do
+    }
+
+    fn to_string(&self) -> String {
+        "X".to_string()
     }
 }

@@ -62,6 +62,14 @@ impl PyDirection {
         self.direction.opposite().into()
     }
 
+    fn is_horizontal(&self) -> bool {
+        self.direction == Direction::East || self.direction == Direction::West
+    }
+
+    fn is_vertical(&self) -> bool {
+        self.direction == Direction::North || self.direction == Direction::South
+    }
+
     #[staticmethod]
     fn from_str(direction: String) -> PyResult<Self> {
         match Direction::try_from(direction.as_str()) {

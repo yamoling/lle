@@ -1,10 +1,9 @@
-from typing import Any, Literal, Optional
-from typing_extensions import override
+from typing import Literal, Optional, override
 from dataclasses import dataclass
-from serde import serde
 import cv2
 from enum import IntEnum
 import numpy as np
+import numpy.typing as npt
 
 from lle import World, Action, EventType, WorldState
 from rlenv import RLEnv, DiscreteActionSpace, Observation
@@ -80,7 +79,7 @@ class Builder:
             case other:
                 raise ValueError(f"Invalid death strategy: {other}")
         return self
-    
+
     def name(self, name: str):
         """Set the name of the environment."""
         self._env_name = name
@@ -98,7 +97,6 @@ class Builder:
         )
 
 
-@serde
 @dataclass
 class LLE(RLEnv[DiscreteActionSpace]):
     """Laser Learning Environment (LLE)"""
@@ -173,7 +171,7 @@ class LLE(RLEnv[DiscreteActionSpace]):
         return available_actions
 
     @override
-    def step(self, actions: list[int] | np.ndarray[np.int32, Any]):
+    def step(self, actions: np.ndarray):
         assert not self.done, "Can not play when the game is done !"
         agents_actions = [Action(a) for a in actions]
         prev_positions = self.world.agents_positions
@@ -216,7 +214,7 @@ class LLE(RLEnv[DiscreteActionSpace]):
         return self.get_observation()
 
     @override
-    def get_state(self) -> np.ndarray[np.float32, Any]:
+    def get_state(self) -> npt.NDArray[np.float32]:
         # We assume that the state is the same as the observation of the first agent
         # of the observation generator.
         return self.state_generator.observe()[0]

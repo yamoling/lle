@@ -80,11 +80,11 @@ pub fn parse_error_to_exception(error: ParseError) -> PyErr {
             )
         }
         ParseError::InvalidDirection { given, expected } => {
-            format!("Invalid direction: {given}. {expected}")   
+            format!("Invalid direction: {given}. {expected}")
         }
         ParseError::InvalidFileName { .. } | ParseError::InvalidLevel { .. } => {
             panic!("Already handled above")
-        },
+        }
     };
     ParsingError::new_err(msg)
 }
@@ -129,5 +129,11 @@ pub fn runtime_error_to_pyexception(error: RuntimeWorldError) -> PyErr {
         RuntimeWorldError::InvalidWorldState { reason, state } => InvalidWorldStateError::new_err(
             format!("Invalid world state: {reason}. Wrong state: {state:?}"),
         ),
+        RuntimeWorldError::TileNotWalkable => {
+            InvalidWorldStateError::new_err("An agent tried to walk on a non-walkable tile.")
+        }
+        RuntimeWorldError::MutexPoisoned => {
+            panic!("Mutex poisoned ! Check your code for deadlocks or exceptions.")
+        }
     }
 }

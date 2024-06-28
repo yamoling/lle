@@ -20,6 +20,8 @@ class Direction:
     def opposite(self) -> Direction:
         """The opposite of this direction."""
 
+    def is_horizontal(self) -> bool: ...
+    def is_vertical(self) -> bool: ...
     @property
     def name(self) -> str:
         """The string name of this direction."""

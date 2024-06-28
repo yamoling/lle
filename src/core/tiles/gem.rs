@@ -1,43 +1,43 @@
-use std::cell::Cell;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::{
     agent::{Agent, AgentId},
     rendering::{TileVisitor, VisitorData},
-    WorldEvent,
+    RuntimeWorldError, WorldEvent,
 };
 
 use super::{Floor, Tile};
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Gem {
     floor: Floor,
-    collected: Cell<bool>,
+    collected: AtomicBool,
 }
 
 impl Gem {
     pub fn collect(&self) {
-        self.collected.set(true);
+        self.collected.store(true, Ordering::Relaxed);
     }
 
     pub fn is_collected(&self) -> bool {
-        self.collected.get()
+        self.collected.load(Ordering::Relaxed)
     }
 }
 
 impl Tile for Gem {
-    fn pre_enter(&self, agent: &Agent) -> Result<(), String> {
+    fn pre_enter(&mut self, agent: &Agent) -> Result<(), RuntimeWorldError> {
         self.floor.pre_enter(agent)
     }
 
-    fn reset(&self) {
-        self.collected.set(false);
+    fn reset(&mut self) {
+        self.collected.store(false, Ordering::Relaxed);
         self.floor.reset();
     }
 
-    fn enter(&self, agent: &mut Agent) -> Option<WorldEvent> {
+    fn enter(&mut self, agent: &mut Agent) -> Option<WorldEvent> {
         self.floor.enter(agent);
-        if !self.collected.get() {
-            self.collected.set(true);
+        if !self.collected.load(Ordering::Relaxed) {
+            self.collected.store(true, Ordering::Relaxed);
             return Some(WorldEvent::GemCollected {
                 agent_id: agent.id(),
             });
@@ -45,7 +45,7 @@ impl Tile for Gem {
         None
     }
 
-    fn leave(&self) -> AgentId {
+    fn leave(&mut self) -> AgentId {
         self.floor.leave()
     }
 
@@ -55,5 +55,9 @@ impl Tile for Gem {
 
     fn accept(&self, visitor: &dyn TileVisitor, data: &mut VisitorData) {
         visitor.visit_gem(self, data);
+    }
+
+    fn to_string(&self) -> String {
+        "G".to_string()
     }
 }
