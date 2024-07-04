@@ -110,14 +110,13 @@ impl World {
     }
 
     pub fn gems(&self) -> Vec<&Gem> {
+        // Important: gems can be wrapped into lasers !
         self.gems_positions
             .iter()
-            .map(|(i, j)| {
-                if let Tile::Gem(gem) = &self.grid[*i][*j] {
-                    gem
-                } else {
-                    unreachable!()
-                }
+            .map(|(i, j)| match &self.grid[*i][*j] {
+                Tile::Gem(gem) => gem,
+                Tile::Laser(laser) => laser.gem().unwrap(),
+                _ => unreachable!(),
             })
             .collect()
     }

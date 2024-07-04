@@ -28,6 +28,15 @@ impl Direction {
             Direction::West => Direction::East,
         }
     }
+
+    pub fn to_file_string(&self) -> String {
+        match self {
+            Direction::North => "N".to_string(),
+            Direction::East => "E".to_string(),
+            Direction::South => "S".to_string(),
+            Direction::West => "W".to_string(),
+        }
+    }
 }
 
 impl Display for Direction {
@@ -44,8 +53,10 @@ impl TryFrom<&str> for Direction {
             "e" | "east" => Ok(Direction::East),
             "s" | "south" => Ok(Direction::South),
             "w" | "west" => Ok(Direction::West),
-            _ => Err(ParseError::InvalidDirection { given: value.into(), expected: "{{N, E, S, W, north, east, south, west}}.".into() })
-            
+            _ => Err(ParseError::InvalidDirection {
+                given: value.into(),
+                expected: "{{N, E, S, W, north, east, south, west}}.".into(),
+            }),
         }
     }
 }
@@ -55,7 +66,6 @@ impl TryFrom<char> for Direction {
     fn try_from(value: char) -> Result<Self, Self::Error> {
         Direction::try_from(value.to_string().as_str())
     }
-
 }
 
 impl Into<&str> for Direction {

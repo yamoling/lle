@@ -9,6 +9,8 @@ use crate::{
     WorldEvent,
 };
 
+use super::Gem;
+
 #[derive(Debug, Clone)]
 pub struct LaserBeam {
     beam: RefCell<Vec<bool>>,
@@ -106,6 +108,14 @@ impl Laser {
 
     pub fn wrapped(&self) -> &Tile {
         &self.wrapped
+    }
+
+    pub fn gem(&self) -> Option<&Gem> {
+        match self.wrapped.as_ref() {
+            Tile::Gem(gem) => Some(gem),
+            Tile::Laser(laser) => laser.gem(),
+            _ => None,
+        }
     }
 
     pub fn laser_id(&self) -> LaserId {

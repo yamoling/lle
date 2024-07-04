@@ -1,5 +1,3 @@
-use std::sync::{Arc, Mutex};
-
 use lle::{tiles::Laser, Action, ParseError, RuntimeWorldError, World, WorldEvent, WorldState};
 
 #[test]
@@ -230,11 +228,8 @@ fn test_force_wrong_state_check_laser_not_blocked() {
     } else {
         panic!("Expected InvalidAgentPosition, got {:?}", res);
     }
-    assert!(w.lasers().iter().all(|(_, l)| l.lock().unwrap().is_on()));
-    assert!(w
-        .gems()
-        .iter()
-        .all(|(_, g)| !g.lock().unwrap().is_collected()));
+    assert!(w.lasers().iter().all(|(_, l)| l.is_on()));
+    assert!(w.gems().iter().all(|g| !g.is_collected()));
 }
 
 #[test]
@@ -313,7 +308,7 @@ fn test_dead_agent_does_not_block_the_laser() {
     // Check that the laser 1 is not blocked anymore
     for (pos, l) in w.lasers() {
         if pos == (0, 1) {
-            assert!(l.lock().unwrap().is_on());
+            assert!(l.is_on());
         }
     }
 }
@@ -350,20 +345,13 @@ fn change_laser_id() {
     )
     .unwrap();
     w.reset();
-    assert!(w
-        .lasers()
-        .iter()
-        .all(|(_, l)| l.lock().unwrap().agent_id() == 0));
+    assert!(w.lasers().iter().all(|(_, l)| l.agent_id() == 0));
     {
-        let (_, source) = &w.laser_sources()[0];
-        let mut source = source.lock().unwrap();
+        let (_, source) = w.sources()[0];
         source.set_agent_id(1);
         assert_eq!(source.agent_id(), 1);
     }
-    assert!(w
-        .lasers()
-        .iter()
-        .all(|(_, l)| l.lock().unwrap().agent_id() == 1));
+    assert!(w.lasers().iter().all(|(_, l)| l.agent_id() == 1));
 
     // Kill agent 0 in the laser
     let events = w.step(&[Action::South, Action::Stay]).unwrap();
@@ -387,12 +375,12 @@ fn disable_laser_source() {
     )
     .unwrap();
     w.reset();
-    assert!(w.lasers().iter().all(|(_, l)| l.lock().unwrap().is_on()));
-    let (_, source) = &w.laser_sources()[0];
-    source.lock().unwrap().disable();
-    assert!(w.lasers().iter().all(|(_, l)| l.lock().unwrap().is_off()));
-    source.lock().unwrap().enable();
-    assert!(w.lasers().iter().all(|(_, l)| l.lock().unwrap().is_on()));
+    assert!(w.lasers().iter().all(|(_, l)| l.is_on()));
+    let (_, source) = w.sources()[0];
+    source.disable();
+    assert!(w.lasers().iter().all(|(_, l)| l.is_off()));
+    source.enable();
+    assert!(w.lasers().iter().all(|(_, l)| l.is_on()));
 }
 
 /// We check that disabling a laser source will turn off the lasers it is connected to,
@@ -402,7 +390,7 @@ fn disable_laser_source_and_block_with_agent() {
     let mut w = World::try_from("L0E . S0 X").unwrap();
     w.reset();
 
-    fn get_laser_at(w: &World, pos: (usize, usize)) -> Arc<Mutex<Laser>> {
+    fn get_laser_at(w: &World, pos: (usize, usize)) -> &Laser {
         w.lasers()
             .into_iter()
             .filter(|(p, _)| *p == pos)
@@ -410,25 +398,17 @@ fn disable_laser_source_and_block_with_agent() {
             .collect::<Vec<_>>()
             .first()
             .unwrap()
-            .clone()
     }
     let laser = get_laser_at(&w, (0, 1));
-    assert!(laser.lock().unwrap().is_on());
-    w.laser_sources()
-        .iter()
-        .next()
-        .unwrap()
-        .1
-        .lock()
-        .unwrap()
-        .disable();
-    assert!(laser.lock().unwrap().is_off());
+    assert!(laser.is_on());
+    w.sources()[0].1.disable();
+    assert!(laser.is_off());
     w.step(&[Action::West]).unwrap();
     let laser = get_laser_at(&w, (0, 2));
-    assert!(laser.lock().unwrap().is_off());
+    assert!(laser.is_off());
     w.step(&[Action::East]).unwrap();
     let laser = get_laser_at(&w, (0, 1));
-    assert!(laser.lock().unwrap().is_off());
+    assert!(laser.is_off());
 }
 
 #[test]
@@ -444,11 +424,11 @@ fn test_laser_id() {
     w.reset();
     let mut top_laser_id = None;
     let mut bot_laser_id = None;
-    for ((i, j), source) in w.laser_sources() {
+    for ((i, j), source) in w.sources() {
         if i == 1 {
-            top_laser_id = Some(source.lock().unwrap().laser_id());
+            top_laser_id = Some(source.laser_id());
         } else if i == 3 {
-            bot_laser_id = Some(source.lock().unwrap().laser_id());
+            bot_laser_id = Some(source.laser_id());
         } else {
             panic!("Unexpected laser source at ({}, {})", i, j);
         }
@@ -459,9 +439,9 @@ fn test_laser_id() {
 
     for ((i, j), l) in w.lasers() {
         if i == 1 {
-            assert_eq!(l.lock().unwrap().laser_id(), top_laser_id);
+            assert_eq!(l.laser_id(), top_laser_id);
         } else if i == 3 {
-            assert_eq!(l.lock().unwrap().laser_id(), bot_laser_id);
+            assert_eq!(l.laser_id(), bot_laser_id);
         } else {
             panic!("Unexpected laser at ({}, {})", i, j);
         }
@@ -472,18 +452,12 @@ fn test_laser_id() {
 fn test_disable_laser_then_reset_does_not_turn_on() {
     let mut w = World::try_from("L0E . S0 X").unwrap();
     w.reset();
-    w.laser_sources()[0].1.lock().unwrap().disable();
+    w.sources()[0].1.disable();
     w.reset();
-    let laser = w
-        .lasers()
-        .iter()
-        .find(|(pos, _)| *pos == (0, 1))
-        .unwrap()
-        .1
-        .clone();
-    assert!(!laser.lock().unwrap().is_enabled());
-    assert!(laser.lock().unwrap().is_disabled());
-    assert!(laser.lock().unwrap().is_off());
+    let laser = w.lasers().iter().find(|(pos, _)| *pos == (0, 1)).unwrap().1;
+    assert!(!laser.is_enabled());
+    assert!(laser.is_disabled());
+    assert!(laser.is_off());
 }
 
 #[test]
@@ -491,9 +465,9 @@ fn test_laser_sources_have_different_laser_ids() {
     let mut w = World::try_from("L0E . L0E . X S0").unwrap();
     w.reset();
     let laser_ids = w
-        .laser_sources()
+        .sources()
         .iter()
-        .map(|(_, l)| l.lock().unwrap().laser_id())
+        .map(|(_, l)| l.laser_id())
         .collect::<Vec<_>>();
     assert_eq!(laser_ids.len(), 2);
     assert_ne!(laser_ids[0], laser_ids[1]);
@@ -521,8 +495,8 @@ fn test_compute_world_string() {
     let current_string = current_string.trim();
     assert_eq!(initial_string, current_string);
 
-    let (_, source) = &world.laser_sources()[0];
-    source.lock().unwrap().set_agent_id(1);
+    let (_, source) = &world.sources()[0];
+    source.set_agent_id(1);
     let expected = "S0 L1S X";
     let res = world.compute_world_string();
     let res = res.trim();
