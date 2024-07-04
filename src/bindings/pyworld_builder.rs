@@ -62,7 +62,7 @@ impl PyWorldBuilder {
             Ok(world) => world,
             Err(err) => return Err(parse_error_to_exception(err)),
         };
-        Ok(PyWorld::from_world(world))
+        Ok(PyWorld::from(world))
     }
 
     fn can_build(&self) -> bool {

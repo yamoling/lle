@@ -49,20 +49,24 @@ class Laser:
 
 @final
 class LaserSource:
+    agent_id: AgentId
+    """The id (colour) of the agent that can block the laser."""
+
     @property
-    def agent_id(self) -> AgentId:
-        """The id of the agent that can block the laser."""
+    def direction(self) -> Direction:
+        """
+        The direction of the laser beam.
+        The direction can currently not be changed after creation of the `World`.
+        """
+
     @property
     def laser_id(self) -> LaserId:
         """The ID of the laser."""
-    direction: Direction
 
     def enable(self):
         """Enable the laser."""
     def disable(self):
         """Disable the laser."""
-    def set_colour(self, colour: AgentId):
-        """Set the colour of the laser."""
 
     """The direction of the laser beam."""
     def __str__(self) -> str: ...

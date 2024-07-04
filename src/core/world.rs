@@ -252,6 +252,17 @@ impl World {
         Some(&self.grid[i][j])
     }
 
+    pub fn at_mut(&mut self, pos: Position) -> Option<&mut Tile> {
+        let (i, j) = pos;
+        if i >= self.height {
+            return None;
+        }
+        if j >= self.width {
+            return None;
+        }
+        Some(&mut self.grid[i][j])
+    }
+
     pub fn reset(&mut self) {
         for row in self.grid.iter_mut() {
             for tile in row.iter_mut() {
