@@ -3,12 +3,11 @@ use itertools::izip;
 use std::{
     fs::File,
     io::{BufReader, Read},
-    sync::{Arc, Mutex},
 };
 
 use crate::{
     agent::Agent,
-    tiles::{Exit, Gem, Laser, LaserSource, Tile},
+    tiles::{Gem, Laser, LaserSource, Tile},
     utils::find_duplicates,
     Action, Position, RuntimeWorldError, WorldState,
 };
@@ -19,26 +18,19 @@ use super::{
     WorldEvent,
 };
 
-type SafeTile = Arc<Mutex<dyn Tile>>;
-type SafeGem = Arc<Mutex<Gem>>;
-type SafeLaser = Arc<Mutex<Laser>>;
-type SafeSource = Arc<Mutex<LaserSource>>;
-type SafeExit = Arc<Mutex<Exit>>;
-
 pub struct World {
     width: usize,
     height: usize,
     world_string: String,
 
-    grid: Vec<Vec<SafeTile>>,
-    gems: Vec<(Position, SafeGem)>,
-    lasers: Vec<(Position, SafeLaser)>,
-    sources: Vec<(Position, SafeSource)>,
-
+    grid: Vec<Vec<Tile>>,
     agents: Vec<Agent>,
+    laser_source_positions: Vec<Position>,
+    lasers_positions: Vec<Position>,
+    gems_positions: Vec<Position>,
     start_positions: Vec<Position>,
     void_positions: Vec<Position>,
-    exits: Vec<(Position, SafeExit)>,
+    exits: Vec<Position>,
     agents_positions: Vec<Position>,
     wall_positions: Vec<Position>,
 
@@ -48,14 +40,14 @@ pub struct World {
 impl World {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        grid: Vec<Vec<SafeTile>>,
-        gems: Vec<(Position, SafeGem)>,
-        lasers: Vec<(Position, SafeLaser)>,
-        sources: Vec<(Position, SafeSource)>,
+        grid: Vec<Vec<Tile>>,
+        gem_positions: Vec<Position>,
         start_positions: Vec<Position>,
         void_positions: Vec<Position>,
-        exits: Vec<(Position, SafeExit)>,
+        exit_positions: Vec<Position>,
         walls_positions: Vec<Position>,
+        source_positions: Vec<Position>,
+        lasers_positions: Vec<Position>,
         world_str: &str,
     ) -> Self {
         let agents = start_positions
@@ -66,18 +58,18 @@ impl World {
         Self {
             width: grid[0].len(),
             height: grid.len(),
+            gems_positions: gem_positions,
             agents_positions: start_positions.clone(),
             wall_positions: walls_positions,
             void_positions,
             agents,
-            exits,
-            gems,
-            sources,
+            exits: exit_positions,
             grid,
-            lasers,
             start_positions,
             world_string: world_str.into(),
             available_actions: vec![],
+            laser_source_positions: source_positions,
+            lasers_positions,
         }
     }
 
@@ -97,8 +89,7 @@ impl World {
         let mut world_str = String::with_capacity(self.width * self.height * TILE_SIZE);
         for row in &self.grid {
             for tile in row {
-                let tile = tile.lock().unwrap();
-                world_str.push_str(&tile.to_string());
+                world_str.push_str(&tile.to_file_string());
                 world_str.push(' ');
             }
             world_str.push('\n');
@@ -114,8 +105,55 @@ impl World {
         &self.agents_positions
     }
 
+    pub fn gems_positions(&self) -> Vec<Position> {
+        self.gems_positions.clone()
+    }
+
+    pub fn gems(&self) -> Vec<&Gem> {
+        self.gems_positions
+            .iter()
+            .map(|(i, j)| {
+                if let Tile::Gem(gem) = &self.grid[*i][*j] {
+                    gem
+                } else {
+                    unreachable!()
+                }
+            })
+            .collect()
+    }
+
+    pub fn sources(&self) -> Vec<(Position, &LaserSource)> {
+        self.laser_source_positions
+            .iter()
+            .map(|pos| {
+                if let Tile::LaserSource(source) = &self.grid[pos.0][pos.1] {
+                    (*pos, source)
+                } else {
+                    unreachable!()
+                }
+            })
+            .collect()
+    }
+
+    pub fn lasers(&self) -> Vec<(Position, &Laser)> {
+        self.lasers_positions
+            .iter()
+            .map(|pos| {
+                if let Tile::Laser(laser) = &self.grid[pos.0][pos.1] {
+                    (*pos, laser)
+                } else {
+                    unreachable!()
+                }
+            })
+            .collect()
+    }
+
+    pub fn exits_positions(&self) -> Vec<Position> {
+        self.exits.clone()
+    }
+
     pub fn n_gems(&self) -> usize {
-        self.gems.len()
+        self.gems_positions.len()
     }
 
     pub fn available_actions(&self) -> &Vec<Vec<Action>> {
@@ -123,10 +161,15 @@ impl World {
     }
 
     pub fn n_gems_collected(&self) -> usize {
-        self.gems
-            .iter()
-            .filter(|(_, gem)| gem.lock().unwrap().is_collected())
-            .count()
+        let mut res = 0;
+        for (i, j) in &self.gems_positions {
+            if let Tile::Gem(gem) = &self.grid[*i][*j] {
+                if gem.is_collected() {
+                    res += 1;
+                }
+            }
+        }
+        res
     }
 
     pub fn n_agents_arrived(&self) -> usize {
@@ -145,28 +188,12 @@ impl World {
         self.wall_positions.clone()
     }
 
-    pub fn gems(&self) -> Vec<(Position, SafeGem)> {
-        self.gems.clone()
-    }
-
-    pub fn laser_sources(&self) -> Vec<(Position, SafeSource)> {
-        self.sources.clone()
-    }
-
     pub fn starts(&self) -> Vec<Position> {
         self.start_positions.clone()
     }
 
-    pub fn exits(&self) -> Vec<(Position, SafeExit)> {
-        self.exits.clone()
-    }
-
     pub fn void_positions(&self) -> Vec<Position> {
         self.void_positions.clone()
-    }
-
-    pub fn lasers(&self) -> Vec<(Position, SafeLaser)> {
-        self.lasers.clone()
     }
 
     fn compute_available_actions(&self) -> Vec<Vec<Action>> {
@@ -177,7 +204,6 @@ impl World {
                 for action in [Action::North, Action::East, Action::South, Action::West] {
                     if let Ok(pos) = &action + agent_pos {
                         if let Some(tile) = self.at(pos) {
-                            let tile = tile.lock().unwrap();
                             if tile.is_waklable() && !tile.is_occupied() {
                                 agent_actions.push(action.clone());
                             }
@@ -206,17 +232,17 @@ impl World {
     }
 
     /// Creates an iterator over all tiles in the grid with their (i, j) coordinates
-    pub fn tiles(&self) -> Vec<(Position, SafeTile)> {
+    pub fn tiles(&self) -> Vec<(Position, &Tile)> {
         let mut res = vec![];
         for (i, row) in self.grid.iter().enumerate() {
             for (j, tile) in row.iter().enumerate() {
-                res.push(((i, j), tile.clone()));
+                res.push(((i, j), tile));
             }
         }
         res
     }
 
-    pub fn at(&self, pos: Position) -> Option<SafeTile> {
+    pub fn at(&self, pos: Position) -> Option<&Tile> {
         let (i, j) = pos;
         if i >= self.height {
             return None;
@@ -224,25 +250,23 @@ impl World {
         if j >= self.width {
             return None;
         }
-        Some(self.grid[i][j].clone())
+        Some(&self.grid[i][j])
     }
 
     pub fn reset(&mut self) {
         for row in self.grid.iter_mut() {
             for tile in row.iter_mut() {
-                tile.lock().unwrap().reset();
+                tile.reset();
             }
         }
         self.agents_positions = self.start_positions.clone();
         for ((i, j), agent) in izip!(&self.agents_positions, &self.agents) {
             self.grid[*i][*j]
-                .lock()
-                .unwrap()
                 .pre_enter(agent)
                 .expect("The agent should be able to pre-enter");
         }
         for ((i, j), agent) in izip!(&self.agents_positions, &mut self.agents) {
-            self.grid[*i][*j].lock().unwrap().enter(agent);
+            self.grid[*i][*j].enter(agent);
         }
         for agent in &mut self.agents {
             agent.reset();
@@ -301,15 +325,13 @@ impl World {
         for (agent, pos) in izip!(&self.agents, &self.agents_positions) {
             if agent.is_alive() {
                 let (i, j) = *pos;
-                self.grid[i][j].lock()?.leave();
+                self.grid[i][j].leave();
             }
         }
         // Pre-enter
         for (agent, pos) in izip!(&self.agents, new_positions) {
             let (i, j) = *pos;
             self.grid[i][j]
-                .lock()
-                .unwrap()
                 .pre_enter(agent)
                 .expect("When moving agents, the pre-enter should not fail");
         }
@@ -318,7 +340,7 @@ impl World {
         let mut agent_died = false;
         for (agent, pos) in izip!(&mut self.agents, new_positions) {
             let (i, j) = *pos;
-            if let Some(event) = self.grid[i][j].lock().unwrap().enter(agent) {
+            if let Some(event) = self.grid[i][j].enter(agent) {
                 if let WorldEvent::AgentDied { .. } = event {
                     agent_died = true;
                 }
@@ -331,11 +353,7 @@ impl World {
     pub fn get_state(&self) -> WorldState {
         WorldState {
             agents_positions: self.agents_positions.clone(),
-            gems_collected: self
-                .gems
-                .iter()
-                .map(|(_, gem)| gem.lock().unwrap().is_collected())
-                .collect(),
+            gems_collected: self.gems().iter().map(|gem| gem.is_collected()).collect(),
         }
     }
 
@@ -343,7 +361,7 @@ impl World {
         if state.gems_collected.len() != self.n_gems() {
             return Err(RuntimeWorldError::InvalidNumberOfGems {
                 given: state.gems_collected.len(),
-                expected: self.gems.len(),
+                expected: self.gems_positions.len(),
             });
         }
         if state.agents_positions.len() != self.n_agents() {
@@ -370,27 +388,22 @@ impl World {
         // Reset tiles and agents (but do not enter the new tiles)
         for row in &mut self.grid {
             for tile in row {
-                tile.lock().unwrap().reset();
+                tile.reset();
             }
         }
         for agent in &mut self.agents {
             agent.reset();
         }
         // Collect the necessary gems BEFORE entering the tiles with the agents
-        for ((_, gem), &collect) in izip!(&self.gems, &state.gems_collected) {
+        for ((i, j), &collect) in izip!(&self.gems_positions, &state.gems_collected) {
             if collect {
-                gem.lock().unwrap().collect();
+                if let Tile::Gem(gem) = &mut self.grid[*i][*j] {
+                    gem.collect();
+                }
             }
         }
         for ((i, j), agent) in izip!(&state.agents_positions, &self.agents) {
-            // BEWARE: we need to release the lock after the pre-enter, otherwise we will have a deadlock if there is a problem
-            // because the lock would not released until the end of the function.
-            let res = {
-                let tile = &self.grid[*i][*j];
-                let tile = &mut tile.lock()?;
-                tile.pre_enter(agent)
-            };
-            if let Err(error) = res {
+            if let Err(error) = self.grid[*i][*j].pre_enter(agent) {
                 let reason = match error {
                     RuntimeWorldError::TileNotWalkable => "The tile is not walkable",
                     _ => "Unknown reason",
@@ -408,7 +421,7 @@ impl World {
         self.agents_positions = state.agents_positions.to_vec();
         let mut events = vec![];
         for ((i, j), agent) in izip!(&self.agents_positions, &mut self.agents) {
-            if let Some(event) = self.grid[*i][*j].lock()?.enter(agent) {
+            if let Some(event) = self.grid[*i][*j].enter(agent) {
                 events.push(event);
             }
         }

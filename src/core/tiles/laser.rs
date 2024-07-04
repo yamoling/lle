@@ -1,19 +1,19 @@
+use std::cell::{Cell, RefCell};
 use std::fmt::Debug;
-use std::sync::{Arc, Mutex};
+use std::rc::Rc;
 
 use crate::RuntimeWorldError;
 use crate::{
     agent::{Agent, AgentId},
-    rendering::{TileVisitor, VisitorData},
     tiles::{Direction, LaserId, Tile},
     WorldEvent,
 };
 
 #[derive(Debug, Clone)]
 pub struct LaserBeam {
-    beam: Vec<bool>,
-    is_enabled: bool,
-    agent_id: AgentId,
+    beam: RefCell<Vec<bool>>,
+    is_enabled: Cell<bool>,
+    agent_id: Cell<AgentId>,
     direction: Direction,
     laser_id: LaserId,
 }
@@ -21,16 +21,16 @@ pub struct LaserBeam {
 impl LaserBeam {
     pub fn new(size: usize, agent_id: AgentId, direction: Direction, laser_id: LaserId) -> Self {
         Self {
-            beam: vec![true; size],
-            is_enabled: true,
-            agent_id,
+            beam: RefCell::new(vec![true; size]),
+            is_enabled: Cell::new(true),
+            agent_id: Cell::new(agent_id),
             direction,
             laser_id,
         }
     }
 
     pub fn agent_id(&self) -> AgentId {
-        self.agent_id
+        self.agent_id.get()
     }
 
     pub fn direction(&self) -> Direction {
@@ -38,39 +38,39 @@ impl LaserBeam {
     }
 
     pub fn is_on(&self, offset: usize) -> bool {
-        self.beam[offset]
+        self.beam.borrow()[offset]
     }
 
     pub fn is_off(&self, offset: usize) -> bool {
         !self.is_on(offset)
     }
 
-    pub fn turn_on(&mut self, offset: usize) {
+    pub fn turn_on(&self, offset: usize) {
         if self.is_disabled() {
             return;
         }
-        self.beam[offset..].fill(true);
+        self.beam.borrow_mut()[offset..].fill(true);
     }
 
-    pub fn turn_off(&mut self, offset: usize) {
-        self.beam[offset..].fill(false);
+    pub fn turn_off(&self, offset: usize) {
+        self.beam.borrow_mut()[offset..].fill(false);
     }
 
     pub fn is_enabled(&self) -> bool {
-        self.is_enabled
+        self.is_enabled.get()
     }
 
     pub fn is_disabled(&self) -> bool {
         !self.is_enabled()
     }
 
-    pub fn enable(&mut self) {
-        self.is_enabled = true;
+    pub fn enable(&self) {
+        self.is_enabled.set(true);
         self.turn_on(0);
     }
 
-    pub fn disable(&mut self) {
-        self.is_enabled = false;
+    pub fn disable(&self) {
+        self.is_enabled.set(false);
         self.turn_off(0);
     }
 
@@ -78,19 +78,16 @@ impl LaserBeam {
         self.laser_id
     }
 
-    pub fn set_agent_id(&mut self, agent_id: AgentId) {
-        self.agent_id = agent_id;
+    pub fn set_agent_id(&self, agent_id: AgentId) {
+        self.agent_id.set(agent_id);
     }
 }
 
 pub struct Laser {
-    beam: Arc<Mutex<LaserBeam>>,
-    wrapped: Arc<Mutex<dyn Tile>>,
+    beam: Rc<LaserBeam>,
+    wrapped: Box<Tile>,
     offset: usize,
 }
-
-unsafe impl Send for Laser {}
-unsafe impl Sync for Laser {}
 
 impl Debug for Laser {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -99,28 +96,28 @@ impl Debug for Laser {
 }
 
 impl Laser {
-    pub fn new(wrapped: Arc<Mutex<dyn Tile>>, beam: Arc<Mutex<LaserBeam>>, offset: usize) -> Self {
+    pub fn new(wrapped: Tile, beam: Rc<LaserBeam>, offset: usize) -> Self {
         Self {
-            wrapped,
+            wrapped: Box::new(wrapped),
             beam,
             offset,
         }
     }
 
+    pub fn wrapped(&self) -> &Tile {
+        &self.wrapped
+    }
+
     pub fn laser_id(&self) -> LaserId {
-        self.beam.lock().unwrap().laser_id
+        self.beam.laser_id()
     }
 
     pub fn agent_id(&self) -> AgentId {
-        self.beam.lock().unwrap().agent_id
-    }
-
-    pub fn wrapped(&self) -> Arc<Mutex<dyn Tile>> {
-        self.wrapped.clone()
+        self.beam.agent_id()
     }
 
     pub fn is_on(&self) -> bool {
-        self.beam.lock().unwrap().is_on(self.offset)
+        self.beam.is_on(self.offset)
     }
 
     pub fn is_off(&self) -> bool {
@@ -128,7 +125,7 @@ impl Laser {
     }
 
     pub fn is_enabled(&self) -> bool {
-        self.beam.lock().unwrap().is_enabled()
+        self.beam.is_enabled()
     }
 
     pub fn is_disabled(&self) -> bool {
@@ -136,26 +133,24 @@ impl Laser {
     }
 
     pub fn direction(&self) -> Direction {
-        self.beam.lock().unwrap().direction
+        self.beam.direction
     }
 
     pub fn turn_on(&mut self) {
-        self.beam.lock().unwrap().turn_on(self.offset);
+        self.beam.turn_on(self.offset);
     }
 
     pub fn turn_off(&mut self) {
-        self.beam.lock().unwrap().turn_off(self.offset);
+        self.beam.turn_off(self.offset);
     }
-}
 
-impl Tile for Laser {
-    fn reset(&mut self) {
+    pub fn reset(&mut self) {
         self.turn_on();
-        self.wrapped.lock().unwrap().reset();
+        self.wrapped.reset();
     }
 
-    fn pre_enter(&mut self, agent: &Agent) -> Result<(), RuntimeWorldError> {
-        let res = self.wrapped.lock()?.pre_enter(agent);
+    pub fn pre_enter(&mut self, agent: &Agent) -> Result<(), RuntimeWorldError> {
+        let res = self.wrapped.pre_enter(agent);
         if self.is_disabled() {
             return res;
         }
@@ -165,7 +160,7 @@ impl Tile for Laser {
         res
     }
 
-    fn enter(&mut self, agent: &mut Agent) -> Option<WorldEvent> {
+    pub fn enter(&mut self, agent: &mut Agent) -> Option<WorldEvent> {
         // Note: turning off the beam happens in `pre_enter`
         if self.is_on() && agent.id() != self.agent_id() {
             if agent.is_alive() {
@@ -177,27 +172,15 @@ impl Tile for Laser {
             }
             return None;
         }
-        self.wrapped.lock().unwrap().enter(agent)
+        self.wrapped.enter(agent)
     }
 
-    fn leave(&mut self) -> AgentId {
+    pub fn leave(&mut self) -> AgentId {
         self.turn_on();
-        self.wrapped.lock().unwrap().leave()
+        self.wrapped.leave()
     }
 
-    fn agent(&self) -> Option<AgentId> {
-        self.wrapped.lock().unwrap().agent()
-    }
-
-    fn is_waklable(&self) -> bool {
-        true
-    }
-
-    fn accept(&self, visitor: &dyn TileVisitor, data: &mut VisitorData) {
-        visitor.visit_laser(self, data);
-    }
-
-    fn to_string(&self) -> String {
-        self.wrapped.lock().unwrap().to_string()
+    pub fn agent(&self) -> Option<AgentId> {
+        self.wrapped.agent()
     }
 }
