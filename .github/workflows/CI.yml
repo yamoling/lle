@@ -124,7 +124,6 @@ jobs:
       - name: Install dependencies
         run: |
           uv pip install -r pyproject.toml
-          uv pip install pip
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:

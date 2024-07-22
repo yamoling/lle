@@ -3,10 +3,26 @@ build-backend = "maturin"
 requires = ["maturin>=1.1,<2.0"]
 
 [project]
-classifiers = ["Programming Language :: Rust", "Programming Language :: Python :: 3"]
-dependencies = ["numpy>=1.25.0", "opencv-python>=4.8", "maturin>=1.7.0", "pytest>=7.4.0", "pytest-xdist>=3.4.0"]
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "numpy>=1.25.0",
+    "opencv-python>=4.8",
+    "maturin>=1.7.0",
+    "pytest>=7.4.0",
+    "pytest-xdist>=3.4.0",
+    "pip",
+]
 description = "A fast Multi-Agent Reinforcement Learning Environment"
-keywords = ["Reinforcement Leanring", "Multi Agent Reinforcement Learning", "Environment", "marl", "rl"]
+keywords = [
+    "Reinforcement Leanring",
+    "Multi Agent Reinforcement Learning",
+    "Environment",
+    "marl",
+    "rl",
+]
 name = "laser-learning-environment"
 readme = "readme.md"
 requires-python = ">=3.10,<4.0"
