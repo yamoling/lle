@@ -135,16 +135,19 @@ impl World {
     }
 
     pub fn lasers(&self) -> Vec<(Position, &Laser)> {
-        self.lasers_positions
-            .iter()
-            .map(|pos| {
-                if let Tile::Laser(laser) = &self.grid[pos.0][pos.1] {
-                    (*pos, laser)
-                } else {
-                    unreachable!()
+        let mut lasers = vec![];
+        for (i, j) in &self.lasers_positions {
+            if let Tile::Laser(laser) = &self.grid[*i][*j] {
+                let pos = (*i, *j);
+                lasers.push((pos, laser));
+                if let Tile::Laser(wrapped) = laser.wrapped() {
+                    lasers.push((pos, wrapped));
                 }
-            })
-            .collect()
+            } else {
+                unreachable!()
+            }
+        }
+        lasers
     }
 
     pub fn exits_positions(&self) -> Vec<Position> {

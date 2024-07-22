@@ -5,7 +5,7 @@ from .event import WorldEvent
 from .action import Action
 from .agent import Agent
 from .tile import Gem, LaserSource, Laser
-from .types import Position, AgentId
+from .types import Position
 
 @final
 class WorldState:

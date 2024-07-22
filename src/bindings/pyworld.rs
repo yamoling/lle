@@ -3,6 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use itertools::izip;
 use numpy::{PyArray1, PyArrayMethods};
 use pyo3::{prelude::*, types::PyDict};
 
@@ -45,6 +46,9 @@ pub struct PyWorld {
     renderer: Renderer,
 }
 
+/// The `PyWorld` struct is thread-safe because:
+///  - the `World` struct is wrapped in an `Arc<Mutex<_>>`
+///  - the other fields are immutable
 unsafe impl Send for PyWorld {}
 
 impl From<World> for PyWorld {
@@ -118,34 +122,41 @@ impl PyWorld {
     #[getter]
     /// The gems with their respective position.
     fn gems(&self) -> HashMap<Position, PyGem> {
-        todo!()
-        // let world = self.world.lock().unwrap();
-        // izip!(world.gems_positions(), world.gems())
-        //     .into_iter()
-        //     .map(|(pos, gem)| (pos, PyGem::from(gem)))
-        //     .collect()
+        let arc_world = self.world.clone();
+        let world = self.world.lock().unwrap();
+        izip!(world.gems_positions(), world.gems())
+            .into_iter()
+            .map(|(pos, gem)| (pos, PyGem::new(gem, pos, arc_world.clone())))
+            .collect()
     }
 
     #[getter]
     /// The lasers with their respective position.
     fn lasers(&self) -> Vec<(Position, PyLaser)> {
-        todo!()
-        // self.world
-        //     .lasers()
-        //     .iter()
-        //     .map(|(pos, laser)| (*pos, PyLaser::from(laser)))
-        //     .collect()
+        let arc_world = self.world.clone();
+        let world = self.world.lock().unwrap();
+        world
+            .lasers()
+            .iter()
+            .map(|(pos, laser)| (*pos, PyLaser::new(laser, *pos, arc_world.clone())))
+            .collect()
     }
 
     #[getter]
     /// The laser sources with their respective position.
     fn laser_sources(&self) -> HashMap<Position, PyLaserSource> {
-        todo!()
-        // self.world
-        //     .laser_sources()
-        //     .iter()
-        //     .map(|(pos, laser_source)| (*pos, PyLaserSource::from(laser_source)))
-        //     .collect()
+        let arc_world = self.world.clone();
+        let world = self.world.lock().unwrap();
+        world
+            .sources()
+            .iter()
+            .map(|(pos, laser_source)| {
+                (
+                    *pos,
+                    PyLaserSource::new(arc_world.clone(), *pos, laser_source),
+                )
+            })
+            .collect()
     }
 
     /// Perform a step in the world and returns the events that happened during that transition.

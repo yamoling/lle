@@ -10,8 +10,6 @@ mod pyworld;
 mod pyworld_builder;
 mod pyworld_state;
 
-// pub use pyworld::PyWorld;
-
 #[pymodule]
 pub fn lle(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<pyevent::PyEventType>()?;

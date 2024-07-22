@@ -3,10 +3,11 @@ use std::sync::{Arc, Mutex};
 use pyo3::prelude::*;
 
 use crate::{
-    agent::AgentId, bindings::pydirection::PyDirection, tiles::LaserId, Position, Tile, World,
+    agent::AgentId,
+    bindings::pydirection::PyDirection,
+    tiles::{LaserId, LaserSource},
+    Position, Tile, World,
 };
-
-use super::inner;
 
 #[pyclass(name = "LaserSource", module = "lle")]
 pub struct PyLaserSource {
@@ -27,13 +28,25 @@ unsafe impl Send for PyLaserSource {}
 unsafe impl Sync for PyLaserSource {}
 
 impl PyLaserSource {
+    pub fn new(world: Arc<Mutex<World>>, pos: Position, source: &LaserSource) -> Self {
+        Self {
+            agent_id: source.agent_id(),
+            direction: PyDirection::from(source.direction()),
+            is_enabled: source.is_enabled(),
+            laser_id: source.laser_id(),
+            pos,
+            world,
+        }
+    }
+
     fn set_status(&mut self, enabled: bool) {
         if self.is_enabled == enabled {
             return;
         }
 
         let world = &mut self.world.lock().unwrap();
-        let tile = inner(world, self.pos).unwrap();
+        let tile = world.at_mut(self.pos).unwrap();
+        // let tile = inner(world, self.pos).unwrap();
         match tile {
             Tile::LaserSource(laser_source) => {
                 if enabled {
@@ -80,20 +93,26 @@ impl PyLaserSource {
                 "Agent ID must be positive",
             ));
         }
-        let world = &mut self.world.lock().unwrap();
-        let tile = inner(world, self.pos);
-        match tile {
-            Ok(Tile::LaserSource(laser_source)) => {
-                laser_source.set_agent_id(agent_id as AgentId);
-                self.agent_id = agent_id as AgentId;
-            }
-            _ => {
-                return Err(pyo3::exceptions::PyValueError::new_err(
-                    "Tile is not a LaserSource",
-                ));
-            }
+        let world = self.world.lock().unwrap();
+        let agent_id = agent_id as usize;
+        if agent_id >= world.n_agents() {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "Agent ID is greater than the number of agents",
+            ));
+        }
+        if let Some(Tile::LaserSource(laser_source)) = world.at(self.pos) {
+            laser_source.set_agent_id(agent_id as AgentId);
+            self.agent_id = agent_id as AgentId;
+        } else {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "Tile is not a LaserSource",
+            ));
         }
         Ok(())
+    }
+
+    fn set_colour(&mut self, colour: i32) -> PyResult<()> {
+        self.set_agent_id(colour)
     }
 
     pub fn __str__(&self) -> String {

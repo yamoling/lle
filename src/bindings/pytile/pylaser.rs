@@ -3,7 +3,10 @@ use std::sync::{Arc, Mutex};
 use pyo3::prelude::*;
 
 use crate::{
-    agent::AgentId, bindings::pydirection::PyDirection, tiles::LaserId, Position, Tile, World,
+    agent::AgentId,
+    bindings::pydirection::PyDirection,
+    tiles::{Laser, LaserId},
+    Position, Tile, World,
 };
 
 use super::inner;
@@ -26,6 +29,20 @@ pub struct PyLaser {
 
 unsafe impl Send for PyLaser {}
 unsafe impl Sync for PyLaser {}
+
+impl PyLaser {
+    pub fn new(laser: &Laser, pos: Position, world: Arc<Mutex<World>>) -> Self {
+        Self {
+            laser_id: laser.laser_id(),
+            agent_id: laser.agent_id(),
+            direction: PyDirection::from(laser.direction()),
+            is_on: laser.is_on(),
+            is_enabled: laser.is_enabled(),
+            pos,
+            world,
+        }
+    }
+}
 
 #[pymethods]
 impl PyLaser {

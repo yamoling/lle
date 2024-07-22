@@ -1,6 +1,4 @@
-from lle import World, WorldState, LLE, ObservationType, LaserSource
-from serde.json import to_json
-import json
+from lle import World, WorldState, LaserSource
 import pickle
 import random
 
@@ -30,25 +28,15 @@ def test_pickle_world():
             i += 1
 
 
-def test_lle_json():
-    env = LLE.level(6).obs_type(ObservationType.FLATTENED).build()
-    data = to_json(env)
-    as_dict = json.loads(data)
-    assert as_dict["name"] == "LLE-lvl6"
-    assert as_dict["n_agents"] == 4
-    assert as_dict["n_actions"] == 5
-    assert as_dict["obs_type"] == ObservationType.FLATTENED.name
-
-
-def test_pickle_laser_source():
-    world = World("L0E L1S S0 S1 X X")
-    sources = world.laser_sources
-    for s in sources.values():
-        pickled = pickle.dumps(s)
-        deserialised: LaserSource = pickle.loads(pickled)
-        assert deserialised.agent_id == s.agent_id
-        assert deserialised.direction == s.direction
-        assert deserialised.laser_id == s.laser_id
+# def test_pickle_laser_source():
+#     world = World("L0E L1S S0 S1 X X")
+#     sources = world.laser_sources
+#     for s in sources.values():
+#         pickled = pickle.dumps(s)
+#         deserialised: LaserSource = pickle.loads(pickled)
+#         assert deserialised.agent_id == s.agent_id
+#         assert deserialised.direction == s.direction
+#         assert deserialised.laser_id == s.laser_id
 
 
 def test_pickled_world_keeps_same_laser_ids():

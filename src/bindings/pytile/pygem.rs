@@ -5,7 +5,7 @@ use std::{
 
 use pyo3::prelude::*;
 
-use crate::{agent::AgentId, Position, Tile, World};
+use crate::{agent::AgentId, tiles::Gem, Position, Tile, World};
 
 use super::inner;
 
@@ -24,9 +24,9 @@ unsafe impl Send for PyGem {}
 unsafe impl Sync for PyGem {}
 
 impl PyGem {
-    pub fn new(is_collected: bool, pos: Position, world: Arc<Mutex<World>>) -> Self {
+    pub fn new(gem: &Gem, pos: Position, world: Arc<Mutex<World>>) -> Self {
         Self {
-            is_collected,
+            is_collected: gem.is_collected(),
             pos,
             world,
         }

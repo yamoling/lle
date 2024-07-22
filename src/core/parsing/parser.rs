@@ -1,3 +1,7 @@
+use std::collections::HashSet;
+
+use maplit::hashset;
+
 use crate::{
     tiles::{Gem, Laser, LaserBuilder, LaserSource, Start, Tile, Void},
     AgentId, Position, World,
@@ -119,7 +123,7 @@ pub fn parse(world_str: &str) -> Result<World, ParseError> {
         exit_positions,
         walls_positions,
         source_positions,
-        lasers_positions,
+        lasers_positions.into_iter().collect(),
         world_str,
     ))
 }
@@ -129,8 +133,8 @@ fn laser_setup(
     grid: &mut Vec<Vec<Tile>>,
     laser_builders: &mut [(Position, LaserBuilder)],
     n_agents: usize,
-) -> Result<Vec<Position>, ParseError> {
-    let mut laser_positions = vec![];
+) -> Result<HashSet<Position>, ParseError> {
+    let mut laser_positions = hashset! {};
     let width = grid[0].len() as i32;
     let height: i32 = grid.len() as i32;
     for (pos, source) in laser_builders {
@@ -155,7 +159,7 @@ fn laser_setup(
         let (source, beam_pos) = source.build();
         for (i, pos) in beam_pos.iter().enumerate() {
             let wrapped = grid[pos.0].remove(pos.1);
-            laser_positions.push(*pos);
+            laser_positions.insert(*pos);
             let laser = Tile::Laser(Laser::new(wrapped, source.beam(), i));
             grid[pos.0].insert(pos.1, laser);
         }

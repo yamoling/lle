@@ -502,3 +502,24 @@ fn test_compute_world_string() {
     let res = res.trim();
     assert_eq!(expected, res);
 }
+
+#[test]
+fn test_laser_on_exit() {
+    let mut w = World::try_from(
+        "
+    .   L0S S1
+    S0   .   .
+    L1E  X   X",
+    )
+    .unwrap();
+    w.reset();
+    let lasers = w.lasers();
+    assert_eq!(lasers.len(), 4);
+    for laser_id in 0..2 {
+        let l: Vec<_> = lasers
+            .iter()
+            .filter(|(_, l)| l.laser_id() == laser_id)
+            .collect();
+        assert_eq!(l.len(), 2);
+    }
+}
