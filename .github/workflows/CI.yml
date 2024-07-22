@@ -53,17 +53,27 @@ jobs:
         with: 
           python-version: ${{ matrix.python-version }}
       # UV, venv and dependencies
-      - name: Virtualenv and dependencies with UV
+      - name: Install UV and create the virtualenv
         run: |
           pip install uv
-          uv venv
-          source .venv/bin/activate
-          uv pip install -r pyproject.toml
-          uv pip install pip
+          uv venv .venv
+
+      - name: Activate virtual environment (Windows)
+        if: ${{ runner.os == 'Windows' }}
+        run: |
+          "VIRTUAL_ENV=.venv" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "$PWD/.venv/Scripts" | Out-File -FilePath $env:GITHUB_PATH -Append
+      - name: Activate virtual environment (Unix)
+        if: ${{ runner.os != 'Windows' }}
+        run: |
+          echo "VIRTUAL_ENV=.venv" >> $GITHUB_ENV
+          echo "$PWD/.venv/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run:  uv pip install -r pyproject.toml
       # Test
       - name: Pytest
         run: |
-          source .venv/bin/activate
           maturin dev
           pytest
 
@@ -95,11 +105,24 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install UV and activate venv
+      - name: Install UV and create the virtualenv
         run: |
           pip install uv
           uv venv
-          source .venv/bin/activate
+
+      - name: Activate virtual environment (Windows)
+        if: ${{ runner.os == 'Windows' }}
+        run: |
+          "VIRTUAL_ENV=.venv" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "$PWD/.venv/Scripts" | Out-File -FilePath $env:GITHUB_PATH -Append
+      - name: Activate virtual environment (Unix)
+        if: ${{ runner.os != 'Windows' }}
+        run: |
+          echo "VIRTUAL_ENV=.venv" >> $GITHUB_ENV
+          echo "$PWD/.venv/bin" >> $GITHUB_PATH
+          
+      - name: Install dependencies
+        run: |
           uv pip install -r pyproject.toml
           uv pip install pip
       - name: Build wheels
