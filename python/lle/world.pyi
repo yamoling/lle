@@ -5,7 +5,7 @@ from .event import WorldEvent
 from .action import Action
 from .agent import Agent
 from .tile import Gem, LaserSource, Laser
-from .types import Position, AgentId
+from .types import Position
 
 @final
 class WorldState:
@@ -112,28 +112,6 @@ class World:
 
         - Returns the list of events that occurred while agents entered their state.
         - Raises a `InvalidWorldStateError` if the state is invalid.
-        """
-    def disable_laser_source(self, source: LaserSource) -> None:
-        """
-        Disable a laser source (deactivate all the beam from this source).
-
-        Raise a `ValueError` if a source with the same `LaserId` is not found.
-        """
-
-    def enable_laser_source(self, source: LaserSource) -> None:
-        """
-        Enable a laser source.
-
-        Raise a `ValueError` if a source with the same `LaserId` is not found.
-        """
-
-    def set_laser_colour(self, source: LaserSource, new_colour: AgentId) -> None:
-        """
-        Change the colour of a laser source (and of all corresponding laser tiles).
-
-        Raise a `ValueError` if
-            - a source with the same `LaserId` is not found
-            - the `new_colour` does not belong to an agent
         """
 
     @staticmethod

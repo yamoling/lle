@@ -371,8 +371,7 @@ def test_disable_deadly_laser_source_and_walk_into_it():
         """
     )
     world.reset()
-    source = world.laser_sources[0, 2]
-    world.disable_laser_source(source)
+    world.laser_sources[0, 2].disable()
     events = world.step([Action.STAY, Action.NORTH])
     assert len(events) == 0
     assert all(a.is_alive for a in world.agents)
@@ -395,7 +394,7 @@ def test_change_laser_colour():
     bot_source = world.laser_sources[1, 0]
 
     NEW_COLOUR = 1
-    world.set_laser_colour(bot_source, NEW_COLOUR)
+    bot_source.set_colour(NEW_COLOUR)
     world.reset()
 
     # Check that all the laser tiles have changed their colour
@@ -413,10 +412,19 @@ def test_change_laser_colour_to_negative_colour():
     source = world.laser_sources[0, 0]
 
     try:
-        world.set_laser_colour(source, -1)
+        source.set_colour(-1)
         raise Exception("Negative colours are not allowed")
     except ValueError:
         pass
+
+
+def test_laser_colour_change_remains_after_reset():
+    world = World("L0E S0 S1 X X")
+    world.reset()
+    source = world.laser_sources[0, 0]
+    source.agent_id = 1
+    world.reset()
+    assert world.laser_sources[0, 0].agent_id == 1
 
 
 def test_change_laser_colour_to_invalid_colour():
@@ -425,13 +433,26 @@ def test_change_laser_colour_to_invalid_colour():
     source = world.laser_sources[0, 0]
 
     try:
-        world.set_laser_colour(source, 2)
+        source.set_colour(2)
         raise Exception("This should not be allowed because there is only one agent in the world")
     except ValueError:
         pass
 
     try:
-        world.set_laser_colour(source, 1)
+        source.set_colour(1)
+        raise Exception("This should not be allowed because there is only one agent in the world")
+    except ValueError:
+        pass
+
+    # Same test but by assigning the agent_id directly
+    try:
+        source.agent_id = 2
+        raise Exception("This should not be allowed because there is only one agent in the world")
+    except ValueError:
+        pass
+
+    try:
+        source.agent_id = 1
         raise Exception("This should not be allowed because there is only one agent in the world")
     except ValueError:
         pass
@@ -446,13 +467,13 @@ def test_change_laser_colour_back():
     )
     world.reset()
     bot_source = world.laser_sources[1, 0]
-    world.set_laser_colour(bot_source, 1)
+    bot_source.set_colour(1)
     world.reset()
     assert world.laser_sources[1, 0].agent_id == 1
     for _, laser in world.lasers:
         assert laser.agent_id == 1
 
-    world.set_laser_colour(bot_source, 0)
+    bot_source.set_colour(0)
     world.reset()
     assert world.laser_sources[1, 0].agent_id == 0
     for (i, j), laser in world.lasers:

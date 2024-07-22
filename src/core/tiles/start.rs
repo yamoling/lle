@@ -3,34 +3,25 @@ use crate::{
     WorldEvent,
 };
 
-#[derive(Default, Debug)]
-pub struct Gem {
+pub struct Start {
     agent: Option<AgentId>,
-    collected: bool,
+    start_agent_id: AgentId,
 }
 
-impl Gem {
-    pub fn is_collected(&self) -> bool {
-        self.collected
-    }
-
-    pub fn collect(&mut self) {
-        self.collected = true;
+impl Start {
+    pub fn new(start_agent_id: AgentId) -> Self {
+        Self {
+            agent: None,
+            start_agent_id,
+        }
     }
 
     pub fn reset(&mut self) {
-        self.collected = false;
         self.agent = None;
     }
 
     pub fn enter(&mut self, agent: &mut Agent) -> Option<WorldEvent> {
         self.agent = Some(agent.id());
-        if !self.collected {
-            self.collected = true;
-            return Some(WorldEvent::GemCollected {
-                agent_id: agent.id(),
-            });
-        }
         None
     }
 
@@ -40,5 +31,9 @@ impl Gem {
 
     pub fn agent(&self) -> Option<AgentId> {
         self.agent
+    }
+
+    pub fn start_agent_id(&self) -> AgentId {
+        self.start_agent_id
     }
 }

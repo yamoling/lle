@@ -1,5 +1,4 @@
 use core::panic;
-use std::sync::{Arc, Mutex};
 
 use crate::{
     agent::Agent, core::WorldState, tiles::Laser, Action, ParseError, Position, RuntimeWorldError,
@@ -8,7 +7,7 @@ use crate::{
 
 use super::World;
 
-fn get_laser(world: &World, pos: Position) -> Arc<Mutex<Laser>> {
+fn get_laser(world: &World, pos: Position) -> &Laser {
     for (p, laser) in world.lasers() {
         if pos == p {
             return laser;
@@ -32,25 +31,22 @@ fn test_tile_type() {
     assert_eq!(world.start_positions[0], (0, 0));
 
     assert!(world
-        .gems
+        .gems_positions
         .iter()
-        .map(|(pos, _)| pos)
         .any(|pos| pos.0 == 0 && pos.1 == 2));
-    let source = &world
-        .sources
+    let source = world
+        .sources()
         .iter()
         .find(|((i, j), _)| *i == 1 && *j == 0)
         .unwrap()
-        .1
-        .lock()
-        .unwrap();
+        .1;
     assert_eq!(source.agent_id(), 0);
     let laser = get_laser(&world, (1, 1));
-    assert_eq!(laser.lock().unwrap().agent_id(), 0);
+    assert_eq!(laser.agent_id(), 0);
     let n_exits_at_1_1 = world
         .exits
         .iter()
-        .filter(|(pos, _)| pos.0 == 1 && pos.1 == 1)
+        .filter(|(i, j)| *i == 1 && *j == 1)
         .count();
     assert!(n_exits_at_1_1 == 1);
     assert!(world.wall_positions.len() == 2);
@@ -106,7 +102,7 @@ fn test_laser_blocked_by_wall() {
     .unwrap();
     w.reset();
     // Make sure the wall blocks the laser
-    for (pos, _) in w.lasers {
+    for pos in w.lasers_positions {
         assert_ne!(pos, (2, 1));
         assert_ne!(pos, (3, 1));
     }
@@ -126,9 +122,9 @@ fn test_laser_blocked_on_reset() -> Result<(), RuntimeWorldError> {
     w.reset();
     // All agents should be alive
     assert!(w.agents().iter().all(|a| a.is_alive()));
-    assert!(get_laser(&w, (1, 2)).lock()?.is_on());
-    assert!(get_laser(&w, (2, 2)).lock()?.is_off());
-    assert!(get_laser(&w, (3, 2)).lock()?.is_off());
+    assert!(get_laser(&w, (1, 2)).is_on());
+    assert!(get_laser(&w, (2, 2)).is_off());
+    assert!(get_laser(&w, (3, 2)).is_off());
     Ok(())
 }
 
@@ -147,7 +143,7 @@ fn test_facing_lasers() -> Result<(), RuntimeWorldError> {
     w.step(&[Action::West, Action::West]).unwrap();
     assert!(w.agents().iter().all(Agent::is_alive));
     for (_, laser) in w.lasers() {
-        assert!(laser.lock()?.is_off());
+        assert!(laser.is_off());
     }
     Ok(())
 }
@@ -252,7 +248,7 @@ fn test_force_state_invalid_number_of_gems() {
 }
 
 #[test]
-/// In the following map, if agent 0 is in (0, 2) and agent 1 is in (0, 3), agent 0 is blocking the laser.
+/// In this map, if agent 0 is in (0, 2) and agent 1 is in (0, 3), agent 0 is blocking the laser.
 /// When agent 1 leaves the tile and goes to the right, the laser should NOT activate.
 fn test_complex_laser_blocking() -> Result<(), RuntimeWorldError> {
     let mut w = World::try_from(
@@ -267,7 +263,7 @@ fn test_complex_laser_blocking() -> Result<(), RuntimeWorldError> {
     w.reset();
 
     let laser = get_laser(&w, (0, 3));
-    assert!(laser.lock()?.is_on());
+    assert!(laser.is_on());
 
     let state = WorldState {
         agents_positions: [(0, 2), (0, 3)].into(),
@@ -275,13 +271,13 @@ fn test_complex_laser_blocking() -> Result<(), RuntimeWorldError> {
     };
     w.set_state(&state).unwrap();
     let laser = get_laser(&w, (0, 3));
-    assert!(laser.lock()?.is_off());
+    assert!(laser.is_off());
     assert!(w.agents().iter().all(Agent::is_alive));
 
     w.step(&[Action::Stay, Action::East]).unwrap();
     assert!(w.agents().iter().all(Agent::is_alive));
     let laser = get_laser(&w, (0, 3));
-    assert!(laser.lock()?.is_off());
+    assert!(laser.is_off());
     Ok(())
 }
 
@@ -474,8 +470,8 @@ fn test_force_state() {
     };
     w.set_state(&s).unwrap();
     assert_eq!(w.agents_positions()[0], (1, 2));
-    let (_, gem) = &w.gems()[0];
-    assert!(gem.lock().unwrap().is_collected());
+    let gem = w.gems()[0];
+    assert!(gem.is_collected());
 }
 
 #[test]
@@ -494,8 +490,8 @@ fn test_force_end_state() {
     };
     w.set_state(&s).unwrap();
     assert_eq!(w.agents_positions()[0], (1, 0));
-    let (_, gem) = &w.gems()[0];
-    assert!(gem.lock().unwrap().is_collected());
+    let gem = w.gems()[0];
+    assert!(gem.is_collected());
 }
 
 #[test]

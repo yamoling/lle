@@ -2,10 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use pyo3::{exceptions::PyValueError, prelude::*};
 
-use crate::{
-    tiles::{LaserId, LaserSource},
-    AgentId, Position, World,
-};
+use crate::{tiles::LaserId, AgentId, Position, World};
 
 use super::{pydirection::PyDirection, pyexceptions::parse_error_to_exception, pyworld::PyWorld};
 
@@ -65,7 +62,7 @@ impl PyWorldBuilder {
             Ok(world) => world,
             Err(err) => return Err(parse_error_to_exception(err)),
         };
-        Ok(PyWorld::from_world(world))
+        Ok(PyWorld::from(world))
     }
 
     fn can_build(&self) -> bool {
@@ -102,7 +99,8 @@ impl PyWorldBuilder {
         direction: PyDirection,
     ) -> PyResult<()> {
         let (i, j) = self.position_check(pos)?;
-        self.state[i][j] = LaserSource::new(direction.into(), agent_id, self.n_lasers).into();
+        let s: &str = direction.into();
+        self.state[i][j] = format!("L{agent_id}{s}");
         self.available_positions.remove(&(i, j));
         Ok(())
     }

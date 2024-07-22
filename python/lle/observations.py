@@ -86,7 +86,7 @@ class ObservationGenerator(ABC):
 
 
 class StateGenerator(ObservationGenerator):
-    def __init__(self, world) -> None:
+    def __init__(self, world):
         super().__init__(world)
         self.n_gems = world.n_gems
         self.dimensions = np.array([world.height, world.width])

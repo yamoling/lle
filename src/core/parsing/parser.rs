@@ -1,7 +1,9 @@
-use std::sync::{Arc, Mutex};
+use std::collections::HashSet;
+
+use maplit::hashset;
 
 use crate::{
-    tiles::{Exit, Floor, Gem, Laser, LaserBuilder, LaserSource, Start, Tile, Void, Wall},
+    tiles::{Gem, Laser, LaserBuilder, LaserSource, Start, Tile, Void},
     AgentId, Position, World,
 };
 
@@ -9,10 +11,10 @@ use crate::ParseError;
 
 pub fn parse(world_str: &str) -> Result<World, ParseError> {
     let mut grid = vec![];
-    let mut gems: Vec<(Position, Arc<Mutex<Gem>>)> = vec![];
+    let mut gem_positions: Vec<Position> = vec![];
     let mut start_positions: Vec<(AgentId, Position)> = vec![];
     let mut void_positions: Vec<Position> = vec![];
-    let mut exits: Vec<(Position, Arc<Mutex<Exit>>)> = vec![];
+    let mut exit_positions: Vec<Position> = vec![];
     let mut walls_positions: Vec<Position> = vec![];
     let mut laser_builders: Vec<(Position, LaserBuilder)> = vec![];
     for line in world_str.lines() {
@@ -23,16 +25,15 @@ pub fn parse(world_str: &str) -> Result<World, ParseError> {
         let i = grid.len();
         let mut row = vec![];
         for (j, token) in line.split_whitespace().enumerate() {
-            let tile: Arc<Mutex<dyn Tile>> = match token.to_uppercase().chars().next().unwrap() {
-                '.' => Arc::<Mutex<Floor>>::default(),
+            let tile: Tile = match token.to_uppercase().chars().next().unwrap() {
+                '.' => Tile::Floor { agent: None },
                 '@' => {
                     walls_positions.push((i, j));
-                    Arc::<Mutex<Wall>>::default()
+                    Tile::Wall
                 }
                 'G' => {
-                    let gem = Arc::<Mutex<Gem>>::default();
-                    gems.push(((i, j), gem.clone()));
-                    gem
+                    gem_positions.push((i, j));
+                    Tile::Gem(Gem::default())
                 }
                 'S' => {
                     let agent_id = token[1..].parse().map_err(|_| ParseError::InvalidAgentId {
@@ -49,22 +50,21 @@ pub fn parse(world_str: &str) -> Result<World, ParseError> {
                         }
                     }
                     start_positions.push((agent_id, (i, j)));
-                    Arc::new(Mutex::new(Start::new(agent_id)))
+                    Tile::Start(Start::new(agent_id))
                 }
                 'X' => {
-                    let exit = Arc::<Mutex<Exit>>::default();
-                    exits.push(((i, j), exit.clone()));
-                    exit
+                    exit_positions.push((i, j));
+                    Tile::Exit { agent: None }
                 }
                 'L' => {
                     walls_positions.push((i, j));
                     laser_builders
                         .push(((i, j), LaserSource::from_str(token, laser_builders.len())?));
-                    Arc::<Mutex<Wall>>::default()
+                    Tile::Wall
                 }
                 'V' => {
                     void_positions.push((i, j));
-                    Arc::<Mutex<Void>>::default()
+                    Tile::Void(Void::default())
                 }
                 other => {
                     return Err(ParseError::InvalidTile {
@@ -84,7 +84,10 @@ pub fn parse(world_str: &str) -> Result<World, ParseError> {
     // Sort start positions
     start_positions.sort_by(|(id_a, _), (id_b, _)| id_a.cmp(id_b));
     let start_positions: Vec<Position> = start_positions.iter().map(|(_, pos)| *pos).collect();
-    let (sources, lasers) = laser_setup(&mut grid, &mut laser_builders);
+    // All laser sources have a valid agent id
+    let n_agents = start_positions.len();
+    let lasers_positions = laser_setup(&mut grid, &mut laser_builders, n_agents)?;
+    let source_positions = laser_builders.iter().map(|(pos, _)| *pos).collect();
 
     // Sanity check
     {
@@ -92,10 +95,10 @@ pub fn parse(world_str: &str) -> Result<World, ParseError> {
             return Err(ParseError::NoAgents);
         }
         // There are enough start/exit tiles
-        if start_positions.len() > exits.len() {
+        if start_positions.len() > exit_positions.len() {
             return Err(ParseError::NotEnoughExitTiles {
                 n_starts: start_positions.len(),
-                n_exits: exits.len(),
+                n_exits: exit_positions.len(),
             });
         }
 
@@ -110,52 +113,43 @@ pub fn parse(world_str: &str) -> Result<World, ParseError> {
                 });
             }
         }
-
-        // All laser sources have a valid agent id
-        let n_agents = start_positions.len();
-        for (_, source) in &sources {
-            let agent_id = source.lock().unwrap().agent_id();
-            if agent_id >= n_agents {
-                return Err(ParseError::InvalidLaserSourceAgentId {
-                    asked_id: agent_id,
-                    n_agents,
-                });
-            }
-        }
     }
 
     Ok(World::new(
         grid,
-        gems,
-        lasers,
-        sources,
+        gem_positions,
         start_positions,
         void_positions,
-        exits,
+        exit_positions,
         walls_positions,
+        source_positions,
+        lasers_positions.into_iter().collect(),
         world_str,
     ))
 }
 
 /// Wrap the tiles behind lasers with a `Laser` tile.
 fn laser_setup(
-    grid: &mut Vec<Vec<Arc<Mutex<dyn Tile>>>>,
+    grid: &mut Vec<Vec<Tile>>,
     laser_builders: &mut [(Position, LaserBuilder)],
-) -> (
-    Vec<(Position, Arc<Mutex<LaserSource>>)>,
-    Vec<(Position, Arc<Mutex<Laser>>)>,
-) {
-    let mut lasers = vec![];
-    let mut sources = vec![];
+    n_agents: usize,
+) -> Result<HashSet<Position>, ParseError> {
+    let mut laser_positions = hashset! {};
     let width = grid[0].len() as i32;
     let height: i32 = grid.len() as i32;
     for (pos, source) in laser_builders {
+        if source.agent_id >= n_agents {
+            return Err(ParseError::InvalidLaserSourceAgentId {
+                asked_id: source.agent_id,
+                n_agents,
+            });
+        }
         let delta = source.direction.delta();
         let (mut i, mut j) = (pos.0 as i32, pos.1 as i32);
         (i, j) = ((i + delta.0), (j + delta.1));
         while i >= 0 && j >= 0 && i < height && j < width {
             let pos = (i as usize, j as usize);
-            if !grid[pos.0][pos.1].lock().unwrap().is_waklable() {
+            if !grid[pos.0][pos.1].is_waklable() {
                 break;
             }
             source.extend_beam(pos);
@@ -165,11 +159,11 @@ fn laser_setup(
         let (source, beam_pos) = source.build();
         for (i, pos) in beam_pos.iter().enumerate() {
             let wrapped = grid[pos.0].remove(pos.1);
-            let laser = Arc::new(Mutex::new(Laser::new(wrapped, source.beam(), i)));
-            lasers.push((*pos, laser.clone()));
+            laser_positions.insert(*pos);
+            let laser = Tile::Laser(Laser::new(wrapped, source.beam(), i));
             grid[pos.0].insert(pos.1, laser);
         }
-        sources.push((*pos, Arc::new(Mutex::new(source))));
+        grid[pos.0][pos.1] = Tile::LaserSource(source);
     }
-    (sources, lasers)
+    Ok(laser_positions)
 }

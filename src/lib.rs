@@ -1,6 +1,6 @@
 mod action;
 mod agent;
-// mod bindings;
+mod bindings;
 mod core;
 pub mod rendering;
 

@@ -1,4 +1,5 @@
 use image::{GenericImage, Rgb, RgbImage, RgbaImage};
+use itertools::izip;
 
 use super::{sprites, TileVisitor, BLACK, GRID_GREY};
 use crate::{
@@ -48,7 +49,7 @@ impl Renderer {
         }
 
         // Exit
-        for ((i, j), _) in world.exits() {
+        for (i, j) in world.exits_positions() {
             let x = j as u32 * TILE_SIZE;
             let y = i as u32 * TILE_SIZE;
             draw_rectangle(&mut self.static_frame, x, y, TILE_SIZE, TILE_SIZE, BLACK, 3);
@@ -71,28 +72,28 @@ impl Renderer {
                 y: pos.0 as u32 * TILE_SIZE,
                 frame: &mut frame,
             };
-            self.visit_laser(&laser.lock().unwrap(), &mut data);
+            self.visit_laser(laser, &mut data);
         }
-        for (pos, gem) in world.gems() {
+        for (pos, gem) in izip!(world.gems_positions(), world.gems()) {
             let mut data = VisitorData {
                 x: pos.1 as u32 * TILE_SIZE,
                 y: pos.0 as u32 * TILE_SIZE,
                 frame: &mut frame,
             };
-            self.visit_gem(&gem.lock().unwrap(), &mut data);
+            self.visit_gem(&gem, &mut data);
         }
         for (id, pos) in world.agents_positions().iter().enumerate() {
             let x = pos.1 as u32 * TILE_SIZE;
             let y = pos.0 as u32 * TILE_SIZE;
             add_transparent_image(&mut frame, &sprites::AGENTS[id], x, y);
         }
-        for (pos, source) in world.laser_sources() {
+        for (pos, source) in world.sources() {
             let mut data = VisitorData {
                 x: pos.1 as u32 * TILE_SIZE,
                 y: pos.0 as u32 * TILE_SIZE,
                 frame: &mut frame,
             };
-            self.visit_laser_source(&source.lock().unwrap(), &mut data);
+            self.visit_laser_source(source, &mut data);
         }
         draw_grid(&mut frame);
         frame
@@ -175,7 +176,7 @@ impl TileVisitor for Renderer {
             add_transparent_image(data.frame, laser_sprite, data.x, data.y);
         }
         // Draw the tile below the laser
-        laser.wrapped().lock().unwrap().accept(self, data);
+        laser.wrapped().accept(self, data);
         // The below tile should draw the agent
     }
 
