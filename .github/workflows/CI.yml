@@ -57,7 +57,7 @@ jobs:
         run: |
           pip install uv
           uv venv
-          source venv/bin/activate
+          source .venv/bin/activate
           uv pip install -r pyproject.toml
       # Test
       - name: Pytest
@@ -97,7 +97,7 @@ jobs:
         run: |
           pip install uv
           uv venv
-          source venv/bin/activate
+          source .venv/bin/activate
           uv pip install -r pyproject.toml
       - name: Build wheels
         uses: PyO3/maturin-action@v1
