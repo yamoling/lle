@@ -62,6 +62,7 @@ jobs:
       # Test
       - name: Pytest
         run: |
+          source .venv/bin/activate
           maturin dev
           pytest
 
