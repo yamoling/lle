@@ -1,4 +1,5 @@
-from typing import Literal, Optional, override
+from typing import Literal, Optional
+from typing_extensions import override
 from dataclasses import dataclass
 import cv2
 from enum import IntEnum

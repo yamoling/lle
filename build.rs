@@ -98,17 +98,14 @@ fn add_version_number_from_cargo_to_pyproject() {
     let content = fs::read_to_string("pyproject.toml").unwrap();
     let mut table = content.parse::<Table>().unwrap();
     println!("Before: {:#?}", table);
-    match table.get_mut("tool").unwrap() {
-        toml::Value::Table(tool) => match tool.get_mut("poetry").unwrap() {
-            Value::Table(poetry) => match poetry.get_mut("version").unwrap() {
-                Value::String(version) => {
-                    *version = env::var("CARGO_PKG_VERSION").unwrap();
-                }
-                _ => panic!("version is not a string"),
-            },
-            other => panic!("poetry is not a table: {:#?}", other),
+    match table.get_mut("project").unwrap() {
+        Value::Table(poetry) => match poetry.get_mut("version").unwrap() {
+            Value::String(version) => {
+                *version = env::var("CARGO_PKG_VERSION").unwrap();
+            }
+            _ => panic!("version is not a string"),
         },
-        _ => panic!("tool is not a table"),
+        other => panic!("poetry is not a table: {:#?}", other),
     };
     println!("After: {:#?}", table);
     fs::write("pyproject.toml", table.to_string()).unwrap();
