@@ -4,35 +4,21 @@ requires = ["maturin>=1.1,<2.0"]
 
 [project]
 classifiers = ["Programming Language :: Rust", "Programming Language :: Python :: 3"]
+dependencies = ["numpy>=1.25.0", "opencv-python>=4.8", "maturin>=1.7.0", "pytest>=7.4.0", "pytest-xdist>=3.4.0"]
 description = "A fast Multi-Agent Reinforcement Learning Environment"
+keywords = ["Reinforcement Leanring", "Multi Agent Reinforcement Learning", "Environment", "marl", "rl"]
 name = "laser-learning-environment"
 readme = "readme.md"
 requires-python = ">=3.10,<4.0"
+version = "0.2.7"
+
+[[project.authors]]
+email = "yannick.molinghen@ulb.be"
+name = "Yannick Molinghen"
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
 python-source = "python"
-
-[tool.poetry]
-authors = ["Yannick Molinghen <yannick.molinghen@ulb.be>"]
-description = "Laser Learning Environment (LLE) for Multi-Agent Reinforcement Learning"
-name = "lle"
-readme = "readme.md"
-version = "0.2.6"
-
-[tool.poetry.dependencies]
-numpy = "^1.25.0"
-opencv-python = "^4.8.1.78"
-python = ">=3.10,<3.13"
-
-[tool.poetry.dependencies.rlenv]
-branch = "main"
-git = "https://github.com/yamoling/rlenv.git"
-
-[tool.poetry.group.dev.dependencies]
-maturin = "^1.1.0"
-pytest = "^7.4.0"
-pytest-xdist = "^3.4.0"
 
 [tool.pylint.format]
 max-line-length = 140
