@@ -108,7 +108,7 @@ jobs:
       - name: Install UV and create the virtualenv
         run: |
           pip install uv
-          uv venv
+          uv venv .venv
 
       - name: Activate virtual environment (Windows)
         if: ${{ runner.os == 'Windows' }}
