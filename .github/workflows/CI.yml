@@ -52,30 +52,16 @@ jobs:
         uses: actions/setup-python@v5
         with: 
           python-version: ${{ matrix.python-version }}
-      # UV, venv and dependencies
-      - name: Install UV and create the virtualenv
-        run: |
-          pip install uv
-          uv venv .venv
-
-      - name: Activate virtual environment (Windows)
-        if: ${{ runner.os == 'Windows' }}
-        run: |
-          "VIRTUAL_ENV=.venv" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "$PWD/.venv/Scripts" | Out-File -FilePath $env:GITHUB_PATH -Append
-      - name: Activate virtual environment (Unix)
-        if: ${{ runner.os != 'Windows' }}
-        run: |
-          echo "VIRTUAL_ENV=.venv" >> $GITHUB_ENV
-          echo "$PWD/.venv/bin" >> $GITHUB_PATH
-
-      - name: Install dependencies
-        run:  uv pip install -r pyproject.toml
-      # Test
+      - name: Install Poetry
+        uses: abatilo/actions-poetry@v2
+        with:
+          poetry-version: latest
       - name: Pytest
         run: |
-          maturin dev
-          pytest
+          poetry install
+          poetry run pip install maturin
+          poetry run maturin dev
+          poetry run pytest
 
           
   build:
@@ -102,28 +88,13 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Python setup
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install UV and create the virtualenv
-        run: |
-          pip install uv
-          uv venv
-
-      - name: Activate virtual environment (Windows)
-        if: ${{ runner.os == 'Windows' }}
-        run: |
-          "VIRTUAL_ENV=.venv" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "$PWD/.venv/Scripts" | Out-File -FilePath $env:GITHUB_PATH -Append
-      - name: Activate virtual environment (Unix)
-        if: ${{ runner.os != 'Windows' }}
-        run: |
-          echo "VIRTUAL_ENV=.venv" >> $GITHUB_ENV
-          echo "$PWD/.venv/bin" >> $GITHUB_PATH
-          
-      - name: Install dependencies
-        run: |
-          uv pip install -r pyproject.toml
+      - name: Poetry setup
+        uses: abatilo/actions-poetry@v2
+        with:
+          poetry-version: latest
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
