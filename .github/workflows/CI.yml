@@ -75,6 +75,9 @@ jobs:
         target:
           - x86_64
           - aarch64
+        exclude:
+          - os: windows-latest
+            target: 'aarch64'
 
     runs-on: ${{ matrix.os }}
     needs: [test]
