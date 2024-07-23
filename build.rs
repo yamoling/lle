@@ -94,20 +94,11 @@ fn include_sprites_in_binary() {
     fs::write(dest_path, res).unwrap();
 }
 
-fn add_version_number_from_cargo_to_pyproject() {
+fn sync_pyproject_version_num() {
     let content = fs::read_to_string("pyproject.toml").unwrap();
     let mut table = content.parse::<Table>().unwrap();
-    println!("Before: {:#?}", table);
-    match table.get_mut("project").unwrap() {
-        Value::Table(poetry) => match poetry.get_mut("version").unwrap() {
-            Value::String(version) => {
-                *version = env::var("CARGO_PKG_VERSION").unwrap();
-            }
-            _ => panic!("version is not a string"),
-        },
-        other => panic!("poetry is not a table: {:#?}", other),
-    };
-    println!("After: {:#?}", table);
+    // 1) Set the version number to the one in Cargo.toml
+    table["tool"]["poetry"]["version"] = Value::String(env::var("CARGO_PKG_VERSION").unwrap());
     fs::write("pyproject.toml", table.to_string()).unwrap();
 }
 
@@ -120,7 +111,7 @@ fn _make_readme() {
 
 fn main() {
     include_sprites_in_binary();
-    add_version_number_from_cargo_to_pyproject();
+    sync_pyproject_version_num();
     // make_readme();
 
     println!("cargo:rerun-if-changed=build.rs");
