@@ -8,14 +8,11 @@ python-source = "python"
 
 [tool.poetry]
 authors = ["Yannick Molinghen <yannick.molinghen@ulb.be>"]
-classifiers = [
-    "Programming Language :: Rust",
-    "Programming Language :: Python :: 3",
-]
+classifiers = ["Programming Language :: Rust", "Programming Language :: Python :: 3"]
 description = "Laser Learning Environment (LLE) for Multi-Agent Reinforcement Learning"
 name = "lle"
 readme = "readme.md"
-version = "0.2.7"
+version = "0.2.6"
 
 [tool.poetry.dependencies]
 numpy = "^2.0"
