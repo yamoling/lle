@@ -21,5 +21,10 @@ python-source = "python"
 [tool.ruff]
 line-length = 140
 
+[tool.uv]
+dev-dependencies = [
+    "pip>=24.2",
+]
+
 [tool.uv.sources.rlenv]
 git = "https://github.com/yamoling/rlenv.git"
