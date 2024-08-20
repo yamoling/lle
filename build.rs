@@ -98,9 +98,7 @@ fn sync_pyproject_version_num() {
     let content = fs::read_to_string("pyproject.toml").unwrap();
     let mut table = content.parse::<Table>().unwrap();
     // 1) Set the version number to the one in Cargo.toml
-    table["tool"]["poetry"]["version"] = Value::String(env::var("CARGO_PKG_VERSION").unwrap());
     table["project"]["version"] = Value::String(env::var("CARGO_PKG_VERSION").unwrap());
-    table["project"]["requires-python"] = table["tool"]["poetry"]["dependencies"]["python"].clone();
     fs::write("pyproject.toml", table.to_string()).unwrap();
 }
 

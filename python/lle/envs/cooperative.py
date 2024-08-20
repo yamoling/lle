@@ -41,14 +41,14 @@ class Builder:
 
     def obs_type(self, obs_type: ObservationType):
         """
-        Set the observation type of the environment (already set to ObservationType.LAYERED by default).
+        Set the observation type of the environment (set to ObservationType.LAYERED by default).
         """
         self._obs_type = obs_type
         return self
 
     def state_type(self, state_type: ObservationType):
         """
-        Set the state type of the environment (already set to ObservationType.STATE by default).
+        Set the state type of the environment (set to ObservationType.STATE by default).
         """
         self._state_type = state_type
         return self
