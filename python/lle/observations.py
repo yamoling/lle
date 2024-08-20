@@ -59,6 +59,8 @@ class ObservationType(IntEnum):
                 return LayeredPadded(world, 2)
             case ObservationType.LAYERED_PADDED_3AGENTS:
                 return LayeredPadded(world, 3)
+            case ObservationType.AGENT0_PERSPECTIVE_LAYERED:
+                return AgentZeroPerspective(world)
             case other:
                 raise ValueError(f"Unknown observation type: {other}")
 

@@ -1,18 +1,26 @@
 [build-system]
-build-backend = "hatchling.build"
-requires = ["hatchling"]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
 
 [project]
-classifiers = ["Programming Language :: Rust", "Programming Language :: Python :: 3"]
-dependencies = ["numpy>=2.1.0", "maturin>=1.7.0", "pytest>=8.3.2", "pytest-xdist>=3.6.1", "rlenv"]
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+dependencies = [
+    "numpy>=2.1.0",
+    "maturin>=1.7.0",
+    "pytest>=8.3.2",
+    "pytest-xdist>=3.6.1",
+    "rlenv",
+]
 description = "Laser Learning Environment (LLE) for Multi-Agent Reinforcement Learning"
 name = "laser-learning-environment"
 readme = "readme.md"
 requires-python = ">=3.10,<3.13"
 version = "0.2.7"
 
-[tool.hatch.build.targets.wheel]
-packages = ["python/lle"]
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
@@ -22,9 +30,7 @@ python-source = "python"
 line-length = 140
 
 [tool.uv]
-dev-dependencies = [
-    "pip>=24.2",
-]
+dev-dependencies = ["pip>=24.2"]
 
 [tool.uv.sources.rlenv]
 git = "https://github.com/yamoling/rlenv.git"
