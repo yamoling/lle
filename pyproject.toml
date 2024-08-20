@@ -1,26 +1,15 @@
 [build-system]
-requires = ["maturin>=1.7,<2.0"]
 build-backend = "maturin"
+requires = ["maturin>=1.7,<2.0"]
 
 [project]
-classifiers = [
-    "Programming Language :: Rust",
-    "Programming Language :: Python :: Implementation :: CPython",
-    "Programming Language :: Python :: Implementation :: PyPy",
-]
-dependencies = [
-    "numpy>=2.1.0",
-    "maturin>=1.7.0",
-    "pytest>=8.3.2",
-    "pytest-xdist>=3.6.1",
-    "rlenv",
-]
+classifiers = ["Programming Language :: Rust", "Programming Language :: Python :: Implementation :: CPython", "Programming Language :: Python :: Implementation :: PyPy"]
+dependencies = ["numpy>=2.1.0", "maturin>=1.7.0", "pytest>=8.3.2", "pytest-xdist>=3.6.1", "rlenv"]
 description = "Laser Learning Environment (LLE) for Multi-Agent Reinforcement Learning"
 name = "laser-learning-environment"
 readme = "readme.md"
 requires-python = ">=3.10,<3.13"
-version = "0.2.7"
-
+version = "0.2.8"
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
