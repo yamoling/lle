@@ -3,23 +3,30 @@ build-backend = "maturin"
 requires = ["maturin>=1.7,<2.0"]
 
 [project]
-classifiers = ["Programming Language :: Rust", "Programming Language :: Python :: Implementation :: CPython", "Programming Language :: Python :: Implementation :: PyPy"]
-dependencies = ["numpy>=2.1.0", "maturin>=1.7.0", "pytest>=8.3.2", "pytest-xdist>=3.6.1", "rlenv"]
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+dependencies = ["numpy>=2.1.0", "maturin>=1.7.0", "multi-agent-rlenv>=1.0.1"]
 description = "Laser Learning Environment (LLE) for Multi-Agent Reinforcement Learning"
 name = "laser-learning-environment"
 readme = "readme.md"
 requires-python = ">=3.10,<3.13"
-version = "0.2.8"
+# version = "0.2.8"
+dynamic = ["version"]
+
+[[project.authors]]
+email = "yannick.molinghen@ulb.be"
+name = "Yannick Molinghen"
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
 python-source = "python"
+version = { path = "python/lle/__ini__.py", "attr" = "__version__" }
 
 [tool.ruff]
 line-length = 140
 
 [tool.uv]
-dev-dependencies = ["pip>=24.2"]
-
-[tool.uv.sources.rlenv]
-git = "https://github.com/yamoling/rlenv.git"
+dev-dependencies = ["pip>=24.2", "pytest>=8.3.2", "pytest-xdist>=3.6.1"]

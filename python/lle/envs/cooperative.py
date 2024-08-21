@@ -7,7 +7,7 @@ import numpy as np
 import numpy.typing as npt
 
 from lle import World, Action, EventType, WorldState
-from rlenv import RLEnv, DiscreteActionSpace, Observation
+from marlenv import RLEnv, DiscreteActionSpace, Observation
 from lle.observations import ObservationType, StateGenerator
 from .reward_strategy import RewardStrategy, MultiObjective, SingleObjective
 

@@ -1,23 +1,15 @@
 version = 1
 requires-python = ">=3.10, <3.13"
-environment-markers = [
-    "python_version >= '3.10' and python_version < '3.11' and platform_system == 'Darwin'",
-    "python_version >= '3.12' and platform_system == 'Darwin'",
-    "python_version >= '3.11' and python_version < '3.12' and platform_system == 'Darwin'",
-    "python_version >= '3.10' and python_version < '3.11' and platform_machine == 'aarch64' and platform_system == 'Linux'",
-    "(python_version >= '3.10' and python_version < '3.11' and platform_machine != 'aarch64' and platform_system != 'Darwin') or (python_version >= '3.10' and python_version < '3.11' and platform_system != 'Darwin' and platform_system != 'Linux')",
-    "python_version >= '3.11' and python_version < '3.12' and platform_machine == 'aarch64' and platform_system == 'Linux'",
-    "python_version >= '3.12' and platform_machine == 'aarch64' and platform_system == 'Linux'",
-    "(python_version >= '3.11' and python_version < '3.12' and platform_machine != 'aarch64' and platform_system != 'Darwin') or (python_version >= '3.11' and python_version < '3.12' and platform_system != 'Darwin' and platform_system != 'Linux')",
-    "(python_version >= '3.12' and platform_machine != 'aarch64' and platform_system != 'Darwin') or (python_version >= '3.12' and platform_system != 'Darwin' and platform_system != 'Linux')",
-    "python_version < '3.6' or (python_version < '3.7' and platform_machine != 'aarch64') or (python_version < '3.7' and platform_system != 'Linux')",
-    "python_version >= '3.6' and python_version < '3.7' and platform_machine == 'aarch64' and platform_system == 'Linux'",
-    "(python_version >= '3.7' and python_version < '3.8' and platform_machine != 'aarch64') or (python_version >= '3.7' and python_version < '3.8' and platform_system != 'Linux')",
-    "python_version >= '3.7' and python_version < '3.8' and platform_machine == 'aarch64' and platform_system == 'Linux'",
-    "(python_version >= '3.9' and python_version < '3.10' and platform_machine != 'aarch64') or (python_version >= '3.9' and python_version < '3.10' and platform_system != 'Linux')",
-    "(python_version >= '3.8' and python_version < '3.9' and platform_machine != 'aarch64') or (python_version >= '3.8' and python_version < '3.9' and platform_system != 'Linux')",
-    "python_version >= '3.9' and python_version < '3.10' and platform_machine == 'aarch64' and platform_system == 'Linux'",
-    "python_version >= '3.8' and python_version < '3.9' and platform_machine == 'aarch64' and platform_system == 'Linux'",
+resolution-markers = [
+    "python_full_version < '3.11' and platform_system == 'Darwin'",
+    "python_full_version < '3.11' and platform_machine == 'aarch64' and platform_system == 'Linux'",
+    "(python_full_version < '3.11' and platform_machine != 'aarch64' and platform_system != 'Darwin') or (python_full_version < '3.11' and platform_system != 'Darwin' and platform_system != 'Linux')",
+    "python_full_version == '3.11.*' and platform_system == 'Darwin'",
+    "python_full_version == '3.11.*' and platform_machine == 'aarch64' and platform_system == 'Linux'",
+    "(python_full_version == '3.11.*' and platform_machine != 'aarch64' and platform_system != 'Darwin') or (python_full_version == '3.11.*' and platform_system != 'Darwin' and platform_system != 'Linux')",
+    "python_full_version >= '3.12' and platform_system == 'Darwin'",
+    "python_full_version >= '3.12' and platform_machine == 'aarch64' and platform_system == 'Linux'",
+    "(python_full_version >= '3.12' and platform_machine != 'aarch64' and platform_system != 'Darwin') or (python_full_version >= '3.12' and platform_system != 'Darwin' and platform_system != 'Linux')",
 ]
 
 [[package]]
@@ -91,19 +83,33 @@ wheels = [
 
 [[package]]
 name = "laser-learning-environment"
-version = "0.2.7"
+version = "0.2.8"
 source = { editable = "." }
 dependencies = [
     { name = "maturin" },
+    { name = "multi-agent-rlenv" },
     { name = "numpy" },
-    { name = "pytest" },
-    { name = "pytest-xdist" },
-    { name = "rlenv" },
 ]
 
 [package.dev-dependencies]
 dev = [
     { name = "pip" },
+    { name = "pytest" },
+    { name = "pytest-xdist" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "maturin", specifier = ">=1.7.0" },
+    { name = "multi-agent-rlenv", specifier = ">=1.0.1" },
+    { name = "numpy", specifier = ">=2.1.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pip", specifier = ">=24.2" },
+    { name = "pytest", specifier = ">=8.3.2" },
+    { name = "pytest-xdist", specifier = ">=3.6.1" },
 ]
 
 [[package]]
@@ -111,7 +117,7 @@ name = "maturin"
 version = "1.7.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "tomli", marker = "python_version < '3.11'" },
+    { name = "tomli", marker = "python_full_version < '3.11'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/80/da/a4bbd6e97f3645f4ebd725321aa235e22e31037dfd92caf4539f721c0a5a/maturin-1.7.0.tar.gz", hash = "sha256:1ba5277dd7832dc6181d69a005182b97b3520945825058484ffd9296f2efb59c", size = 188347 }
 wheels = [
@@ -127,6 +133,20 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/c1/d5/4c85dce8005ebf952c63dabd1faaad6dd9046992ccc739b5512fc203ec58/maturin-1.7.0-py3-none-win32.whl", hash = "sha256:c1ae0b4162fb1152aea83098bf1b66a7bf6dd73fd1b108e6c4e22160118a997c", size = 6484137 },
     { url = "https://files.pythonhosted.org/packages/a2/1c/1bf0d74595791770577a0253635c2fc740194cfd78326bbfb8eac8819c2d/maturin-1.7.0-py3-none-win_amd64.whl", hash = "sha256:2bd8227e020a9308c076253f29224c53b08b2a4ed41fcd94b4eb9349684fcfe7", size = 7309471 },
     { url = "https://files.pythonhosted.org/packages/8e/eb/c1ca2ee68c39da8e61fa2787e92b50fd49e99bd37c7e99b24a1adff2ea29/maturin-1.7.0-py3-none-win_arm64.whl", hash = "sha256:7c05226547778f31b73d48a19d11f57792bcc44f4047b84c73ea66cae2e62473", size = 6284054 },
+]
+
+[[package]]
+name = "multi-agent-rlenv"
+version = "1.0.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "gymnasium" },
+    { name = "numpy" },
+    { name = "opencv-python" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5b/a0/3137c291eccf0bddc7b008cb13e1b4f16bb4daa4abbfc69450f021e3cf75/multi_agent_rlenv-1.0.1.tar.gz", hash = "sha256:cf4178a47626ba7888b0f6194153422da38f5e56dc5345a6154fb313d5cd3246", size = 24763 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e7/6a/cdc2af70486c4da65e03da496103b43132e7d6323e83e652ba08cf1238f6/multi_agent_rlenv-1.0.1-py3-none-any.whl", hash = "sha256:e1c4b5b5d38fd658709d93ede64fc8dd957a62ae8fd4021e0c90b77e39f38266", size = 28737 },
 ]
 
 [[package]]
@@ -215,19 +235,6 @@ wheels = [
 ]
 
 [[package]]
-name = "pettingzoo"
-version = "1.24.3"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "gymnasium" },
-    { name = "numpy" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/1c/9f/0158a60109ba43e343e16b257ffa5690607b0bccbcdd0feb7b4f07903d85/pettingzoo-1.24.3.tar.gz", hash = "sha256:91f9094f18e06fb74b98f4099cd22e8ae4396125e51719d50b30c9f1c7ab07e6", size = 720284 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/c8/4e/eae7b6ecb801573fbec0c76b0fd1dd95bfd1a7fd8770bdd20242044e91f0/pettingzoo-1.24.3-py3-none-any.whl", hash = "sha256:23ed90517d2e8a7098bdaf5e31234b3a7f7b73ca578d70d1ca7b9d0cb0e37982", size = 847753 },
-]
-
-[[package]]
 name = "pip"
 version = "24.2"
 source = { registry = "https://pypi.org/simple" }
@@ -251,11 +258,11 @@ version = "8.3.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "colorama", marker = "sys_platform == 'win32'" },
-    { name = "exceptiongroup", marker = "python_version < '3.11'" },
+    { name = "exceptiongroup", marker = "python_full_version < '3.11'" },
     { name = "iniconfig" },
     { name = "packaging" },
     { name = "pluggy" },
-    { name = "tomli", marker = "python_version < '3.11'" },
+    { name = "tomli", marker = "python_full_version < '3.11'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/b4/8c/9862305bdcd6020bc7b45b1b5e7397a6caf1a33d3025b9a003b39075ffb2/pytest-8.3.2.tar.gz", hash = "sha256:c132345d12ce551242c87269de812483f5bcc87cdbb4722e48487ba194f9fdce", size = 1439314 }
 wheels = [
@@ -273,17 +280,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/41/c4/3c310a19bc1f1e9ef50075582652673ef2bfc8cd62afef9585683821902f/pytest_xdist-3.6.1.tar.gz", hash = "sha256:ead156a4db231eec769737f57668ef58a2084a34b2e55c4a8fa20d861107300d", size = 84060 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/6d/82/1d96bf03ee4c0fdc3c0cbe61470070e659ca78dc0086fb88b66c185e2449/pytest_xdist-3.6.1-py3-none-any.whl", hash = "sha256:9ed4adfb68a016610848639bb7e02c9352d5d9f03d04809919e2dafc3be4cca7", size = 46108 },
-]
-
-[[package]]
-name = "rlenv"
-version = "1.0.4"
-source = { git = "https://github.com/yamoling/rlenv.git#49dddc532e05e9784094e079bc17e54cd039a192" }
-dependencies = [
-    { name = "gymnasium" },
-    { name = "numpy" },
-    { name = "opencv-python" },
-    { name = "pettingzoo" },
 ]
 
 [[package]]

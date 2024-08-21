@@ -3,7 +3,7 @@ import numpy as np
 import numpy.typing as npt
 from lle import WorldEvent, EventType
 from dataclasses import dataclass
-from rlenv import DiscreteSpace
+from marlenv import DiscreteSpace
 
 
 @dataclass
