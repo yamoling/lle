@@ -83,16 +83,17 @@ wheels = [
 
 [[package]]
 name = "laser-learning-environment"
-version = "0.2.8"
+version = "1.0.0"
 source = { editable = "." }
 dependencies = [
-    { name = "maturin" },
     { name = "multi-agent-rlenv" },
     { name = "numpy" },
+    { name = "opencv-python" },
 ]
 
 [package.dev-dependencies]
 dev = [
+    { name = "maturin" },
     { name = "pip" },
     { name = "pytest" },
     { name = "pytest-xdist" },
@@ -100,13 +101,14 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "maturin", specifier = ">=1.7.0" },
     { name = "multi-agent-rlenv", specifier = ">=1.0.1" },
     { name = "numpy", specifier = ">=2.1.0" },
+    { name = "opencv-python" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "maturin", specifier = ">=1.7.0" },
     { name = "pip", specifier = ">=24.2" },
     { name = "pytest", specifier = ">=8.3.2" },
     { name = "pytest-xdist", specifier = ">=3.6.1" },
