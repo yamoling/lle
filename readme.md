@@ -23,7 +23,7 @@ The `LLE` class inherits from the `RLEnv` class in the [rlenv](https://github.co
 ```python
 from lle import LLE
 
-env = LLE.from_str("S0 G X")
+env = LLE.from_str("S0 G X").single_objective()
 done = truncated = False
 obs = env.reset()
 while not (done or truncated):
@@ -84,10 +84,8 @@ maturin develop # install lle locally
 
 
 ## Building
-This project has been set up using [Poetry](https://python-poetry.org/). To build the project, run the following commands:
+This project has been set up with maturin. Install maturin in a virtual environment with your preferred manner (manual, venv, uv, poetry, ...) and run
 ```bash
-poetry shell
-poetry install
 maturin develop  # For development
 maturin build    # For distribution
 ```
