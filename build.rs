@@ -1,7 +1,6 @@
 use std::env;
 use std::fs;
 use std::path::Path;
-use toml::{Table, Value};
 
 const RESOURCES: &str = "resources/sprites";
 
@@ -94,14 +93,6 @@ fn include_sprites_in_binary() {
     fs::write(dest_path, res).unwrap();
 }
 
-fn sync_pyproject_version_num() {
-    let content = fs::read_to_string("pyproject.toml").unwrap();
-    let mut table = content.parse::<Table>().unwrap();
-    // 1) Set the version number to the one in Cargo.toml
-    table["tool"]["poetry"]["version"] = Value::String(env::var("CARGO_PKG_VERSION").unwrap());
-    fs::write("pyproject.toml", table.to_string()).unwrap();
-}
-
 fn _make_readme() {
     let readme = fs::read_to_string("docs/readme_pypi.md").unwrap();
     let mut readme = readme.replace("lvl6-annotated.png", "docs/lvl6-annotated.png");
@@ -111,7 +102,6 @@ fn _make_readme() {
 
 fn main() {
     include_sprites_in_binary();
-    sync_pyproject_version_num();
     // make_readme();
 
     println!("cargo:rerun-if-changed=build.rs");

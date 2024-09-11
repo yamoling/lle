@@ -1,7 +1,7 @@
 import numpy as np
 
 from lle import World, Action, ObservationType
-from lle.observations import PartialGenerator, Layered
+from lle.observations import PartialGenerator, Layered, AgentZeroPerspective
 
 
 def test_observation_gem_collected():
@@ -284,3 +284,33 @@ def test_padded_layered():
     obs = ObservationType.LAYERED_PADDED_3AGENTS.get_observation_generator(world)
     assert obs.shape[0] == baseline.shape[0] + 6
     assert obs.shape[1:] == baseline.shape[1:]
+
+
+def test_perspective():
+    world = World("""
+                  S0  S1 S2 X
+                  L0E .  X  .
+                   .  .  X L1W
+                  """)
+    world.reset()
+    generator = AgentZeroPerspective(world)
+    A0 = generator.A0
+    L0 = generator.LASER_0
+    obs = generator.observe()
+
+    assert obs.shape == (3, *generator.shape)
+    obs0 = obs[0]
+    obs1 = obs[1]
+    obs2 = obs[2]
+
+    assert obs0[A0, 0, 0] == 1
+    assert obs1[A0, 0, 1] == 1
+    assert obs2[A0, 0, 2] == 1
+
+    assert obs0[L0, 1, 0] == -1
+    assert np.all(obs0[L0, 1, 1:] == 1)
+
+    assert obs1[L0, 2, 3] == -1
+    assert np.all(obs1[L0, 2, :3] == 1)
+
+    assert np.all(obs2[L0] == 0)

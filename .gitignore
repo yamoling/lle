@@ -77,3 +77,6 @@ docs/_build/
 
 Cargo.lock
 poetry.lock
+
+# Do not exclude the 'env' python module 
+!python/lle/env

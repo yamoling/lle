@@ -1,40 +1,44 @@
 [build-system]
 build-backend = "maturin"
-requires = ["maturin>=1.1,<2.0"]
+requires = ["maturin>=1.7,<2.0"]
+
+[project]
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+dependencies = [
+    "numpy>=2.1.0",
+    "multi-agent-rlenv>=1.1.1",
+    "opencv-python>=4.10.0.84",
+]
+description = "Laser Learning Environment (LLE) for Multi-Agent Reinforcement Learning"
+name = "laser-learning-environment"
+readme = "readme.md"
+requires-python = ">=3.10,<3.13"
+# version = "0.2.8"
+dynamic = ["version"]
+
+[[project.authors]]
+email = "yannick.molinghen@ulb.be"
+name = "Yannick Molinghen"
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
 python-source = "python"
-
-[tool.poetry]
-authors = ["Yannick Molinghen <yannick.molinghen@ulb.be>"]
-classifiers = ["Programming Language :: Rust", "Programming Language :: Python :: 3"]
-description = "Laser Learning Environment (LLE) for Multi-Agent Reinforcement Learning"
-name = "lle"
-readme = "readme.md"
-version = "0.2.6"
-
-[tool.poetry.dependencies]
-numpy = "^2.0"
-opencv-python = "^4.8.1.78"
-python = ">=3.10,<3.13"
-
-[tool.poetry.dependencies.rlenv]
-git = "https://github.com/yamoling/rlenv.git"
-tag = "v1.0.4"
-
-[tool.poetry.group.dev.dependencies]
-maturin = "^1.7.0"
-pytest = "^7.4.0"
-pytest-xdist = "^3.4.0"
-
-[tool.pylint.format]
-max-line-length = 140
-
-[tool.pytest.ini_options]
-addopts = "-n 2"
-pythonpath = ["python"]
-testpaths = ["python/tests"]
+version = { path = "python/lle/__ini__.py", "attr" = "__version__" }
 
 [tool.ruff]
 line-length = 140
+
+[tool.uv]
+dev-dependencies = [
+    "pip>=24.2",
+    "pytest>=8.3.2",
+    "pytest-xdist>=3.6.1",
+    "maturin>=1.7.0",
+]
+
+[tool.uv.sources]
+laser-learning-environment = { workspace = true }

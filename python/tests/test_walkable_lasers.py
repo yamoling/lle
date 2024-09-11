@@ -3,20 +3,18 @@ from lle import LLE, Action
 
 def test_walkable_laser_enabled():
     # when walkable_lasers is True (default), agents can run in any laser
-    env = (
-        LLE.from_str(
-            """
+    env = LLE.from_str(
+        """
 @ @ L0S @  @
 @ .  .  .  @
 @ X  .  S0 @
 @ X  .  S1 @
 @ @  @  @  @
-            """)
-            .build()
-    )
+            """
+    ).single_objective()
     env.reset()
     available_actions = env.available_actions()
-    
+
     # Agent 0
     assert available_actions[0, Action.WEST.value]
     # Agent 1
@@ -33,13 +31,14 @@ def test_walkable_laser_disabled_laser_enabled():
 @ X  .  S0 @
 @ X  .  S1 @
 @ @  @  @  @
-            """)
-            .walkable_lasers(False)
-            .build()
+            """
+        )
+        .walkable_lasers(False)
+        .single_objective()
     )
     env.reset()
     available_actions = env.available_actions()
-    
+
     # Agent 0
     assert available_actions[0, Action.WEST.value]
     # Agent 1
@@ -56,9 +55,10 @@ def test_walkable_laser_disabled_laser_disabled():
 @ X  S0 .  @
 @ X  .  S1 @
 @ @  @  @  @
-            """)
-            .walkable_lasers(False)
-            .build()
+            """
+        )
+        .walkable_lasers(False)
+        .single_objective()
     )
     env.reset()
     available_actions = env.available_actions()
@@ -77,13 +77,14 @@ def test_walkable_laser_disabled_laser_enabled2():
 @ X  .  S0 @
 @ X  .  S1 @
 @ @  @  @  @
-            """)
-            .walkable_lasers(False)
-            .build()
+            """
+        )
+        .walkable_lasers(False)
+        .single_objective()
     )
     env.reset()
     available_actions = env.available_actions()
-    
+
     # Agent 0
     assert not available_actions[0, Action.WEST.value]
     # Agent 1
@@ -100,9 +101,10 @@ def test_walkable_laser_disabled_laser_disabled2():
 @ X  S1 .  @
 @ X  .  S0 @
 @ @  @  @  @
-            """)
-            .walkable_lasers(False)
-            .build()
+            """
+        )
+        .walkable_lasers(False)
+        .single_objective()
     )
     env.reset()
     available_actions = env.available_actions()

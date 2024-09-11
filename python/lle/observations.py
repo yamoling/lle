@@ -3,6 +3,7 @@ from typing import Any
 from abc import ABC, abstractmethod
 from enum import IntEnum
 import numpy as np
+import numpy.typing as npt
 from lle import World
 from .types import AgentId, Position
 
@@ -22,6 +23,7 @@ class ObservationType(IntEnum):
     LAYERED_PADDED_1AGENT = 9
     LAYERED_PADDED_2AGENTS = 10
     LAYERED_PADDED_3AGENTS = 11
+    AGENT0_PERSPECTIVE_LAYERED = 12
 
     @staticmethod
     def from_str(s: str) -> "ObservationType":
@@ -57,6 +59,8 @@ class ObservationType(IntEnum):
                 return LayeredPadded(world, 2)
             case ObservationType.LAYERED_PADDED_3AGENTS:
                 return LayeredPadded(world, 3)
+            case ObservationType.AGENT0_PERSPECTIVE_LAYERED:
+                return AgentZeroPerspective(world)
             case other:
                 raise ValueError(f"Unknown observation type: {other}")
 
@@ -67,7 +71,7 @@ class ObservationGenerator(ABC):
         self._world = world
 
     @abstractmethod
-    def observe(self) -> np.ndarray[np.float32, Any]:
+    def observe(self) -> npt.NDArray[np.float32]:
         """Observe the world and return an observation for each agent."""
 
     @property
@@ -262,7 +266,7 @@ class PartialGenerator(ObservationGenerator):
     def obs_type(self) -> ObservationType:
         return ObservationType.PARTIAL_3x3
 
-    def encode_layer(self, layer: np.ndarray[np.float32, Any], origin: Position, positions: list[Position], fill_value: float = 1.0):
+    def encode_layer(self, layer: npt.NDArray[np.float32], origin: Position, positions: list[Position], fill_value: float = 1.0):
         if len(positions) == 0:
             return
         for i, j in positions:
@@ -270,7 +274,7 @@ class PartialGenerator(ObservationGenerator):
             if 0 <= i < self.size and 0 <= j < self.size:
                 layer[i, j] = fill_value
 
-    def observe(self) -> np.ndarray[np.float32, Any]:
+    def observe(self) -> npt.NDArray[np.float32]:
         obs = np.zeros((self._world.n_agents, *self._shape), dtype=np.float32)
         for a, agent_pos in enumerate(self._world.agents_positions):
             # Agents positions
@@ -299,3 +303,25 @@ class PartialGenerator(ObservationGenerator):
                 lasers.append(laser_pos)
                 laser_positions[laser.agent_id] = lasers
         return laser_positions
+
+
+class AgentZeroPerspective(Layered):
+    def __init__(self, world: World):
+        super().__init__(world)
+
+    def observe(self):
+        obs = super().observe()
+        # Agent 0 does not have to change
+        for agent_num in range(1, self.n_agents):
+            agent_obs = obs[agent_num]
+            # Swap agent 0 and agent_num
+            agent_zero_layer = np.copy(agent_obs[self.A0])
+            agent_obs[self.A0] = agent_obs[self.A0 + agent_num]
+            agent_obs[self.A0 + agent_num] = agent_zero_layer
+
+            # Swap laser 0 and laser_num
+            laser_zero_layer = np.copy(agent_obs[self.LASER_0])
+            agent_obs[self.LASER_0] = agent_obs[self.LASER_0 + agent_num]
+            agent_obs[self.LASER_0 + agent_num] = laser_zero_layer
+
+        return obs
