@@ -26,6 +26,8 @@ jobs:
     name: 🛡️ Verify that the test workflow succeeded
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - run: echo "'Test' workflow succeeded"
     
   sdist:
     name: 📦 Building source dist
