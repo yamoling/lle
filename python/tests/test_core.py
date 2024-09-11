@@ -193,3 +193,37 @@ def test_agent_state_size():
         assert False, "So far, only state generators of type `StateGenerator` have a `agent_state_size`."
     except (ValueError, NotImplementedError):
         pass
+
+
+def test_builder_obs_type_string():
+    env = LLE.level(1).obs_type("layered").single_objective()
+    env2 = LLE.level(1).obs_type(ObservationType.LAYERED).single_objective()
+    assert env.has_same_inouts(env2)
+
+    env = LLE.level(1).obs_type("flattened").single_objective()
+    env2 = LLE.level(1).obs_type(ObservationType.FLATTENED).single_objective()
+    assert env.has_same_inouts(env2)
+
+    env = LLE.level(1).obs_type("partial3x3").single_objective()
+    env2 = LLE.level(1).obs_type(ObservationType.PARTIAL_3x3).single_objective()
+    assert env.has_same_inouts(env2)
+
+    env = LLE.level(1).obs_type("partial5x5").single_objective()
+    env2 = LLE.level(1).obs_type(ObservationType.PARTIAL_5x5).single_objective()
+    assert env.has_same_inouts(env2)
+
+    env = LLE.level(1).obs_type("partial7x7").single_objective()
+    env2 = LLE.level(1).obs_type(ObservationType.PARTIAL_7x7).single_objective()
+    assert env.has_same_inouts(env2)
+
+    env = LLE.level(1).obs_type("state").single_objective()
+    env2 = LLE.level(1).obs_type(ObservationType.STATE).single_objective()
+    assert env.has_same_inouts(env2)
+
+    env = LLE.level(1).obs_type("image").single_objective()
+    env2 = LLE.level(1).obs_type(ObservationType.RGB_IMAGE).single_objective()
+    assert env.has_same_inouts(env2)
+
+    env = LLE.level(1).obs_type("perspective").single_objective()
+    env2 = LLE.level(1).obs_type(ObservationType.AGENT0_PERSPECTIVE_LAYERED).single_objective()
+    assert env.has_same_inouts(env2)

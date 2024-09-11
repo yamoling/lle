@@ -55,7 +55,7 @@ jobs:
       - name: Install UV
         uses: yezz123/setup-uv@v4
         with:
-          uv-version: 0.3.0
+          uv-version: 0.4.0
       - name: Pytest
         run: |
           uv sync
@@ -91,7 +91,7 @@ jobs:
       - name: Install UV
         uses: yezz123/setup-uv@v4
         with:
-          uv-version: 0.3.0
+          uv-version: 0.4.0
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:

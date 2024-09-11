@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Optional
 from typing_extensions import deprecated
 from lle import World, ObservationType
 
@@ -19,17 +19,49 @@ class Builder:
         self._death_strategy = "end"
         self._walkable_lasers = True
 
-    def obs_type(self, obs_type: ObservationType):
+    def str_to_obs(self, obs_type: str) -> ObservationType:
+        match obs_type:
+            case "layered":
+                return ObservationType.LAYERED
+            case "flattened":
+                return ObservationType.FLATTENED
+            case "partial3x3":
+                return ObservationType.PARTIAL_3x3
+            case "partial5x5":
+                return ObservationType.PARTIAL_5x5
+            case "partial7x7":
+                return ObservationType.PARTIAL_7x7
+            case "state":
+                return ObservationType.STATE
+            case "image":
+                return ObservationType.RGB_IMAGE
+            case "perspective":
+                return ObservationType.AGENT0_PERSPECTIVE_LAYERED
+        raise ValueError(f"Invalid observation type: {obs_type}")
+
+    def obs_type(
+        self,
+        obs_type: Literal["layered", "flattened", "partial3x3", "partial5x5", "partial7x7", "state", "image", "perspective"]
+        | ObservationType,
+    ):
         """
         Set the observation type of the environment (set to ObservationType.LAYERED by default).
         """
+        if isinstance(obs_type, str):
+            obs_type = self.str_to_obs(obs_type)
         self._obs_type = obs_type
         return self
 
-    def state_type(self, state_type: ObservationType):
+    def state_type(
+        self,
+        state_type: Literal["layered", "flattened", "partial3x3", "partial5x5", "partial7x7", "state", "image", "perspective"]
+        | ObservationType,
+    ):
         """
         Set the state type of the environment (set to ObservationType.STATE by default).
         """
+        if isinstance(state_type, str):
+            state_type = self.str_to_obs(state_type)
         self._state_type = state_type
         return self
 
