@@ -5,9 +5,8 @@ on:
     branches:
       - dev
       - master
-  pull_request:
-  workflow_dispatch:
-
+    tags:
+      - '*'
 permissions:
   contents: read
 
