@@ -3,15 +3,18 @@
 #
 #    maturin generate-ci github
 #
-name: CI
+name: Build & publish
 
 on:
+  workflow_run:
+    workflows: ["Test"]
+    types:
+      - completed
   push:
     branches:
       - master
-      - dev
     tags:
-      - '*'
+      - '**'
   pull_request:
   workflow_dispatch:
 
@@ -19,55 +22,24 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    if: ${{ github.ref == 'refs/heads/master' || github.ref == 'refs/heads/dev'}}
-    name: 🧪 Run tests
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
-          - windows-latest
-          - macOS-latest
-        target:
-          - x86_64
-          - aarch64
-        python-version: 
-          - '3.10'
-          - '3.11'
-          - '3.12'
-        exclude:
-          - os: windows-latest
-            target: 'aarch64'
-
-    runs-on: ${{ matrix.os }}
+  sdist:
+    name: 📦 Building source dist
+    runs-on: ubuntu-latest
     steps:
-      # Checkout
       - uses: actions/checkout@v4
-      # Rust 
-      - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-      - name: Rust tests
-        run: |
-          cargo build
-          cargo test
-
-      # Python
-      - name: Install Python
-        uses: actions/setup-python@v5
-        with: 
-          python-version: ${{ matrix.python-version }}
-      - name: Install UV
-        uses: yezz123/setup-uv@v4
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1
         with:
-          uv-version: 0.3.0
-      - name: Pytest
-        run: |
-          uv sync
-          uv run maturin dev
-          uv run pytest
+          command: sdist
+          args: --out dist
+      - name: Upload sdist
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-sdist
+          path: dist
 
   linux:
-    needs: test
+    name: 📦 Linux build
     runs-on: ${{ matrix.platform.runner }}
     strategy:
       matrix:
@@ -95,7 +67,7 @@ jobs:
           path: dist
 
   musllinux:
-    needs: test
+    name: 📦 Musllinux build
     runs-on: ${{ matrix.platform.runner }}
     strategy:
       matrix:
@@ -123,7 +95,7 @@ jobs:
           path: dist
 
   windows:
-    needs: test
+    name: 📦 Windows build
     runs-on: ${{ matrix.platform.runner }}
     strategy:
       matrix:
@@ -149,7 +121,7 @@ jobs:
           path: dist
 
   macos:
-    needs: test
+    name: 📦 MacOS build
     runs-on: ${{ matrix.platform.runner }}
     strategy:
       matrix:
@@ -175,23 +147,8 @@ jobs:
           name: wheels-macos-${{ matrix.platform.target }}
           path: dist
 
-  sdist:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build sdist
-        uses: PyO3/maturin-action@v1
-        with:
-          command: sdist
-          args: --out dist
-      - name: Upload sdist
-        uses: actions/upload-artifact@v4
-        with:
-          name: wheels-sdist
-          path: dist
-
   release:
-    name: Release
+    name: 📤 Release to Pypi
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     needs: [linux, musllinux, windows, macos, sdist]
