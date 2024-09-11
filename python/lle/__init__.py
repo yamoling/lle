@@ -42,5 +42,5 @@ from .lle import (
     ParsingError,
     WorldBuilder,
 )
-from .envs import LLE
 from .observations import ObservationType
+from .env import LLE

@@ -10,7 +10,7 @@ S1 L1N X
 """
         )
         .death_strategy("end")
-        .build()
+        .single_objective()
     )
     env.reset()
 
@@ -27,7 +27,7 @@ S1 . L1N X
 """
         )
         .death_strategy("stay")
-        .build()
+        .single_objective()
     )
     env.reset()
     env.step([Action.EAST.value, Action.STAY.value])
