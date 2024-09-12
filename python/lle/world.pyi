@@ -27,6 +27,7 @@ class WorldState:
 class World:
     def __init__(self, world_str: str):
         """Constructs a World from a string.
+
         Raises:
             - RuntimeError if the file is not a valid level.
             - ValueError if the file is not a valid level (inconsistent dimensions or invalid grid).
@@ -86,7 +87,7 @@ class World:
         Note: This operation is rather costly because the agents are copied everytime this
         property is accessed.
         """
-    def step(self, actions: List[Action]) -> list[WorldEvent]:
+    def step(self, action: Action | List[Action]) -> list[WorldEvent]:
         """
         Perform an action for each agent in the world and return the list of
         events that occurred by peforming this step.

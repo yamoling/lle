@@ -5,7 +5,7 @@ use std::{
 
 use itertools::izip;
 use numpy::{PyArray1, PyArrayMethods};
-use pyo3::{prelude::*, types::PyDict};
+use pyo3::{exceptions::PyTypeError, prelude::*, types::PyDict};
 
 use crate::{Position, Renderer, World, WorldState};
 
@@ -160,7 +160,18 @@ impl PyWorld {
     }
 
     /// Perform a step in the world and returns the events that happened during that transition.
-    pub fn step(&mut self, actions: Vec<PyAction>) -> PyResult<Vec<PyWorldEvent>> {
+    pub fn step(&mut self, py: Python, action: PyObject) -> PyResult<Vec<PyWorldEvent>> {
+        // Check if action is a list or a single action
+        let actions: Vec<PyAction> = if let Ok(actions) = action.extract::<Vec<PyAction>>(py) {
+            actions
+        } else if let Ok(action) = action.extract::<PyAction>(py) {
+            vec![action]
+        } else {
+            return Err(PyTypeError::new_err(
+                "Action must be of type Action or list[Action]",
+            ));
+        };
+
         let actions: Vec<_> = actions.into_iter().map(|a| a.action).collect();
         match self.world.lock().unwrap().step(&actions) {
             Ok(events) => {
@@ -171,7 +182,6 @@ impl PyWorld {
             Err(e) => Err(runtime_error_to_pyexception(e)),
         }
     }
-
     /// Reset the world to its original state.
     pub fn reset(&mut self) {
         self.world.lock().unwrap().reset();

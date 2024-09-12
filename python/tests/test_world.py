@@ -46,6 +46,34 @@ def test_parse_wrong_worlds():
         World("X G")
 
 
+def test_world_step_one_action():
+    world = World(
+        """
+        S0 X . .
+        .  . . .
+        .  . . ."""
+    )
+    world.reset()
+    events = world.step(Action.SOUTH)
+    assert len(events) == 0
+    assert world.agents_positions == [(1, 0)]
+
+
+def test_world_step_something_else_than_action():
+    world = World(
+        """
+        S0 X . .
+        .  . . .
+        .  . . ."""
+    )
+    world.reset()
+    try:
+        events = world.step(23)  # type: ignore
+        assert False, "This should not be allowed"
+    except TypeError:
+        pass
+
+
 def test_world_move():
     world = World(
         """S0 X . .
