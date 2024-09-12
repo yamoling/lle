@@ -523,3 +523,38 @@ fn test_laser_on_exit() {
         assert_eq!(l.len(), 2);
     }
 }
+
+#[test]
+fn available_joint_actions() {
+    let mut w = World::try_from(
+        "S0 . S1 @
+         @   X .  X",
+    )
+    .unwrap();
+    w.reset();
+    let available = w.available_joint_actions();
+    assert_eq!(available.len(), 6);
+    let expected = [
+        [Action::Stay, Action::Stay],
+        [Action::Stay, Action::West],
+        [Action::Stay, Action::South],
+        [Action::East, Action::Stay],
+        [Action::East, Action::West],
+        [Action::East, Action::South],
+    ];
+    for a in expected {
+        assert!(available.contains(&a.to_vec()));
+    }
+}
+
+#[test]
+fn num_available_joint_actions() {
+    let mut w = World::try_from(
+        " X  S0  .  S1 @
+         S2  @   X  .  X",
+    )
+    .unwrap();
+    w.reset();
+    let available = w.available_joint_actions();
+    assert_eq!(available.len(), 2 * 3 * 3);
+}

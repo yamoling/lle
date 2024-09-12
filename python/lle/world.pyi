@@ -106,6 +106,7 @@ class World:
     def available_joint_actions(self) -> List[List[Action]]:
         """
         Return the list of available joint actions at the current time step.
+
         The result has shape (x, n_agents) where x is the number of joint actions available.
         """
     def get_image(self) -> npt.NDArray[np.uint8]:
