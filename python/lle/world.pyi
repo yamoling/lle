@@ -1,5 +1,6 @@
 from typing import Tuple, List, Any, final
 import numpy as np
+import numpy.typing as npt
 
 from .event import WorldEvent
 from .action import Action
@@ -102,7 +103,12 @@ class World:
 
         The actions available for agent `n` are given by `world.available_actions()[n]`.
         """
-    def get_image(self) -> np.ndarray[np.uint8, Any]:
+    def available_joint_actions(self) -> List[List[Action]]:
+        """
+        Return the list of available joint actions at the current time step.
+        The result has shape (x, n_agents) where x is the number of joint actions available.
+        """
+    def get_image(self) -> npt.NDArray[np.uint8]:
         """Return a rendered image of the world"""
     def get_state(self) -> WorldState:
         """Return a state representation of the world."""

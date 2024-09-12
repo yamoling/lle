@@ -2,6 +2,20 @@
 name = "lle"
 version = "1.1.2"
 edition = "2021"
+readme = "readme.md"
+license-file = "licence"
+repository = "https://github.com/yamoling/lle"
+homepage = "https://github.com/yamoling/lle"
+description = "Cooperative MARL environment based on laser-blocking."
+keywords = [
+    "marl",
+    "reinforcement learning",
+    "multi-agent",
+    "lle",
+    "laser",
+    "environment",
+]
+categories = ["science"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
@@ -10,10 +24,12 @@ name = "lle"
 # crate-type = ["cdylib"] 
 
 [dependencies]
+dotenv = "0.15.0"
+env_logger = "0.11.5"
 image = "0.25.2"
 itertools = "0.13.0"
 lazy_static = "1.5.0"
-maplit = "1.0.2"
+log = "0.4.22"
 numpy = "0.21"
 pyo3 = "0.21"
 

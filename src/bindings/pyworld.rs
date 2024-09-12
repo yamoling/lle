@@ -189,6 +189,17 @@ impl PyWorld {
             .collect()
     }
 
+    /// Return the available joint actions with shape (x, n_agents) where x is the number of joint actions.
+    pub fn available_joint_actions(&self) -> Vec<Vec<PyAction>> {
+        self.world
+            .lock()
+            .unwrap()
+            .available_joint_actions()
+            .iter()
+            .map(|a| a.iter().map(|a| PyAction { action: a.clone() }).collect())
+            .collect()
+    }
+
     #[getter]
     /// Return the list of agents.
     pub fn agents(&self) -> Vec<PyAgent> {
