@@ -7,13 +7,7 @@ license-file = "licence"
 repository = "https://github.com/yamoling/lle"
 homepage = "https://github.com/yamoling/lle"
 description = "Cooperative MARL environment based on laser-blocking."
-keywords = [
-    "reinforcement learning",
-    "multi-agent",
-    "lle",
-    "laser",
-    "environment",
-]
+keywords = ["marl", "rl", "lle", "laser", "environment"]
 categories = ["science"]
 
 exclude = ["python/*", "uv.lock", "stubcheck.sh", "pyproject.toml", "docs"]
