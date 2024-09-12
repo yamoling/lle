@@ -8,7 +8,6 @@ repository = "https://github.com/yamoling/lle"
 homepage = "https://github.com/yamoling/lle"
 description = "Cooperative MARL environment based on laser-blocking."
 keywords = [
-    "marl",
     "reinforcement learning",
     "multi-agent",
     "lle",
