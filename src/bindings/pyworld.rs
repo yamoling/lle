@@ -24,7 +24,7 @@ use super::{
 // - Everything that is immutable is directly accessible from the `World` struct.
 // - Everything that is mutable is accessed through the `Arc<Mutex<World>>`.
 
-#[pyclass(name = "World", module = "lle")]
+#[pyclass(name = "World", module = "lle", subclass)]
 pub struct PyWorld {
     #[pyo3(get)]
     exit_pos: Vec<Position>,

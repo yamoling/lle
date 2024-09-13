@@ -8,7 +8,6 @@ from .agent import Agent
 from .tile import Gem, LaserSource, Laser
 from .types import Position
 
-@final
 class WorldState:
     def __init__(self, agents_positions: List[Position], gems_collected: List[bool]):
         """Construct a WorldState from the (i, j) position of each agent and the collection status of each gem."""
@@ -23,7 +22,6 @@ class WorldState:
     def __repr__(self) -> str: ...
     def __deepcopy__(self, memo: Any) -> "WorldState": ...
 
-@final
 class World:
     def __init__(self, world_str: str):
         """Constructs a World from a string.

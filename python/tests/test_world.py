@@ -509,3 +509,17 @@ def test_change_laser_colour_back():
             assert laser.agent_id == 1
         elif i == 1:
             assert laser.agent_id == 0
+
+
+def test_subclass_world_state():
+    class WS(WorldState):
+        pass
+
+    _state = WS([(0, 0)], [False])
+
+
+def test_subclass_world():
+    class W(World):
+        pass
+
+    _w = W("S0 . X")

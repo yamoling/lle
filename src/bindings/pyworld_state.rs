@@ -2,7 +2,7 @@ use crate::{core::WorldState, Position};
 use pyo3::{exceptions, prelude::*, pyclass::CompareOp, types::PyDict};
 use std::hash::{Hash, Hasher};
 
-#[pyclass(name = "WorldState", module = "lle")]
+#[pyclass(name = "WorldState", module = "lle", subclass)]
 #[derive(Clone, Hash)]
 pub struct PyWorldState {
     #[pyo3(get, set)]
