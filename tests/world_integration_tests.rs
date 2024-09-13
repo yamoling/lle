@@ -188,10 +188,7 @@ fn test_force_state_agents_have_exited() {
     )
     .unwrap();
     w.reset();
-    let s = WorldState {
-        agents_positions: [(1, 0)].into(),
-        gems_collected: [true].into(),
-    };
+    let s = WorldState::new_alive([(1, 0)].into(), [true].into());
     let events = w.set_state(&s).unwrap();
     for agent in w.agents() {
         assert!(agent.has_arrived());
@@ -218,10 +215,7 @@ fn test_force_wrong_state_check_laser_not_blocked() {
     )
     .unwrap();
     w.reset();
-    let s = WorldState {
-        agents_positions: [(1, 1), (1, 0)].into(),
-        gems_collected: [true].into(),
-    };
+    let s = WorldState::new_alive([(1, 1), (1, 0)].into(), [true].into());
     let res = w.set_state(&s);
     if let Err(RuntimeWorldError::InvalidAgentPosition { position, .. }) = res {
         assert_eq!(position, (1, 0));
@@ -243,10 +237,7 @@ fn test_force_state_agent_dies() {
     .unwrap();
     w.reset();
 
-    let s = WorldState {
-        agents_positions: [(1, 0), (1, 1)].into(),
-        gems_collected: [false; 1].into(),
-    };
+    let s = WorldState::new_alive([(1, 0), (1, 1)].into(), [false; 1].into());
     w.set_state(&s).unwrap();
     assert!(w.agents()[0].has_arrived());
     // Agent 1 should ne have arrived (it died before arriving)
@@ -265,10 +256,7 @@ fn test_set_invalid_state() {
     )
     .unwrap();
     w.reset();
-    match w.set_state(&WorldState {
-        agents_positions: vec![(1, 0), (1, 1)],
-        gems_collected: vec![],
-    }) {
+    match w.set_state(&WorldState::new_alive(vec![(1, 0), (1, 1)], vec![])) {
         Err(RuntimeWorldError::InvalidAgentPosition { .. }) => {}
         other => panic!("Expected InvalidState, got {:?}", other),
     }
@@ -557,4 +545,25 @@ fn num_available_joint_actions() {
     w.reset();
     let available = w.available_joint_actions();
     assert_eq!(available.len(), 2 * 3 * 3);
+}
+
+#[test]
+fn test_world_state_dead_agents() {
+    let mut w = World::try_from(
+        "
+    S0 . G
+    V  . X
+    ",
+    )
+    .unwrap();
+    w.reset();
+    let inital = w.get_state();
+    assert!(inital.agents_alive[0]);
+    w.step(&[Action::South]).unwrap();
+    let state = w.get_state();
+    assert!(!state.agents_alive[0]);
+
+    w.reset();
+    w.set_state(&state).unwrap();
+    assert!(!w.agents()[0].is_alive());
 }

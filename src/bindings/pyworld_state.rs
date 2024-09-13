@@ -11,16 +11,25 @@ pub struct PyWorldState {
     #[pyo3(get, set)]
     /// The collection status of each gem.
     gems_collected: Vec<bool>,
+    #[pyo3(get, set)]
+    /// The status of each agent.
+    agents_alive: Vec<bool>,
 }
 
 #[pymethods]
 impl PyWorldState {
     #[new]
     /// Construct a WorldState from the position of each agent and the collection status of each gem.
-    pub fn new(agents_positions: Vec<Position>, gems_collected: Vec<bool>) -> Self {
+    pub fn new(
+        agents_positions: Vec<Position>,
+        gems_collected: Vec<bool>,
+        agents_alive: Option<Vec<bool>>,
+    ) -> Self {
+        let agents_alive = agents_alive.unwrap_or_else(|| vec![true; agents_positions.len()]);
         Self {
             agents_positions,
             gems_collected,
+            agents_alive,
         }
     }
 
@@ -28,14 +37,19 @@ impl PyWorldState {
         self.clone()
     }
 
-    fn __getstate__(&self) -> PyResult<(Vec<bool>, Vec<Position>)> {
-        Ok((self.gems_collected.clone(), self.agents_positions.clone()))
+    fn __getstate__(&self) -> PyResult<(Vec<bool>, Vec<Position>, Vec<bool>)> {
+        Ok((
+            self.gems_collected.clone(),
+            self.agents_positions.clone(),
+            self.agents_alive.clone(),
+        ))
     }
 
-    fn __setstate__(&mut self, state: (Vec<bool>, Vec<Position>)) -> PyResult<()> {
-        let (gems_collected, agents_positions) = state;
+    fn __setstate__(&mut self, state: (Vec<bool>, Vec<Position>, Vec<bool>)) -> PyResult<()> {
+        let (gems_collected, agents_positions, agents_alive) = state;
         self.gems_collected = gems_collected;
         self.agents_positions = agents_positions;
+        self.agents_alive = agents_alive;
         Ok(())
     }
 
@@ -78,6 +92,17 @@ impl From<PyWorldState> for WorldState {
         WorldState {
             agents_positions: val.agents_positions,
             gems_collected: val.gems_collected,
+            agents_alive: val.agents_alive,
+        }
+    }
+}
+
+impl Into<PyWorldState> for WorldState {
+    fn into(self) -> PyWorldState {
+        PyWorldState {
+            agents_positions: self.agents_positions,
+            gems_collected: self.gems_collected,
+            agents_alive: self.agents_alive,
         }
     }
 }

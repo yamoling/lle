@@ -1,4 +1,4 @@
-from typing import Tuple, List, Any, final
+from typing import Tuple, List, Any, Optional
 import numpy as np
 import numpy.typing as npt
 
@@ -9,13 +9,15 @@ from .tile import Gem, LaserSource, Laser
 from .types import Position
 
 class WorldState:
-    def __init__(self, agents_positions: List[Position], gems_collected: List[bool]):
+    def __init__(self, agents_positions: List[Position], gems_collected: List[bool], agents_alive: Optional[List[bool]] = None):
         """Construct a WorldState from the (i, j) position of each agent and the collection status of each gem."""
 
     agents_positions: List[Position]
     """The (i, j) position of each agent."""
     gems_collected: List[bool]
     """The collection status of each gem."""
+    agents_alive: List[bool]
+    """The alive status of each agent."""
     def __hash__(self) -> int: ...
     def __eq__(self, __value: object) -> bool: ...
     def __str__(self) -> str: ...

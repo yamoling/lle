@@ -245,7 +245,7 @@ impl PyWorld {
     /// Return the current state of the world (that can be set with `world.set_state`)
     fn get_state(&self) -> PyWorldState {
         let state = self.world.lock().unwrap().get_state();
-        PyWorldState::new(state.agents_positions, state.gems_collected)
+        state.into()
     }
 
     pub fn __deepcopy__(&self, _memo: &Bound<PyDict>) -> Self {
@@ -260,18 +260,22 @@ impl PyWorld {
     }
 
     /// Enable serialisation with pickle
-    pub fn __getstate__(&self) -> PyResult<(String, Vec<bool>, Vec<Position>)> {
+    pub fn __getstate__(&self) -> PyResult<(String, Vec<bool>, Vec<Position>, Vec<bool>)> {
         let world = self.world.lock().unwrap();
         let state = world.get_state();
         let data = (
             world.compute_world_string().to_owned(),
             state.gems_collected.clone(),
             state.agents_positions.clone(),
+            state.agents_alive.clone(),
         );
         Ok(data)
     }
 
-    pub fn __setstate__(&mut self, state: (String, Vec<bool>, Vec<Position>)) -> PyResult<()> {
+    pub fn __setstate__(
+        &mut self,
+        state: (String, Vec<bool>, Vec<Position>, Vec<bool>),
+    ) -> PyResult<()> {
         let mut world = match World::try_from(state.0) {
             Ok(w) => w,
             Err(e) => panic!("Could not parse the world: {:?}", e),
@@ -281,6 +285,7 @@ impl PyWorld {
             .set_state(&WorldState {
                 gems_collected: state.1,
                 agents_positions: state.2,
+                agents_alive: state.3,
             })
             .unwrap();
         self.world = Arc::new(Mutex::new(world));

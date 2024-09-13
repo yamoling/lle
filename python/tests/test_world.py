@@ -523,3 +523,21 @@ def test_subclass_world():
         pass
 
     _w = W("S0 . X")
+
+
+def test_world_state_constructor():
+    # Without explicit agent liveness
+    s = WorldState([(0, 0)], [False])
+    assert all(s.agents_alive)
+    s = WorldState([(0, 0)], [True], [True])
+    assert all(s.agents_alive)
+    s = WorldState([(0, 0), (1, 1)], [True], [False, True])
+    assert s.agents_alive == [False, True]
+
+
+def test_set_state_agent_dead():
+    world = World("S0 G X")
+    world.reset()
+    s = WorldState([(0, 0)], [False], [False])
+    world.set_state(s)
+    assert not world.agents[0].is_alive

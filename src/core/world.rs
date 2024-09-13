@@ -382,6 +382,7 @@ impl World {
         WorldState {
             agents_positions: self.agents_positions.clone(),
             gems_collected: self.gems().iter().map(|gem| gem.is_collected()).collect(),
+            agents_alive: self.agents.iter().map(|agent| agent.is_alive()).collect(),
         }
     }
 
@@ -419,8 +420,11 @@ impl World {
                 tile.reset();
             }
         }
-        for agent in &mut self.agents {
+        for (agent, alive) in &mut self.agents.iter_mut().zip(state.agents_alive.iter()) {
             agent.reset();
+            if !alive {
+                agent.die();
+            }
         }
         // Collect the necessary gems BEFORE entering the tiles with the agents
         for ((i, j), &collect) in izip!(&self.gems_positions, &state.gems_collected) {
