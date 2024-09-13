@@ -361,6 +361,13 @@ def test_world_state_hash_eq():
     assert state1 == state2
 
 
+def test_world_state_hash_eq_dead():
+    state1 = WorldState([(0, 0)], [False], [True])
+    state2 = WorldState([(0, 0)], [False], [False])
+    assert hash(state1) != hash(state2)
+    assert state1 != state2
+
+
 def test_world_state_hash_neq():
     s1 = WorldState([(0, 0)], [False])
     s2 = WorldState([(0, 1)], [False])

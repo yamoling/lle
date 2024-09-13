@@ -15,9 +15,9 @@ class WorldState:
     agents_positions: List[Position]
     """The (i, j) position of each agent."""
     gems_collected: List[bool]
-    """The collection status of each gem."""
+    """A list of booleans indicating whether each gem has been collected."""
     agents_alive: List[bool]
-    """The alive status of each agent."""
+    """A list of booleans indicating whether each agent is alive."""
     def __hash__(self) -> int: ...
     def __eq__(self, __value: object) -> bool: ...
     def __str__(self) -> str: ...

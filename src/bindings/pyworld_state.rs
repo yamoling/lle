@@ -76,7 +76,8 @@ impl PyWorldState {
 
     fn __richcmp__(&self, other: &Self, cmp: CompareOp) -> PyResult<bool> {
         let eq = self.agents_positions == other.agents_positions
-            && self.gems_collected == other.gems_collected;
+            && self.gems_collected == other.gems_collected
+            && self.agents_alive == other.agents_alive;
         match cmp {
             CompareOp::Eq => Ok(eq),
             CompareOp::Ne => Ok(!eq),
