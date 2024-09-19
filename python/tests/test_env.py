@@ -224,3 +224,8 @@ def test_multi_objective_death():
     assert reward[RW_DEATH_IDX] == REWARD_DEATH
     for idx in [RW_GEM_IDX, RW_EXIT_IDX, RW_DONE_IDX]:
         assert reward[idx] == 0
+
+
+def test_seed():
+    LLE.level(1).single_objective().seed(0)
+    LLE.level(1).multi_objective().seed(0)

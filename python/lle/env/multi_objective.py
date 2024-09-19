@@ -84,3 +84,6 @@ class MOLLE(MOMARLEnv[DiscreteActionSpace, npt.NDArray[np.float32], npt.NDArray[
 
     def set_state(self, state: WorldState):
         self.core.set_state(state)
+
+    def seed(self, seed_value: int):
+        return self.core.seed(seed_value)
