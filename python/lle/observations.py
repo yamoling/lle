@@ -93,9 +93,13 @@ class StateGenerator(ObservationGenerator):
     def __init__(self, world):
         super().__init__(world)
         self.n_gems = world.n_gems
-        self.dimensions = np.array([world.height, world.width])
+        self.dimensions = np.array([world.height, world.width] * world.n_agents)
 
     def observe(self):
+        state = self._world.get_state().as_array()
+        state[: self._world.n_agents * 2] = state[: self._world.n_agents * 2] / self.dimensions
+        return np.tile(state, reps=(self._world.n_agents, 1))
+        np.tile(state, (self._world.n_agents, 1))
         positions = np.tile((self._world.agents_positions / self.dimensions).flatten(), (self._world.n_agents, 1))
         gems_collected = np.tile(
             np.array([not gem.is_collected for gem in self._world.gems.values()], dtype=np.float32), (self._world.n_agents, 1)
