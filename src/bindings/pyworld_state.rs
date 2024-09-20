@@ -1,4 +1,5 @@
 use crate::{core::WorldState, Position};
+use numpy::PyArray1;
 use pyo3::{exceptions, prelude::*, pyclass::CompareOp, types::PyDict};
 use std::hash::{Hash, Hasher};
 
@@ -31,6 +32,61 @@ impl PyWorldState {
             gems_collected,
             agents_alive,
         }
+    }
+
+    fn as_array(&self, py: Python) -> PyObject {
+        let len = self.agents_positions.len() * 3 + self.gems_collected.len();
+        let mut res = Vec::with_capacity(len);
+        for (i, j) in &self.agents_positions {
+            res.push(*i as f32);
+            res.push(*j as f32);
+        }
+        for is_collected in &self.gems_collected {
+            if *is_collected {
+                res.push(1.0);
+            } else {
+                res.push(0.0);
+            }
+        }
+        for alive in &self.agents_alive {
+            if *alive {
+                res.push(1.0);
+            } else {
+                res.push(0.0);
+            }
+        }
+        PyArray1::from_vec_bound(py, res).into()
+    }
+
+    #[staticmethod]
+    fn from_array(array: Vec<f32>, n_agents: usize, n_gems: usize) -> PyResult<Self> {
+        let expected_len = n_agents * 3 + n_gems;
+        if array.len() != expected_len {
+            return Err(exceptions::PyValueError::new_err(format!(
+                "The array must have a length of {expected_len}.",
+            )));
+        }
+
+        let mut agents_positions = Vec::with_capacity(n_agents);
+        for i in 0..n_agents {
+            agents_positions.push((array[i * 2] as usize, array[i * 2 + 1] as usize));
+        }
+        let mut gems_collected = Vec::with_capacity(n_gems);
+        for i in 0..n_gems {
+            let is_collected = array[n_agents * 2 + i] == 1.0;
+            gems_collected.push(is_collected);
+        }
+        let mut agents_alive = Vec::with_capacity(n_agents);
+        for i in 0..n_agents {
+            let is_alive = array[n_agents * 2 + n_gems + i] == 1.0;
+            agents_alive.push(is_alive);
+        }
+
+        Ok(Self {
+            agents_positions,
+            gems_collected,
+            agents_alive,
+        })
     }
 
     fn __deepcopy__(&self, _memo: &Bound<'_, PyDict>) -> Self {

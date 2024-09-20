@@ -548,3 +548,19 @@ def test_set_state_agent_dead():
     s = WorldState([(0, 0)], [False], [False])
     world.set_state(s)
     assert not world.agents[0].is_alive
+
+
+def test_state_from_to_array():
+    s = WorldState([(0, 0)], [False])
+    s_array = s.as_array()
+    expected = [0.0, 0.0, 0.0, 1.0]
+    assert len(s_array) == len(expected)
+    assert all(a == b for a, b in zip(s_array, expected))
+    assert WorldState.from_array(expected, 1, 1) == s
+
+    s = WorldState([(25, 17), (10, 30)], [True, False], agents_alive=[True, False])
+    s_array = s.as_array()
+    expected = [25.0, 17.0, 10.0, 30.0, 1.0, 0.0, 1.0, 0.0]
+    assert len(s_array) == len(expected)
+    assert all(a == b for a, b in zip(s_array, expected))
+    assert WorldState.from_array(expected, 2, 2) == s
