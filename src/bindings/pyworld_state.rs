@@ -1,11 +1,6 @@
 use crate::{core::WorldState, Position};
 use numpy::PyArray1;
-use pyo3::{
-    exceptions,
-    prelude::*,
-    pyclass::CompareOp,
-    types::{PyDict, PyTuple},
-};
+use pyo3::{exceptions, prelude::*, pyclass::CompareOp, types::PyDict};
 use std::hash::{Hash, Hasher};
 
 #[pyclass(name = "WorldState", module = "lle", subclass)]
@@ -41,13 +36,13 @@ impl PyWorldState {
 
     /// This method is useless.
     ///  It is only there to prevent raising an error when subclassing WorldState and calling the super().__init__ method.
+    #[allow(unused_variables)]
     fn __init__(
         &mut self,
         agents_positions: Vec<Position>,
         gems_collected: Vec<bool>,
         agents_alive: Option<Vec<bool>>,
     ) {
-        return;
     }
 
     fn as_array(&self, py: Python) -> PyObject {
