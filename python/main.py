@@ -1,24 +1,21 @@
-import cv2
-from lle import World, Action
+from lle import WorldState
 
 
-def show(world: World):
-    img = world.get_image()
-    cv2.imshow("Visualisation", img)
-    cv2.waitKey(1)
+class ABC(WorldState):
+    def __init__(self, agents_positions: list[tuple[int, int]], gems_collected: list[bool], agents_alive: list[bool] | None = None):
+        super().__init__(agents_positions, gems_collected=gems_collected, agents_alive=agents_alive)
+        self.coins = [1]
+        # self.agents_alive = agents_alive
+        # self.agents_positions = agents_positions
+        # self.gems_collected = gems_collected
+
+    def __hash__(self):
+        h = super().__hash__()
+        return hash((h, tuple(self.coins)))
 
 
-world = World.level(1)
-world.reset()
-print(world)
-show(world)
-path = [Action.SOUTH] * 5 + [Action.EAST] * 3 + [Action.SOUTH] * 5 + [Action.WEST] * 3
-for action in path:
-    events = world.step(action)
-    print(events)
-    show(world)
-    input("Appuyez sur 'enter' pour continuer...")
-
-for agent in world.agents:
-    print(agent.has_arrived)
-    print(agent.is_alive)
+x = ABC([(0, 25), (1, 1)], [False, False, True])
+y = ABC([(0, 25), (1, 1)], [False, False, True])
+print(x, y)
+print(hash(x), hash(y))
+exit(0)

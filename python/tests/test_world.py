@@ -1,4 +1,6 @@
 from threading import Thread
+from typing import List
+from lle.types import Position
 import pytest
 from copy import deepcopy
 
@@ -520,9 +522,12 @@ def test_change_laser_colour_back():
 
 def test_subclass_world_state():
     class WS(WorldState):
-        pass
+        def __init__(self, agents_positions: List[tuple[int, int]], gems_collected: List[bool], agents_alive: List[bool] | None = None):
+            super().__init__(agents_positions, gems_collected=gems_collected, agents_alive=agents_alive)
 
-    _state = WS([(0, 0)], [False])
+    s1 = WS([(0, 0)], [False])
+    s2 = WS([(0, 0)], [False])
+    assert s1 == s2
 
 
 def test_subclass_world():
