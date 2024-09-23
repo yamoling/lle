@@ -5,7 +5,7 @@ import numpy.typing as npt
 from .event import WorldEvent
 from .action import Action
 from .agent import Agent
-from .tile import Gem, LaserSource, Laser
+from .tiles import Gem, LaserSource, Laser
 from .types import Position
 
 class WorldState:

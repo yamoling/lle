@@ -1,10 +1,7 @@
-# Ignore problems due to pyserde decorators
-.*.__serde__
-lle.env.serde
-
-# Ignore the .pyi file import that fail
-lle.tile
+# Ignore the .pyi file imports that fail
 lle.world
+lle.world_builder
+lle.tiles
 lle.direction
 lle.agent
 lle.action
@@ -12,5 +9,5 @@ lle.event
 lle.exceptions
 
 # The Tile class is just there to be subclassed in Python but does not actually exist
-# lle.lle.Tile
+# lle.tiles.tile
 

@@ -21,6 +21,30 @@ class Gem(Tile):
         """Whether the gem has been collected or not."""
 
 @final
+class LaserSource(Tile):
+    agent_id: AgentId
+    """The id (colour) of the agent that can block the laser."""
+
+    @property
+    def direction(self) -> Direction:
+        """
+        The direction of the laser beam.
+        The direction can currently not be changed after creation of the `World`.
+        """
+
+    @property
+    def laser_id(self) -> LaserId:
+        """The ID of the laser."""
+
+    def enable(self):
+        """Enable the laser."""
+    def disable(self):
+        """Disable the laser."""
+
+    def set_colour(self, agent_id: AgentId):
+        """Change the colour of the laser to the one of the given agent ID."""
+
+@final
 class Laser(Tile):
     @property
     def agent(self) -> Optional[AgentId]:
@@ -51,27 +75,3 @@ class Laser(Tile):
     @property
     def is_disabled(self) -> bool:
         """Whether the laser is disabled."""
-
-@final
-class LaserSource(Tile):
-    agent_id: AgentId
-    """The id (colour) of the agent that can block the laser."""
-
-    @property
-    def direction(self) -> Direction:
-        """
-        The direction of the laser beam.
-        The direction can currently not be changed after creation of the `World`.
-        """
-
-    @property
-    def laser_id(self) -> LaserId:
-        """The ID of the laser."""
-
-    def enable(self):
-        """Enable the laser."""
-    def disable(self):
-        """Disable the laser."""
-
-    def set_colour(self, agent_id: AgentId):
-        """Change the colour of the laser to the one of the given agent ID."""
