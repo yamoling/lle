@@ -325,7 +325,7 @@ class WorldState:
     
     **Inheritance:**
     To inherit from `WorldState`, it is required to override the __new__ method such that it
-    accepts the same arguments as the __init__ method.
+    accepts **the same arguments** as the __init__ method in the same order (except `cls` instead of `self`).
     You should ignore the additional arguments in the __new__ method as shown below.
     ```python
     class SubWorldState(WorldState):
