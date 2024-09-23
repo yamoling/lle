@@ -4,15 +4,19 @@ use std::{
 };
 
 use pyo3::prelude::*;
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use crate::{agent::AgentId, tiles::Gem, Position, Tile, World};
 
 use super::inner;
 
-#[pyclass(name = "Gem")]
+#[gen_stub_pyclass]
+#[pyclass(name = "Gem", module = "lle.tiles")]
 pub struct PyGem {
+    /// Whether the gem has been collected.
     #[pyo3(get)]
     is_collected: bool,
+    /// The (i, j) position of the gem.
     #[pyo3(get)]
     pos: Position,
     world: Arc<Mutex<World>>,
@@ -33,6 +37,7 @@ impl PyGem {
     }
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl PyGem {
     pub fn __str__(&self) -> String {

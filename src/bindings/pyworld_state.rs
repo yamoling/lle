@@ -1,22 +1,56 @@
 use crate::{core::WorldState, Position};
 use numpy::PyArray1;
 use pyo3::{exceptions, prelude::*, pyclass::CompareOp, types::PyDict};
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use std::hash::{Hash, Hasher};
 
+///
+/// A state in the `World` is defined by:
+///  - The position of each agent.
+///  - Whether each gem has been collected.
+///  - Whether each agent is alive.
+///
+/// **Using `WorldState`s:**
+/// ```python
+/// from lle import WorldState, World
+/// w = World("S0 . X")
+/// w.reset()
+/// s1 = w.get_state()
+/// s2 = WorldState([(0, 1), [], [True]])
+/// world.set_state(s2)
+/// ```
+///
+///
+/// **Inheritance:**
+/// To inherit from `WorldState`, it is required to override the __new__ method such that it
+/// accepts **the same arguments** as the __init__ method in the same order (except `cls` instead of `self`).
+/// You should ignore the additional arguments in the __new__ method as shown below.
+/// ```python
+/// class SubWorldState(WorldState):
+///    def __init__(self, x: int, agents_positions: list[tuple[int, int]], gems_collected: list[bool], agents_alive: List[bool] | None = None):
+///        super().__init__(agents_positions, gems_collected, agents_alive)
+///        self.x = x
+///
+///    def __new__(cls, _x: int, agents_positions: list[tuple[int, int]], gems_collected: list[bool], agents_alive: list[bool] | None = None):
+///        instance = super().__new__(cls, agents_positions, gems_collected, agents_alive)
+///        return instance
+/// ```
+#[gen_stub_pyclass]
 #[pyclass(name = "WorldState", module = "lle", subclass)]
 #[derive(Clone, Hash)]
 pub struct PyWorldState {
-    #[pyo3(get, set)]
     /// The position of each agent.
+    #[pyo3(get, set)]
     agents_positions: Vec<Position>,
-    #[pyo3(get, set)]
     /// The collection status of each gem.
-    gems_collected: Vec<bool>,
     #[pyo3(get, set)]
+    gems_collected: Vec<bool>,
     /// The status of each agent.
+    #[pyo3(get, set)]
     agents_alive: Vec<bool>,
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl PyWorldState {
     #[new]
@@ -32,17 +66,6 @@ impl PyWorldState {
             gems_collected,
             agents_alive,
         }
-    }
-
-    /// This method is useless.
-    ///  It is only there to prevent raising an error when subclassing WorldState and calling the super().__init__ method.
-    #[allow(unused_variables)]
-    fn __init__(
-        &mut self,
-        agents_positions: Vec<Position>,
-        gems_collected: Vec<bool>,
-        agents_alive: Option<Vec<bool>>,
-    ) {
     }
 
     fn as_array(&self, py: Python) -> PyObject {

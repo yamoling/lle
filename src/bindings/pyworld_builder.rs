@@ -1,11 +1,13 @@
 use std::collections::{HashMap, HashSet};
 
 use pyo3::{exceptions::PyValueError, prelude::*};
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use crate::{tiles::LaserId, AgentId, Position, World};
 
 use super::{pydirection::PyDirection, pyexceptions::parse_error_to_exception, pyworld::PyWorld};
 
+#[gen_stub_pyclass]
 #[pyclass(name = "WorldBuilder", module = "lle")]
 pub struct PyWorldBuilder {
     state: Vec<Vec<String>>,
@@ -37,6 +39,7 @@ impl PyWorldBuilder {
     }
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl PyWorldBuilder {
     #[new]

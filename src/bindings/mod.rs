@@ -1,4 +1,5 @@
 use pyo3::prelude::*;
+use pyo3_stub_gen::define_stub_info_gatherer;
 
 mod pyaction;
 mod pyagent;
@@ -33,22 +34,30 @@ pub fn lle(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<pyworld::PyWorld>()?;
     m.add_class::<pyworld_state::PyWorldState>()?;
 
-    m.add(
+    let exceptions = PyModule::new_bound(py, "lle.exceptions")?;
+    // exceptions.add_class::<pyexceptions::InvalidWorldStateError>()?;
+    exceptions.add(
         "InvalidWorldStateError",
         py.get_type_bound::<pyexceptions::InvalidWorldStateError>(),
     )?;
-    m.add(
+    exceptions.add(
         "InvalidActionError",
         py.get_type_bound::<pyexceptions::InvalidActionError>(),
     )?;
-    m.add(
+    exceptions.add(
         "ParsingError",
         py.get_type_bound::<pyexceptions::ParsingError>(),
     )?;
-    m.add(
+    exceptions.add(
         "InvalidLevelError",
         py.get_type_bound::<pyexceptions::InvalidLevelError>(),
     )?;
+    m.add("exceptions", &exceptions)?;
+    py.import_bound("sys")?
+        .getattr("modules")?
+        .set_item("lle.exceptions", &exceptions)?;
     m.add("__version__", crate::VERSION)?;
     Ok(())
 }
+
+define_stub_info_gatherer!(stub_info);

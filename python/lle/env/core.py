@@ -60,9 +60,9 @@ class Core:
             case other:
                 raise ValueError(f"Unknown death strategy: {other}")
         self.walkable_lasers = walkable_lasers
-        self.n_actions = Action.N
+        self.n_actions = Action.N  # type: ignore
         self.n_agents = world.n_agents
-        self.action_space = DiscreteActionSpace(self.world.n_agents, Action.N, [a.name for a in Action.ALL])
+        self.action_space = DiscreteActionSpace(self.world.n_agents, Action.N, [a.name for a in Action.ALL])  # type: ignore
         self.state_shape = self.get_state().shape
         self.observation_shape = self.observation_generator.shape
         self.done = False

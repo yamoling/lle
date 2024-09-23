@@ -7,28 +7,28 @@ use pyo3::{
 use crate::{ParseError, RuntimeWorldError};
 
 create_exception!(
-    lle,
+    exceptions,
     InvalidWorldStateError,
     PyValueError,
     "Raised when the state of the world is invalid."
 );
 
 create_exception!(
-    lle,
+    exceptions,
     InvalidActionError,
     PyValueError,
     "Raised when the action taken by an agent is invalid or when the number of actions provided is different from the number of agents."
 );
 
 create_exception!(
-    lle,
+    exceptions,
     ParsingError,
     PyValueError,
     "Raised when there is a problem while parsing a world string."
 );
 
 create_exception!(
-    lle,
+    exceptions,
     InvalidLevelError,
     PyValueError,
     "Raised when the level asked does not exist."

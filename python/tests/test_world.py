@@ -522,11 +522,21 @@ def test_change_laser_colour_back():
 
 def test_subclass_world_state():
     class WS(WorldState):
-        def __init__(self, agents_positions: List[tuple[int, int]], gems_collected: List[bool], agents_alive: List[bool] | None = None):
+        def __init__(
+            self,
+            other: int,
+            agents_positions: List[tuple[int, int]],
+            gems_collected: List[bool],
+            agents_alive: List[bool] | None = None,
+        ):
             super().__init__(agents_positions, gems_collected=gems_collected, agents_alive=agents_alive)
+            self.other = other
 
-    s1 = WS([(0, 0)], [False])
-    s2 = WS([(0, 0)], [False])
+        def __new__(cls, _: int, agents_positions: List[Position], gems_collected: List[bool], agents_alive: List[bool]):
+            return super().__new__(cls, agents_positions, gems_collected, agents_alive)
+
+    s1 = WS(4, [(0, 0)], [False], [True])
+    s2 = WS(5, [(0, 0)], [False], [True])
     assert s1 == s2
 
 

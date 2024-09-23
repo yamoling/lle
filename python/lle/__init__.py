@@ -1,5 +1,5 @@
 __all__ = [
-    "__version__",
+    # "__version__",
     "Action",
     "WorldState",
     "Agent",
@@ -13,30 +13,27 @@ __all__ = [
     "LaserId",
     "WorldEvent",
     "EventType",
-    "InvalidActionError",
-    "InvalidLevelError",
-    "InvalidWorldStateError",
-    "ParsingError",
+    # "InvalidActionError",
+    # "InvalidLevelError",
+    # "InvalidWorldStateError",
+    # "ParsingError",
     "WorldBuilder",
 ]
 
-from .types import Position, AgentId, LaserId
-
+from .types import AgentId, LaserId, Position
 from .lle import (
-    __version__,
+    # __version__,
     Action,
     World,
     WorldEvent,
     EventType,
     WorldState,
     Agent,
-    tiles,
     Direction,
-    InvalidActionError,
-    InvalidLevelError,
-    InvalidWorldStateError,
-    ParsingError,
     WorldBuilder,
+    tiles,
+    exceptions,
 )
+
 from .observations import ObservationType
 from .env import LLE

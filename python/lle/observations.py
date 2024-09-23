@@ -1,5 +1,4 @@
 import cv2
-from typing import Any
 from abc import ABC, abstractmethod
 from enum import IntEnum
 import numpy as np
