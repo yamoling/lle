@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Literal, Sequence, TypeVar
+from typing import Literal, TypeVar
 
 import cv2
 import numpy as np
@@ -60,9 +60,9 @@ class Core:
             case other:
                 raise ValueError(f"Unknown death strategy: {other}")
         self.walkable_lasers = walkable_lasers
-        self.n_actions = Action.N
+        self.n_actions = Action.N  # type: ignore
         self.n_agents = world.n_agents
-        self.action_space = DiscreteActionSpace(self.world.n_agents, Action.N, [a.name for a in Action.ALL])
+        self.action_space = DiscreteActionSpace(self.world.n_agents, Action.N, [a.name for a in Action.ALL])  # type: ignore
         self.state_shape = self.get_state().shape
         self.observation_shape = self.observation_generator.shape
         self.done = False
@@ -102,7 +102,7 @@ class Core:
                 available_actions[agent, action.value] = True
         return available_actions
 
-    def step(self, actions: np.ndarray | Sequence[int]):
+    def step(self, actions: np.ndarray | list[int]):
         assert not self.done, "Can not play when the game is done !"
         agents_actions = [Action(a) for a in actions]
         prev_positions = self.world.agents_positions
@@ -177,7 +177,7 @@ class Core:
 
     def set_state(self, state: WorldState):
         # self.reward_strategy.reset()
-        events = self.world.set_state(state)
+        _events = self.world.set_state(state)
         # Don't do anything with the events, just update the reward strategy
         # self.reward_strategy.compute_reward(events)
         agents = self.world.agents

@@ -1,5 +1,5 @@
 /// The core logic of LLE, which should not be parametrisable.
-use itertools::izip;
+use itertools::{izip, Itertools};
 use std::{
     fs::File,
     io::{BufReader, Read},
@@ -17,6 +17,8 @@ use super::{
     parsing::{parse, ParseError},
     WorldEvent,
 };
+
+type JointAction = Vec<Action>;
 
 pub struct World {
     width: usize,
@@ -158,8 +160,21 @@ impl World {
         self.gems_positions.len()
     }
 
+    /// The available actions for each agent.
+    /// The actions available to agent `n` are located in `world.available_actions()[n]`.
     pub fn available_actions(&self) -> &Vec<Vec<Action>> {
         &self.available_actions
+    }
+
+    /// Compute the available joint actions for all agents.
+    /// The joint actions are all the possible combinations of the available actions for each agent.
+    /// The result is a matrix of shape (x, n_agents) where x is the number of joint actions.
+    pub fn available_joint_actions(&self) -> Vec<JointAction> {
+        self.available_actions
+            .clone()
+            .into_iter()
+            .multi_cartesian_product()
+            .collect()
     }
 
     pub fn n_gems_collected(&self) -> usize {
@@ -367,6 +382,7 @@ impl World {
         WorldState {
             agents_positions: self.agents_positions.clone(),
             gems_collected: self.gems().iter().map(|gem| gem.is_collected()).collect(),
+            agents_alive: self.agents.iter().map(|agent| agent.is_alive()).collect(),
         }
     }
 
@@ -404,8 +420,11 @@ impl World {
                 tile.reset();
             }
         }
-        for agent in &mut self.agents {
+        for (agent, alive) in &mut self.agents.iter_mut().zip(state.agents_alive.iter()) {
             agent.reset();
+            if !alive {
+                agent.die();
+            }
         }
         // Collect the necessary gems BEFORE entering the tiles with the agents
         for ((i, j), &collect) in izip!(&self.gems_positions, &state.gems_collected) {

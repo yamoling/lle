@@ -199,10 +199,7 @@ fn test_force_state_invalid_number_of_agents() {
     )
     .unwrap();
     w.reset();
-    let s = WorldState {
-        agents_positions: [(1, 2), (0, 0)].into(),
-        gems_collected: [true].into(),
-    };
+    let s = WorldState::new_alive([(1, 2), (0, 0)].into(), [true].into());
     match w.set_state(&s) {
         Err(e) => match e {
             RuntimeWorldError::InvalidNumberOfAgents {
@@ -228,10 +225,7 @@ fn test_force_state_invalid_number_of_gems() {
     )
     .unwrap();
     w.reset();
-    let s = WorldState {
-        agents_positions: [(1, 2)].into(),
-        gems_collected: [true, false].into(),
-    };
+    let s = WorldState::new_alive([(1, 2)].into(), [true, false].into());
     match w.set_state(&s) {
         Err(e) => match e {
             RuntimeWorldError::InvalidNumberOfGems {
@@ -265,10 +259,7 @@ fn test_complex_laser_blocking() -> Result<(), RuntimeWorldError> {
     let laser = get_laser(&w, (0, 3));
     assert!(laser.is_on());
 
-    let state = WorldState {
-        agents_positions: [(0, 2), (0, 3)].into(),
-        gems_collected: [false; 5].into(),
-    };
+    let state = WorldState::new_alive([(0, 2), (0, 3)].into(), [false; 5].into());
     w.set_state(&state).unwrap();
     let laser = get_laser(&w, (0, 3));
     assert!(laser.is_off());
@@ -310,10 +301,7 @@ fn test_set_state_available_actions() {
     )
     .unwrap();
     w.reset();
-    let s = WorldState {
-        agents_positions: [(0, 0)].into(),
-        gems_collected: [].into(),
-    };
+    let s = WorldState::new_alive([(0, 0)].into(), [].into());
     w.set_state(&s).unwrap();
     let actions = w.available_actions();
     assert_eq!(actions.len(), 1);
@@ -464,10 +452,7 @@ fn test_force_state() {
     )
     .unwrap();
     w.reset();
-    let s = WorldState {
-        agents_positions: [(1, 2)].into(),
-        gems_collected: [true].into(),
-    };
+    let s = WorldState::new_alive([(1, 2)].into(), [true].into());
     w.set_state(&s).unwrap();
     assert_eq!(w.agents_positions()[0], (1, 2));
     let gem = w.gems()[0];
@@ -484,10 +469,7 @@ fn test_force_end_state() {
     )
     .unwrap();
     w.reset();
-    let s = WorldState {
-        agents_positions: [(1, 0)].into(),
-        gems_collected: [true].into(),
-    };
+    let s = WorldState::new_alive([(1, 0)].into(), [true].into());
     w.set_state(&s).unwrap();
     assert_eq!(w.agents_positions()[0], (1, 0));
     let gem = w.gems()[0];
@@ -505,10 +487,7 @@ fn test_force_state_agent_dies() {
     .unwrap();
     w.reset();
 
-    let s = WorldState {
-        agents_positions: [(1, 0), (1, 1)].into(),
-        gems_collected: [false; 1].into(),
-    };
+    let s = WorldState::new_alive([(1, 0), (1, 1)].into(), [false; 1].into());
     w.set_state(&s).unwrap();
     assert!(w.agents()[1].is_dead());
 }

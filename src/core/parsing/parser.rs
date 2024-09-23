@@ -1,7 +1,5 @@
 use std::collections::HashSet;
 
-use maplit::hashset;
-
 use crate::{
     tiles::{Gem, Laser, LaserBuilder, LaserSource, Start, Tile, Void},
     AgentId, Position, World,
@@ -134,7 +132,7 @@ fn laser_setup(
     laser_builders: &mut [(Position, LaserBuilder)],
     n_agents: usize,
 ) -> Result<HashSet<Position>, ParseError> {
-    let mut laser_positions = hashset! {};
+    let mut laser_positions = HashSet::new();
     let width = grid[0].len() as i32;
     let height: i32 = grid.len() as i32;
     for (pos, source) in laser_builders {

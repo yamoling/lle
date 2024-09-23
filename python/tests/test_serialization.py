@@ -1,4 +1,4 @@
-from lle import World, WorldState, LaserSource
+from lle import World, WorldState
 import pickle
 import random
 
@@ -26,17 +26,6 @@ def test_pickle_world():
             deserialised = pickle.loads(serialised)
             assert world.get_state() == deserialised.get_state()
             i += 1
-
-
-# def test_pickle_laser_source():
-#     world = World("L0E L1S S0 S1 X X")
-#     sources = world.laser_sources
-#     for s in sources.values():
-#         pickled = pickle.dumps(s)
-#         deserialised: LaserSource = pickle.loads(pickled)
-#         assert deserialised.agent_id == s.agent_id
-#         assert deserialised.direction == s.direction
-#         assert deserialised.laser_id == s.laser_id
 
 
 def test_pickled_world_keeps_same_laser_ids():

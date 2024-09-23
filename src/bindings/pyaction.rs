@@ -1,17 +1,22 @@
 use pyo3::{prelude::*, pyclass::CompareOp};
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use crate::Action;
 
-#[pyclass(name = "Action")]
+/// An action that can be taken in the world by the agents.
+#[gen_stub_pyclass]
+#[pyclass(name = "Action", module = "lle")]
 #[derive(Clone)]
 pub struct PyAction {
     pub action: Action,
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl PyAction {
+    /// The number of actions
     #[classattr]
-    const N: usize = 5;
+    const N: usize = PyAction::ALL.len();
 
     #[classattr]
     const NORTH: Self = Self {
@@ -38,11 +43,13 @@ impl PyAction {
         action: Action::Stay,
     };
 
+    /// The (i, j) position delta in coordinates for this action.
     #[getter]
     fn delta(&self) -> (i32, i32) {
         self.action.delta()
     }
 
+    /// Ordered list of all actions
     #[classattr]
     const ALL: [Self; 5] = [
         Self {
@@ -104,6 +111,7 @@ impl PyAction {
         self.action.to_string()
     }
 
+    /// The integer value of this action.
     #[getter]
     fn value(&self) -> u32 {
         match self.action {
@@ -115,11 +123,14 @@ impl PyAction {
         }
     }
 
+    /// The string name of this action.
     #[getter]
     fn name(&self) -> String {
         self.action.to_string()
     }
 
+    /// The opposite action of this action.
+    /// Note: STAY is its own opposite.
     fn opposite(&self) -> Self {
         Self {
             action: self.action.opposite().into(),

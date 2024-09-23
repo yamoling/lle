@@ -1,6 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use pyo3::prelude::*;
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use crate::{
     agent::AgentId,
@@ -11,16 +12,23 @@ use crate::{
 
 use super::inner;
 
-#[pyclass(name = "Laser")]
+/// A laser tile of the world.
+#[gen_stub_pyclass]
+#[pyclass(name = "Laser", module = "lle.tiles")]
 pub struct PyLaser {
+    /// The ID of the laser (unique per laser source)
     #[pyo3(get)]
     laser_id: LaserId,
+    /// The id of the agent that can block the laser.
     #[pyo3(get)]
     agent_id: AgentId,
+    /// The direction of the laser beam.
     #[pyo3(get)]
     direction: PyDirection,
+    /// Whether the laser is turned on.
     #[pyo3(get)]
     is_on: bool,
+    /// Whether the laser is enabled.
     #[pyo3(get)]
     is_enabled: bool,
     pos: Position,
@@ -44,18 +52,22 @@ impl PyLaser {
     }
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl PyLaser {
+    /// Whether the laser is turned off.
     #[getter]
     pub fn is_off(&self) -> bool {
         !self.is_on
     }
 
+    /// Whether the laser is disabled.
     #[getter]
     pub fn is_disabled(&self) -> bool {
         !self.is_enabled
     }
 
+    /// The id of the agent currently standing on the tile, if any.
     #[getter]
     pub fn agent(&self) -> Option<AgentId> {
         let world = &mut self.world.lock().unwrap();

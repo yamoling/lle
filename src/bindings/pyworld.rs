@@ -5,7 +5,12 @@ use std::{
 
 use itertools::izip;
 use numpy::{PyArray1, PyArrayMethods};
-use pyo3::{prelude::*, types::PyDict};
+use pyo3::{
+    exceptions::PyTypeError,
+    prelude::*,
+    types::{PyDict, PyTuple},
+};
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use crate::{Position, Renderer, World, WorldState};
 
@@ -24,22 +29,31 @@ use super::{
 // - Everything that is immutable is directly accessible from the `World` struct.
 // - Everything that is mutable is accessed through the `Arc<Mutex<World>>`.
 
-#[pyclass(name = "World", module = "lle")]
+#[gen_stub_pyclass]
+#[pyclass(name = "World", module = "lle", subclass)]
 pub struct PyWorld {
+    /// The positions of the exits tiles.
     #[pyo3(get)]
     exit_pos: Vec<Position>,
+    /// The positions of the start tiles.
     #[pyo3(get)]
     start_pos: Vec<Position>,
+    /// The positions of the walls.
     #[pyo3(get)]
     wall_pos: Vec<Position>,
+    /// The positions of the void tiles.
     #[pyo3(get)]
     void_pos: Vec<Position>,
+    /// The height of the world (in number of tiles).
     #[pyo3(get)]
     height: usize,
+    /// The width of the world (in number of tiles).
     #[pyo3(get)]
     width: usize,
+    /// The number of gems in the world.
     #[pyo3(get)]
     n_gems: usize,
+    /// The number of agents in the world.
     #[pyo3(get)]
     n_agents: usize,
     world: Arc<Mutex<World>>,
@@ -69,8 +83,14 @@ impl From<World> for PyWorld {
     }
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl PyWorld {
+    /// Constructs a World from a string.
+    ///
+    /// Raises:
+    ///     RuntimeError: if the file is not a valid level.
+    ///     ValueError if the file is not a valid level (inconsistent dimensions or invalid grid).
     #[new]
     pub fn new(map_str: String) -> PyResult<Self> {
         match World::try_from(map_str) {
@@ -79,6 +99,9 @@ impl PyWorld {
         }
     }
 
+    /// Parse the content of `filename` to create a World.
+    /// Raises:
+    ///     FileNotFoundError: if the file does not exist.
     #[staticmethod]
     fn from_file(filename: String) -> PyResult<Self> {
         let world = match World::from_file(&filename) {
@@ -88,6 +111,9 @@ impl PyWorld {
         Ok(PyWorld::from(world))
     }
 
+    /// Retrieve the standard level (between `1` and `6`).
+    /// Raises:
+    ///     ValueError: if the level is invalid.
     #[staticmethod]
     fn level(level: usize) -> PyResult<Self> {
         match World::get_level(level) {
@@ -96,31 +122,34 @@ impl PyWorld {
         }
     }
 
+    /// The string upon which the world has been constructed.
     #[getter]
     fn world_string(&self) -> String {
         self.world.lock().unwrap().initial_world_string().into()
     }
 
+    /// The dimensions (in pixels) of the image redered (width, height)
+    /// Returns:
+    ///    The dimensions of the image rendered.
     #[getter]
-    /// Return the rendering dimensions (width, height)
     pub fn image_dimensions(&self) -> (u32, u32) {
         (self.renderer.pixel_width(), self.renderer.pixel_height())
     }
 
+    /// The number of gems collected by the agents so far since the last reset.
     #[getter]
-    /// The number of gems collected so far (since the last reset).
     fn gems_collected(&self) -> usize {
         self.world.lock().unwrap().n_gems_collected()
     }
 
+    /// The (i, j) position of each agent.
     #[getter]
-    /// The positions of the agents.
     fn agents_positions(&self) -> Vec<Position> {
         self.world.lock().unwrap().agents_positions().clone()
     }
 
-    #[getter]
     /// The gems with their respective position.
+    #[getter]
     fn gems(&self) -> HashMap<Position, PyGem> {
         let arc_world = self.world.clone();
         let world = self.world.lock().unwrap();
@@ -130,8 +159,9 @@ impl PyWorld {
             .collect()
     }
 
+    /// The (i, j) position of every laser.
+    /// Since two lasers can cross, there can be duplicates in the positions.
     #[getter]
-    /// The lasers with their respective position.
     fn lasers(&self) -> Vec<(Position, PyLaser)> {
         let arc_world = self.world.clone();
         let world = self.world.lock().unwrap();
@@ -142,8 +172,8 @@ impl PyWorld {
             .collect()
     }
 
+    /// A mapping from (i, j) positions to laser sources.
     #[getter]
-    /// The laser sources with their respective position.
     fn laser_sources(&self) -> HashMap<Position, PyLaserSource> {
         let arc_world = self.world.clone();
         let world = self.world.lock().unwrap();
@@ -159,8 +189,29 @@ impl PyWorld {
             .collect()
     }
 
-    /// Perform a step in the world and returns the events that happened during that transition.
-    pub fn step(&mut self, actions: Vec<PyAction>) -> PyResult<Vec<PyWorldEvent>> {
+    /// Perform an action for each agent in the world and return the list of events that occurred by peforming this step.
+    ///
+    /// Args:
+    ///    action: The action to perform for each agent.
+    ///
+    /// Returns:
+    ///   The list of events that occurred while agents took their action.
+    ///
+    /// Raises:
+    ///     `InvalidActionError` if an agent takes an action that is not available.
+    ///     `ValueError` if the number of actions is different from the number of agents
+    pub fn step(&mut self, py: Python, action: PyObject) -> PyResult<Vec<PyWorldEvent>> {
+        // Check if action is a list or a single action
+        let actions: Vec<PyAction> = if let Ok(actions) = action.extract::<Vec<PyAction>>(py) {
+            actions
+        } else if let Ok(action) = action.extract::<PyAction>(py) {
+            vec![action]
+        } else {
+            return Err(PyTypeError::new_err(
+                "Action must be of type Action or list[Action]",
+            ));
+        };
+
         let actions: Vec<_> = actions.into_iter().map(|a| a.action).collect();
         match self.world.lock().unwrap().step(&actions) {
             Ok(events) => {
@@ -171,14 +222,16 @@ impl PyWorld {
             Err(e) => Err(runtime_error_to_pyexception(e)),
         }
     }
-
     /// Reset the world to its original state.
+    /// This should be done directly after creating the world.
     pub fn reset(&mut self) {
         self.world.lock().unwrap().reset();
     }
 
-    /// Return the available actions for each agent.
-    /// `world.available_actions()[i]` is the list of available actions for agent i.
+    /// Compute the list of available actions at the current time step for each agent.
+    /// The actions available for agent `n` are given by `world.available_actions()[n]`.
+    /// Returns:
+    ///    The list of available actions for each agent.
     pub fn available_actions(&self) -> Vec<Vec<PyAction>> {
         self.world
             .lock()
@@ -189,8 +242,29 @@ impl PyWorld {
             .collect()
     }
 
+    /// Compute the list of available joint actions at the current time step.
+    /// The result has shape (x, n_agents) where x is the number of joint actions available.
+    /// Returns:
+    ///   The list of available joint actions.
+    ///
+    /// Example:
+    /// ```python
+    /// world = World(". .  .  . .\n. S0 . S1 .\n. X  .  X .\n")
+    /// world.reset()
+    /// assert len(world.available_joint_actions()) == len(Action.ALL) ** 2
+    /// ```
+    pub fn available_joint_actions(&self) -> Vec<Vec<PyAction>> {
+        self.world
+            .lock()
+            .unwrap()
+            .available_joint_actions()
+            .iter()
+            .map(|a| a.iter().map(|a| PyAction { action: a.clone() }).collect())
+            .collect()
+    }
+
+    /// The list of agents in the world.
     #[getter]
-    /// Return the list of agents.
     pub fn agents(&self) -> Vec<PyAgent> {
         self.world
             .lock()
@@ -202,18 +276,26 @@ impl PyWorld {
     }
 
     /// Renders the world as an image and returns it in a numpy array.
-    fn get_image(&self, py: Python) -> PyResult<PyObject> {
+    /// Returns:
+    ///     The image of the world as a numpy array of shape (height * 32, width * 32, 3) with type uint8.
+    fn get_image<'a>(
+        &'a self,
+        py: Python<'a>,
+    ) -> Bound<'a, numpy::PyArray<u8, numpy::ndarray::Dim<[usize; 3]>>> {
         let dims = self.image_dimensions();
         let dims = (dims.1 as usize, dims.0 as usize, 3);
         let img = self.renderer.update(&self.world.lock().unwrap());
         let buffer = img.into_raw();
-        let res = PyArray1::from_vec_bound(py, buffer)
-            .reshape(dims)
-            .unwrap_or_else(|_| panic!("Could not reshape the image to {dims:?}"));
-        Ok(res.into_py(py))
+        PyArray1::from_vec_bound(py, buffer).reshape(dims).unwrap()
     }
 
-    /// Force the world to a specific state
+    /// Force the world to a given state
+    /// Args:
+    ///     state: The state to set the world to.
+    /// Returns:
+    ///     The list of events that occurred while agents entered their state.
+    /// Raises:
+    ///     InvalidWorldStateError: if the state is invalid.
     fn set_state(&mut self, state: PyWorldState) -> PyResult<Vec<PyWorldEvent>> {
         match self.world.lock().unwrap().set_state(&state.into()) {
             Ok(events) => Ok(events.iter().map(|e| PyWorldEvent::from(e)).collect()),
@@ -221,12 +303,23 @@ impl PyWorld {
         }
     }
 
-    /// Return the current state of the world (that can be set with `world.set_state`)
+    /// Return the current state of the world.
     fn get_state(&self) -> PyWorldState {
         let state = self.world.lock().unwrap().get_state();
-        PyWorldState::new(state.agents_positions, state.gems_collected)
+        state.into()
     }
 
+    /// Returns a deep copy of the object.
+    ///
+    /// Example:
+    /// ```python
+    /// from copy import deepcopy
+    /// world = World("S0 X")
+    /// world.reset()
+    /// world_copy = deepcopy(world)
+    /// world.step(Action.EAST)
+    /// assert world.get_state() != world_copy.get_state()
+    /// ```
     pub fn __deepcopy__(&self, _memo: &Bound<PyDict>) -> Self {
         self.clone()
     }
@@ -234,23 +327,28 @@ impl PyWorld {
     /// This method is called to instantiate the object before deserialisation.
     /// It required "default arguments" to be provided to the __new__ method
     /// before replacing them by the actual values in __setstate__.
-    pub fn __getnewargs__(&self) -> PyResult<(String,)> {
-        Ok((String::from("S0 X"),))
+    pub fn __getnewargs__(&self, py: Python) -> PyObject {
+        PyTuple::new_bound(py, vec![String::from("S0 X")].iter()).into()
     }
 
     /// Enable serialisation with pickle
-    pub fn __getstate__(&self) -> PyResult<(String, Vec<bool>, Vec<Position>)> {
+    pub fn __getstate__(&self) -> PyResult<(String, Vec<bool>, Vec<Position>, Vec<bool>)> {
         let world = self.world.lock().unwrap();
         let state = world.get_state();
         let data = (
             world.compute_world_string().to_owned(),
             state.gems_collected.clone(),
             state.agents_positions.clone(),
+            state.agents_alive.clone(),
         );
         Ok(data)
     }
 
-    pub fn __setstate__(&mut self, state: (String, Vec<bool>, Vec<Position>)) -> PyResult<()> {
+    /// Enable deserialisation with pickle
+    pub fn __setstate__(
+        &mut self,
+        state: (String, Vec<bool>, Vec<Position>, Vec<bool>),
+    ) -> PyResult<()> {
         let mut world = match World::try_from(state.0) {
             Ok(w) => w,
             Err(e) => panic!("Could not parse the world: {:?}", e),
@@ -260,10 +358,28 @@ impl PyWorld {
             .set_state(&WorldState {
                 gems_collected: state.1,
                 agents_positions: state.2,
+                agents_alive: state.3,
             })
             .unwrap();
         self.world = Arc::new(Mutex::new(world));
         Ok(())
+    }
+
+    pub fn __repr__(&self) -> String {
+        let mut res = format!(
+            "World(height={}, width={}, n_gems={}, n_agents={}, ",
+            self.height, self.width, self.n_gems, self.n_agents
+        );
+        let w = self.world.lock().unwrap();
+        res.push_str(
+            &w.agents_positions()
+                .iter()
+                .enumerate()
+                .fold(String::new(), |acc, (i, pos)| {
+                    format!("{}Agent {} position: {:?}, ", acc, i, pos)
+                }),
+        );
+        res
     }
 }
 

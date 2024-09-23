@@ -15,15 +15,15 @@ G  . . ."""
     world.reset()
     world.step([Action.SOUTH])
     obs0 = observer.observe()
-    assert all(obs0[:, -1] == 1.0)
+    assert all(obs0[:, 2] == 0.0)
 
     world.step([Action.SOUTH])
     obs1 = observer.observe()
-    assert all(obs1[:, -1] == 0.0)
+    assert all(obs1[:, 2] == 1.0)
 
     world.step([Action.NORTH])
     obs1 = observer.observe()
-    assert all(obs1[:, -1] == 0.0)
+    assert all(obs1[:, 2] == 1.0)
 
 
 def test_observe_rgb_not_empty():
@@ -151,7 +151,7 @@ def test_world_initial_observation():
     observer = ObservationType.STATE.get_observation_generator(world)
     world.reset()
     obs0 = observer.observe()
-    expected = np.array([[0.0, 0.0]])
+    expected = np.array([[0.0, 0.0, 1.0]])
     assert np.array_equal(expected, obs0)
 
     world = World(
@@ -163,7 +163,7 @@ def test_world_initial_observation():
     observer = ObservationType.STATE.get_observation_generator(world)
     world.reset()
     obs0 = observer.observe()
-    expected = np.tile(np.array([0.0, 0.0, 1 / 3, 2 / 3]), (2, 1))
+    expected = np.tile(np.array([0.0, 0.0, 1 / 3, 2 / 3, 1.0, 1.0]), (2, 1))
     assert np.allclose(expected, obs0)
 
     world = World(
@@ -175,7 +175,7 @@ S0 X  .  .
     observer = ObservationType.STATE.get_observation_generator(world)
     world.reset()
     obs0 = observer.observe()
-    expected = np.tile(np.array([0.0, 0.0, 1 / 3, 1 / 2]), (2, 1))
+    expected = np.tile(np.array([0.0, 0.0, 1 / 3, 1 / 2, 1.0, 1.0]), (2, 1))
     assert np.allclose(expected, obs0)
 
     world = World(
@@ -187,7 +187,7 @@ S0 X  .  G
     observer = ObservationType.STATE.get_observation_generator(world)
     world.reset()
     obs0 = observer.observe()
-    expected = np.tile(np.array([0.0, 0.0, 1 / 3, 1 / 2, 1]), (2, 1))
+    expected = np.tile(np.array([0.0, 0.0, 1 / 3, 1 / 2, 0.0, 1.0, 1.0]), (2, 1))
     assert np.allclose(expected, obs0)
 
 

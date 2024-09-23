@@ -1,6 +1,8 @@
 use crate::{AgentId, WorldEvent};
 use pyo3::prelude::*;
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum, gen_stub_pymethods};
 
+#[gen_stub_pyclass_enum]
 #[derive(Clone, Debug, PartialEq)]
 #[pyclass(name = "EventType", module = "lle")]
 pub enum PyEventType {
@@ -12,6 +14,7 @@ pub enum PyEventType {
     AgentDied,
 }
 
+#[gen_stub_pyclass]
 #[derive(Clone)]
 #[pyclass(name = "WorldEvent", module = "lle")]
 pub struct PyWorldEvent {
@@ -31,6 +34,7 @@ impl PyWorldEvent {
     }
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl PyWorldEvent {
     fn __str__(&self) -> String {

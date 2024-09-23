@@ -1,21 +1,36 @@
 [package]
 name = "lle"
-version = "1.1.2"
+version = "1.3.3"
 edition = "2021"
+readme = "readme.md"
+license-file = "licence"
+repository = "https://github.com/yamoling/lle"
+homepage = "https://github.com/yamoling/lle"
+description = "Cooperative MARL environment based on laser-blocking."
+keywords = ["marl", "rl", "lle", "laser", "environment"]
+categories = ["science"]
+
+exclude = ["python/*", "uv.lock", "stubcheck.sh", "pyproject.toml", "docs"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
 name = "lle"
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
 # Enabling crate-type=["cdylib"] (default in maturin) prevents integration tests from importing lle
 # crate-type = ["cdylib"] 
+
+[[bin]]
+name = "stub-gen"
+path = "src/stub_gen.rs"
 
 [dependencies]
 image = "0.25.2"
 itertools = "0.13.0"
 lazy_static = "1.5.0"
-maplit = "1.0.2"
 numpy = "0.21"
 pyo3 = "0.21"
+pyo3-stub-gen = "0.6.0"
 
 [build-dependencies]
 toml = "0.8.19"

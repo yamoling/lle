@@ -1,4 +1,6 @@
 from threading import Thread
+from typing import List
+from lle.types import Position
 import pytest
 from copy import deepcopy
 
@@ -44,6 +46,34 @@ def test_parse_wrong_worlds():
     # Zero agent in the environment
     with pytest.raises(ParsingError):
         World("X G")
+
+
+def test_world_step_one_action():
+    world = World(
+        """
+        S0 X . .
+        .  . . .
+        .  . . ."""
+    )
+    world.reset()
+    events = world.step(Action.SOUTH)
+    assert len(events) == 0
+    assert world.agents_positions == [(1, 0)]
+
+
+def test_world_step_something_else_than_action():
+    world = World(
+        """
+        S0 X . .
+        .  . . .
+        .  . . ."""
+    )
+    world.reset()
+    try:
+        events = world.step(23)  # type: ignore
+        assert False, "This should not be allowed"
+    except TypeError:
+        pass
 
 
 def test_world_move():
@@ -333,6 +363,13 @@ def test_world_state_hash_eq():
     assert state1 == state2
 
 
+def test_world_state_hash_eq_dead():
+    state1 = WorldState([(0, 0)], [False], [True])
+    state2 = WorldState([(0, 0)], [False], [False])
+    assert hash(state1) != hash(state2)
+    assert state1 != state2
+
+
 def test_world_state_hash_neq():
     s1 = WorldState([(0, 0)], [False])
     s2 = WorldState([(0, 1)], [False])
@@ -481,3 +518,64 @@ def test_change_laser_colour_back():
             assert laser.agent_id == 1
         elif i == 1:
             assert laser.agent_id == 0
+
+
+def test_subclass_world_state():
+    class WS(WorldState):
+        def __init__(
+            self,
+            other: int,
+            agents_positions: List[tuple[int, int]],
+            gems_collected: List[bool],
+            agents_alive: List[bool] | None = None,
+        ):
+            super().__init__(agents_positions, gems_collected=gems_collected, agents_alive=agents_alive)
+            self.other = other
+
+        def __new__(cls, _: int, agents_positions: List[Position], gems_collected: List[bool], agents_alive: List[bool]):
+            return super().__new__(cls, agents_positions, gems_collected, agents_alive)
+
+    s1 = WS(4, [(0, 0)], [False], [True])
+    s2 = WS(5, [(0, 0)], [False], [True])
+    assert s1 == s2
+
+
+def test_subclass_world():
+    class W(World):
+        pass
+
+    _w = W("S0 . X")
+
+
+def test_world_state_constructor():
+    # Without explicit agent liveness
+    s = WorldState([(0, 0)], [False])
+    assert all(s.agents_alive)
+    s = WorldState([(0, 0)], [True], [True])
+    assert all(s.agents_alive)
+    s = WorldState([(0, 0), (1, 1)], [True], [False, True])
+    assert s.agents_alive == [False, True]
+
+
+def test_set_state_agent_dead():
+    world = World("S0 G X")
+    world.reset()
+    s = WorldState([(0, 0)], [False], [False])
+    world.set_state(s)
+    assert not world.agents[0].is_alive
+
+
+def test_state_from_to_array():
+    s = WorldState([(0, 0)], [False])
+    s_array = s.as_array()
+    expected = [0.0, 0.0, 0.0, 1.0]
+    assert len(s_array) == len(expected)
+    assert all(a == b for a, b in zip(s_array, expected))
+    assert WorldState.from_array(expected, 1, 1) == s
+
+    s = WorldState([(25, 17), (10, 30)], [True, False], agents_alive=[True, False])
+    s_array = s.as_array()
+    expected = [25.0, 17.0, 10.0, 30.0, 1.0, 0.0, 1.0, 0.0]
+    assert len(s_array) == len(expected)
+    assert all(a == b for a, b in zip(s_array, expected))
+    assert WorldState.from_array(expected, 2, 2) == s

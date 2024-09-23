@@ -1,6 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use pyo3::prelude::*;
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use crate::{
     agent::AgentId,
@@ -9,16 +10,23 @@ use crate::{
     Position, Tile, World,
 };
 
-#[pyclass(name = "LaserSource", module = "lle")]
+#[gen_stub_pyclass]
+#[pyclass(name = "LaserSource", module = "lle.tiles")]
 pub struct PyLaserSource {
+    /// The id (colour) of the agent that can block the laser.
     #[pyo3(get)]
     agent_id: AgentId,
+    /// The direction of the laser beam.
+    /// The direction can currently not be changed after creation of the `World`.
     #[pyo3(get)]
     direction: PyDirection,
+    /// Whether the laser source is enabled.
     #[pyo3(get)]
     is_enabled: bool,
+    /// The unique id of the laser.
     #[pyo3(get)]
     laser_id: LaserId,
+    /// The (i, j) position of the laser tile.
     #[pyo3(get)]
     pos: Position,
     world: Arc<Mutex<World>>,
@@ -61,8 +69,10 @@ impl PyLaserSource {
     }
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl PyLaserSource {
+    /// Whether the laser source is disabled.
     #[getter]
     pub fn is_disabled(&self) -> bool {
         !self.is_enabled
@@ -78,10 +88,12 @@ impl PyLaserSource {
         self.set_status(!disabled)
     }
 
+    /// Disable the laser source and its corresponding laser tiles.
     pub fn disable(&mut self) {
         self.set_status(false)
     }
 
+    /// Enable the laser source and its corresponding laser tiles.
     pub fn enable(&mut self) {
         self.set_status(true)
     }
@@ -111,6 +123,8 @@ impl PyLaserSource {
         Ok(())
     }
 
+    /// Change the colour of the laser to the one of the given agent ID.
+    /// Alias to `source.agent_id = new_agent_id`.
     fn set_colour(&mut self, colour: i32) -> PyResult<()> {
         self.set_agent_id(colour)
     }

@@ -1,6 +1,6 @@
-from lle import LLE
+from lle.exceptions import InvalidActionError
+from lle import World, LLE
 
 
-env = LLE.level(1).single_objective()
-
-env.reset()
+w = World("")
+World.level(2)

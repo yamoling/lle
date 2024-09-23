@@ -1,6 +1,6 @@
 from lle import LLE
 
-env = LLE.level(5).build()
+env = LLE.level(5).single_objective()
 done = truncated = False
 obs = env.reset()
 while not (done or truncated):

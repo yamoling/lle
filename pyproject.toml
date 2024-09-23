@@ -38,7 +38,5 @@ dev-dependencies = [
     "pytest>=8.3.2",
     "pytest-xdist>=3.6.1",
     "maturin>=1.7.0",
+    "pdoc>=14.7.0",
 ]
-
-[tool.uv.sources]
-laser-learning-environment = { workspace = true }
