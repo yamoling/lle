@@ -2,6 +2,7 @@ use crate::{AgentId, WorldEvent};
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum, gen_stub_pymethods};
 
+/// An enumeration of the events that can occur in the world.
 #[gen_stub_pyclass_enum]
 #[derive(Clone, Debug, PartialEq)]
 #[pyclass(name = "EventType", module = "lle")]
@@ -13,6 +14,10 @@ pub enum PyEventType {
     #[pyo3(name = "AGENT_DIED")]
     AgentDied,
 }
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl PyEventType {}
 
 #[gen_stub_pyclass]
 #[derive(Clone)]

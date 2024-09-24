@@ -54,6 +54,7 @@ pub struct PyWorldState {
 #[pymethods]
 impl PyWorldState {
     #[new]
+    #[pyo3(signature=(agents_positions,  gems_collected, agents_alive= None))]
     /// Construct a WorldState from the position of each agent and the collection status of each gem.
     pub fn new(
         agents_positions: Vec<Position>,
@@ -66,6 +67,18 @@ impl PyWorldState {
             gems_collected,
             agents_alive,
         }
+    }
+
+    fn __init__(
+        &mut self,
+        agents_positions: Vec<Position>,
+        gems_collected: Vec<bool>,
+        agents_alive: Option<Vec<bool>>,
+    ) {
+        let agents_alive = agents_alive.unwrap_or_else(|| vec![true; agents_positions.len()]);
+        self.agents_positions = agents_positions;
+        self.gems_collected = gems_collected;
+        self.agents_alive = agents_alive;
     }
 
     fn as_array(&self, py: Python) -> PyObject {

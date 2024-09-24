@@ -13,10 +13,7 @@ __all__ = [
     "LaserId",
     "WorldEvent",
     "EventType",
-    # "InvalidActionError",
-    # "InvalidLevelError",
-    # "InvalidWorldStateError",
-    # "ParsingError",
+    "exceptions",
     "WorldBuilder",
 ]
 

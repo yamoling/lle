@@ -60,6 +60,8 @@ jobs:
   # Build the documentation and upload the static HTML files as an artifact.
   docs:
     name: 📚 Build docs
+    # Only build the docs on main/master branch
+    if: github.ref == 'refs/heads/master'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
