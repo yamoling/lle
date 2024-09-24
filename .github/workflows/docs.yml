@@ -47,7 +47,7 @@ jobs:
         run: |
           uv sync
           uv run maturin dev
-          uv run pdoc python/lle -o ./docs
+          uv run pdoc python/lle -o ./docs --docformat=google
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
