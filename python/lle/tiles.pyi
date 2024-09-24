@@ -8,7 +8,9 @@ import typing
 
 class Gem:
     is_collected: bool
+    """Whether the gem has been collected."""
     pos: tuple[int, int]
+    """The (i, j) position of the gem."""
     agent: typing.Optional[int]
     def __str__(self) -> str:
         ...
@@ -25,13 +27,21 @@ class Laser:
     A laser tile of the world.
     """
     laser_id: int
+    """The ID of the laser (unique per laser source)"""
     agent_id: int
+    """The id of the agent that can block the laser."""
     direction: Direction
+    """The direction of the laser beam."""
     is_on: bool
+    """Whether the laser is turned on."""
     is_enabled: bool
+    """Whether the laser is enabled."""
     is_off: bool
+    """Whether the laser is turned off."""
     is_disabled: bool
+    """Whether the laser is disabled."""
     agent: typing.Optional[int]
+    """The id of the agent currently standing on the tile, if any."""
     def __str__(self) -> str:
         ...
 
@@ -41,11 +51,18 @@ class Laser:
 
 class LaserSource:
     agent_id: int
+    """The id (colour) of the agent that can block the laser."""
     direction: Direction
+    """The direction of the laser beam.
+    The direction can currently not be changed after creation of the `World`."""
     is_enabled: bool
+    """Whether the laser source is enabled."""
     laser_id: int
+    """The unique id of the laser."""
     pos: tuple[int, int]
+    """The (i, j) position of the laser tile."""
     is_disabled: bool
+    """Whether the laser source is disabled."""
     def set_is_enabled(self, enabled:bool) -> None:
         ...
 

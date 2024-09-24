@@ -4,7 +4,8 @@ from lle.types import Position
 import pytest
 from copy import deepcopy
 
-from lle import World, WorldState, Action, ParsingError, InvalidActionError, EventType, InvalidWorldStateError
+from lle import World, WorldState, Action, EventType
+from lle.exceptions import ParsingError, InvalidActionError, InvalidWorldStateError
 
 
 def test_world_tiles():

@@ -12,7 +12,7 @@ use pyo3::{
 };
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
-use crate::{Position, Renderer, World, WorldState};
+use crate::{Action, Position, Renderer, World, WorldState};
 
 use super::{
     pyaction::PyAction,
@@ -129,8 +129,6 @@ impl PyWorld {
     }
 
     /// The dimensions (in pixels) of the image redered (width, height)
-    /// Returns:
-    ///    The dimensions of the image rendered.
     #[getter]
     pub fn image_dimensions(&self) -> (u32, u32) {
         (self.renderer.pixel_width(), self.renderer.pixel_height())
@@ -212,7 +210,7 @@ impl PyWorld {
             ));
         };
 
-        let actions: Vec<_> = actions.into_iter().map(|a| a.action).collect();
+        let actions: Vec<Action> = actions.into_iter().map(|a| a.into()).collect();
         match self.world.lock().unwrap().step(&actions) {
             Ok(events) => {
                 let events: Vec<PyWorldEvent> =
@@ -238,7 +236,7 @@ impl PyWorld {
             .unwrap()
             .available_actions()
             .iter()
-            .map(|a| a.iter().map(|a| PyAction { action: a.clone() }).collect())
+            .map(|a| a.iter().map(|a| PyAction::from(a)).collect())
             .collect()
     }
 
@@ -259,7 +257,7 @@ impl PyWorld {
             .unwrap()
             .available_joint_actions()
             .iter()
-            .map(|a| a.iter().map(|a| PyAction { action: a.clone() }).collect())
+            .map(|a| a.iter().map(|a| PyAction::from(a)).collect())
             .collect()
     }
 
