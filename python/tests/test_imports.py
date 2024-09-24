@@ -8,3 +8,11 @@ def test_import_class_from_tiles():
 def test_import_submodule():
     from lle import tiles
     from lle import exceptions
+
+
+def test_version():
+    from lle import __version__
+
+    import lle
+
+    assert lle.__version__ == __version__

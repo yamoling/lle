@@ -85,11 +85,11 @@ jobs:
         run: |
           uv sync
           uv run maturin dev
-          uv run pdoc python/lle -o docs/pdocs
+          uv run pdoc python/lle -o docs
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: 'docs/pdocs'
+          path: 'docs'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

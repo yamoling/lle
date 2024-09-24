@@ -8,6 +8,8 @@ const ADDITIONAL_LLE_IMPORTS: &str = r"
 from .tiles import Gem, Laser, LaserSource
 from typing import ClassVar
 from . import exceptions
+
+__version__: str
 ";
 const TILES_IMPORTS: &str = r"
 from lle import Direction
