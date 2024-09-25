@@ -1,4 +1,5 @@
-from lle import WorldBuilder, Direction
+from lle import WorldBuilder
+from lle.tiles import Direction
 
 
 def test_world_builder():
