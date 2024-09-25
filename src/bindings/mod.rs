@@ -11,6 +11,9 @@ mod pyworld;
 mod pyworld_builder;
 mod pyworld_state;
 
+pub use pyaction::PyAction;
+pub use pyworld::PyWorld;
+
 #[pymodule]
 pub fn lle(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     let tiles = PyModule::new_bound(py, "lle.tiles")?;

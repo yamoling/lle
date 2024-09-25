@@ -226,7 +226,6 @@ impl PyWorld {
     /// assert len(events) == 2
     /// assert all(e.event_type == EventType.AGENT_EXIT for e in events)
     /// ```
-    #[pyo3(text_signature = "(action: Action | list[Action]) -> list[WorldEvent]")]
     pub fn step(&mut self, py: Python, action: PyObject) -> PyResult<Vec<PyWorldEvent>> {
         // Check if action is a list or a single action
         let actions: Vec<PyAction> = if let Ok(actions) = action.extract::<Vec<PyAction>>(py) {
