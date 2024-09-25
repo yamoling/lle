@@ -29,6 +29,19 @@ use super::{
 // - Everything that is immutable is directly accessible from the `World` struct.
 // - Everything that is mutable is accessed through the `Arc<Mutex<World>>`.
 
+/// The `World` represents the environment in which the agents evolve.
+/// A world is created from a string where each character represents a tile.
+/// There are 6 predefined levels for convenience.
+///
+/// ```python
+/// from lle import World
+/// # Create from a predefined level
+/// w1 = World.level(5)
+/// # Create from a file
+/// w2 = World.from_file("my_map.txt")
+/// # Create from a string
+/// w3 = World("S0 X")
+/// ```
 #[gen_stub_pyclass]
 #[pyclass(name = "World", module = "lle", subclass)]
 pub struct PyWorld {
@@ -187,10 +200,11 @@ impl PyWorld {
             .collect()
     }
 
-    /// Perform an action for each agent in the world and return the list of events that occurred by peforming this step.
+    /// Simultaneously perform an action for each agent in the world.
+    /// Performing a step generates events (see `WorldEvent`) to give information about the consequences of the joint action.
     ///
     /// Args:
-    ///    action: The action to perform for each agent.
+    ///    action: The action to perform for each agent. A single action is also accepted if there is a single agent in the world.
     ///
     /// Returns:
     ///   The list of events that occurred while agents took their action.
@@ -198,6 +212,21 @@ impl PyWorld {
     /// Raises:
     ///     `InvalidActionError` if an agent takes an action that is not available.
     ///     `ValueError` if the number of actions is different from the number of agents
+    ///
+    /// Example:
+    /// ```python
+    /// world = World("S1 G X S0 X")
+    /// world.reset()
+    /// events = world.step([Action.STAY, Action.EAST])
+    /// assert len(events) == 1
+    /// assert events[0].agent_id == 1
+    /// assert events[0].event_type == EventType.GEM_COLLECTED
+    ///
+    /// events = world.step([Action.EAST, Action.EAST])
+    /// assert len(events) == 2
+    /// assert all(e.event_type == EventType.AGENT_EXIT for e in events)
+    /// ```
+    #[pyo3(text_signature = "(action: Action | list[Action]) -> list[WorldEvent]")]
     pub fn step(&mut self, py: Python, action: PyObject) -> PyResult<Vec<PyWorldEvent>> {
         // Check if action is a list or a single action
         let actions: Vec<PyAction> = if let Ok(actions) = action.extract::<Vec<PyAction>>(py) {
