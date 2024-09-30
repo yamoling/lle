@@ -7,13 +7,9 @@ LLE has diﬀerent types of tiles: floor, start, wall, laser, laser source, void
 
 ![pdoc logo](../../docs/lvl6-annotated.png)
 
-## Levels of control
-LLE can be used at two levels of control:
-  - As a general-purpose gridworld (`World` class)
-  - As an RL environment (`LLE` class)
 
-### Low-level with `World`
-This notebook goes through the `World` class and how to use it. The `World` class is meant to be used for low-level control of LLE, as opposed to the `LLE` class, meant for generic high-level control in multi-agent reinforcement learning.
+## General-purpose `World`
+The `World` class is at the heart of LLE and is meant for fine-grained control of the environment, as opposed to the `LLE` class, meant for generic high-level control in multi-agent reinforcement learning.
 
 ```python
 from lle import World, Action
@@ -26,8 +22,8 @@ world.step([Action.EAST])
 world.set_state(state)
 ```
 
-### High-level with `LLE`
-The `LLE` class (or core) is meant to be used with the `multi-agent-rlenv` library. As such, it encapsulates the `World` class and provides a high-level API for multi-agent reinforcement learning. `LLE` can be used with either in single-objective or multi-objective mode as shown below.
+## Cooperative MARL `LLE`
+The `LLE` class is meant for Multi-Agent Reinforcement Leanring (MARL) and to be used with the `multi-agent-rlenv` library. As such, it encapsulates the `World` class and provides a high-level API for multi-agent reinforcement learning. `LLE` can be used with either in single-objective or multi-objective mode as shown below.
 
 ```python
 from lle import LLE
@@ -37,6 +33,39 @@ obs = env.reset()
 action = env.action_space.sample(env.available_actions())
 env.step(action)
 ```
+
+## Creating custom maps
+You can create custom maps with a simple text-based syntax. Every tile is encoded by one or a few characters (see the encoding in the below table), and tiles are separated by whitespaces. A new row is indicated by a new line.
+
+| Character | Tile | Walkable | Comment |
+------------|------|----------|---------|
+| `.` | Floor | Yes | The most basic tile. |
+| `@` | Wall  | No | A wall that blocks lasers. |
+| `X` | Exit  | Yes | An exit tile. The agent can no longer move after reaching it. |
+| `G` | Gem   | Yes | A gem to collect. |
+| `S<n>` | Start | Yes | Start position of agent `n`. |
+| `L<n><d>` | Laser source | No | Source of a laser of colour `n` (a number) beaming toward the direction `d` (N, S, E, W). |
+| `V` | Void | Yes | A void tile. The agent dies if it walks on it |
+
+For instance, assuming that a file "map.txt" has the following content
+```
+ S0 . G . X
+ S1 @ . . .
+L0E . . V V
+ @  @ . V V
+ G  . . . X
+```
+Then, the below code sample generates the world shown below.
+```python
+with open("map.txt") as f:
+  str_map = f.read()
+# Alternative: World.from_file("map.txt")
+world = World(str_map)
+img = world.get_image()
+plt.imshow(img)
+plt.show()
+```
+![pdoc logo](../../docs/example_custom.png)
 
 ## Citing our work
 The environment has been presented at [EWRL 2023](https://openreview.net/pdf?id=IPfdjr4rIs) and at [BNAIC 2023](https://bnaic2023.tudelft.nl/static/media/BNAICBENELEARN_2023_paper_124.c9f5d29e757e5ee27c44.pdf) where it received the best paper award.
