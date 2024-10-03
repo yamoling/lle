@@ -81,6 +81,7 @@ jobs:
           python-version: 3.12
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - run: cargo run --bin stub-gen
+      - run: uv run ruff format python/lle
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:

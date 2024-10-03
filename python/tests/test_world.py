@@ -580,3 +580,8 @@ def test_state_from_to_array():
     assert len(s_array) == len(expected)
     assert all(a == b for a, b in zip(s_array, expected))
     assert WorldState.from_array(expected, 2, 2) == s
+
+
+def test_no_reset():
+    w = World("S0 . X")
+    w.step(Action.EAST)
