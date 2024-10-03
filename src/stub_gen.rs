@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use lle::{
     self,
-    bindings::{PyAction, PyWorld, PyWorldBuilder},
+    bindings::{PyAction, PyWorld, PyWorldBuilder, PyWorldState},
 };
 use pyo3_stub_gen::{
     generate::{MemberDef, VariableDef},
@@ -19,6 +19,7 @@ fn main() -> Result<()> {
     modify_world_step_action_type(&mut info);
     set_world_attribute_imports(&mut info);
     set_world_builder_imports(&mut info);
+    set_optional_init_args(&mut info);
     info.generate()?;
     std::fs::rename(INIT_PYI, LLE_PYI)?;
     add_exceptions_import();
@@ -41,6 +42,33 @@ fn add_exceptions_import() {
     let contents = std::fs::read_to_string(LLE_PYI).unwrap();
     let new_contents = format!("from . import exceptions\n{contents}");
     std::fs::write(LLE_PYI, new_contents).unwrap();
+}
+
+fn set_optional_init_args(info: &mut StubInfo) {
+    let world_state_type_id = std::any::TypeId::of::<PyWorldState>();
+    let class = &mut info
+        .modules
+        .get_mut("lle")
+        .unwrap()
+        .class
+        .get_mut(&world_state_type_id)
+        .unwrap();
+    let init = class
+        .methods
+        .iter_mut()
+        .find(|method| method.name == "__init__")
+        .unwrap();
+    // Agents alive is optional
+    init.args[2].r#type = TypeInfo {
+        import: HashSet::new(),
+        name: " typing.Optional[list[bool]]=None".to_string(),
+    };
+
+    let new = class.new.as_mut().unwrap();
+    new.args[2].r#type = TypeInfo {
+        import: HashSet::new(),
+        name: " typing.Optional[list[bool]]=None".to_string(),
+    };
 }
 
 fn modify_world_step_action_type(info: &mut StubInfo) {

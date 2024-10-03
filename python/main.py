@@ -1,13 +1,17 @@
 from lle.exceptions import InvalidActionError
 from lle import World, LLE, Action, EventType
+import matplotlib.pyplot as plt
+import cv2
+from lle.env import SOLLE
 
+str_map = " S0 . G . X\n" + " S1 @ . . .\n" + "L0E . . V V\n" + " @  @ . V V\n" + " G  . . . X"
+world = World(str_map)
+img = world.get_image()
+plt.imshow(img)
+plt.show()
 
-world = World("S1 G X S0 X")
-world.reset()
-events = world.step([Action.STAY, Action.EAST])
-assert len(events) == 1
-assert events[0].agent_id == 1
-assert events[0].event_type == EventType.GEM_COLLECTED
-events = world.step([Action.EAST, Action.EAST])
-assert len(events) == 2
-assert all(e.event_type == EventType.AGENT_EXIT for e in events)
+import lle
+
+lle.exceptions.InvalidActionError
+
+raise InvalidActionError("Invalid action")

@@ -54,8 +54,6 @@ pub struct PyWorldState {
 #[pymethods]
 impl PyWorldState {
     #[new]
-    #[pyo3(signature=(agents_positions,  gems_collected, agents_alive= None))]
-    /// Construct a WorldState from the position of each agent and the collection status of each gem.
     pub fn new(
         agents_positions: Vec<Position>,
         gems_collected: Vec<bool>,
@@ -160,15 +158,11 @@ impl PyWorldState {
         Ok((vec![], vec![]))
     }
 
-    fn __str__(&self) -> String {
-        format!(
-            "WorldState(agent_positions={:?}, gems_collected={:?})",
-            self.agents_positions, self.gems_collected
-        )
-    }
-
     fn __repr__(&self) -> String {
-        self.__str__()
+        format!(
+            "WorldState(agents_positions={:?}, gems_collected={:?}, agents_alive={:?})",
+            self.agents_positions, self.gems_collected, self.agents_alive
+        )
     }
 
     fn __hash__(&self) -> u64 {

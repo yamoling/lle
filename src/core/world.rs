@@ -57,7 +57,7 @@ impl World {
             .enumerate()
             .map(|(id, _)| Agent::new(id as u32))
             .collect();
-        Self {
+        let mut w = Self {
             width: grid[0].len(),
             height: grid.len(),
             gems_positions: gem_positions,
@@ -72,7 +72,9 @@ impl World {
             available_actions: vec![],
             laser_source_positions: source_positions,
             lasers_positions,
-        }
+        };
+        w.reset();
+        w
     }
 
     pub fn n_agents(&self) -> usize {
