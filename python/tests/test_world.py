@@ -585,3 +585,11 @@ def test_state_from_to_array():
 def test_no_reset():
     w = World("S0 . X")
     w.step(Action.EAST)
+
+
+def test_world_n_agents():
+    w = World("S0 S1 X X")
+    assert w.n_agents == 2
+
+    w = World.level(6)
+    assert w.n_agents == 4

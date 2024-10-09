@@ -387,6 +387,14 @@ impl PyWorld {
                 agents_alive: state.3,
             })
             .unwrap();
+        self.n_agents = world.n_agents();
+        self.n_gems = world.n_gems();
+        self.height = world.height();
+        self.width = world.width();
+        self.exit_pos = world.exits_positions();
+        self.start_pos = world.starts();
+        self.wall_pos = world.walls();
+        self.void_pos = world.void_positions();
         self.world = Arc::new(Mutex::new(world));
         Ok(())
     }

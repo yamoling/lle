@@ -227,3 +227,17 @@ def test_builder_obs_type_string():
     env = LLE.level(1).obs_type("perspective").single_objective()
     env2 = LLE.level(1).obs_type(ObservationType.AGENT0_PERSPECTIVE_LAYERED).single_objective()
     assert env.has_same_inouts(env2)
+
+
+def test_n_agents():
+    env = LLE.from_str("S0 S1 X X").single_objective()
+    env.reset()
+    assert env.n_agents == 2
+
+    import marlenv
+
+    env = LLE.level(6).obs_type(ObservationType.LAYERED).state_type(ObservationType.STATE).single_objective()
+    env = marlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
+    assert env.n_agents == 4
+    env.reset()
+    assert env.n_agents == 4
