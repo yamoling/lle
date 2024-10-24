@@ -23,6 +23,10 @@ pub enum ParseError {
         n_starts: usize,
         n_exits: usize,
     },
+    NotEnoughStartTiles {
+        n_starts: usize,
+        n_agents: usize,
+    },
     DuplicateStartTile {
         agent_id: AgentId,
         start1: Position,
@@ -44,6 +48,10 @@ pub enum ParseError {
         given: String,
         expected: String,
     },
+    AgentWithoutStart {
+        agent_id: AgentId,
+    },
+    NotV2,
 }
 
 impl Display for ParseError {

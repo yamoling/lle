@@ -9,8 +9,7 @@ use std::hash::{Hash, Hasher};
 ///  - The position of each agent.
 ///  - Whether each gem has been collected.
 ///  - Whether each agent is alive.
-///
-/// **Using `WorldState`s:**
+/// ## Using `WorldState`s
 /// ```python
 /// from lle import WorldState, World
 /// w = World("S0 . X")
@@ -19,21 +18,18 @@ use std::hash::{Hash, Hasher};
 /// s2 = WorldState([(0, 1), [], [True]])
 /// world.set_state(s2)
 /// ```
-///
-///
-/// **Inheritance:**
-/// To inherit from `WorldState`, it is required to override the __new__ method such that it
-/// accepts **the same arguments** as the __init__ method in the same order (except `cls` instead of `self`).
-/// You should ignore the additional arguments in the __new__ method as shown below.
+/// ## Inheritance
+/// To inherit from `WorldState`, it is required to override the `__new__` method such that you its signature
+/// is compatible with `__init__`, i.e. it accepts the same leading arguments in the same order.
+/// Additionally, the `__new__` method **must** call the `super()` constructor with the parameters of the parent class, as shown below.
 /// ```python
 /// class SubWorldState(WorldState):
-///    def __init__(self, x: int, agents_positions: list[tuple[int, int]], gems_collected: list[bool], agents_alive: List[bool] | None = None):
-///        super().__init__(agents_positions, gems_collected, agents_alive)
-///        self.x = x
-///
-///    def __new__(cls, _x: int, agents_positions: list[tuple[int, int]], gems_collected: list[bool], agents_alive: list[bool] | None = None):
-///        instance = super().__new__(cls, agents_positions, gems_collected, agents_alive)
-///        return instance
+///     def __init__(self, agents_positions: list[tuple[int, int]], gems_collected: list[bool], agents_alive: list[bool], x: int):
+///         super().__init__(agents_positions, gems_collected, agents_alive)
+///         self.x = x
+///     def __new__(cls, agents_positions: list[tuple[int, int]], gems_collected: list[bool], agents_alive: list[bool], *args, **kwargs):
+///         instance = super().__new__(cls, agents_positions, gems_collected, agents_alive)
+///         return instance
 /// ```
 #[gen_stub_pyclass]
 #[pyclass(name = "WorldState", module = "lle", subclass)]
@@ -54,6 +50,7 @@ pub struct PyWorldState {
 #[pymethods]
 impl PyWorldState {
     #[new]
+    #[pyo3(signature = (agents_positions, gems_collected, agents_alive=None))]
     pub fn new(
         agents_positions: Vec<Position>,
         gems_collected: Vec<bool>,
@@ -67,6 +64,7 @@ impl PyWorldState {
         }
     }
 
+    #[pyo3(signature = (agents_positions, gems_collected, agents_alive=None))]
     fn __init__(
         &mut self,
         agents_positions: Vec<Position>,

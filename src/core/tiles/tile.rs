@@ -1,11 +1,13 @@
 use crate::{
     agent::{Agent, AgentId},
+    core::parsing::LaserConfig,
     rendering::{TileVisitor, VisitorData},
-    RuntimeWorldError, WorldEvent,
+    ParseError, RuntimeWorldError, WorldEvent,
 };
 use core::panic;
+use std::rc::Rc;
 
-use super::{Gem, Laser, LaserSource, Start, Void};
+use super::{Gem, Laser, LaserBeam, LaserSource, Start, Void};
 
 pub enum Tile {
     Gem(Gem),
@@ -137,6 +139,30 @@ impl Tile {
             Self::LaserSource(source) => visitor.visit_laser_source(source, data),
             _ => {} // Nothing to do
         };
+    }
+
+    pub fn try_from_str(value: &str, row: usize, col: usize) -> Result<Self, ParseError> {
+        match value.to_uppercase().chars().next().unwrap() {
+            'G' => Ok(Self::Gem(Gem::default())),
+            '.' => Ok(Self::Floor { agent: None }),
+            '@' => Ok(Self::Wall),
+            'X' => Ok(Self::Exit { agent: None }),
+            'V' => Ok(Self::Void(Void::default())),
+            'S' => {
+                let agent_id = value[1..].parse().map_err(|_| ParseError::InvalidAgentId {
+                    given_agent_id: value[1..].into(),
+                })?;
+                Ok(Self::Start(Start::new(agent_id)))
+            }
+            'L' => Ok(Self::LaserSource(LaserSource::new(Rc::new(
+                LaserBeam::new(0, 0, super::Direction::East, 0),
+            )))),
+            _ => Err(ParseError::InvalidTile {
+                tile_str: value.into(),
+                line: row,
+                col,
+            }),
+        }
     }
 }
 

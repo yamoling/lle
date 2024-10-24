@@ -7,7 +7,7 @@ use std::{
 
 use crate::{
     agent::Agent,
-    tiles::{Gem, Laser, LaserSource, Tile},
+    tiles::{Gem, Laser, LaserSource, Start, Tile},
     utils::find_duplicates,
     Action, Position, RuntimeWorldError, WorldState,
 };
@@ -88,17 +88,24 @@ impl World {
 
     /// The current world string, taking into account the fact that some tiles may have changed (laser direction or colour).
     pub fn compute_world_string(&self) -> String {
-        // Each tile is at most 4 characters long
-        const TILE_SIZE: usize = 4;
-        let mut world_str = String::with_capacity(self.width * self.height * TILE_SIZE);
+        let mut str_tiles = vec![];
         for row in &self.grid {
+            let mut str_row = vec![];
             for tile in row {
-                world_str.push_str(&tile.to_file_string());
-                world_str.push(' ');
+                str_row.push(tile.to_file_string());
             }
-            world_str.push('\n');
+            str_row.push("\n".into());
+            str_tiles.push(str_row);
         }
-        world_str
+        for (agent_id, pos) in self.start_positions.iter().enumerate() {
+            let (i, j) = *pos;
+            str_tiles[i][j] = Tile::Start(Start::new(agent_id)).to_file_string();
+        }
+        str_tiles
+            .iter()
+            .map(|row| row.join(" "))
+            .collect::<Vec<String>>()
+            .join("\n")
     }
 
     pub fn agents(&self) -> &Vec<Agent> {

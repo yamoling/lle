@@ -1,17 +1,16 @@
-from lle.exceptions import InvalidActionError
-from lle import World, LLE, Action, EventType
-import matplotlib.pyplot as plt
-import cv2
-from lle.env import SOLLE
+from lle import WorldState
+from random import choices
 
-str_map = " S0 . G . X\n" + " S1 @ . . .\n" + "L0E . . V V\n" + " @  @ . V V\n" + " G  . . . X"
-world = World(str_map)
-img = world.get_image()
-plt.imshow(img)
-plt.show()
 
-import lle
+class SubWorldState(WorldState):
+    def __init__(self, agents_positions: list[tuple[int, int]], gems_collected: list[bool], agents_alive: list[bool], x: int):
+        super().__init__(agents_positions, gems_collected, agents_alive)
+        self.x = x
 
-lle.exceptions.InvalidActionError
+    def __new__(cls, agents_positions: list[tuple[int, int]], gems_collected: list[bool], agents_alive: list[bool], *args, **kwargs):
+        instance = super().__new__(cls, agents_positions, gems_collected, agents_alive)
+        return instance
 
-raise InvalidActionError("Invalid action")
+
+w = SubWorldState([(1, 1)], [], [True], 1)
+print(w)

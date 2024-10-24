@@ -11,6 +11,7 @@ pub type Position = (usize, usize);
 
 pub use action::Action;
 pub use agent::AgentId;
+pub use core::parsing::parse_v2;
 use core::tiles::Direction;
 pub use core::{tiles, tiles::Tile, ParseError, RuntimeWorldError, World, WorldEvent, WorldState};
 pub use rendering::Renderer;

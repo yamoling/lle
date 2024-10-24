@@ -83,7 +83,10 @@ pub fn parse_error_to_exception(error: ParseError) -> PyErr {
             format!("Invalid direction: {given}. {expected}")
         }
         ParseError::InvalidFileName { .. } | ParseError::InvalidLevel { .. } => {
-            panic!("Already handled above")
+            unreachable!("Already handled above")
+        }
+        other => {
+            panic!("Unhandled error: {:?}", other);
         }
     };
     ParsingError::new_err(msg)

@@ -1,7 +1,7 @@
 mod errors;
 mod event;
 mod levels;
-mod parsing;
+pub mod parsing;
 pub mod tiles;
 mod world;
 mod world_state;

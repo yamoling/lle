@@ -10,15 +10,20 @@ class Gem:
     pos: tuple[int, int]
     """The (i, j) position of the gem."""
     agent: typing.Optional[int]
-    def __str__(self) -> str: ...
-    def __repr__(self) -> str: ...
-    def collect(self) -> None: ...
+    def __str__(self) -> str:
+        ...
+
+    def __repr__(self) -> str:
+        ...
+
+    def collect(self) -> None:
+        ...
+
 
 class Laser:
     r"""
     A laser tile of the world.
     """
-
     laser_id: int
     """The ID of the laser (unique per laser source)"""
     agent_id: int
@@ -35,8 +40,12 @@ class Laser:
     """Whether the laser is disabled."""
     agent: typing.Optional[int]
     """The id of the agent currently standing on the tile, if any."""
-    def __str__(self) -> str: ...
-    def __repr__(self) -> str: ...
+    def __str__(self) -> str:
+        ...
+
+    def __repr__(self) -> str:
+        ...
+
 
 class LaserSource:
     agent_id: int
@@ -52,8 +61,12 @@ class LaserSource:
     """The (i, j) position of the laser tile."""
     is_disabled: bool
     """Whether the laser source is disabled."""
-    def set_is_enabled(self, enabled: bool) -> None: ...
-    def set_is_disabled(self, disabled: bool) -> None: ...
+    def set_is_enabled(self, enabled:bool) -> None:
+        ...
+
+    def set_is_disabled(self, disabled:bool) -> None:
+        ...
+
     def disable(self) -> None:
         r"""
         Disable the laser source and its corresponding laser tiles.
@@ -66,16 +79,22 @@ class LaserSource:
         """
         ...
 
-    def set_agent_id(self, agent_id: int) -> None: ...
-    def set_colour(self, colour: int) -> None:
+    def set_agent_id(self, agent_id:int) -> None:
+        ...
+
+    def set_colour(self, colour:int) -> None:
         r"""
         Change the colour of the laser to the one of the given agent ID.
         Alias to `source.agent_id = new_agent_id`.
         """
         ...
 
-    def __str__(self) -> str: ...
-    def __repr__(self) -> str: ...
+    def __str__(self) -> str:
+        ...
+
+    def __repr__(self) -> str:
+        ...
+
 
 class Direction(Enum):
     NORTH = auto()
@@ -84,22 +103,26 @@ class Direction(Enum):
     WEST = auto()
 
     @property
-    def is_horizontal(self) -> bool: ...
+    def is_horizontal(self) -> bool:
+        ...
     @property
-    def is_vertical(self) -> bool: ...
+    def is_vertical(self) -> bool:
+        ...
     @property
-    def name(self) -> str: ...
+    def name(self) -> str:
+        ...
+
     @staticmethod
-    def from_str(direction: str) -> Direction:
+    def from_str(direction:str) -> Direction:
         r"""
         Creates a `Direction` from a string representation.
-
+        
         Args:
            direction (Literal["N", "E", "S", "W"]): The string direction to create.
-
+        
         Returns:
           The corresponding `Direction` object.
-
+        
         Raises:
           ValueError: If the string is not a valid cardinal direction.
         """
@@ -117,9 +140,15 @@ class Direction(Enum):
         """
         ...
 
-    def __richcmp__(self, other: Direction, op: int) -> bool: ...
-    def __repr__(self) -> str: ...
-    def __getstate__(self) -> str: ...
+    def __richcmp__(self, other:Direction, op:int) -> bool:
+        ...
+
+    def __repr__(self) -> str:
+        ...
+
+    def __getstate__(self) -> str:
+        ...
+
     def __getnewargs__(self) -> typing.Any:
         r"""
         This method is called to instantiate the object before deserialisation.
@@ -128,4 +157,7 @@ class Direction(Enum):
         """
         ...
 
-    def __setstate__(self, state: str) -> None: ...
+    def __setstate__(self, state:str) -> None:
+        ...
+
+
