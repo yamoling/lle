@@ -84,10 +84,15 @@ impl ParsingData {
     }
 }
 
-impl Into<Config> for ParsingData {
-    fn into(self) -> Config {
-        Config::new(
-            self.width.unwrap(),
+impl TryInto<Config> for ParsingData {
+    type Error = ParseError;
+    fn try_into(self) -> Result<Config, Self::Error> {
+        if self.height == 0 {
+            return Err(ParseError::EmptyWorld);
+        }
+        let width = self.width.ok_or(ParseError::MissingWidth)?;
+        Ok(Config::new(
+            width,
             self.height,
             self.map_string.into(),
             self.gem_positions,
@@ -96,7 +101,7 @@ impl Into<Config> for ParsingData {
             self.exit_positions,
             self.walls_positions,
             self.laser_configs,
-        )
+        ))
     }
 }
 
@@ -141,25 +146,5 @@ pub fn parse(world_str: &str) -> Result<Config, ParseError> {
         }
         data.add_row(n_cols)?;
     }
-    Ok(data.into())
-}
-
-/// All rows should have the same width.
-pub fn check_width(
-    row_num: usize,
-    first_row_width: &mut Option<usize>,
-    row_width: usize,
-) -> Result<(), ParseError> {
-    if let Some(w) = first_row_width {
-        if *w != row_width {
-            return Err(ParseError::InconsistentDimensions {
-                expected_n_cols: *w,
-                actual_n_cols: row_width,
-                row: row_num,
-            });
-        }
-    } else {
-        *first_row_width = Some(row_width);
-    }
-    Ok(())
+    data.try_into()
 }

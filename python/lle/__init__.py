@@ -92,7 +92,6 @@ __all__ = [
     "ObservationType",
     "Position",
     "World",
-    "WorldBuilder",
     "WorldEvent",
     "WorldState",
     "env",
@@ -110,7 +109,6 @@ from .lle import (
     EventType,
     WorldState,
     Agent,
-    WorldBuilder,
     tiles,
     exceptions,
 )

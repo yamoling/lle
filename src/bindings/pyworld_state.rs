@@ -57,10 +57,6 @@ impl PyWorldState {
         agents_alive: Option<Vec<bool>>,
     ) -> Self {
         let agents_alive = agents_alive.unwrap_or_else(|| vec![true; agents_positions.len()]);
-        let agents_positions = agents_positions
-            .into_iter()
-            .map(|(i, j)| PyPosition { i, j })
-            .collect();
         Self {
             agents_positions,
             gems_collected,
@@ -76,10 +72,7 @@ impl PyWorldState {
         agents_alive: Option<Vec<bool>>,
     ) {
         let agents_alive = agents_alive.unwrap_or_else(|| vec![true; agents_positions.len()]);
-        self.agents_positions = agents_positions
-            .into_iter()
-            .map(|(i, j)| PyPosition { i, j })
-            .collect();
+        self.agents_positions = agents_positions;
         self.gems_collected = gems_collected;
         self.agents_alive = agents_alive;
     }
@@ -87,7 +80,7 @@ impl PyWorldState {
     fn as_array(&self, py: Python) -> PyObject {
         let len = self.agents_positions.len() * 3 + self.gems_collected.len();
         let mut res = Vec::with_capacity(len);
-        for PyPosition { i, j } in &self.agents_positions {
+        for (i, j) in &self.agents_positions {
             res.push(*i as f32);
             res.push(*j as f32);
         }
@@ -119,10 +112,7 @@ impl PyWorldState {
 
         let mut agents_positions = Vec::with_capacity(n_agents);
         for i in 0..n_agents {
-            agents_positions.push(PyPosition {
-                i: array[i * 2] as usize,
-                j: array[i * 2 + 1] as usize,
-            });
+            agents_positions.push((array[i * 2] as usize, array[i * 2 + 1] as usize));
         }
         let mut gems_collected = Vec::with_capacity(n_gems);
         for i in 0..n_gems {

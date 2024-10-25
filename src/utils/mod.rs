@@ -1,6 +1,4 @@
-use std::{collections::HashSet, hash::Hash, result};
-
-use rand::{rngs::StdRng, seq::SliceRandom, Rng, RngCore};
+use rand::{seq::SliceRandom, Rng};
 
 use crate::Position;
 
@@ -25,18 +23,6 @@ where
     }
 
     result
-}
-
-pub fn choose_n_different<T>(seq: &[T], n: usize, rng: &mut impl Rng) -> Vec<T>
-where
-    T: Clone,
-{
-    let mut indices = HashSet::with_capacity(n);
-    let max_index = seq.len() - 1;
-    while indices.len() < n {
-        indices.insert(rng.next_u64() as usize % max_index);
-    }
-    indices.into_iter().map(|i| seq[i].clone()).collect()
 }
 
 /// Get a random position for each agent such that no two agents start at the same position.

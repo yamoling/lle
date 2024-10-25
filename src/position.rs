@@ -44,9 +44,9 @@ impl Add<&Action> for &Position {
     type Output = Result<Position, RuntimeWorldError>;
 
     fn add(self, rhs: &Action) -> Self::Output {
-        let (dx, dy) = rhs.delta();
-        let j = self.i as i32 + dx;
-        let i = self.j as i32 + dy;
+        let (di, dj) = rhs.delta();
+        let i = self.i as i32 + di;
+        let j = self.j as i32 + dj;
 
         if j < 0 || i < 0 {
             return Err(RuntimeWorldError::OutOfWorldPosition {
@@ -63,22 +63,7 @@ impl Add<&Action> for &Position {
     }
 }
 
-impl Into<Position> for (usize, usize) {
-    fn into(self) -> Position {
-        Position {
-            i: self.0,
-            j: self.1,
-        }
-    }
-}
-
 impl Into<(usize, usize)> for &Position {
-    fn into(self) -> (usize, usize) {
-        (self.i, self.j)
-    }
-}
-
-impl Into<(usize, usize)> for Position {
     fn into(self) -> (usize, usize) {
         (self.i, self.j)
     }

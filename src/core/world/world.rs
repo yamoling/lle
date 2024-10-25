@@ -520,7 +520,8 @@ impl TryFrom<&str> for World {
 impl Clone for World {
     fn clone(&self) -> Self {
         let mut world = Self::try_from(self.world_string.clone()).unwrap();
-        world.set_state(&self.get_state()).unwrap();
+        let state = self.get_state();
+        world.set_state(&state).unwrap();
         world
     }
 }

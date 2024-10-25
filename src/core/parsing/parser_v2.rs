@@ -13,6 +13,8 @@ struct ParsingData {
     pub n_agents: Option<u32>,
     pub map_string: Option<String>,
     pub agents: Vec<AgentConfig>,
+    pub exits: Option<PositionsConfig>,
+    pub gems: Option<PositionsConfig>,
 }
 
 impl ParsingData {
@@ -21,12 +23,8 @@ impl ParsingData {
             let config = parse_v1(&world_str)?;
             Ok(self.from_config(config)?)
         } else {
-            self.into_config()
+            todo!()
         }
-    }
-
-    fn into_config(self) -> Result<Config, ParseError> {
-        todo!()
     }
 
     fn from_config(self, mut config: Config) -> Result<Config, ParseError> {
@@ -49,8 +47,23 @@ impl ParsingData {
         // Add random start positions
         for (agent_id, agent_config) in self.agents.into_iter().enumerate() {
             let start_positions = agent_config.get(config.width, config.height);
+            if config.random_start_positions.len() <= agent_id {
+                config.random_start_positions.push(vec![]);
+            }
             config.random_start_positions[agent_id].extend(start_positions);
         }
+
+        if let Some(exits) = self.exits {
+            config
+                .exit_positions
+                .extend(exits.to_positions(config.width, config.height));
+        }
+        if let Some(gems) = self.gems {
+            config
+                .gem_positions
+                .extend(gems.to_positions(config.width, config.height));
+        }
+
         Ok(config)
     }
 }
