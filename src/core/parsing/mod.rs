@@ -11,10 +11,10 @@ pub use parser_v2::parse as parse_v2;
 
 use super::World;
 
-pub fn parse(world_str: &str) -> Result<World, ParseError> {
-    let config = match parse_v2(world_str) {
+pub fn parse(file_content: &str) -> Result<World, ParseError> {
+    let config = match parse_v2(file_content) {
         Ok(c) => c,
-        Err(ParseError::NotV2) => parse_v1(world_str)?,
+        Err(ParseError::NotV2) => parse_v1(file_content)?,
         Err(other) => return Err(other),
     };
     config.to_world()

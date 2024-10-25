@@ -3,14 +3,16 @@ use crate::{AgentId, Position, Tile};
 use super::{laser_config::LaserConfig, world_config::Config, ParseError};
 
 #[derive(Default)]
-struct ParsingData {
-    map_string: String,
-    gem_positions: Vec<Position>,
-    start_positions: Vec<Vec<Position>>,
-    void_positions: Vec<Position>,
-    exit_positions: Vec<Position>,
-    walls_positions: Vec<Position>,
-    laser_configs: Vec<(Position, LaserConfig)>,
+pub struct ParsingData {
+    pub width: Option<usize>,
+    pub height: usize,
+    pub map_string: String,
+    pub gem_positions: Vec<Position>,
+    pub start_positions: Vec<Vec<Position>>,
+    pub void_positions: Vec<Position>,
+    pub exit_positions: Vec<Position>,
+    pub walls_positions: Vec<Position>,
+    pub laser_configs: Vec<(Position, LaserConfig)>,
 }
 
 impl ParsingData {
@@ -64,23 +66,56 @@ impl ParsingData {
     fn n_lasers(&self) -> usize {
         self.laser_configs.len()
     }
+
+    pub fn add_row(&mut self, n_cols: usize) -> Result<(), ParseError> {
+        if let Some(w) = self.width {
+            if w != n_cols {
+                return Err(ParseError::InconsistentDimensions {
+                    expected_n_cols: w,
+                    actual_n_cols: n_cols,
+                    row: self.height,
+                });
+            }
+        } else {
+            self.width = Some(n_cols);
+        }
+        self.height += 1;
+        Ok(())
+    }
+}
+
+impl Into<Config> for ParsingData {
+    fn into(self) -> Config {
+        Config::new(
+            self.width.unwrap(),
+            self.height,
+            self.map_string.into(),
+            self.gem_positions,
+            self.start_positions,
+            self.void_positions,
+            self.exit_positions,
+            self.walls_positions,
+            self.laser_configs,
+        )
+    }
 }
 
 pub fn parse(world_str: &str) -> Result<Config, ParseError> {
     let mut data = ParsingData::init(world_str);
-    let mut width = None;
-    let mut row = 0usize;
     for line in world_str.lines() {
         let line = line.trim();
         if line.is_empty() {
             continue;
         }
         let tokens = line.split_whitespace();
-        let row_width = tokens.clone().count();
-        check_width(row, &mut width, row_width)?;
+        let mut n_cols = 0usize;
         for (col, token) in tokens.enumerate() {
-            let pos = (row, col);
-            if let Ok(tile) = Tile::try_from_str(token, row, col) {
+            n_cols += 1;
+            let pos = Position {
+                i: data.height,
+                j: col,
+            };
+            if let Ok(tile) = Tile::try_from_str(token, data.height, col) {
                 match tile {
                     Tile::Floor { .. } => {}
                     Tile::Wall => data.add_wall(pos),
@@ -96,22 +131,17 @@ pub fn parse(world_str: &str) -> Result<Config, ParseError> {
                         unreachable!("Lasers and LaserSources should not be parsed at this stage (i.e. without global context)")
                     }
                 }
+            } else {
+                return Err(ParseError::InvalidTile {
+                    tile_str: token.into(),
+                    line: data.height,
+                    col,
+                });
             }
         }
-        row += 1;
+        data.add_row(n_cols)?;
     }
-    let width = width.ok_or(ParseError::EmptyWorld)?;
-    Ok(Config::new(
-        width,
-        row,
-        world_str.into(),
-        data.gem_positions,
-        data.start_positions,
-        data.void_positions,
-        data.exit_positions,
-        data.walls_positions,
-        data.laser_configs,
-    ))
+    Ok(data.into())
 }
 
 /// All rows should have the same width.

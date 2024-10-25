@@ -1,9 +1,9 @@
+use super::pyposition::PyPosition;
 use crate::{core::WorldState, Position};
 use numpy::PyArray1;
 use pyo3::{exceptions, prelude::*, pyclass::CompareOp, types::PyDict};
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use std::hash::{Hash, Hasher};
-
 ///
 /// A state in the `World` is defined by:
 ///  - The position of each agent.
@@ -37,7 +37,7 @@ use std::hash::{Hash, Hasher};
 pub struct PyWorldState {
     /// The position of each agent.
     #[pyo3(get, set)]
-    agents_positions: Vec<Position>,
+    agents_positions: Vec<PyPosition>,
     /// The collection status of each gem.
     #[pyo3(get, set)]
     gems_collected: Vec<bool>,
@@ -52,11 +52,15 @@ impl PyWorldState {
     #[new]
     #[pyo3(signature = (agents_positions, gems_collected, agents_alive=None))]
     pub fn new(
-        agents_positions: Vec<Position>,
+        agents_positions: Vec<(usize, usize)>,
         gems_collected: Vec<bool>,
         agents_alive: Option<Vec<bool>>,
     ) -> Self {
         let agents_alive = agents_alive.unwrap_or_else(|| vec![true; agents_positions.len()]);
+        let agents_positions = agents_positions
+            .into_iter()
+            .map(|(i, j)| PyPosition { i, j })
+            .collect();
         Self {
             agents_positions,
             gems_collected,
@@ -67,12 +71,15 @@ impl PyWorldState {
     #[pyo3(signature = (agents_positions, gems_collected, agents_alive=None))]
     fn __init__(
         &mut self,
-        agents_positions: Vec<Position>,
+        agents_positions: Vec<(usize, usize)>,
         gems_collected: Vec<bool>,
         agents_alive: Option<Vec<bool>>,
     ) {
         let agents_alive = agents_alive.unwrap_or_else(|| vec![true; agents_positions.len()]);
-        self.agents_positions = agents_positions;
+        self.agents_positions = agents_positions
+            .into_iter()
+            .map(|(i, j)| PyPosition { i, j })
+            .collect();
         self.gems_collected = gems_collected;
         self.agents_alive = agents_alive;
     }
@@ -80,7 +87,7 @@ impl PyWorldState {
     fn as_array(&self, py: Python) -> PyObject {
         let len = self.agents_positions.len() * 3 + self.gems_collected.len();
         let mut res = Vec::with_capacity(len);
-        for (i, j) in &self.agents_positions {
+        for PyPosition { i, j } in &self.agents_positions {
             res.push(*i as f32);
             res.push(*j as f32);
         }
@@ -112,7 +119,10 @@ impl PyWorldState {
 
         let mut agents_positions = Vec::with_capacity(n_agents);
         for i in 0..n_agents {
-            agents_positions.push((array[i * 2] as usize, array[i * 2 + 1] as usize));
+            agents_positions.push(PyPosition {
+                i: array[i * 2] as usize,
+                j: array[i * 2 + 1] as usize,
+            });
         }
         let mut gems_collected = Vec::with_capacity(n_gems);
         for i in 0..n_gems {
@@ -136,7 +146,7 @@ impl PyWorldState {
         self.clone()
     }
 
-    fn __getstate__(&self) -> PyResult<(Vec<bool>, Vec<Position>, Vec<bool>)> {
+    fn __getstate__(&self) -> PyResult<(Vec<bool>, Vec<PyPosition>, Vec<bool>)> {
         Ok((
             self.gems_collected.clone(),
             self.agents_positions.clone(),
@@ -144,7 +154,7 @@ impl PyWorldState {
         ))
     }
 
-    fn __setstate__(&mut self, state: (Vec<bool>, Vec<Position>, Vec<bool>)) -> PyResult<()> {
+    fn __setstate__(&mut self, state: (Vec<bool>, Vec<PyPosition>, Vec<bool>)) -> PyResult<()> {
         let (gems_collected, agents_positions, agents_alive) = state;
         self.gems_collected = gems_collected;
         self.agents_positions = agents_positions;
@@ -152,7 +162,7 @@ impl PyWorldState {
         Ok(())
     }
 
-    pub fn __getnewargs__(&self) -> PyResult<(Vec<Position>, Vec<bool>)> {
+    pub fn __getnewargs__(&self) -> PyResult<(Vec<PyPosition>, Vec<bool>)> {
         Ok((vec![], vec![]))
     }
 
@@ -186,7 +196,7 @@ impl PyWorldState {
 impl From<PyWorldState> for WorldState {
     fn from(val: PyWorldState) -> Self {
         WorldState {
-            agents_positions: val.agents_positions,
+            agents_positions: val.agents_positions.into_iter().map(Into::into).collect(),
             gems_collected: val.gems_collected,
             agents_alive: val.agents_alive,
         }
@@ -196,7 +206,7 @@ impl From<PyWorldState> for WorldState {
 impl Into<PyWorldState> for WorldState {
     fn into(self) -> PyWorldState {
         PyWorldState {
-            agents_positions: self.agents_positions,
+            agents_positions: self.agents_positions.into_iter().map(Into::into).collect(),
             gems_collected: self.gems_collected,
             agents_alive: self.agents_alive,
         }

@@ -9,16 +9,17 @@ use crate::ParseError;
 
 use super::laser_config::LaserConfig;
 
+#[derive(Debug)]
 pub struct Config {
-    width: usize,
-    height: usize,
-    map_string: String,
-    gem_positions: Vec<Position>,
-    start_positions: Vec<Vec<Position>>,
-    void_positions: Vec<Position>,
-    exit_positions: Vec<Position>,
-    walls_positions: Vec<Position>,
-    source_configs: Vec<(Position, LaserConfig)>,
+    pub width: usize,
+    pub height: usize,
+    pub map_string: String,
+    pub gem_positions: Vec<Position>,
+    pub random_start_positions: Vec<Vec<Position>>,
+    pub void_positions: Vec<Position>,
+    pub exit_positions: Vec<Position>,
+    pub walls_positions: Vec<Position>,
+    pub source_configs: Vec<(Position, LaserConfig)>,
 }
 
 impl Config {
@@ -27,7 +28,7 @@ impl Config {
         height: usize,
         map_string: String,
         gem_positions: Vec<Position>,
-        start_positions: Vec<Vec<Position>>,
+        random_start_positions: Vec<Vec<Position>>,
         void_positions: Vec<Position>,
         exit_positions: Vec<Position>,
         walls_positions: Vec<Position>,
@@ -38,7 +39,7 @@ impl Config {
             height,
             map_string,
             gem_positions,
-            start_positions,
+            random_start_positions,
             void_positions,
             exit_positions,
             walls_positions,
@@ -50,11 +51,10 @@ impl Config {
         self.validate()?;
         let (grid, lasers_positions) = self.make_grid();
         let source_positions = self.source_configs.iter().map(|(pos, _)| *pos).collect();
-        let start_positions = self.start_positions.into_iter().flatten().collect();
         Ok(World::new(
             grid,
             self.gem_positions,
-            start_positions,
+            self.random_start_positions,
             self.void_positions,
             self.exit_positions,
             self.walls_positions,
@@ -66,7 +66,7 @@ impl Config {
 
     fn validate(&self) -> Result<(), ParseError> {
         // There are some agents
-        if self.start_positions.is_empty() {
+        if self.random_start_positions.is_empty() {
             return Err(ParseError::NoAgents);
         }
         // There are enough start/exit tiles
@@ -77,7 +77,7 @@ impl Config {
             });
         }
         // All agents have at least one start tile
-        for (agent_id, starts) in self.start_positions.iter().enumerate() {
+        for (agent_id, starts) in self.random_start_positions.iter().enumerate() {
             if starts.is_empty() {
                 return Err(ParseError::AgentWithoutStart { agent_id });
             }
@@ -85,7 +85,7 @@ impl Config {
 
         // Check that there are enough start tiles for all agents
         let n_starts = self
-            .start_positions
+            .random_start_positions
             .iter()
             .fold(0usize, |sum, current| sum + current.len());
         if n_starts < self.n_agents() {
@@ -109,7 +109,7 @@ impl Config {
     }
 
     pub fn n_agents(&self) -> usize {
-        self.start_positions.len()
+        self.random_start_positions.len()
     }
 
     fn make_grid(&self) -> (Vec<Vec<Tile>>, Vec<Position>) {
@@ -122,28 +122,22 @@ impl Config {
             grid.push(row);
         }
         for pos in &self.gem_positions {
-            grid[pos.0][pos.1] = Tile::Gem(Gem::default());
+            grid[pos.i][pos.j] = Tile::Gem(Gem::default());
         }
         for pos in &self.exit_positions {
-            grid[pos.0][pos.1] = Tile::Exit { agent: None };
+            grid[pos.i][pos.j] = Tile::Exit { agent: None };
         }
         for pos in &self.void_positions {
-            grid[pos.0][pos.1] = Tile::Void(Void::default());
+            grid[pos.i][pos.j] = Tile::Void(Void::default());
         }
         for pos in &self.walls_positions {
-            grid[pos.0][pos.1] = Tile::Wall;
+            grid[pos.i][pos.j] = Tile::Wall;
         }
         let laser_positions = laser_setup(&mut grid, &self.source_configs)
             .into_iter()
             .collect();
         (grid, laser_positions)
     }
-}
-
-pub fn parse(world_str: &str) -> Result<World, ParseError> {
-    // let config = Config::parse(world_str)?;
-    // Ok(config.to_world())
-    todo!()
 }
 
 /// Place the laser sources and wrap the required tiles behind a
@@ -158,11 +152,14 @@ fn laser_setup(
     for (pos, source) in laser_configs {
         let mut beam_positions = vec![];
         let delta = source.direction.delta();
-        let (mut i, mut j) = (pos.0 as i32, pos.1 as i32);
+        let (mut i, mut j) = (pos.i as i32, pos.j as i32);
         (i, j) = ((i + delta.0), (j + delta.1));
         while i >= 0 && j >= 0 && i < height && j < width {
-            let pos = (i as usize, j as usize);
-            if !grid[pos.0][pos.1].is_waklable() {
+            let pos = Position {
+                i: i as usize,
+                j: j as usize,
+            };
+            if !grid[pos.i][pos.j].is_waklable() {
                 break;
             }
             beam_positions.push(pos);
@@ -171,11 +168,11 @@ fn laser_setup(
         laser_positions.extend(&beam_positions);
         let source = source.build(beam_positions.len());
         for (i, pos) in beam_positions.into_iter().enumerate() {
-            let wrapped = grid[pos.0].remove(pos.1);
+            let wrapped = grid[pos.i].remove(pos.j);
             let laser = Tile::Laser(Laser::new(wrapped, source.beam(), i));
-            grid[pos.0].insert(pos.1, laser);
+            grid[pos.i].insert(pos.j, laser);
         }
-        grid[pos.0][pos.1] = Tile::LaserSource(source);
+        grid[pos.i][pos.j] = Tile::LaserSource(source);
     }
     laser_positions
 }

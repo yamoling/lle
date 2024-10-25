@@ -5,9 +5,9 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use crate::{
     agent::AgentId,
-    bindings::pydirection::PyDirection,
+    bindings::{pydirection::PyDirection, pyposition::PyPosition},
     tiles::{LaserId, LaserSource},
-    Position, Tile, World,
+    Tile, World,
 };
 
 #[gen_stub_pyclass]
@@ -28,7 +28,7 @@ pub struct PyLaserSource {
     laser_id: LaserId,
     /// The (i, j) position of the laser tile.
     #[pyo3(get)]
-    pos: Position,
+    pos: PyPosition,
     world: Arc<Mutex<World>>,
 }
 
@@ -36,13 +36,13 @@ unsafe impl Send for PyLaserSource {}
 unsafe impl Sync for PyLaserSource {}
 
 impl PyLaserSource {
-    pub fn new(world: Arc<Mutex<World>>, pos: Position, source: &LaserSource) -> Self {
+    pub fn new(world: Arc<Mutex<World>>, pos: (usize, usize), source: &LaserSource) -> Self {
         Self {
             agent_id: source.agent_id(),
             direction: PyDirection::from(source.direction()),
             is_enabled: source.is_enabled(),
             laser_id: source.laser_id(),
-            pos,
+            pos: pos.into(),
             world,
         }
     }
@@ -53,7 +53,7 @@ impl PyLaserSource {
         }
 
         let world = &mut self.world.lock().unwrap();
-        let tile = world.at_mut(self.pos).unwrap();
+        let tile = world.at_mut(&self.pos.clone().into()).unwrap();
         // let tile = inner(world, self.pos).unwrap();
         match tile {
             Tile::LaserSource(laser_source) => {
@@ -112,7 +112,7 @@ impl PyLaserSource {
                 "Agent ID is greater than the number of agents",
             ));
         }
-        if let Some(Tile::LaserSource(laser_source)) = world.at(self.pos) {
+        if let Some(Tile::LaserSource(laser_source)) = world.at(&self.pos.clone().into()) {
             laser_source.set_agent_id(agent_id as AgentId);
             self.agent_id = agent_id as AgentId;
         } else {

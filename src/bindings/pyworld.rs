@@ -19,6 +19,7 @@ use super::{
     pyagent::PyAgent,
     pyevent::PyWorldEvent,
     pyexceptions::{parse_error_to_exception, runtime_error_to_pyexception},
+    pyposition::PyPosition,
     pytile::{PyGem, PyLaser, PyLaserSource},
     pyworld_state::PyWorldState,
 };
@@ -47,16 +48,16 @@ use super::{
 pub struct PyWorld {
     /// The positions of the exits tiles.
     #[pyo3(get)]
-    exit_pos: Vec<Position>,
+    exit_pos: Vec<PyPosition>,
     /// The positions of the start tiles.
     #[pyo3(get)]
-    start_pos: Vec<Position>,
+    start_pos: Vec<PyPosition>,
     /// The positions of the walls.
     #[pyo3(get)]
-    wall_pos: Vec<Position>,
+    wall_pos: Vec<PyPosition>,
     /// The positions of the void tiles.
     #[pyo3(get)]
-    void_pos: Vec<Position>,
+    void_pos: Vec<PyPosition>,
     /// The height of the world (in number of tiles).
     #[pyo3(get)]
     height: usize,
@@ -82,10 +83,18 @@ impl From<World> for PyWorld {
     fn from(world: World) -> Self {
         let renderer = Renderer::new(&world);
         PyWorld {
-            exit_pos: world.exits_positions(),
-            start_pos: world.starts(),
-            wall_pos: world.walls(),
-            void_pos: world.void_positions(),
+            exit_pos: world
+                .exits_positions()
+                .into_iter()
+                .map(|p| p.into())
+                .collect(),
+            start_pos: world.starts().into_iter().map(|p| p.into()).collect(),
+            wall_pos: world.walls().into_iter().map(|p| p.into()).collect(),
+            void_pos: world
+                .void_positions()
+                .into_iter()
+                .map(|p| p.into())
+                .collect(),
             height: world.height(),
             width: world.width(),
             n_gems: world.n_gems(),
@@ -155,37 +164,43 @@ impl PyWorld {
 
     /// The (i, j) position of each agent.
     #[getter]
-    fn agents_positions(&self) -> Vec<Position> {
-        self.world.lock().unwrap().agents_positions().clone()
+    fn agents_positions(&self) -> Vec<PyPosition> {
+        self.world
+            .lock()
+            .unwrap()
+            .agents_positions()
+            .into_iter()
+            .map(|p| (*p).into())
+            .collect()
     }
 
     /// The gems with their respective position.
     #[getter]
-    fn gems(&self) -> HashMap<Position, PyGem> {
+    fn gems(&self) -> HashMap<PyPosition, PyGem> {
         let arc_world = self.world.clone();
         let world = self.world.lock().unwrap();
         izip!(world.gems_positions(), world.gems())
             .into_iter()
-            .map(|(pos, gem)| (pos, PyGem::new(gem, pos, arc_world.clone())))
+            .map(|(pos, gem)| (pos.into(), PyGem::new(gem, pos.into(), arc_world.clone())))
             .collect()
     }
 
     /// The (i, j) position of every laser.
     /// Since two lasers can cross, there can be duplicates in the positions.
     #[getter]
-    fn lasers(&self) -> Vec<(Position, PyLaser)> {
+    fn lasers(&self) -> Vec<(PyPosition, PyLaser)> {
         let arc_world = self.world.clone();
         let world = self.world.lock().unwrap();
         world
             .lasers()
             .iter()
-            .map(|(pos, laser)| (*pos, PyLaser::new(laser, *pos, arc_world.clone())))
+            .map(|(pos, laser)| ((*pos).into(), PyLaser::new(laser, *pos, arc_world.clone())))
             .collect()
     }
 
     /// A mapping from (i, j) positions to laser sources.
     #[getter]
-    fn laser_sources(&self) -> HashMap<Position, PyLaserSource> {
+    fn laser_sources(&self) -> HashMap<PyPosition, PyLaserSource> {
         let arc_world = self.world.clone();
         let world = self.world.lock().unwrap();
         world
@@ -193,8 +208,8 @@ impl PyWorld {
             .iter()
             .map(|(pos, laser_source)| {
                 (
-                    *pos,
-                    PyLaserSource::new(arc_world.clone(), *pos, laser_source),
+                    (*pos).into(),
+                    PyLaserSource::new(arc_world.clone(), pos.into(), laser_source),
                 )
             })
             .collect()
@@ -358,13 +373,18 @@ impl PyWorld {
     }
 
     /// Enable serialisation with pickle
-    pub fn __getstate__(&self) -> PyResult<(String, Vec<bool>, Vec<Position>, Vec<bool>)> {
+    pub fn __getstate__(&self) -> PyResult<(String, Vec<bool>, Vec<PyPosition>, Vec<bool>)> {
         let world = self.world.lock().unwrap();
         let state = world.get_state();
         let data = (
             world.compute_world_string().to_owned(),
             state.gems_collected.clone(),
-            state.agents_positions.clone(),
+            state
+                .agents_positions
+                .clone()
+                .into_iter()
+                .map(|p| p.into())
+                .collect(),
             state.agents_alive.clone(),
         );
         Ok(data)
@@ -373,35 +393,36 @@ impl PyWorld {
     /// Enable deserialisation with pickle
     pub fn __setstate__(
         &mut self,
-        state: (String, Vec<bool>, Vec<Position>, Vec<bool>),
+        state: (String, Vec<bool>, Vec<PyPosition>, Vec<bool>),
     ) -> PyResult<()> {
-        let mut world = match World::try_from(state.0) {
-            Ok(w) => w,
-            Err(e) => panic!("Could not parse the world: {:?}", e),
-        };
-        self.renderer = Renderer::new(&world);
-        world
-            .set_state(&WorldState {
-                gems_collected: state.1,
-                agents_positions: state.2,
-                agents_alive: state.3,
-            })
-            .unwrap();
-        self.n_agents = world.n_agents();
-        self.n_gems = world.n_gems();
-        self.height = world.height();
-        self.width = world.width();
-        self.exit_pos = world.exits_positions();
-        self.start_pos = world.starts();
-        self.wall_pos = world.walls();
-        self.void_pos = world.void_positions();
-        self.world = Arc::new(Mutex::new(world));
-        Ok(())
+        // let mut world = match World::try_from(state.0) {
+        //     Ok(w) => w,
+        //     Err(e) => panic!("Could not parse the world: {:?}", e),
+        // };
+        // self.renderer = Renderer::new(&world);
+        // world
+        //     .set_state(&WorldState {
+        //         gems_collected: state.1,
+        //         agents_positions: state.2,
+        //         agents_alive: state.3,
+        //     })
+        //     .unwrap();
+        // self.n_agents = world.n_agents();
+        // self.n_gems = world.n_gems();
+        // self.height = world.height();
+        // self.width = world.width();
+        // self.exit_pos = world.exits_positions();
+        // self.start_pos = world.starts();
+        // self.wall_pos = world.walls();
+        // self.void_pos = world.void_positions();
+        // self.world = Arc::new(Mutex::new(world));
+        // Ok(())
+        todo!()
     }
 
     pub fn __repr__(&self) -> String {
         let mut res = format!(
-            "World(height={}, width={}, n_gems={}, n_agents={}, ",
+            "World(height={}, width={}, n_gems={}, n_agents={})",
             self.height, self.width, self.n_gems, self.n_agents
         );
         let w = self.world.lock().unwrap();

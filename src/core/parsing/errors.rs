@@ -51,6 +51,16 @@ pub enum ParseError {
     AgentWithoutStart {
         agent_id: AgentId,
     },
+    InconsistentWorldStringWidth {
+        toml_width: usize,
+        world_str_width: usize,
+    },
+    InconsistentWorldStringHeight {
+        toml_height: usize,
+        world_str_height: usize,
+    },
+    MissingWidth,
+    MissingHeight,
     NotV2,
 }
 

@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use lle::{
     self,
-    bindings::{PyAction, PyWorld, PyWorldBuilder, PyWorldState},
+    bindings::{PyAction, PyWorld, PyWorldState},
 };
 use pyo3_stub_gen::{
     generate::{MemberDef, VariableDef},
@@ -18,7 +18,7 @@ fn main() -> Result<()> {
     add_version_declaration(&mut info);
     modify_world_step_action_type(&mut info);
     set_world_attribute_imports(&mut info);
-    set_world_builder_imports(&mut info);
+    // set_world_builder_imports(&mut info);
     set_optional_init_args(&mut info);
     info.generate()?;
     std::fs::rename(INIT_PYI, LLE_PYI)?;
@@ -146,20 +146,20 @@ fn add_action_classattrs(info: &mut StubInfo) {
     });
 }
 
-fn set_world_builder_imports(info: &mut StubInfo) {
-    let world_builder_type_id = std::any::TypeId::of::<PyWorldBuilder>();
-    let world_builder_def = info
-        .modules
-        .get_mut("lle")
-        .unwrap()
-        .class
-        .get_mut(&world_builder_type_id)
-        .unwrap();
-    world_builder_def
-        .methods
-        .iter_mut()
-        .find(|m| m.name == "add_laser_source")
-        .unwrap()
-        .args[2]
-        .r#type = TypeInfo::builtin(" tiles.Direction");
-}
+// fn set_world_builder_imports(info: &mut StubInfo) {
+//     let world_builder_type_id = std::any::TypeId::of::<PyWorldBuilder>();
+//     let world_builder_def = info
+//         .modules
+//         .get_mut("lle")
+//         .unwrap()
+//         .class
+//         .get_mut(&world_builder_type_id)
+//         .unwrap();
+//     world_builder_def
+//         .methods
+//         .iter_mut()
+//         .find(|m| m.name == "add_laser_source")
+//         .unwrap()
+//         .args[2]
+//         .r#type = TypeInfo::builtin(" tiles.Direction");
+// }

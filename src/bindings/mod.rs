@@ -6,15 +6,16 @@ mod pyagent;
 mod pydirection;
 mod pyevent;
 mod pyexceptions;
+mod pyposition;
 mod pytile;
 mod pyworld;
-mod pyworld_builder;
+// mod pyworld_builder;
 mod pyworld_state;
 
 pub use pyaction::PyAction;
 pub use pytile::{PyLaser, PyLaserSource};
 pub use pyworld::PyWorld;
-pub use pyworld_builder::PyWorldBuilder;
+// pub use pyworld_builder::PyWorldBuilder;
 pub use pyworld_state::PyWorldState;
 
 #[pymodule]
@@ -34,7 +35,7 @@ pub fn lle(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     m.add_class::<pyevent::PyEventType>()?;
     m.add_class::<pyevent::PyWorldEvent>()?;
-    m.add_class::<pyworld_builder::PyWorldBuilder>()?;
+    // m.add_class::<pyworld_builder::PyWorldBuilder>()?;
     m.add_class::<pyaction::PyAction>()?;
     m.add_class::<pyagent::PyAgent>()?;
     m.add_class::<pyworld::PyWorld>()?;
