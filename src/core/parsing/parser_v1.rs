@@ -88,6 +88,7 @@ impl TryInto<Config> for ParsingData {
     type Error = ParseError;
     fn try_into(self) -> Result<Config, Self::Error> {
         if self.height == 0 {
+            println!("Coucou");
             return Err(ParseError::EmptyWorld);
         }
         let width = self.width.ok_or(ParseError::MissingWidth)?;

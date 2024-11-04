@@ -5,7 +5,6 @@ mod parser_v2;
 mod world_config;
 
 pub use errors::ParseError;
-pub use laser_config::LaserConfig;
 pub use parser_v1::parse as parse_v1;
 pub use parser_v2::parse as parse_v2;
 

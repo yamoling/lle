@@ -85,9 +85,28 @@ pub fn parse_error_to_exception(error: ParseError) -> PyErr {
         ParseError::InvalidFileName { .. } | ParseError::InvalidLevel { .. } => {
             unreachable!("Already handled above")
         }
-        other => {
-            panic!("Unhandled error: {:?}", other);
+        ParseError::NotEnoughStartTiles { n_starts, n_agents } => {
+            format!("Not enough start tiles: {n_starts} starts, {n_agents} agents")
         }
+        ParseError::AgentWithoutStart { agent_id } => {
+            format!("Agent {agent_id} has no start tile")
+        },
+        ParseError::InconsistentWorldStringWidth {
+            toml_width,
+            world_str_width,
+        } => format!(
+            "Inconsistent world string width: toml width is {toml_width}, world string width is {world_str_width}"
+        ),
+        ParseError::InconsistentWorldStringHeight {
+            toml_height,
+            world_str_height,
+        } => format!(
+            "Inconsistent world string height: toml height is {toml_height}, world string height is {world_str_height}"
+        ),
+        ParseError::PositionOutOfBounds { i, j } => format!("Position ({i}, {j}) is out of the world's boundaries"),
+        ParseError::MissingHeight => "Missing height in the world configuration file".into(),
+        ParseError::MissingWidth => "Missing width in the world configuration file".into(),
+        ParseError::NotV2 => panic!("NotV2 exception should not be raised here"),
     };
     ParsingError::new_err(msg)
 }

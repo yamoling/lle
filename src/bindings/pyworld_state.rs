@@ -1,5 +1,5 @@
 use super::pyposition::PyPosition;
-use crate::{core::WorldState, Position};
+use crate::core::WorldState;
 use numpy::PyArray1;
 use pyo3::{exceptions, prelude::*, pyclass::CompareOp, types::PyDict};
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
@@ -152,8 +152,8 @@ impl PyWorldState {
         Ok(())
     }
 
-    pub fn __getnewargs__(&self) -> PyResult<(Vec<PyPosition>, Vec<bool>)> {
-        Ok((vec![], vec![]))
+    pub fn __getnewargs__(&self) -> (Vec<PyPosition>, Vec<bool>, Option<Vec<bool>>) {
+        (vec![], vec![], None)
     }
 
     fn __repr__(&self) -> String {

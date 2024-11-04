@@ -1,16 +1,34 @@
-from lle import WorldState
-from random import choices
+from lle import World
 
+content = '''
+width = 10
+height = 5
+map_string = """
+. . . . S1 . . . . . 
+. . . . .  . . . . . 
+. . . . .  . . . . . 
+. . . . .  . . . . . 
+. . . . .  . . . . . 
+"""
 
-class SubWorldState(WorldState):
-    def __init__(self, agents_positions: list[tuple[int, int]], gems_collected: list[bool], agents_alive: list[bool], x: int):
-        super().__init__(agents_positions, gems_collected, agents_alive)
-        self.x = x
+[[agents]]
+start_positions = { rectangles = [{ i_min = 0, i_max = 10 }] }
 
-    def __new__(cls, agents_positions: list[tuple[int, int]], gems_collected: list[bool], agents_alive: list[bool], *args, **kwargs):
-        instance = super().__new__(cls, agents_positions, gems_collected, agents_alive)
-        return instance
+[[agents]]
+# Deduced from the string map that agent 1 has a start position at (0, 5).
 
+[[agents]]
+start_positions = { positions = [{ i = 0, j = 5 }, { i = 10, j = 5 }] }
 
-w = SubWorldState([(1, 1)], [], [True], 1)
-print(w)
+[[agents]]
+start_positions = { positions = [
+    { i = 5, j = 10 },
+], rectangles = [
+    { i_min = 1, imax = 3, j_min = 0, j_max = 3 },
+    { j_min = 4 },
+] }
+'''
+world = World(content)
+assert world.width == 10
+assert world.height == 5
+assert world.n_agents == 4

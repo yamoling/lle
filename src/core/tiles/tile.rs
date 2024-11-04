@@ -1,6 +1,5 @@
 use crate::{
     agent::{Agent, AgentId},
-    core::parsing::LaserConfig,
     rendering::{TileVisitor, VisitorData},
     ParseError, RuntimeWorldError, WorldEvent,
 };

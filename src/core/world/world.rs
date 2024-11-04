@@ -221,6 +221,10 @@ impl World {
         self.start_positions.clone()
     }
 
+    pub fn possible_starts(&self) -> Vec<Vec<Position>> {
+        self.random_start_positions.clone()
+    }
+
     pub fn void_positions(&self) -> Vec<Position> {
         self.void_positions.clone()
     }

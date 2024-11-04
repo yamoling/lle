@@ -12,7 +12,7 @@ use pyo3::{
 };
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
-use crate::{Action, Position, Renderer, World, WorldState};
+use crate::{Action, Renderer, World};
 
 use super::{
     pyaction::PyAction,
@@ -49,9 +49,9 @@ pub struct PyWorld {
     /// The positions of the exits tiles.
     #[pyo3(get)]
     exit_pos: Vec<PyPosition>,
-    /// The positions of the start tiles.
+    /// The possible random start positions of each agent.
     #[pyo3(get)]
-    start_pos: Vec<PyPosition>,
+    random_start_pos: Vec<Vec<PyPosition>>,
     /// The positions of the walls.
     #[pyo3(get)]
     wall_pos: Vec<PyPosition>,
@@ -88,7 +88,11 @@ impl From<World> for PyWorld {
                 .into_iter()
                 .map(|p| p.into())
                 .collect(),
-            start_pos: world.starts().into_iter().map(|p| p.into()).collect(),
+            random_start_pos: world
+                .possible_starts()
+                .into_iter()
+                .map(|p| p.into_iter().map(|p| p.as_ij()).collect())
+                .collect(),
             wall_pos: world.walls().into_iter().map(|p| p.into()).collect(),
             void_pos: world
                 .void_positions()
@@ -108,11 +112,6 @@ impl From<World> for PyWorld {
 #[gen_stub_pymethods]
 #[pymethods]
 impl PyWorld {
-    /// Constructs a World from a string.
-    ///
-    /// Raises:
-    ///     RuntimeError: if the file is not a valid level.
-    ///     ValueError if the file is not a valid level (inconsistent dimensions or invalid grid).
     #[new]
     pub fn new(map_str: String) -> PyResult<Self> {
         match World::try_from(map_str) {
@@ -121,9 +120,19 @@ impl PyWorld {
         }
     }
 
+    /// Constructs a World from a string.
+    ///
+    /// Raises:
+    ///     - `RuntimeError`: if the file is not a valid level.
+    ///     - `ValueError` if the file is not a valid level (inconsistent dimensions or invalid grid).
+    #[allow(unused_variables)]
+    pub fn __init__(&self, map_str: String) {
+        // Just to have the __init__ method in the generated stub
+    }
+
     /// Parse the content of `filename` to create a World.
     /// Raises:
-    ///     FileNotFoundError: if the file does not exist.
+    ///     - `FileNotFoundError`: if the file does not exist.
     #[staticmethod]
     fn from_file(filename: String) -> PyResult<Self> {
         let world = match World::from_file(&filename) {
@@ -135,7 +144,7 @@ impl PyWorld {
 
     /// Retrieve the standard level (between `1` and `6`).
     /// Raises:
-    ///     ValueError: if the level is invalid.
+    ///     - `ValueError`: if the level is invalid.
     #[staticmethod]
     fn level(level: usize) -> PyResult<Self> {
         match World::get_level(level) {
@@ -215,6 +224,13 @@ impl PyWorld {
             .collect()
     }
 
+    #[getter]
+    /// The start position of each agent for this reset.
+    fn start_pos(&self) -> Vec<PyPosition> {
+        let world = self.world.lock().unwrap();
+        world.starts().iter().map(|p| (*p).into()).collect()
+    }
+
     /// Simultaneously perform an action for each agent in the world.
     /// Performing a step generates events (see `WorldEvent`) to give information about the consequences of the joint action.
     ///
@@ -225,8 +241,8 @@ impl PyWorld {
     ///   The list of events that occurred while agents took their action.
     ///
     /// Raises:
-    ///     `InvalidActionError` if an agent takes an action that is not available.
-    ///     `ValueError` if the number of actions is different from the number of agents
+    ///     - `InvalidActionError` if an agent takes an action that is not available.
+    ///     - `ValueError` if the number of actions is different from the number of agents
     ///
     /// Example:
     /// ```python
@@ -336,7 +352,7 @@ impl PyWorld {
     /// Returns:
     ///     The list of events that occurred while agents entered their state.
     /// Raises:
-    ///     InvalidWorldStateError: if the state is invalid.
+    ///     - `InvalidWorldStateError`: if the state is invalid.
     fn set_state(&mut self, state: PyWorldState) -> PyResult<Vec<PyWorldEvent>> {
         match self.world.lock().unwrap().set_state(&state.into()) {
             Ok(events) => Ok(events.iter().map(|e| PyWorldEvent::from(e)).collect()),
@@ -373,51 +389,41 @@ impl PyWorld {
     }
 
     /// Enable serialisation with pickle
-    pub fn __getstate__(&self) -> PyResult<(String, Vec<bool>, Vec<PyPosition>, Vec<bool>)> {
+    pub fn __getstate__(&self) -> PyResult<(String, PyWorldState)> {
         let world = self.world.lock().unwrap();
-        let state = world.get_state();
-        let data = (
-            world.compute_world_string().to_owned(),
-            state.gems_collected.clone(),
-            state
-                .agents_positions
-                .clone()
-                .into_iter()
-                .map(|p| p.into())
-                .collect(),
-            state.agents_alive.clone(),
-        );
-        Ok(data)
+        let state: PyWorldState = world.get_state().into();
+        let world_string = world.compute_world_string().to_owned();
+        Ok((world_string, state))
     }
 
     /// Enable deserialisation with pickle
-    pub fn __setstate__(
-        &mut self,
-        state: (String, Vec<bool>, Vec<PyPosition>, Vec<bool>),
-    ) -> PyResult<()> {
-        // let mut world = match World::try_from(state.0) {
-        //     Ok(w) => w,
-        //     Err(e) => panic!("Could not parse the world: {:?}", e),
-        // };
-        // self.renderer = Renderer::new(&world);
-        // world
-        //     .set_state(&WorldState {
-        //         gems_collected: state.1,
-        //         agents_positions: state.2,
-        //         agents_alive: state.3,
-        //     })
-        //     .unwrap();
-        // self.n_agents = world.n_agents();
-        // self.n_gems = world.n_gems();
-        // self.height = world.height();
-        // self.width = world.width();
-        // self.exit_pos = world.exits_positions();
-        // self.start_pos = world.starts();
-        // self.wall_pos = world.walls();
-        // self.void_pos = world.void_positions();
-        // self.world = Arc::new(Mutex::new(world));
-        // Ok(())
-        todo!()
+    pub fn __setstate__(&mut self, state: (String, PyWorldState)) -> PyResult<()> {
+        let world = match World::try_from(state.0) {
+            Ok(mut w) => {
+                w.set_state(&state.1.into()).unwrap();
+                w
+            }
+            Err(e) => panic!("Could not parse the world: {:?}", e),
+        };
+        self.renderer = Renderer::new(&world);
+        self.n_agents = world.n_agents();
+        self.n_gems = world.n_gems();
+        self.height = world.height();
+        self.width = world.width();
+        self.exit_pos = world
+            .exits_positions()
+            .iter()
+            .map(|p| (*p).into())
+            .collect();
+        self.random_start_pos = world
+            .possible_starts()
+            .iter()
+            .map(|p| p.iter().map(|p| p.as_ij()).collect())
+            .collect();
+        self.wall_pos = world.walls().iter().map(|p| (*p).into()).collect();
+        self.void_pos = world.void_positions().iter().map(|p| (*p).into()).collect();
+        self.world = Arc::new(Mutex::new(world));
+        Ok(())
     }
 
     pub fn __repr__(&self) -> String {
@@ -444,7 +450,7 @@ impl Clone for PyWorld {
         let renderer = Renderer::new(&core);
         PyWorld {
             exit_pos: self.exit_pos.clone(),
-            start_pos: self.start_pos.clone(),
+            random_start_pos: self.random_start_pos.clone(),
             wall_pos: self.wall_pos.clone(),
             void_pos: self.void_pos.clone(),
             height: self.height,

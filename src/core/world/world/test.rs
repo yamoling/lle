@@ -494,3 +494,20 @@ fn test_force_state_agent_dies() {
     w.set_state(&s).unwrap();
     assert!(w.agents()[1].is_dead());
 }
+
+#[test]
+fn test_no_exits() {
+    let toml_content = r#"
+world_string = """
+. . S0 . S1 . . . . S2 
+. . .  . .  . . . . S3 
+. . .  . .  . . . . . 
+. . .  . .  . . . . . 
+"""
+"#;
+    match World::try_from(toml_content) {
+        Err(ParseError::NotEnoughExitTiles { .. }) => {}
+        Ok(..) => panic!("Should not be able to create a world without exits"),
+        Err(other) => panic!("Expected NotEnoughExitTiles, got {other:?}"),
+    }
+}

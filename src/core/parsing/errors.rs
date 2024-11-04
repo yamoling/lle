@@ -59,6 +59,10 @@ pub enum ParseError {
         toml_height: usize,
         world_str_height: usize,
     },
+    PositionOutOfBounds {
+        i: usize,
+        j: usize,
+    },
     MissingWidth,
     MissingHeight,
     NotV2,
