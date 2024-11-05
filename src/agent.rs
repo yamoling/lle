@@ -10,9 +10,9 @@ pub struct Agent {
 }
 
 impl Agent {
-    pub fn new(id: u32) -> Self {
+    pub fn new(id: AgentId) -> Self {
         Self {
-            id: id as usize,
+            id,
             dead: false,
             arrived: false,
         }

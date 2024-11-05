@@ -1,16 +1,15 @@
-use crate::{core::WorldState, Position};
+use super::pyposition::PyPosition;
+use crate::core::WorldState;
 use numpy::PyArray1;
 use pyo3::{exceptions, prelude::*, pyclass::CompareOp, types::PyDict};
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use std::hash::{Hash, Hasher};
-
 ///
 /// A state in the `World` is defined by:
 ///  - The position of each agent.
 ///  - Whether each gem has been collected.
 ///  - Whether each agent is alive.
-///
-/// **Using `WorldState`s:**
+/// ## Using `WorldState`s
 /// ```python
 /// from lle import WorldState, World
 /// w = World("S0 . X")
@@ -19,21 +18,18 @@ use std::hash::{Hash, Hasher};
 /// s2 = WorldState([(0, 1), [], [True]])
 /// world.set_state(s2)
 /// ```
-///
-///
-/// **Inheritance:**
-/// To inherit from `WorldState`, it is required to override the __new__ method such that it
-/// accepts **the same arguments** as the __init__ method in the same order (except `cls` instead of `self`).
-/// You should ignore the additional arguments in the __new__ method as shown below.
+/// ## Inheritance
+/// To inherit from `WorldState`, it is required to override the `__new__` method such that you its signature
+/// is compatible with `__init__`, i.e. it accepts the same leading arguments in the same order.
+/// Additionally, the `__new__` method **must** call the `super()` constructor with the parameters of the parent class, as shown below.
 /// ```python
 /// class SubWorldState(WorldState):
-///    def __init__(self, x: int, agents_positions: list[tuple[int, int]], gems_collected: list[bool], agents_alive: List[bool] | None = None):
-///        super().__init__(agents_positions, gems_collected, agents_alive)
-///        self.x = x
-///
-///    def __new__(cls, _x: int, agents_positions: list[tuple[int, int]], gems_collected: list[bool], agents_alive: list[bool] | None = None):
-///        instance = super().__new__(cls, agents_positions, gems_collected, agents_alive)
-///        return instance
+///     def __init__(self, agents_positions: list[tuple[int, int]], gems_collected: list[bool], agents_alive: list[bool], x: int):
+///         super().__init__(agents_positions, gems_collected, agents_alive)
+///         self.x = x
+///     def __new__(cls, agents_positions: list[tuple[int, int]], gems_collected: list[bool], agents_alive: list[bool], *args, **kwargs):
+///         instance = super().__new__(cls, agents_positions, gems_collected, agents_alive)
+///         return instance
 /// ```
 #[gen_stub_pyclass]
 #[pyclass(name = "WorldState", module = "lle", subclass)]
@@ -41,7 +37,7 @@ use std::hash::{Hash, Hasher};
 pub struct PyWorldState {
     /// The position of each agent.
     #[pyo3(get, set)]
-    agents_positions: Vec<Position>,
+    agents_positions: Vec<PyPosition>,
     /// The collection status of each gem.
     #[pyo3(get, set)]
     gems_collected: Vec<bool>,
@@ -54,10 +50,9 @@ pub struct PyWorldState {
 #[pymethods]
 impl PyWorldState {
     #[new]
-    #[pyo3(signature=(agents_positions,  gems_collected, agents_alive= None))]
-    /// Construct a WorldState from the position of each agent and the collection status of each gem.
+    #[pyo3(signature = (agents_positions, gems_collected, agents_alive=None))]
     pub fn new(
-        agents_positions: Vec<Position>,
+        agents_positions: Vec<(usize, usize)>,
         gems_collected: Vec<bool>,
         agents_alive: Option<Vec<bool>>,
     ) -> Self {
@@ -69,9 +64,10 @@ impl PyWorldState {
         }
     }
 
+    #[pyo3(signature = (agents_positions, gems_collected, agents_alive=None))]
     fn __init__(
         &mut self,
-        agents_positions: Vec<Position>,
+        agents_positions: Vec<(usize, usize)>,
         gems_collected: Vec<bool>,
         agents_alive: Option<Vec<bool>>,
     ) {
@@ -140,7 +136,7 @@ impl PyWorldState {
         self.clone()
     }
 
-    fn __getstate__(&self) -> PyResult<(Vec<bool>, Vec<Position>, Vec<bool>)> {
+    fn __getstate__(&self) -> PyResult<(Vec<bool>, Vec<PyPosition>, Vec<bool>)> {
         Ok((
             self.gems_collected.clone(),
             self.agents_positions.clone(),
@@ -148,7 +144,7 @@ impl PyWorldState {
         ))
     }
 
-    fn __setstate__(&mut self, state: (Vec<bool>, Vec<Position>, Vec<bool>)) -> PyResult<()> {
+    fn __setstate__(&mut self, state: (Vec<bool>, Vec<PyPosition>, Vec<bool>)) -> PyResult<()> {
         let (gems_collected, agents_positions, agents_alive) = state;
         self.gems_collected = gems_collected;
         self.agents_positions = agents_positions;
@@ -156,19 +152,15 @@ impl PyWorldState {
         Ok(())
     }
 
-    pub fn __getnewargs__(&self) -> PyResult<(Vec<Position>, Vec<bool>)> {
-        Ok((vec![], vec![]))
-    }
-
-    fn __str__(&self) -> String {
-        format!(
-            "WorldState(agent_positions={:?}, gems_collected={:?})",
-            self.agents_positions, self.gems_collected
-        )
+    pub fn __getnewargs__(&self) -> (Vec<PyPosition>, Vec<bool>, Option<Vec<bool>>) {
+        (vec![], vec![], None)
     }
 
     fn __repr__(&self) -> String {
-        self.__str__()
+        format!(
+            "WorldState(agents_positions={:?}, gems_collected={:?}, agents_alive={:?})",
+            self.agents_positions, self.gems_collected, self.agents_alive
+        )
     }
 
     fn __hash__(&self) -> u64 {
@@ -194,7 +186,7 @@ impl PyWorldState {
 impl From<PyWorldState> for WorldState {
     fn from(val: PyWorldState) -> Self {
         WorldState {
-            agents_positions: val.agents_positions,
+            agents_positions: val.agents_positions.into_iter().map(Into::into).collect(),
             gems_collected: val.gems_collected,
             agents_alive: val.agents_alive,
         }
@@ -204,7 +196,7 @@ impl From<PyWorldState> for WorldState {
 impl Into<PyWorldState> for WorldState {
     fn into(self) -> PyWorldState {
         PyWorldState {
-            agents_positions: self.agents_positions,
+            agents_positions: self.agents_positions.into_iter().map(Into::into).collect(),
             gems_collected: self.gems_collected,
             agents_alive: self.agents_alive,
         }

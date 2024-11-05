@@ -12,9 +12,17 @@ class ObservationType(IntEnum):
 
     RELATIVE_POSITIONS = 0
     STATE = 1
+    """The state of the world (agents positions, gems collected, agents_alive) as a numpy array"""
     RGB_IMAGE = 2
+    """The RGB image of the world"""
     LAYERED = 3
+    """
+    Layered observations of the map (walls, lasers, ...) as shown below. Only 2 agents are shown for the sake of clarity.
+
+    ![Layered representation of the world](../../docs/layers.png)
+    """
     FLATTENED = 4
+    """Same as `ObservationType.LAYERED` but flattened to 1D"""
     PARTIAL_3x3 = 5
     PARTIAL_5x5 = 6
     PARTIAL_7x7 = 7

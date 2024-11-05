@@ -7,28 +7,28 @@ use pyo3::{
 use crate::{ParseError, RuntimeWorldError};
 
 create_exception!(
-    exceptions,
+    lle.exceptions,
     InvalidWorldStateError,
     PyValueError,
     "Raised when the state of the world is invalid."
 );
 
 create_exception!(
-    exceptions,
+    lle.exceptions,
     InvalidActionError,
     PyValueError,
     "Raised when the action taken by an agent is invalid or when the number of actions provided is different from the number of agents."
 );
 
 create_exception!(
-    exceptions,
+    lle.exceptions,
     ParsingError,
     PyValueError,
     "Raised when there is a problem while parsing a world string."
 );
 
 create_exception!(
-    exceptions,
+    lle.exceptions,
     InvalidLevelError,
     PyValueError,
     "Raised when the level asked does not exist."
@@ -83,8 +83,31 @@ pub fn parse_error_to_exception(error: ParseError) -> PyErr {
             format!("Invalid direction: {given}. {expected}")
         }
         ParseError::InvalidFileName { .. } | ParseError::InvalidLevel { .. } => {
-            panic!("Already handled above")
+            unreachable!("Already handled above")
         }
+        ParseError::NotEnoughStartTiles { n_starts, n_agents } => {
+            format!("Not enough start tiles: {n_starts} starts, {n_agents} agents")
+        }
+        ParseError::AgentWithoutStart { agent_id } => {
+            format!("Agent {agent_id} has no start tile")
+        },
+        ParseError::InconsistentWorldStringWidth {
+            toml_width,
+            world_str_width,
+        } => format!(
+            "Inconsistent world string width: toml width is {toml_width}, world string width is {world_str_width}"
+        ),
+        ParseError::InconsistentWorldStringHeight {
+            toml_height,
+            world_str_height,
+        } => format!(
+            "Inconsistent world string height: toml height is {toml_height}, world string height is {world_str_height}"
+        ),
+        ParseError::PositionOutOfBounds { i, j } => format!("Position ({i}, {j}) is out of the world's boundaries"),
+        ParseError::MissingHeight => "Missing height in the world configuration file".into(),
+        ParseError::MissingWidth => "Missing width in the world configuration file".into(),
+        ParseError::UnknownTomlKey {message, .. } => message,
+        ParseError::NotV2 => panic!("NotV2 exception should not be raised here"),
     };
     ParsingError::new_err(msg)
 }

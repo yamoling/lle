@@ -10,7 +10,6 @@ When an agent enters a laser of its own colour, it blocks it. Otherwise, it dies
 You can install the Laser Learning Environment with pip or poetry.
 ```bash
 pip install laser-learning-environment # Stable release with pip
-poetry add laser-learning-environment  # Stable release with poetry
 pip install git+https://github.com/yamoling/lle # latest push on master
 ```
 
@@ -74,21 +73,20 @@ The environment has been presented at [EWRL 2023](https://openreview.net/pdf?id=
 ```
 
 ## Development
-If you want to modify the environment, you can clone the repo, install the python dependencies then compile it with `maturin`.
+If you want to modify the environment, you can clone the repo, install the python dependencies then compile it with `maturin`. The below example assumes that you are using `uv` as package manager but it should work with `conda`, `poetry` or just `pip` as well.
 ```
 git clone https://github.com/yamoling/lle
-poetry shell # start the virtual environment
-poetry install
-maturin develop # install lle locally
+uv venv         # create a virtual environment
+source .venv/bin/activate
+uv sync         # install python dependencies
+maturin dev     # build and install lle in the venv
 ```
 
-
-## Building
-This project has been set up with maturin. Install maturin in a virtual environment with your preferred manner (manual, venv, uv, poetry, ...) and run
+You can also re-generate the python bindings in the folder `python/lle` with
 ```bash
-maturin develop  # For development
-maturin build    # For distribution
+cargo run --bin stub-gen
 ```
+
 
 ## Tests
 This project **does not** respect Rust unit tests convention and takes inspiration from [this structure](http://xion.io/post/code/rust-unit-test-placement.html). Unit tests are in the `src/unit_tests` folder and are explicitely linked to in each file with the `#path` directive. 

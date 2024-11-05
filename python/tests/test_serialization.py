@@ -23,8 +23,16 @@ def test_pickle_world():
             actions = [random.choice(a) for a in world.available_actions()]
             world.step(actions)
             serialised = pickle.dumps(world)
-            deserialised = pickle.loads(serialised)
-            assert world.get_state() == deserialised.get_state()
+            deserialized = pickle.loads(serialised)
+            assert deserialized.n_agents == world.n_agents
+            assert deserialized.n_gems == world.n_gems
+            assert deserialized.height == world.height
+            assert deserialized.width == world.width
+            assert deserialized.exit_pos == world.exit_pos
+            assert deserialized.start_pos == world.start_pos
+            assert deserialized.wall_pos == world.wall_pos
+            assert deserialized.void_pos == world.void_pos
+            assert world.get_state() == deserialized.get_state()
             i += 1
 
 

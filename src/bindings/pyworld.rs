@@ -12,13 +12,14 @@ use pyo3::{
 };
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
-use crate::{Action, Position, Renderer, World, WorldState};
+use crate::{Action, Renderer, World};
 
 use super::{
     pyaction::PyAction,
     pyagent::PyAgent,
     pyevent::PyWorldEvent,
     pyexceptions::{parse_error_to_exception, runtime_error_to_pyexception},
+    pyposition::PyPosition,
     pytile::{PyGem, PyLaser, PyLaserSource},
     pyworld_state::PyWorldState,
 };
@@ -29,21 +30,34 @@ use super::{
 // - Everything that is immutable is directly accessible from the `World` struct.
 // - Everything that is mutable is accessed through the `Arc<Mutex<World>>`.
 
+/// The `World` represents the environment in which the agents evolve.
+/// A world is created from a string where each character represents a tile.
+/// There are 6 predefined levels for convenience.
+///
+/// ```python
+/// from lle import World
+/// # Create from a predefined level
+/// w1 = World.level(5)
+/// # Create from a file
+/// w2 = World.from_file("my_map.txt")
+/// # Create from a string
+/// w3 = World("S0 X")
+/// ```
 #[gen_stub_pyclass]
 #[pyclass(name = "World", module = "lle", subclass)]
 pub struct PyWorld {
     /// The positions of the exits tiles.
     #[pyo3(get)]
-    exit_pos: Vec<Position>,
-    /// The positions of the start tiles.
+    exit_pos: Vec<PyPosition>,
+    /// The possible random start positions of each agent.
     #[pyo3(get)]
-    start_pos: Vec<Position>,
+    random_start_pos: Vec<Vec<PyPosition>>,
     /// The positions of the walls.
     #[pyo3(get)]
-    wall_pos: Vec<Position>,
+    wall_pos: Vec<PyPosition>,
     /// The positions of the void tiles.
     #[pyo3(get)]
-    void_pos: Vec<Position>,
+    void_pos: Vec<PyPosition>,
     /// The height of the world (in number of tiles).
     #[pyo3(get)]
     height: usize,
@@ -69,10 +83,22 @@ impl From<World> for PyWorld {
     fn from(world: World) -> Self {
         let renderer = Renderer::new(&world);
         PyWorld {
-            exit_pos: world.exits_positions(),
-            start_pos: world.starts(),
-            wall_pos: world.walls(),
-            void_pos: world.void_positions(),
+            exit_pos: world
+                .exits_positions()
+                .into_iter()
+                .map(|p| p.into())
+                .collect(),
+            random_start_pos: world
+                .possible_starts()
+                .into_iter()
+                .map(|p| p.into_iter().map(|p| p.as_ij()).collect())
+                .collect(),
+            wall_pos: world.walls().into_iter().map(|p| p.into()).collect(),
+            void_pos: world
+                .void_positions()
+                .into_iter()
+                .map(|p| p.into())
+                .collect(),
             height: world.height(),
             width: world.width(),
             n_gems: world.n_gems(),
@@ -86,11 +112,6 @@ impl From<World> for PyWorld {
 #[gen_stub_pymethods]
 #[pymethods]
 impl PyWorld {
-    /// Constructs a World from a string.
-    ///
-    /// Raises:
-    ///     RuntimeError: if the file is not a valid level.
-    ///     ValueError if the file is not a valid level (inconsistent dimensions or invalid grid).
     #[new]
     pub fn new(map_str: String) -> PyResult<Self> {
         match World::try_from(map_str) {
@@ -99,9 +120,21 @@ impl PyWorld {
         }
     }
 
-    /// Parse the content of `filename` to create a World.
+    /// Constructs a World from a string.
+    ///
     /// Raises:
-    ///     FileNotFoundError: if the file does not exist.
+    ///     - `RuntimeError`: if the file is not a valid level.
+    ///     - `ValueError` if the file is not a valid level (inconsistent dimensions or invalid grid).
+    #[allow(unused_variables)]
+    pub fn __init__(&self, map_str: String) {
+        // Just to have the __init__ method in the generated stub
+    }
+
+    /// Parse the content of `filename` to create a World.
+    ///
+    /// The file can either be a toml or a plain text file.
+    /// Raises:
+    ///     - `FileNotFoundError`: if the file does not exist.
     #[staticmethod]
     fn from_file(filename: String) -> PyResult<Self> {
         let world = match World::from_file(&filename) {
@@ -113,7 +146,7 @@ impl PyWorld {
 
     /// Retrieve the standard level (between `1` and `6`).
     /// Raises:
-    ///     ValueError: if the level is invalid.
+    ///     - `ValueError`: if the level is invalid.
     #[staticmethod]
     fn level(level: usize) -> PyResult<Self> {
         match World::get_level(level) {
@@ -142,37 +175,43 @@ impl PyWorld {
 
     /// The (i, j) position of each agent.
     #[getter]
-    fn agents_positions(&self) -> Vec<Position> {
-        self.world.lock().unwrap().agents_positions().clone()
+    fn agents_positions(&self) -> Vec<PyPosition> {
+        self.world
+            .lock()
+            .unwrap()
+            .agents_positions()
+            .into_iter()
+            .map(|p| (*p).into())
+            .collect()
     }
 
     /// The gems with their respective position.
     #[getter]
-    fn gems(&self) -> HashMap<Position, PyGem> {
+    fn gems(&self) -> HashMap<PyPosition, PyGem> {
         let arc_world = self.world.clone();
         let world = self.world.lock().unwrap();
         izip!(world.gems_positions(), world.gems())
             .into_iter()
-            .map(|(pos, gem)| (pos, PyGem::new(gem, pos, arc_world.clone())))
+            .map(|(pos, gem)| (pos.into(), PyGem::new(gem, pos.into(), arc_world.clone())))
             .collect()
     }
 
     /// The (i, j) position of every laser.
     /// Since two lasers can cross, there can be duplicates in the positions.
     #[getter]
-    fn lasers(&self) -> Vec<(Position, PyLaser)> {
+    fn lasers(&self) -> Vec<(PyPosition, PyLaser)> {
         let arc_world = self.world.clone();
         let world = self.world.lock().unwrap();
         world
             .lasers()
             .iter()
-            .map(|(pos, laser)| (*pos, PyLaser::new(laser, *pos, arc_world.clone())))
+            .map(|(pos, laser)| ((*pos).into(), PyLaser::new(laser, *pos, arc_world.clone())))
             .collect()
     }
 
     /// A mapping from (i, j) positions to laser sources.
     #[getter]
-    fn laser_sources(&self) -> HashMap<Position, PyLaserSource> {
+    fn laser_sources(&self) -> HashMap<PyPosition, PyLaserSource> {
         let arc_world = self.world.clone();
         let world = self.world.lock().unwrap();
         world
@@ -180,24 +219,46 @@ impl PyWorld {
             .iter()
             .map(|(pos, laser_source)| {
                 (
-                    *pos,
-                    PyLaserSource::new(arc_world.clone(), *pos, laser_source),
+                    (*pos).into(),
+                    PyLaserSource::new(arc_world.clone(), pos.into(), laser_source),
                 )
             })
             .collect()
     }
 
-    /// Perform an action for each agent in the world and return the list of events that occurred by peforming this step.
+    #[getter]
+    /// The start position of each agent for this reset.
+    fn start_pos(&self) -> Vec<PyPosition> {
+        let world = self.world.lock().unwrap();
+        world.starts().iter().map(|p| (*p).into()).collect()
+    }
+
+    /// Simultaneously perform an action for each agent in the world.
+    /// Performing a step generates events (see `WorldEvent`) to give information about the consequences of the joint action.
     ///
     /// Args:
-    ///    action: The action to perform for each agent.
+    ///    action: The action to perform for each agent. A single action is also accepted if there is a single agent in the world.
     ///
     /// Returns:
     ///   The list of events that occurred while agents took their action.
     ///
     /// Raises:
-    ///     `InvalidActionError` if an agent takes an action that is not available.
-    ///     `ValueError` if the number of actions is different from the number of agents
+    ///     - `InvalidActionError` if an agent takes an action that is not available.
+    ///     - `ValueError` if the number of actions is different from the number of agents
+    ///
+    /// Example:
+    /// ```python
+    /// world = World("S1 G X S0 X")
+    /// world.reset()
+    /// events = world.step([Action.STAY, Action.EAST])
+    /// assert len(events) == 1
+    /// assert events[0].agent_id == 1
+    /// assert events[0].event_type == EventType.GEM_COLLECTED
+    ///
+    /// events = world.step([Action.EAST, Action.EAST])
+    /// assert len(events) == 2
+    /// assert all(e.event_type == EventType.AGENT_EXIT for e in events)
+    /// ```
     pub fn step(&mut self, py: Python, action: PyObject) -> PyResult<Vec<PyWorldEvent>> {
         // Check if action is a list or a single action
         let actions: Vec<PyAction> = if let Ok(actions) = action.extract::<Vec<PyAction>>(py) {
@@ -293,7 +354,7 @@ impl PyWorld {
     /// Returns:
     ///     The list of events that occurred while agents entered their state.
     /// Raises:
-    ///     InvalidWorldStateError: if the state is invalid.
+    ///     - `InvalidWorldStateError`: if the state is invalid.
     fn set_state(&mut self, state: PyWorldState) -> PyResult<Vec<PyWorldEvent>> {
         match self.world.lock().unwrap().set_state(&state.into()) {
             Ok(events) => Ok(events.iter().map(|e| PyWorldEvent::from(e)).collect()),
@@ -330,42 +391,46 @@ impl PyWorld {
     }
 
     /// Enable serialisation with pickle
-    pub fn __getstate__(&self) -> PyResult<(String, Vec<bool>, Vec<Position>, Vec<bool>)> {
+    pub fn __getstate__(&self) -> PyResult<(String, PyWorldState)> {
         let world = self.world.lock().unwrap();
-        let state = world.get_state();
-        let data = (
-            world.compute_world_string().to_owned(),
-            state.gems_collected.clone(),
-            state.agents_positions.clone(),
-            state.agents_alive.clone(),
-        );
-        Ok(data)
+        let state: PyWorldState = world.get_state().into();
+        let world_string = world.compute_world_string().to_owned();
+        Ok((world_string, state))
     }
 
     /// Enable deserialisation with pickle
-    pub fn __setstate__(
-        &mut self,
-        state: (String, Vec<bool>, Vec<Position>, Vec<bool>),
-    ) -> PyResult<()> {
-        let mut world = match World::try_from(state.0) {
-            Ok(w) => w,
+    pub fn __setstate__(&mut self, state: (String, PyWorldState)) -> PyResult<()> {
+        let world = match World::try_from(state.0) {
+            Ok(mut w) => {
+                w.set_state(&state.1.into()).unwrap();
+                w
+            }
             Err(e) => panic!("Could not parse the world: {:?}", e),
         };
         self.renderer = Renderer::new(&world);
-        world
-            .set_state(&WorldState {
-                gems_collected: state.1,
-                agents_positions: state.2,
-                agents_alive: state.3,
-            })
-            .unwrap();
+        self.n_agents = world.n_agents();
+        self.n_gems = world.n_gems();
+        self.height = world.height();
+        self.width = world.width();
+        self.exit_pos = world
+            .exits_positions()
+            .iter()
+            .map(|p| (*p).into())
+            .collect();
+        self.random_start_pos = world
+            .possible_starts()
+            .iter()
+            .map(|p| p.iter().map(|p| p.as_ij()).collect())
+            .collect();
+        self.wall_pos = world.walls().iter().map(|p| (*p).into()).collect();
+        self.void_pos = world.void_positions().iter().map(|p| (*p).into()).collect();
         self.world = Arc::new(Mutex::new(world));
         Ok(())
     }
 
     pub fn __repr__(&self) -> String {
         let mut res = format!(
-            "World(height={}, width={}, n_gems={}, n_agents={}, ",
+            "World(height={}, width={}, n_gems={}, n_agents={})",
             self.height, self.width, self.n_gems, self.n_agents
         );
         let w = self.world.lock().unwrap();
@@ -387,7 +452,7 @@ impl Clone for PyWorld {
         let renderer = Renderer::new(&core);
         PyWorld {
             exit_pos: self.exit_pos.clone(),
-            start_pos: self.start_pos.clone(),
+            random_start_pos: self.random_start_pos.clone(),
             wall_pos: self.wall_pos.clone(),
             void_pos: self.void_pos.clone(),
             height: self.height,

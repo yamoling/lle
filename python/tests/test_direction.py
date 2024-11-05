@@ -1,4 +1,4 @@
-from lle import Direction
+from lle.tiles import Direction
 
 
 def test_equality():

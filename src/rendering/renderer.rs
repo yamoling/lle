@@ -41,24 +41,24 @@ impl Renderer {
         self.static_frame.fill(BACKGROUND_GREY.0[0]);
         // Walls
         for pos in world.walls() {
-            let x = pos.1 as u32 * TILE_SIZE;
-            let y = pos.0 as u32 * TILE_SIZE;
+            let x = pos.x() as u32 * TILE_SIZE;
+            let y = pos.y() as u32 * TILE_SIZE;
             self.static_frame
                 .copy_from(&(*sprites::WALL), x, y)
                 .unwrap();
         }
 
         // Exit
-        for (i, j) in world.exits_positions() {
-            let x = j as u32 * TILE_SIZE;
-            let y = i as u32 * TILE_SIZE;
+        for pos in world.exits_positions() {
+            let x = pos.x() as u32 * TILE_SIZE;
+            let y = pos.y() as u32 * TILE_SIZE;
             draw_rectangle(&mut self.static_frame, x, y, TILE_SIZE, TILE_SIZE, BLACK, 3);
         }
 
         // Void
         for pos in world.void_positions() {
-            let x = pos.1 as u32 * TILE_SIZE;
-            let y = pos.0 as u32 * TILE_SIZE;
+            let x = pos.x() as u32 * TILE_SIZE;
+            let y = pos.y() as u32 * TILE_SIZE;
             // copy the void image to the static one
             add_transparent_image(&mut self.static_frame, &sprites::VOID, x, y);
         }
@@ -68,29 +68,29 @@ impl Renderer {
         let mut frame = self.static_frame.clone();
         for (pos, laser) in world.lasers() {
             let mut data = VisitorData {
-                x: pos.1 as u32 * TILE_SIZE,
-                y: pos.0 as u32 * TILE_SIZE,
+                x: pos.x() as u32 * TILE_SIZE,
+                y: pos.y() as u32 * TILE_SIZE,
                 frame: &mut frame,
             };
             self.visit_laser(laser, &mut data);
         }
         for (pos, gem) in izip!(world.gems_positions(), world.gems()) {
             let mut data = VisitorData {
-                x: pos.1 as u32 * TILE_SIZE,
-                y: pos.0 as u32 * TILE_SIZE,
+                x: pos.x() as u32 * TILE_SIZE,
+                y: pos.y() as u32 * TILE_SIZE,
                 frame: &mut frame,
             };
             self.visit_gem(&gem, &mut data);
         }
         for (id, pos) in world.agents_positions().iter().enumerate() {
-            let x = pos.1 as u32 * TILE_SIZE;
-            let y = pos.0 as u32 * TILE_SIZE;
+            let x = pos.x() as u32 * TILE_SIZE;
+            let y = pos.y() as u32 * TILE_SIZE;
             add_transparent_image(&mut frame, &sprites::AGENTS[id], x, y);
         }
         for (pos, source) in world.sources() {
             let mut data = VisitorData {
-                x: pos.1 as u32 * TILE_SIZE,
-                y: pos.0 as u32 * TILE_SIZE,
+                x: pos.x() as u32 * TILE_SIZE,
+                y: pos.y() as u32 * TILE_SIZE,
                 frame: &mut frame,
             };
             self.visit_laser_source(source, &mut data);
