@@ -4,7 +4,7 @@ use std::{
 };
 
 use itertools::izip;
-use numpy::{PyArray1, PyArrayMethods};
+use numpy::{PyArray1, PyArray3, PyArrayMethods};
 use pyo3::{
     exceptions::PyTypeError,
     prelude::*,
@@ -337,10 +337,7 @@ impl PyWorld {
     /// Renders the world as an image and returns it in a numpy array.
     /// Returns:
     ///     The image of the world as a numpy array of shape (height * 32, width * 32, 3) with type uint8.
-    fn get_image<'a>(
-        &'a self,
-        py: Python<'a>,
-    ) -> Bound<'a, numpy::PyArray<u8, numpy::ndarray::Dim<[usize; 3]>>> {
+    fn get_image<'a>(&self, py: Python<'a>) -> Bound<'a, PyArray3<u8>> {
         let dims = self.image_dimensions();
         let dims = (dims.1 as usize, dims.0 as usize, 3);
         let img = self.renderer.update(&self.world.lock().unwrap());

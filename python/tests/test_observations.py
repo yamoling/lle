@@ -148,7 +148,7 @@ def test_world_initial_observation():
 .  . .
 .  . ."""
     )
-    observer = ObservationType.STATE.get_observation_generator(world)
+    observer = ObservationType.NORMALIZED_STATE.get_observation_generator(world)
     world.reset()
     obs0 = observer.observe()
     expected = np.array([[0.0, 0.0, 1.0]])
@@ -160,7 +160,7 @@ def test_world_initial_observation():
     .  .  S1
     .  .  X"""
     )
-    observer = ObservationType.STATE.get_observation_generator(world)
+    observer = ObservationType.NORMALIZED_STATE.get_observation_generator(world)
     world.reset()
     obs0 = observer.observe()
     expected = np.tile(np.array([0.0, 0.0, 1 / 3, 2 / 3, 1.0, 1.0]), (2, 1))
@@ -172,7 +172,7 @@ S0 X  .  .
 .  .  S1  .
 .  X  .  ."""
     )
-    observer = ObservationType.STATE.get_observation_generator(world)
+    observer = ObservationType.NORMALIZED_STATE.get_observation_generator(world)
     world.reset()
     obs0 = observer.observe()
     expected = np.tile(np.array([0.0, 0.0, 1 / 3, 1 / 2, 1.0, 1.0]), (2, 1))
@@ -184,7 +184,7 @@ S0 X  .  G
 .  .  S1  .
 .  X  .  ."""
     )
-    observer = ObservationType.STATE.get_observation_generator(world)
+    observer = ObservationType.NORMALIZED_STATE.get_observation_generator(world)
     world.reset()
     obs0 = observer.observe()
     expected = np.tile(np.array([0.0, 0.0, 1 / 3, 1 / 2, 0.0, 1.0, 1.0]), (2, 1))

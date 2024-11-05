@@ -89,6 +89,8 @@ class World:
     def from_file(filename:str) -> World:
         r"""
         Parse the content of `filename` to create a World.
+        
+        The file can either be a toml or a plain text file.
         Raises:
             - `FileNotFoundError`: if the file does not exist.
         """
@@ -281,7 +283,7 @@ class WorldState:
     def __init__(self, agents_positions,gems_collected,agents_alive = ...) -> None:
         ...
 
-    def as_array(self) -> typing.Any:
+    def as_array(self) -> numpy.typing.NDArray[numpy.float32]:
         ...
 
     @staticmethod
