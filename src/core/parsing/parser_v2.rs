@@ -7,6 +7,7 @@ use super::parse_v1;
 use super::{world_config::Config, ParseError};
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ParsingData {
     pub width: Option<usize>,
     pub height: Option<usize>,
@@ -71,29 +72,24 @@ impl ParsingData {
         }
         if let Some(agents) = &self.agents {
             // Add random start positions
-            for (agent_id, agent_config) in agents.into_iter().enumerate() {
-                let start_positions =
+            let mut starts = vec![];
+            for agent_config in agents {
+                let agent_starts =
                     agent_config.compute_start_positions(config.width, config.height)?;
-                if config.random_start_positions.len() <= agent_id {
-                    config.random_start_positions.push(vec![]);
-                }
-                config.random_start_positions[agent_id].extend(start_positions);
+                starts.push(agent_starts);
             }
+            config.add_random_starts(starts);
         }
 
-        config
-            .exit_positions
-            .extend(self.compute_exits_positions(config.width, config.height)?);
-
-        config
-            .gem_positions
-            .extend(self.compute_gems_positions(config.width, config.height)?);
+        config.add_exits(self.compute_exits_positions(config.width, config.height)?);
+        config.add_gems(self.compute_gems_positions(config.width, config.height)?);
 
         Ok(config)
     }
 }
 
 #[derive(Deserialize, Debug)]
+#[serde(deny_unknown_fields)]
 struct AgentConfig {
     #[serde(default)]
     pub start_positions: Vec<PositionsConfig>,
@@ -172,7 +168,12 @@ pub fn parse(toml_content: &str) -> Result<Config, ParseError> {
     let data: ParsingData = match toml::from_str(toml_content) {
         Ok(d) => d,
         Err(e) => {
-            println!("{e:?}");
+            let message = e.to_string();
+            // There is probably a better way of handing this...
+            if message.contains("unknown field") {
+                let key = message.split('`').nth(1).unwrap_or("<unknown key>").into();
+                return Err(ParseError::UnknownTomlKey { key, message });
+            }
             return Err(ParseError::NotV2);
         }
     };
@@ -184,6 +185,35 @@ mod tests {
     use crate::{ParseError, World};
 
     use super::parse;
+
+    #[test]
+    fn invalid_toml_field() {
+        let toml_content = r#"
+        world_string = "S0 X"
+        invalid_field = 25
+        "#;
+        match parse(toml_content) {
+            Err(ParseError::UnknownTomlKey { key, .. }) => {
+                assert_eq!(key, "invalid_field");
+            }
+            other => panic!("Should return a ParseError::UnknownTomlKey instead of {other:?}"),
+        }
+    }
+
+    #[test]
+    fn invalid_toml_subfield() {
+        let toml_content = r#"
+        world_string = "S0 X"
+        [[agents]]
+        invalid_subfield = 25
+        "#;
+        match parse(toml_content) {
+            Err(ParseError::UnknownTomlKey { key, .. }) => {
+                assert_eq!(key, "invalid_subfield");
+            }
+            other => panic!("Should return a ParseError::UnknownTomlKey instead of {other:?}"),
+        }
+    }
 
     #[test]
     fn parse_toml_width_problem() {
@@ -221,6 +251,20 @@ world_string = "S0 X"
             }
             _ => panic!("Should return a ParseError::InconsistentWorldStringWidth"),
         }
+    }
+
+    #[test]
+    fn start_position_in_wall() {
+        let toml_content = r#"
+world_string="""
+@ . .
+@ . X
+"""
+[[agents]]
+start_positions = [{i_min=1}]
+        "#;
+        let world = World::try_from(toml_content).unwrap();
+        assert_eq!(2, world.possible_starts()[0].len())
     }
 
     #[test]

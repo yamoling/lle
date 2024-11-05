@@ -65,6 +65,10 @@ pub enum ParseError {
     },
     MissingWidth,
     MissingHeight,
+    UnknownTomlKey {
+        key: String,
+        message: String,
+    },
     NotV2,
 }
 

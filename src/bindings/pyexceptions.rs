@@ -106,6 +106,7 @@ pub fn parse_error_to_exception(error: ParseError) -> PyErr {
         ParseError::PositionOutOfBounds { i, j } => format!("Position ({i}, {j}) is out of the world's boundaries"),
         ParseError::MissingHeight => "Missing height in the world configuration file".into(),
         ParseError::MissingWidth => "Missing width in the world configuration file".into(),
+        ParseError::UnknownTomlKey {message, .. } => message,
         ParseError::NotV2 => panic!("NotV2 exception should not be raised here"),
     };
     ParsingError::new_err(msg)

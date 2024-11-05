@@ -15,9 +15,9 @@ pub struct Config {
     pub height: usize,
     pub map_string: String,
     pub gem_positions: Vec<Position>,
-    pub random_start_positions: Vec<Vec<Position>>,
+    random_start_positions: Vec<Vec<Position>>,
     pub void_positions: Vec<Position>,
-    pub exit_positions: Vec<Position>,
+    exit_positions: Vec<Position>,
     pub walls_positions: Vec<Position>,
     pub source_configs: Vec<(Position, LaserConfig)>,
 }
@@ -45,6 +45,37 @@ impl Config {
             walls_positions,
             source_configs,
         }
+    }
+
+    pub fn add_random_starts(&mut self, starts: Vec<Vec<Position>>) {
+        for (i, start) in starts.into_iter().enumerate() {
+            let start = self.filter_positions(start, &self.walls_positions);
+            while i >= self.random_start_positions.len() {
+                self.random_start_positions.push(vec![]);
+            }
+            self.random_start_positions[i].extend(start);
+        }
+    }
+
+    pub fn add_exits(&mut self, exits: Vec<Position>) {
+        let exits = self.filter_positions(exits, &self.walls_positions);
+        self.exit_positions.extend(exits);
+    }
+
+    pub fn add_gems(&mut self, gems: Vec<Position>) {
+        let gems = self.filter_positions(gems, &self.walls_positions);
+        self.gem_positions.extend(gems);
+    }
+
+    fn filter_positions(
+        &self,
+        positions: Vec<Position>,
+        forbidden: &Vec<Position>,
+    ) -> Vec<Position> {
+        positions
+            .into_iter()
+            .filter(|pos| !forbidden.contains(pos))
+            .collect()
     }
 
     pub fn to_world(self) -> Result<World, ParseError> {
