@@ -33,7 +33,7 @@ use std::hash::{Hash, Hasher};
 /// ```
 #[gen_stub_pyclass]
 #[pyclass(name = "WorldState", module = "lle", subclass)]
-#[derive(Clone, Hash)]
+#[derive(Clone, Hash, Debug)]
 pub struct PyWorldState {
     /// The position of each agent.
     #[pyo3(get, set)]
@@ -77,7 +77,7 @@ impl PyWorldState {
         self.agents_alive = agents_alive;
     }
 
-    fn as_array(&self, py: Python) -> PyObject {
+    fn as_array<'a>(&self, py: Python<'a>) -> Bound<'a, PyArray1<f32>> {
         let len = self.agents_positions.len() * 3 + self.gems_collected.len();
         let mut res = Vec::with_capacity(len);
         for (i, j) in &self.agents_positions {
@@ -157,10 +157,7 @@ impl PyWorldState {
     }
 
     fn __repr__(&self) -> String {
-        format!(
-            "WorldState(agents_positions={:?}, gems_collected={:?}, agents_alive={:?})",
-            self.agents_positions, self.gems_collected, self.agents_alive
-        )
+        format!("{self:?}")
     }
 
     fn __hash__(&self) -> u64 {
