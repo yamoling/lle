@@ -1,5 +1,5 @@
 """
-# The Laser Learning Environment
+# Laser Learning Environment
 The Laser Learning Environment (LLE) is a multi-agent gridworld aimed for
 research in cooperative multi-agent reinforcement learning. The main dynamic of LLE revolves around lasers since walking in a laser is deadly for all agents except those of the same colour as the laser. When an agent of the same colour as the laser walks in a laser, the laser is blocked and other agents can safely walk through it.
 
@@ -35,7 +35,10 @@ env.step(action)
 ```
 
 ## Creating custom maps
-You can create custom maps with a simple text-based syntax. Every tile is encoded by one or a few characters (see the encoding in the below table), and tiles are separated by whitespaces. A new row is indicated by a new line.
+You can create custom maps in two ways: using a plain string or a TOML file.
+
+### Plain string
+In this very simple text-based syntax, every tile is encoded by one or by a few characters (see the encoding in the below table), and tiles are separated by whitespaces. A new row is indicated by a new line.
 
 | Character | Tile | Walkable | Comment |
 ------------|------|----------|---------|
@@ -66,6 +69,45 @@ plt.imshow(img)
 plt.show()
 ```
 ![pdoc logo](../../docs/example_custom.png)
+
+### Toml syntax
+You can also use TOML files to define maps, which enables more complex maps, for instance with random start positions. The below TOML file shows an example of a map with random start positions.
+
+Positions can be specified as a list of positions `{i, j}` and rectangles `{i_min, i_max, j_min, j_max}`, and the `world_string` field can be used to define the map as discussed in the "Plain string" section.
+
+```toml
+width = 10 # Optional, can deduced from `world_string`
+height = 5 # Optional, can deduced from `world_string`
+exits = [{ j_min = 9 }]
+gems = [{ i = 0, j = 2 }]
+world_string = '''
+X . . . S1 . . . . .
+. . . . .  . . . . .
+. . . . .  . . . . .
+. . . . .  . . . . .
+. . . . S2 . . . . .
+'''
+
+[[agents]]
+# Define a rectangle of possible start positions.
+# The default minimal value is 0.
+# The default maximal value is the width or height of the map.
+start_positions = [{ i_min = 0, i_max = 2 }]
+
+[[agents]]
+# Deduced from the string map that agent 1 has a start position at (0, 5).
+
+[[agents]]
+start_positions = [{ i = 0, j = 5 }, { i = 4, j = 5 }]
+
+[[agents]]
+# Start positions can be a mix of rectangles and positions.
+start_positions = [
+    { i = 4, j = 9 },
+    { i_min = 1, i_max = 3, j_min = 0, j_max = 3 },
+    { j_min = 4 },
+]
+```
 
 ## Citing our work
 The environment has been presented at [EWRL 2023](https://openreview.net/pdf?id=IPfdjr4rIs) and at [BNAIC 2023](https://bnaic2023.tudelft.nl/static/media/BNAICBENELEARN_2023_paper_124.c9f5d29e757e5ee27c44.pdf) where it received the best paper award.
