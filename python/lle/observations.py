@@ -10,7 +10,7 @@ from .types import AgentId, Position
 class ObservationType(IntEnum):
     """The different observation types for the World"""
 
-    RELATIVE_POSITIONS = 0
+    NORMALIZED_STATE = 0
     STATE = 1
     """The state of the world (agents positions, gems collected, agents_alive) as a numpy array"""
     RGB_IMAGE = 2
@@ -44,8 +44,10 @@ class ObservationType(IntEnum):
     def get_observation_generator(self, world: World, padding_size: int = 0) -> "ObservationGenerator":
         """Get the observation generator for the observation type"""
         match self:
-            case ObservationType.STATE | ObservationType.RELATIVE_POSITIONS:
-                return StateGenerator(world)
+            case ObservationType.NORMALIZED_STATE:
+                return StateGenerator(world, normalize=True)
+            case ObservationType.STATE:
+                return StateGenerator(world, normalize=False)
             case ObservationType.RGB_IMAGE:
                 return RGBImage(world)
             case ObservationType.LAYERED:
@@ -97,21 +99,18 @@ class ObservationGenerator(ABC):
 
 
 class StateGenerator(ObservationGenerator):
-    def __init__(self, world):
+    def __init__(self, world: World, normalize: bool):
         super().__init__(world)
         self.n_gems = world.n_gems
-        self.dimensions = np.array([world.height, world.width] * world.n_agents)
+        if normalize:
+            self.dimensions = np.array([world.height, world.width] * world.n_agents)
+        else:
+            self.dimensions = np.array([1.0, 1.0] * world.n_agents)
 
     def observe(self):
         state = self._world.get_state().as_array()
         state[: self._world.n_agents * 2] = state[: self._world.n_agents * 2] / self.dimensions
         return np.tile(state, reps=(self._world.n_agents, 1))
-        np.tile(state, (self._world.n_agents, 1))
-        positions = np.tile((self._world.agents_positions / self.dimensions).flatten(), (self._world.n_agents, 1))
-        gems_collected = np.tile(
-            np.array([not gem.is_collected for gem in self._world.gems.values()], dtype=np.float32), (self._world.n_agents, 1)
-        )
-        return np.concatenate([positions, gems_collected], axis=1).astype(np.float32)
 
     @property
     def obs_type(self) -> ObservationType:
