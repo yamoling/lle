@@ -11,6 +11,7 @@ from lle.exceptions import ParsingError, InvalidActionError, InvalidWorldStateEr
 def test_world_tiles():
     w = World("S0 . X")
     assert w.start_pos == [(0, 0)]
+    assert w.random_start_pos == [[(0, 0)]]
     assert w.exit_pos == [(0, 2)]
 
 
@@ -71,7 +72,7 @@ def test_world_step_something_else_than_action():
     )
     world.reset()
     try:
-        events = world.step(23)  # type: ignore
+        world.step(23)  # type: ignore
         assert False, "This should not be allowed"
     except TypeError:
         pass
@@ -593,3 +594,39 @@ def test_world_n_agents():
 
     w = World.level(6)
     assert w.n_agents == 4
+
+
+def test_world_toml():
+    content = '''
+width = 10
+height = 5
+exits = [{ j_min = 9 }]
+gems = [{ i = 0, j = 2 }]
+world_string = """
+X . . . S1 . . . . . 
+. . . . .  . . . . . 
+. . . . .  . . . . . 
+. . . . .  . . . . . 
+. . . . .  . . . . . 
+"""
+
+[[agents]]
+start_positions = [{ i_min = 0, i_max = 2 }]
+
+[[agents]]
+# Deduced from the string map that agent 1 has a start position at (0, 5).
+
+[[agents]]
+start_positions = [{ i = 0, j = 5 }, { i = 4, j = 5 }]
+
+[[agents]]
+start_positions = [
+    { i = 4, j = 9 },
+    { i_min = 1, i_max = 3, j_min = 0, j_max = 3 },
+    { j_min = 4 },
+]
+'''
+    world = World(content)
+    assert world.width == 10
+    assert world.height == 5
+    assert world.n_agents == 4

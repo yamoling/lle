@@ -1,10 +1,10 @@
 use crate::tiles::Direction;
-use pyo3::{prelude::*, pyclass::CompareOp, types::PyTuple};
+use pyo3::{prelude::*, types::PyTuple};
 use pyo3_stub_gen::derive::{gen_stub_pyclass_enum, gen_stub_pymethods};
 
 #[gen_stub_pyclass_enum]
-#[pyclass(name = "Direction", module = "lle.tiles")]
-#[derive(Clone, Debug)]
+#[pyclass(name = "Direction", module = "lle.tiles", eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum PyDirection {
     #[pyo3(name = "NORTH")]
     North,
@@ -120,18 +120,6 @@ impl PyDirection {
     #[getter]
     fn is_vertical(&self) -> bool {
         !self.is_horizontal()
-    }
-
-    fn __richcmp__(&self, other: &Self, op: CompareOp) -> PyResult<bool> {
-        let d: Direction = self.into();
-        let other: Direction = other.into();
-        match op {
-            CompareOp::Eq => Ok(d == other),
-            CompareOp::Ne => Ok(d != other),
-            _ => Err(pyo3::exceptions::PyTypeError::new_err(
-                "Invalid comparison operator for Direction.",
-            )),
-        }
     }
 
     fn __repr__(&self) -> String {

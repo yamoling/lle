@@ -5,7 +5,10 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use crate::{tiles::LaserId, AgentId, Position, World};
 
-use super::{pydirection::PyDirection, pyexceptions::parse_error_to_exception, pyworld::PyWorld};
+use super::{
+    pydirection::PyDirection, pyexceptions::parse_error_to_exception, pyposition::PyPosition,
+    pyworld::PyWorld,
+};
 
 #[gen_stub_pyclass]
 #[pyclass(name = "WorldBuilder", module = "lle")]
@@ -19,20 +22,20 @@ pub struct PyWorldBuilder {
     n_agents: usize,
     n_lasers: LaserId,
     #[pyo3(get)]
-    start_positions: HashMap<AgentId, Position>,
+    start_positions: HashMap<AgentId, PyPosition>,
     #[pyo3(get)]
-    exit_positions: HashSet<Position>,
+    exit_positions: HashSet<PyPosition>,
     #[pyo3(get)]
-    available_positions: HashSet<Position>,
+    available_positions: HashSet<PyPosition>,
 }
 
 impl PyWorldBuilder {
     fn position_check(&self, pos: Position) -> PyResult<Position> {
-        let (i, j) = pos;
+        let (i, j) = pos.as_ij();
         if i >= self.height || j >= self.width {
             return Err(PyValueError::new_err("Position out of bounds"));
         }
-        if !self.available_positions.contains(&pos) {
+        if !self.available_positions.contains(&pos.into()) {
             return Err(PyValueError::new_err("Position already occupied"));
         }
         Ok(pos)

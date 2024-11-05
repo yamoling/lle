@@ -7,15 +7,10 @@ use std::{
 
 use crate::{
     agent::Agent,
-    tiles::{Gem, Laser, LaserSource, Tile},
-    utils::find_duplicates,
-    Action, Position, RuntimeWorldError, WorldState,
-};
-
-use super::{
-    levels,
-    parsing::{parse, ParseError},
-    WorldEvent,
+    core::{levels, parsing::parse},
+    tiles::{Gem, Laser, LaserSource, Start, Tile},
+    utils::{find_duplicates, sample_different},
+    Action, AgentId, ParseError, Position, RuntimeWorldError, WorldEvent, WorldState,
 };
 
 type JointAction = Vec<Action>;
@@ -30,13 +25,17 @@ pub struct World {
     laser_source_positions: Vec<Position>,
     lasers_positions: Vec<Position>,
     gems_positions: Vec<Position>,
-    start_positions: Vec<Position>,
+    /// Possible random start position of each agent.
+    random_start_positions: Vec<Vec<Position>>,
     void_positions: Vec<Position>,
     exits: Vec<Position>,
     agents_positions: Vec<Position>,
     wall_positions: Vec<Position>,
 
     available_actions: Vec<Vec<Action>>,
+    /// The actual start position of the agents since the last `reset`.
+    start_positions: Vec<Position>,
+    rng: rand::rngs::StdRng,
 }
 
 impl World {
@@ -44,7 +43,7 @@ impl World {
     pub fn new(
         grid: Vec<Vec<Tile>>,
         gem_positions: Vec<Position>,
-        start_positions: Vec<Position>,
+        random_start_positions: Vec<Vec<Position>>,
         void_positions: Vec<Position>,
         exit_positions: Vec<Position>,
         walls_positions: Vec<Position>,
@@ -52,26 +51,28 @@ impl World {
         lasers_positions: Vec<Position>,
         world_str: &str,
     ) -> Self {
-        let agents = start_positions
+        let agents = random_start_positions
             .iter()
             .enumerate()
-            .map(|(id, _)| Agent::new(id as u32))
+            .map(|(id, _)| Agent::new(id as AgentId))
             .collect();
         let mut w = Self {
             width: grid[0].len(),
             height: grid.len(),
             gems_positions: gem_positions,
-            agents_positions: start_positions.clone(),
+            agents_positions: vec![],
+            random_start_positions,
             wall_positions: walls_positions,
             void_positions,
             agents,
             exits: exit_positions,
             grid,
-            start_positions,
+            start_positions: vec![],
             world_string: world_str.into(),
             available_actions: vec![],
             laser_source_positions: source_positions,
             lasers_positions,
+            rng: rand::SeedableRng::from_entropy(),
         };
         w.reset();
         w
@@ -86,19 +87,29 @@ impl World {
         &self.world_string
     }
 
+    pub fn seed(&mut self, seed: u64) {
+        self.rng = rand::SeedableRng::seed_from_u64(seed);
+    }
+
     /// The current world string, taking into account the fact that some tiles may have changed (laser direction or colour).
     pub fn compute_world_string(&self) -> String {
-        // Each tile is at most 4 characters long
-        const TILE_SIZE: usize = 4;
-        let mut world_str = String::with_capacity(self.width * self.height * TILE_SIZE);
+        let mut str_tiles = vec![];
         for row in &self.grid {
+            let mut str_row = vec![];
             for tile in row {
-                world_str.push_str(&tile.to_file_string());
-                world_str.push(' ');
+                str_row.push(tile.to_file_string());
             }
-            world_str.push('\n');
+            str_row.push("\n".into());
+            str_tiles.push(str_row);
         }
-        world_str
+        for (agent_id, pos) in self.start_positions.iter().enumerate() {
+            str_tiles[pos.i][pos.j] = Tile::Start(Start::new(agent_id)).to_file_string();
+        }
+        str_tiles
+            .iter()
+            .map(|row| row.join(" "))
+            .collect::<Vec<String>>()
+            .join("\n")
     }
 
     pub fn agents(&self) -> &Vec<Agent> {
@@ -117,7 +128,7 @@ impl World {
         // Important: gems can be wrapped into lasers !
         self.gems_positions
             .iter()
-            .map(|(i, j)| match &self.grid[*i][*j] {
+            .map(|pos| match &self.grid[pos.i][pos.j] {
                 Tile::Gem(gem) => gem,
                 Tile::Laser(laser) => laser.gem().unwrap(),
                 _ => unreachable!(),
@@ -129,8 +140,8 @@ impl World {
         self.laser_source_positions
             .iter()
             .map(|pos| {
-                if let Tile::LaserSource(source) = &self.grid[pos.0][pos.1] {
-                    (*pos, source)
+                if let Tile::LaserSource(source) = &self.grid[pos.i][pos.j] {
+                    (pos.clone(), source)
                 } else {
                     unreachable!()
                 }
@@ -140,12 +151,11 @@ impl World {
 
     pub fn lasers(&self) -> Vec<(Position, &Laser)> {
         let mut lasers = vec![];
-        for (i, j) in &self.lasers_positions {
-            if let Tile::Laser(laser) = &self.grid[*i][*j] {
-                let pos = (*i, *j);
-                lasers.push((pos, laser));
+        for pos in &self.lasers_positions {
+            if let Tile::Laser(laser) = &self.grid[pos.i][pos.j] {
+                lasers.push((pos.clone(), laser));
                 if let Tile::Laser(wrapped) = laser.wrapped() {
-                    lasers.push((pos, wrapped));
+                    lasers.push((pos.clone(), wrapped));
                 }
             } else {
                 unreachable!()
@@ -181,8 +191,8 @@ impl World {
 
     pub fn n_gems_collected(&self) -> usize {
         let mut res = 0;
-        for (i, j) in &self.gems_positions {
-            if let Tile::Gem(gem) = &self.grid[*i][*j] {
+        for pos in &self.gems_positions {
+            if let Tile::Gem(gem) = &self.grid[pos.i][pos.j] {
                 if gem.is_collected() {
                     res += 1;
                 }
@@ -211,6 +221,10 @@ impl World {
         self.start_positions.clone()
     }
 
+    pub fn possible_starts(&self) -> Vec<Vec<Position>> {
+        self.random_start_positions.clone()
+    }
+
     pub fn void_positions(&self) -> Vec<Position> {
         self.void_positions.clone()
     }
@@ -222,7 +236,7 @@ impl World {
             if agent.is_alive() && !agent.has_arrived() {
                 for action in [Action::North, Action::East, Action::South, Action::West] {
                     if let Ok(pos) = &action + agent_pos {
-                        if let Some(tile) = self.at(pos) {
+                        if let Some(tile) = self.at(&pos) {
                             if tile.is_waklable() && !tile.is_occupied() {
                                 agent_actions.push(action.clone());
                             }
@@ -255,32 +269,30 @@ impl World {
         let mut res = vec![];
         for (i, row) in self.grid.iter().enumerate() {
             for (j, tile) in row.iter().enumerate() {
-                res.push(((i, j), tile));
+                res.push((Position { i, j }, tile));
             }
         }
         res
     }
 
-    pub fn at(&self, pos: Position) -> Option<&Tile> {
-        let (i, j) = pos;
-        if i >= self.height {
+    pub fn at(&self, pos: &Position) -> Option<&Tile> {
+        if pos.i >= self.height {
             return None;
         }
-        if j >= self.width {
+        if pos.j >= self.width {
             return None;
         }
-        Some(&self.grid[i][j])
+        Some(&self.grid[pos.i][pos.j])
     }
 
-    pub fn at_mut(&mut self, pos: Position) -> Option<&mut Tile> {
-        let (i, j) = pos;
-        if i >= self.height {
+    pub fn at_mut(&mut self, pos: &Position) -> Option<&mut Tile> {
+        if pos.i >= self.height {
             return None;
         }
-        if j >= self.width {
+        if pos.j >= self.width {
             return None;
         }
-        Some(&mut self.grid[i][j])
+        Some(&mut self.grid[pos.i][pos.j])
     }
 
     pub fn reset(&mut self) {
@@ -289,14 +301,15 @@ impl World {
                 tile.reset();
             }
         }
+        self.start_positions = sample_different(&mut self.rng, &self.random_start_positions);
         self.agents_positions = self.start_positions.clone();
-        for ((i, j), agent) in izip!(&self.agents_positions, &self.agents) {
-            self.grid[*i][*j]
+        for (pos, agent) in izip!(&self.agents_positions, &self.agents) {
+            self.grid[pos.i][pos.j]
                 .pre_enter(agent)
                 .expect("The agent should be able to pre-enter");
         }
-        for ((i, j), agent) in izip!(&self.agents_positions, &mut self.agents) {
-            self.grid[*i][*j].enter(agent);
+        for (pos, agent) in izip!(&self.agents_positions, &mut self.agents) {
+            self.grid[pos.i][pos.j].enter(agent);
         }
         for agent in &mut self.agents {
             agent.reset();
@@ -354,14 +367,12 @@ impl World {
         // Leave old position
         for (agent, pos) in izip!(&self.agents, &self.agents_positions) {
             if agent.is_alive() {
-                let (i, j) = *pos;
-                self.grid[i][j].leave();
+                self.grid[pos.i][pos.j].leave();
             }
         }
         // Pre-enter
         for (agent, pos) in izip!(&self.agents, new_positions) {
-            let (i, j) = *pos;
-            self.grid[i][j]
+            self.grid[pos.i][pos.j]
                 .pre_enter(agent)
                 .expect("When moving agents, the pre-enter should not fail");
         }
@@ -369,8 +380,7 @@ impl World {
         let mut events = vec![];
         let mut agent_died = false;
         for (agent, pos) in izip!(&mut self.agents, new_positions) {
-            let (i, j) = *pos;
-            if let Some(event) = self.grid[i][j].enter(agent) {
+            if let Some(event) = self.grid[pos.i][pos.j].enter(agent) {
                 if let WorldEvent::AgentDied { .. } = event {
                     agent_died = true;
                 }
@@ -409,9 +419,11 @@ impl World {
             });
         }
 
-        for (i, j) in &state.agents_positions {
-            if *i >= self.height || *j >= self.width {
-                return Err(RuntimeWorldError::OutOfWorldPosition { position: (*i, *j) });
+        for pos in &state.agents_positions {
+            if pos.i >= self.height || pos.j >= self.width {
+                return Err(RuntimeWorldError::OutOfWorldPosition {
+                    position: pos.clone(),
+                });
             }
         }
         let current_state = self.get_state();
@@ -429,15 +441,15 @@ impl World {
             }
         }
         // Collect the necessary gems BEFORE entering the tiles with the agents
-        for ((i, j), &collect) in izip!(&self.gems_positions, &state.gems_collected) {
+        for (pos, &collect) in izip!(&self.gems_positions, &state.gems_collected) {
             if collect {
-                if let Tile::Gem(gem) = &mut self.grid[*i][*j] {
+                if let Tile::Gem(gem) = &mut self.grid[pos.i][pos.j] {
                     gem.collect();
                 }
             }
         }
-        for ((i, j), agent) in izip!(&state.agents_positions, &self.agents) {
-            if let Err(error) = self.grid[*i][*j].pre_enter(agent) {
+        for (pos, agent) in izip!(&state.agents_positions, &self.agents) {
+            if let Err(error) = self.grid[pos.i][pos.j].pre_enter(agent) {
                 let reason = match error {
                     RuntimeWorldError::TileNotWalkable => "The tile is not walkable",
                     _ => "Unknown reason",
@@ -446,7 +458,7 @@ impl World {
                 // Reset the state to the one before the pre-enter
                 self.set_state(&current_state).unwrap();
                 return Err(RuntimeWorldError::InvalidAgentPosition {
-                    position: (*i, *j),
+                    position: pos.clone(),
                     reason,
                 });
             }
@@ -454,8 +466,8 @@ impl World {
         // Set the agents positions after the pre-enter in case it fails
         self.agents_positions = state.agents_positions.to_vec();
         let mut events = vec![];
-        for ((i, j), agent) in izip!(&self.agents_positions, &mut self.agents) {
-            if let Some(event) = self.grid[*i][*j].enter(agent) {
+        for (pos, agent) in izip!(&self.agents_positions, &mut self.agents) {
+            if let Some(event) = self.grid[pos.i][pos.j].enter(agent) {
                 events.push(event);
             }
         }
@@ -511,12 +523,12 @@ impl TryFrom<&str> for World {
 
 impl Clone for World {
     fn clone(&self) -> Self {
-        let mut core = Self::try_from(self.world_string.clone()).unwrap();
-        core.set_state(&self.get_state()).unwrap();
-        core
+        let mut world = Self::try_from(self.world_string.clone()).unwrap();
+        let state = self.get_state();
+        world.set_state(&state).unwrap();
+        world
     }
 }
 
 #[cfg(test)]
-#[path = "../unit_tests/test_core.rs"]
-mod test_core;
+mod test;

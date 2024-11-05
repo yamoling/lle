@@ -82,23 +82,6 @@ impl Display for Action {
     }
 }
 
-impl Add<&Action> for &Position {
-    type Output = Result<Position, RuntimeWorldError>;
-
-    fn add(self, rhs: &Action) -> Self::Output {
-        let (dx, dy) = rhs.delta();
-        let j = self.0 as i32 + dx;
-        let i = self.1 as i32 + dy;
-
-        if j < 0 || i < 0 {
-            return Err(RuntimeWorldError::OutOfWorldPosition {
-                position: (j as usize, i as usize),
-            });
-        }
-        Ok((j as usize, i as usize))
-    }
-}
-
 impl Add<Position> for Action {
     type Output = Result<Position, RuntimeWorldError>;
 

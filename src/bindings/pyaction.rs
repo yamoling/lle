@@ -1,12 +1,12 @@
-use pyo3::{prelude::*, pyclass::CompareOp};
+use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass_enum, gen_stub_pymethods};
 
 use crate::Action;
 
 /// An action that can be taken in the world by the agents.
 #[gen_stub_pyclass_enum]
-#[pyclass(name = "Action", module = "lle")]
-#[derive(Clone, Debug)]
+#[pyclass(name = "Action", module = "lle", eq, eq_int)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum PyAction {
     #[pyo3(name = "NORTH")]
     North = 0,
@@ -49,20 +49,6 @@ impl PyAction {
             _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
                 "Invalid action value: {value}. Valid values for actions are between 0 and 4."
             ))),
-        }
-    }
-
-    /// Equality comparison.
-    /// Raises:
-    ///     TypeError: If the comparison operator is not == or !=.
-    fn __richcmp__(&self, other: &Self, op: CompareOp) -> PyResult<bool> {
-        let action: Action = self.into();
-        match op {
-            CompareOp::Eq => Ok(action == other.into()),
-            CompareOp::Ne => Ok(action != other.into()),
-            _ => Err(pyo3::exceptions::PyTypeError::new_err(
-                "Invalid comparison operator for Action.",
-            )),
         }
     }
 

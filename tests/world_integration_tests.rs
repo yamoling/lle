@@ -188,7 +188,7 @@ fn test_force_state_agents_have_exited() {
     )
     .unwrap();
     w.reset();
-    let s = WorldState::new_alive([(1, 0)].into(), [true].into());
+    let s = WorldState::new_alive([(1, 0).into()].into(), [true].into());
     let events = w.set_state(&s).unwrap();
     for agent in w.agents() {
         assert!(agent.has_arrived());
@@ -215,7 +215,7 @@ fn test_force_wrong_state_check_laser_not_blocked() {
     )
     .unwrap();
     w.reset();
-    let s = WorldState::new_alive([(1, 1), (1, 0)].into(), [true].into());
+    let s = WorldState::new_alive([(1, 1).into(), (1, 0).into()].into(), [true].into());
     let res = w.set_state(&s);
     if let Err(RuntimeWorldError::InvalidAgentPosition { position, .. }) = res {
         assert_eq!(position, (1, 0));
@@ -237,7 +237,7 @@ fn test_force_state_agent_dies() {
     .unwrap();
     w.reset();
 
-    let s = WorldState::new_alive([(1, 0), (1, 1)].into(), [false; 1].into());
+    let s = WorldState::new_alive([(1, 0).into(), (1, 1).into()].into(), [false; 1].into());
     w.set_state(&s).unwrap();
     assert!(w.agents()[0].has_arrived());
     // Agent 1 should ne have arrived (it died before arriving)
@@ -256,7 +256,10 @@ fn test_set_invalid_state() {
     )
     .unwrap();
     w.reset();
-    match w.set_state(&WorldState::new_alive(vec![(1, 0), (1, 1)], vec![])) {
+    match w.set_state(&WorldState::new_alive(
+        vec![(1, 0).into(), (1, 1).into()],
+        vec![],
+    )) {
         Err(RuntimeWorldError::InvalidAgentPosition { .. }) => {}
         other => panic!("Expected InvalidState, got {:?}", other),
     }
@@ -412,26 +415,26 @@ fn test_laser_id() {
     w.reset();
     let mut top_laser_id = None;
     let mut bot_laser_id = None;
-    for ((i, j), source) in w.sources() {
-        if i == 1 {
+    for (pos, source) in w.sources() {
+        if pos.i == 1 {
             top_laser_id = Some(source.laser_id());
-        } else if i == 3 {
+        } else if pos.i == 3 {
             bot_laser_id = Some(source.laser_id());
         } else {
-            panic!("Unexpected laser source at ({}, {})", i, j);
+            panic!("Unexpected laser source at ({}, {})", pos.i, pos.j);
         }
     }
 
     let top_laser_id = top_laser_id.unwrap();
     let bot_laser_id = bot_laser_id.unwrap();
 
-    for ((i, j), l) in w.lasers() {
-        if i == 1 {
+    for (pos, l) in w.lasers() {
+        if pos.i == 1 {
             assert_eq!(l.laser_id(), top_laser_id);
-        } else if i == 3 {
+        } else if pos.i == 3 {
             assert_eq!(l.laser_id(), bot_laser_id);
         } else {
-            panic!("Unexpected laser at ({}, {})", i, j);
+            panic!("Unexpected laser at ({}, {})", pos.i, pos.j);
         }
     }
 }

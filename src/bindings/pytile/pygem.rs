@@ -6,9 +6,9 @@ use std::{
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
-use crate::{agent::AgentId, tiles::Gem, Position, Tile, World};
+use crate::{agent::AgentId, tiles::Gem, Tile, World};
 
-use super::inner;
+use super::{super::pyposition::PyPosition, inner};
 
 #[gen_stub_pyclass]
 #[pyclass(name = "Gem", module = "lle.tiles")]
@@ -18,7 +18,7 @@ pub struct PyGem {
     is_collected: bool,
     /// The (i, j) position of the gem.
     #[pyo3(get)]
-    pos: Position,
+    pos: PyPosition,
     world: Arc<Mutex<World>>,
 }
 
@@ -28,10 +28,10 @@ unsafe impl Send for PyGem {}
 unsafe impl Sync for PyGem {}
 
 impl PyGem {
-    pub fn new(gem: &Gem, pos: Position, world: Arc<Mutex<World>>) -> Self {
+    pub fn new(gem: &Gem, pos: (usize, usize), world: Arc<Mutex<World>>) -> Self {
         Self {
             is_collected: gem.is_collected(),
-            pos,
+            pos: pos.into(),
             world,
         }
     }
@@ -50,7 +50,7 @@ impl PyGem {
 
     pub fn collect(&mut self) -> PyResult<()> {
         let world = &mut self.world.lock().unwrap();
-        let tile = inner(world, self.pos)?;
+        let tile = inner(world, self.pos.clone().into())?;
         match tile {
             Tile::Gem(gem) => gem.collect(),
             _ => {
@@ -67,7 +67,7 @@ impl PyGem {
     #[getter]
     pub fn agent(&self) -> Option<AgentId> {
         let world = self.world.lock().unwrap();
-        let tile = world.at(self.pos)?;
+        let tile = world.at(&self.pos.clone().into())?;
         match tile {
             Tile::Gem(gem) => gem.agent(),
             _ => None,

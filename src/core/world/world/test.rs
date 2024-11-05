@@ -26,32 +26,32 @@ fn test_tile_type() {
     )
     .unwrap();
     world.reset();
-    assert!(world.start_positions.contains(&(0, 0)));
+    assert!(world.start_positions.contains(&(Position { i: 0, j: 0 })));
     //let start = world.start_positions[0].get(&(0, 0)).unwrap();
-    assert_eq!(world.start_positions[0], (0, 0));
+    assert_eq!(world.start_positions[0], Position { i: 0, j: 0 });
 
     assert!(world
         .gems_positions
         .iter()
-        .any(|pos| pos.0 == 0 && pos.1 == 2));
+        .any(|pos| pos.i == 0 && pos.j == 2));
     let source = world
         .sources()
         .iter()
-        .find(|((i, j), _)| *i == 1 && *j == 0)
+        .find(|(Position { i, j }, _)| *i == 1 && *j == 0)
         .unwrap()
         .1;
     assert_eq!(source.agent_id(), 0);
-    let laser = get_laser(&world, (1, 1));
+    let laser = get_laser(&world, Position { i: 1, j: 1 });
     assert_eq!(laser.agent_id(), 0);
     let n_exits_at_1_1 = world
         .exits
         .iter()
-        .filter(|(i, j)| *i == 1 && *j == 1)
+        .filter(|Position { i, j }| *i == 1 && *j == 1)
         .count();
     assert!(n_exits_at_1_1 == 1);
     assert!(world.wall_positions.len() == 2);
-    assert!(world.wall_positions.contains(&(1, 2)));
-    assert!(world.wall_positions.contains(&(1, 0)));
+    assert!(world.wall_positions.contains(&Position { i: 1, j: 2 }));
+    assert!(world.wall_positions.contains(&Position { i: 1, j: 0 }));
 }
 
 #[test]
@@ -60,8 +60,8 @@ fn test_duplicate_start_pos() {
         Ok(..) => panic!("Should not be able to build a world with duplicate start positions"),
         Err(err) => match err {
             ParseError::DuplicateStartTile { start1, start2, .. } => {
-                assert_eq!(start1, (0, 0));
-                assert_eq!(start2, (0, 1));
+                assert_eq!(start1, Position { i: 0, j: 0 });
+                assert_eq!(start2, Position { i: 0, j: 1 });
             }
             other => panic!("Expected DuplicateStartTile error, got {other:?}"),
         },
@@ -122,9 +122,9 @@ fn test_laser_blocked_on_reset() -> Result<(), RuntimeWorldError> {
     w.reset();
     // All agents should be alive
     assert!(w.agents().iter().all(|a| a.is_alive()));
-    assert!(get_laser(&w, (1, 2)).is_on());
-    assert!(get_laser(&w, (2, 2)).is_off());
-    assert!(get_laser(&w, (3, 2)).is_off());
+    assert!(get_laser(&w, (1, 2).into()).is_on());
+    assert!(get_laser(&w, (2, 2).into()).is_off());
+    assert!(get_laser(&w, (3, 2).into()).is_off());
     Ok(())
 }
 
@@ -199,7 +199,10 @@ fn test_force_state_invalid_number_of_agents() {
     )
     .unwrap();
     w.reset();
-    let s = WorldState::new_alive([(1, 2), (0, 0)].into(), [true].into());
+    let s = WorldState::new_alive(
+        [Position { i: 1, j: 2 }, Position { i: 0, j: 0 }].into(),
+        [true].into(),
+    );
     match w.set_state(&s) {
         Err(e) => match e {
             RuntimeWorldError::InvalidNumberOfAgents {
@@ -225,7 +228,7 @@ fn test_force_state_invalid_number_of_gems() {
     )
     .unwrap();
     w.reset();
-    let s = WorldState::new_alive([(1, 2)].into(), [true, false].into());
+    let s = WorldState::new_alive([(1, 2).into()].into(), [true, false].into());
     match w.set_state(&s) {
         Err(e) => match e {
             RuntimeWorldError::InvalidNumberOfGems {
@@ -256,18 +259,18 @@ fn test_complex_laser_blocking() -> Result<(), RuntimeWorldError> {
     .unwrap();
     w.reset();
 
-    let laser = get_laser(&w, (0, 3));
+    let laser = get_laser(&w, (0, 3).into());
     assert!(laser.is_on());
 
-    let state = WorldState::new_alive([(0, 2), (0, 3)].into(), [false; 5].into());
+    let state = WorldState::new_alive([(0, 2).into(), (0, 3).into()].into(), [false; 5].into());
     w.set_state(&state).unwrap();
-    let laser = get_laser(&w, (0, 3));
+    let laser = get_laser(&w, (0, 3).into());
     assert!(laser.is_off());
     assert!(w.agents().iter().all(Agent::is_alive));
 
     w.step(&[Action::Stay, Action::East]).unwrap();
     assert!(w.agents().iter().all(Agent::is_alive));
-    let laser = get_laser(&w, (0, 3));
+    let laser = get_laser(&w, (0, 3).into());
     assert!(laser.is_off());
     Ok(())
 }
@@ -301,7 +304,7 @@ fn test_set_state_available_actions() {
     )
     .unwrap();
     w.reset();
-    let s = WorldState::new_alive([(0, 0)].into(), [].into());
+    let s = WorldState::new_alive([(0, 0).into()].into(), [].into());
     w.set_state(&s).unwrap();
     let actions = w.available_actions();
     assert_eq!(actions.len(), 1);
@@ -452,7 +455,7 @@ fn test_force_state() {
     )
     .unwrap();
     w.reset();
-    let s = WorldState::new_alive([(1, 2)].into(), [true].into());
+    let s = WorldState::new_alive([(1, 2).into()].into(), [true].into());
     w.set_state(&s).unwrap();
     assert_eq!(w.agents_positions()[0], (1, 2));
     let gem = w.gems()[0];
@@ -469,7 +472,7 @@ fn test_force_end_state() {
     )
     .unwrap();
     w.reset();
-    let s = WorldState::new_alive([(1, 0)].into(), [true].into());
+    let s = WorldState::new_alive([(1, 0).into()].into(), [true].into());
     w.set_state(&s).unwrap();
     assert_eq!(w.agents_positions()[0], (1, 0));
     let gem = w.gems()[0];
@@ -487,7 +490,24 @@ fn test_force_state_agent_dies() {
     .unwrap();
     w.reset();
 
-    let s = WorldState::new_alive([(1, 0), (1, 1)].into(), [false; 1].into());
+    let s = WorldState::new_alive([(1, 0).into(), (1, 1).into()].into(), [false; 1].into());
     w.set_state(&s).unwrap();
     assert!(w.agents()[1].is_dead());
+}
+
+#[test]
+fn test_no_exits() {
+    let toml_content = r#"
+world_string = """
+. . S0 . S1 . . . . S2 
+. . .  . .  . . . . S3 
+. . .  . .  . . . . . 
+. . .  . .  . . . . . 
+"""
+"#;
+    match World::try_from(toml_content) {
+        Err(ParseError::NotEnoughExitTiles { .. }) => {}
+        Ok(..) => panic!("Should not be able to create a world without exits"),
+        Err(other) => panic!("Expected NotEnoughExitTiles, got {other:?}"),
+    }
 }
