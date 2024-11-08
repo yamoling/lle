@@ -1,1 +1,4 @@
-from lle import World
+from lle import LLE
+
+
+env = LLE.from_file("map.toml")

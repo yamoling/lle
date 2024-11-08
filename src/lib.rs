@@ -9,7 +9,7 @@ mod utils;
 
 pub use action::Action;
 pub use agent::AgentId;
-pub use core::parsing::parse_v2;
+pub use core::parsing::parse_toml as parse_v2;
 pub use core::{tiles, tiles::Tile, ParseError, RuntimeWorldError, World, WorldEvent, WorldState};
 pub use position::Position;
 pub use rendering::Renderer;

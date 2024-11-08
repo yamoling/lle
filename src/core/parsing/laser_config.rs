@@ -33,6 +33,10 @@ impl LaserConfig {
         })
     }
 
+    pub fn to_string(&self) -> String {
+        format!("L{}{}", self.agent_id, self.direction.to_file_string())
+    }
+
     pub fn build(&self, beam_length: usize) -> LaserSource {
         let beam = Rc::new(LaserBeam::new(
             beam_length,
@@ -41,6 +45,22 @@ impl LaserConfig {
             self.laser_id,
         ));
         LaserSource::new(beam)
+    }
+}
+
+impl From<&LaserSource> for LaserConfig {
+    fn from(source: &LaserSource) -> Self {
+        Self {
+            direction: source.direction(),
+            agent_id: source.agent_id(),
+            laser_id: source.laser_id(),
+        }
+    }
+}
+
+impl From<LaserSource> for LaserConfig {
+    fn from(source: LaserSource) -> Self {
+        Self::from(&source)
     }
 }
 

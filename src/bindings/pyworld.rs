@@ -155,10 +155,10 @@ impl PyWorld {
         }
     }
 
-    /// The string upon which the world has been constructed.
+    /// The string upon which the world has been constructed (as toml).
     #[getter]
     fn world_string(&self) -> String {
-        self.world.lock().unwrap().initial_world_string().into()
+        self.world.lock().unwrap().world_string()
     }
 
     /// The dimensions (in pixels) of the image redered (width, height)
@@ -391,7 +391,7 @@ impl PyWorld {
     pub fn __getstate__(&self) -> PyResult<(String, PyWorldState)> {
         let world = self.world.lock().unwrap();
         let state: PyWorldState = world.get_state().into();
-        let world_string = world.compute_world_string().to_owned();
+        let world_string = world.world_string();
         Ok((world_string, state))
     }
 
@@ -459,5 +459,19 @@ impl Clone for PyWorld {
             world: Arc::new(Mutex::new(core)),
             renderer,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PyWorld;
+
+    #[test]
+    /// This test simulates the pickling and unpickling process of a world.
+    fn pickle() {
+        let world = PyWorld::level(1).unwrap();
+        let bin = world.__getstate__().unwrap();
+        let mut new_world = PyWorld::new("S0 X".to_string()).unwrap();
+        new_world.__setstate__(bin).unwrap();
     }
 }
