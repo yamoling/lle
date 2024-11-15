@@ -135,14 +135,14 @@ fn add_action_classattrs(info: &mut StubInfo) {
         name: "ALL",
         doc: "Ordered list of actions",
         is_property: false,
-        r#type: TypeInfo::builtin("typing.ClassVar[list[Action]]"),
+        r#type: TypeInfo::builtin(" list[Action]"),
     });
 
     action_classdef.members.push(MemberDef {
         name: "N",
         doc: "The number of actions (cardinality of the action space)",
         is_property: false,
-        r#type: TypeInfo::builtin("typing.ClassVar[int]"),
+        r#type: TypeInfo::builtin(" int"),
     });
 }
 

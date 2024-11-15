@@ -56,7 +56,7 @@ class World:
     n_agents: int
     """The number of agents in the world."""
     world_string: str
-    """The string upon which the world has been constructed."""
+    """The string upon which the world has been constructed (as toml)."""
     image_dimensions: tuple[int, int]
     """The dimensions (in pixels) of the image redered (width, height)"""
     gems_collected: int
@@ -334,10 +334,13 @@ class Action(Enum):
     def name(self) -> str:
         """The string name of this action."""
         ...
-    ALL: typing.ClassVar[list[Action]]
+    ALL:  list[Action]
     """Ordered list of actions"""
-    N: typing.ClassVar[int]
+    N:  int
     """The number of actions (cardinality of the action space)"""
+
+    def __hash__(self) -> int:
+        ...
 
     def __repr__(self) -> str:
         ...

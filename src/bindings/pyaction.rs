@@ -52,6 +52,16 @@ impl PyAction {
         }
     }
 
+    fn __hash__(&self) -> u64 {
+        match self {
+            Self::North => 0,
+            Self::South => 1,
+            Self::East => 2,
+            Self::West => 3,
+            Self::Stay => 4,
+        }
+    }
+
     fn __repr__(&self) -> String {
         format!("{self:?}")
     }

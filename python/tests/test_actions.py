@@ -21,3 +21,14 @@ def test_count():
     assert values.count(Action.SOUTH) == 1
     assert values.count(Action.EAST) == 1
     assert values.count(Action.WEST) == 2
+
+
+def test_hash_equal():
+    hashes = set()
+    actions = set()
+    for a in Action.ALL:
+        h = hash(a)
+        # deterministic
+        assert h == hash(a)
+        hashes.add(h)
+        actions.add(a)
