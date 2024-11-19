@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Literal, TypeVar
+from typing import Literal, Sequence, TypeVar
 
 import cv2
 import numpy as np
@@ -102,7 +102,7 @@ class Core:
                 available_actions[agent, action.value] = True
         return available_actions
 
-    def step(self, actions: np.ndarray | list[int]):
+    def step(self, actions: np.ndarray | Sequence[int]):
         assert not self.done, "Can not play when the game is done !"
         agents_actions = [Action(a) for a in actions]
         prev_positions = self.world.agents_positions
@@ -171,15 +171,11 @@ class Core:
         """Load a level from the levels folder"""
         return Builder(World.level(level)).name(f"LLE-lvl{level}")
 
-    def seed(self, _seed_value: int):
-        # There is nothing random in the world to seed.
-        return
+    def seed(self, seed_value: int):
+        self.world.seed(seed_value)
 
     def set_state(self, state: WorldState):
-        # self.reward_strategy.reset()
-        _events = self.world.set_state(state)
-        # Don't do anything with the events, just update the reward strategy
-        # self.reward_strategy.compute_reward(events)
+        self.world.set_state(state)
         agents = self.world.agents
         self.done = any(agent.is_dead for agent in agents) or all(agent.has_arrived for agent in agents)
         self.n_arrived = sum(agent.has_arrived for agent in agents)

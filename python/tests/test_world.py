@@ -2,6 +2,7 @@ from threading import Thread
 from typing import List
 from lle.types import Position
 import pytest
+import random
 from copy import deepcopy
 
 from lle import World, WorldState, Action, EventType
@@ -630,3 +631,27 @@ start_positions = [
     assert world.width == 10
     assert world.height == 5
     assert world.n_agents == 4
+
+
+def test_seed():
+    toml_str = """
+width = 10
+height = 10
+exits = [{ i = 0, j = 9 }]
+
+[[agents]]
+# Start anywhere on the map
+start_positions = [{  }]
+"""
+    for seed in range(10):
+        world = World(toml_str)
+        world.seed(seed)
+        world.reset()
+        starts1 = world.start_pos
+
+        world = World(toml_str)
+        world.seed(seed)
+        world.reset()
+        starts2 = world.start_pos
+
+        assert starts1 == starts2

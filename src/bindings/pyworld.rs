@@ -233,6 +233,10 @@ impl PyWorld {
         world.starts().iter().map(|p| (*p).into()).collect()
     }
 
+    fn seed(&self, seed_value: u64) {
+        self.world.lock().unwrap().seed(seed_value);
+    }
+
     /// Simultaneously perform an action for each agent in the world.
     /// Performing a step generates events (see `WorldEvent`) to give information about the consequences of the joint action.
     ///

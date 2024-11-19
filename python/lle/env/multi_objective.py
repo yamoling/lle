@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import numpy.typing as npt
-from marlenv import MARLEnv, DiscreteActionSpace, DiscreteSpace
+from marlenv import DiscreteSpace, DiscreteMARLEnv
 
 from lle import EventType, WorldEvent, WorldState
 
@@ -16,7 +16,7 @@ RW_DONE_IDX = 3
 
 
 @dataclass
-class MOLLE(MARLEnv[DiscreteActionSpace, npt.NDArray[np.float32], npt.NDArray[np.float32]]):
+class MOLLE(DiscreteMARLEnv[npt.NDArray[np.float32], npt.NDArray[np.float32]]):
     """
     Multi-Objective Laser Learning Environment (MO LLE)
     """
@@ -87,3 +87,6 @@ class MOLLE(MARLEnv[DiscreteActionSpace, npt.NDArray[np.float32], npt.NDArray[np
 
     def seed(self, seed_value: int):
         return self.core.seed(seed_value)
+
+    def get_observation(self):
+        return self.core.get_observation()

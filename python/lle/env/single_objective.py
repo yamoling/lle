@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import numpy.typing as npt
-from marlenv import DiscreteActionSpace, MARLEnv
+from marlenv import DiscreteMARLEnv
 
 from lle import EventType, WorldEvent, WorldState
 
@@ -10,7 +10,7 @@ from .core import REWARD_DEATH, REWARD_DONE, REWARD_EXIT, REWARD_GEM, Core
 
 
 @dataclass
-class SOLLE(MARLEnv[DiscreteActionSpace, npt.NDArray[np.float32], npt.NDArray[np.float32], float]):
+class SOLLE(DiscreteMARLEnv[npt.NDArray[np.float32], npt.NDArray[np.float32], float]):
     """
     Single Objective Laser Learning Environment (SOLLE)
     """
@@ -74,3 +74,6 @@ class SOLLE(MARLEnv[DiscreteActionSpace, npt.NDArray[np.float32], npt.NDArray[np
 
     def seed(self, seed_value: int):
         return self.core.seed(seed_value)
+
+    def get_observation(self):
+        return self.core.get_observation()
