@@ -237,7 +237,11 @@ fn test_force_state_agent_dies() {
     .unwrap();
     w.reset();
 
-    let s = WorldState::new_alive([(1, 0).into(), (1, 1).into()].into(), [false; 1].into());
+    let s = WorldState {
+        agents_positions: vec![(1, 0).into(), (1, 1).into()],
+        gems_collected: vec![false],
+        agents_alive: vec![true, false],
+    };
     w.set_state(&s).unwrap();
     assert!(w.agents()[0].has_arrived());
     // Agent 1 should ne have arrived (it died before arriving)
