@@ -1,5 +1,5 @@
 from lle import LLE, Action, WorldState
-from lle.env.core import REWARD_DEATH, REWARD_GEM, REWARD_EXIT, REWARD_DONE
+from lle.env.env import REWARD_DEATH, REWARD_GEM, REWARD_EXIT, REWARD_DONE
 from lle.env.multi_objective import RW_DEATH_IDX, RW_GEM_IDX, RW_EXIT_IDX, RW_DONE_IDX
 import numpy as np
 
@@ -7,8 +7,9 @@ import numpy as np
 def test_void_reward():
     env = LLE.from_str("S0 V X").single_objective()
     env.reset()
-    assert env.step([Action.EAST.value])[1] == REWARD_DEATH
-    assert env.done
+    _, _, reward, done, _, _ = env.step([Action.EAST.value])
+    assert reward == REWARD_DEATH
+    assert done
 
 
 def test_collect_reward():
@@ -19,7 +20,7 @@ G  . . ."""
     ).single_objective()
     env.reset()
     env.step([Action.SOUTH.value])
-    reward = env.step([Action.SOUTH.value])[1]
+    reward = env.step([Action.SOUTH.value]).reward
     assert reward == REWARD_GEM
 
 
@@ -32,7 +33,7 @@ def test_time_reward():
     ).single_objective()
     env.reset()
     for action in Action.ALL:
-        _obs, reward, *_ = env.step([action.value])
+        reward = env.step([action.value]).reward
         assert reward == 0
 
 
@@ -46,7 +47,7 @@ def test_finish_reward():
     ).single_objective()
     env.reset()
     env.step([Action.EAST.value])
-    reward = env.step([Action.SOUTH.value])[1]
+    reward = env.step([Action.SOUTH.value]).reward
     assert reward == REWARD_DONE + REWARD_EXIT
 
 
@@ -69,7 +70,7 @@ def test_arrive_reward_only_once():
     ]
     env.reset()
     for action, reward in action_rewards:
-        r = env.step([a.value for a in action])[1]
+        r = env.step([a.value for a in action]).reward
         assert r == reward
 
 
@@ -86,14 +87,14 @@ def test_reward_after_reset():
         """Collect the gem and finish the game. Check that the reward is is correct when collecting it."""
         env.reset()
         env.step([Action.SOUTH.value])
-        reward = env.step([Action.SOUTH.value])[1]
+        reward = env.step([Action.SOUTH.value]).reward
         assert reward == REWARD_GEM
         assert not env.done
-        r = env.step([Action.NORTH.value])[1]
+        r = env.step([Action.NORTH.value]).reward
         assert r == 0
-        r = env.step([Action.NORTH.value])[1]
+        r = env.step([Action.NORTH.value]).reward
         assert r == 0
-        reward = env.step([Action.EAST.value])[1]
+        reward = env.step([Action.EAST.value]).reward
         assert env.done
         assert reward == REWARD_DONE + REWARD_EXIT
 
@@ -111,37 +112,47 @@ def test_reward_after_set_state():
     S1 X X""",
     ).single_objective()
     env.reset()
-    state = WorldState([(0, 1), (1, 1)], [False])
-    env.set_state(state)
-    assert env.step([Action.EAST.value, Action.STAY.value])[1] == REWARD_GEM
+    world_state = WorldState([(0, 1), (1, 1)], [False])
+    env.set_state(world_state)
+    assert env.step([Action.EAST.value, Action.STAY.value]).reward == REWARD_GEM
 
 
 def test_reward_set_state_all_arrived():
-    env = LLE.from_str(
-        """
+    env = (
+        LLE.from_str(
+            """
     S0 . G
     S1 X X""",
-    ).single_objective()
+        )
+        .state_type("state")
+        .single_objective()
+    )
+
+    world_state = WorldState([(0, 2), (1, 1)], [True])
+    env.world.set_state(world_state)
+    state = env.get_state()
     env.reset()
-    state = WorldState([(0, 2), (1, 1)], [True])
+
     env.set_state(state)
-    r = env.step([Action.SOUTH.value, Action.STAY.value])[1]
+    r = env.step([Action.SOUTH.value, Action.STAY.value]).reward
     assert r == REWARD_DONE + REWARD_EXIT
 
 
 def test_set_state():
-    env = LLE.from_str("S0 G X").single_objective()
-    env.reset()
-    env.step([Action.EAST.value])
-    env.set_state(WorldState([(0, 0)], [False]))
-    assert env.world.agents_positions == [(0, 0)]
-    assert env.world.gems_collected == 0
-    assert not env.done
+    env = LLE.level(6).state_type("state").single_objective()
+    states = [env.reset()[1]]
+    world_states = [env.world.get_state()]
+    i = 0
+    done = False
+    while not done and i < 100:
+        i += 1
+        _, state, _, done, _, _ = env.step(env.action_space.sample(env.available_actions()))
+        world_states.append(env.world.get_state())
+        states.append(state)
 
-    env.set_state(WorldState([(0, 2)], [True]))
-    assert env.world.agents_positions == [(0, 2)]
-    assert env.world.gems_collected == 1
-    assert env.done
+    for state, world_state in zip(states, world_states):
+        env.set_state(state)
+        assert env.world.get_state() == world_state
 
 
 # Test cases
@@ -153,9 +164,9 @@ def test_reward():
     """
     ).single_objective()
     env.reset()
-    assert env.step([Action.EAST.value])[1] == REWARD_GEM
-    assert env.step([Action.EAST.value])[1] == 0.0
-    assert env.step([Action.SOUTH.value])[1] == REWARD_EXIT + REWARD_DONE
+    assert env.step([Action.EAST.value]).reward == REWARD_GEM
+    assert env.step([Action.EAST.value]).reward == 0.0
+    assert env.step([Action.SOUTH.value]).reward == REWARD_EXIT + REWARD_DONE
 
 
 def test_reward_death():
@@ -166,9 +177,9 @@ def test_reward_death():
     """
     ).single_objective()
     env.reset()
-    _, r, _, _, _ = env.step([Action.STAY.value, Action.EAST.value])
-    assert r == REWARD_DEATH
-    assert env.done
+    step = env.step([Action.STAY.value, Action.EAST.value])
+    assert step.reward == REWARD_DEATH
+    assert step.done
 
 
 def test_reward_collect_and_death():
@@ -179,9 +190,9 @@ def test_reward_collect_and_death():
     """
     ).single_objective()
     env.reset()
-    _, r, _, _, _ = env.step([Action.STAY.value, Action.EAST.value])
-    assert r == REWARD_DEATH
-    assert env.done
+    step = env.step([Action.STAY.value, Action.EAST.value])
+    assert step.reward == REWARD_DEATH
+    assert step.done
 
 
 def test_multi_objective_rewards():
@@ -194,22 +205,22 @@ def test_multi_objective_rewards():
     indices = [RW_GEM_IDX, RW_EXIT_IDX, RW_DONE_IDX, RW_DEATH_IDX]
     env.reset()
     # Collect the gem
-    reward = env.step([Action.EAST.value])[1]
+    reward = env.step([Action.EAST.value]).reward
     assert reward[RW_GEM_IDX] == REWARD_GEM
     for idx in indices:
         if idx != RW_GEM_IDX:
             assert reward[idx] == 0
 
     # Step east
-    assert np.all(env.step([Action.EAST.value])[1] == 0.0)
+    assert np.all(env.step([Action.EAST.value]).reward == 0.0)
     # Finish the level
-    _, reward, done, *_ = env.step([Action.SOUTH.value])
-    assert done
-    assert reward[RW_EXIT_IDX] == REWARD_EXIT
-    assert reward[RW_DONE_IDX] == REWARD_DONE
+    step = env.step([Action.SOUTH.value])
+    assert step.done
+    assert step.reward[RW_EXIT_IDX] == REWARD_EXIT
+    assert step.reward[RW_DONE_IDX] == REWARD_DONE
     for idx in indices:
         if idx not in [RW_EXIT_IDX, RW_DONE_IDX]:
-            assert reward[idx] == 0
+            assert step.reward[idx] == 0
 
 
 def test_multi_objective_death():
@@ -220,7 +231,7 @@ def test_multi_objective_death():
     """,
     ).multi_objective()
     env.reset()
-    reward = env.step([Action.STAY.value, Action.EAST.value])[1]
+    reward = env.step([Action.STAY.value, Action.EAST.value]).reward
     assert reward[RW_DEATH_IDX] == REWARD_DEATH
     for idx in [RW_GEM_IDX, RW_EXIT_IDX, RW_DONE_IDX]:
         assert reward[idx] == 0

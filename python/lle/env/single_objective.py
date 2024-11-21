@@ -1,42 +1,24 @@
-from dataclasses import dataclass
+from typing import Literal
 
-import numpy as np
-import numpy.typing as npt
-from marlenv import DiscreteMARLEnv
-
-from lle import EventType, WorldEvent, WorldState
-
-from .core import REWARD_DEATH, REWARD_DONE, REWARD_EXIT, REWARD_GEM, Core
+from lle import EventType, WorldEvent, World
+from lle.observations import ObservationType
+from .env import REWARD_DEATH, REWARD_DONE, REWARD_EXIT, REWARD_GEM, LLE
 
 
-@dataclass
-class SOLLE(DiscreteMARLEnv[npt.NDArray[np.float32], npt.NDArray[np.float32], float]):
+class SOLLE(LLE[float]):
     """
     Single Objective Laser Learning Environment (SOLLE)
     """
 
-    name: str
-    width: int
-    height: int
-
-    def __init__(self, core: Core):
-        self.world = core.world
-        self.core = core
-        super().__init__(action_space=core.action_space, observation_shape=core.observation_shape, state_shape=core.state_shape)
-        self.name = SOLLE.__name__
-        self.width = self.world.width
-        self.height = self.world.height
-
-    @property
-    def done(self):
-        return self.core.done
-
-    @property
-    def agent_state_size(self) -> int:
-        return self.core.agent_state_size
-
-    def reset(self):
-        return self.core.reset()
+    def __init__(
+        self,
+        world: World,
+        obs_type: ObservationType = ObservationType.STATE,
+        state_type: ObservationType = ObservationType.STATE,
+        death_strategy: Literal["respawn"] | Literal["end"] | Literal["stay"] = "end",
+        walkable_lasers: bool = True,
+    ):
+        super().__init__(world, None, obs_type, state_type, death_strategy, walkable_lasers)
 
     def compute_reward(self, events: list[WorldEvent]):
         reward = 0.0
@@ -51,29 +33,6 @@ class SOLLE(DiscreteMARLEnv[npt.NDArray[np.float32], npt.NDArray[np.float32], fl
                     reward += REWARD_EXIT
         if death_reward != 0:
             return death_reward
-        if self.core.n_arrived == self.n_agents:
+        if self.n_arrived == self.n_agents:
             reward += REWARD_DONE
         return reward
-
-    def available_actions(self):
-        return self.core.available_actions()
-
-    def step(self, actions):
-        obs, done, info, events = self.core.step(actions)
-        reward = self.compute_reward(events)
-        return obs, reward, done, False, info
-
-    def get_state(self):
-        return self.core.get_state()
-
-    def render(self, mode):
-        return self.core.render(mode)
-
-    def set_state(self, state: WorldState):
-        self.core.set_state(state)
-
-    def seed(self, seed_value: int):
-        return self.core.seed(seed_value)
-
-    def get_observation(self):
-        return self.core.get_observation()

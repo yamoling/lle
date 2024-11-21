@@ -1,6 +1,7 @@
 from lle import LLE, Action, WorldState, ObservationType
 from copy import deepcopy
 import numpy as np
+import pytest
 
 
 def test_available_actions():
@@ -12,7 +13,7 @@ def test_available_actions():
 @ X  .  S1 @
 @ @  @  @  @
 """
-    ).core()
+    ).single_objective()
     env.reset()
     available_actions = env.available_actions()
     # Agent 0
@@ -40,8 +41,8 @@ L0E . .  .  . . @
 @   . .  .  . G @
 @   . X  X  . . @
 @   @ @  @  @ @ @"""
-    ).core()
-    obs = env.reset()
+    ).single_objective()
+    obs, state = env.reset()
 
     def check_available_actions(available: np.ndarray, expected_available: list[list[Action]]) -> bool:
         available_actions = np.full((2, Action.N), False, dtype=bool)
@@ -70,7 +71,7 @@ def test_width_height():
         """S0 X .
 .  . .
 .  . ."""
-    ).core()
+    ).single_objective()
     assert env.width == 3
     assert env.height == 3
 
@@ -78,7 +79,7 @@ def test_width_height():
         """S0 X . .
 .  . . .
 G  . . ."""
-    ).core()
+    ).single_objective()
     assert env.width == 4
     assert env.height == 3
 
@@ -88,7 +89,7 @@ def test_state_default():
         """S0 X .
                         .  . .
                         .  . ."""
-    ).core()
+    ).single_objective()
     assert env.state_shape == (env.n_agents * 3 + env.world.n_gems,)
     env.reset()
     state = env.get_state()
@@ -103,7 +104,7 @@ def test_state_flattened():
 .  . .""",
         )
         .state_type(ObservationType.FLATTENED)
-        .core()
+        .single_objective()
     )
     assert env.state_shape == (np.prod(env.state_shape),)
     env.reset()
@@ -116,23 +117,23 @@ def test_action_meanings():
         """S0 X .
 .  . .
 .  . ."""
-    ).core()
+    ).single_objective()
     assert env.action_space.action_names == [a.name for a in Action.ALL]
 
 
 def test_deep_copy():
-    env = LLE.from_str("S0 X").core()
+    env = LLE.from_str("S0 X").single_objective()
     copy = deepcopy(env)
     assert env is not copy
 
     env.reset()
     copy.reset()
 
-    _, done, _, _ = env.step([Action.EAST.value])
+    done = env.step([Action.EAST.value]).done
     assert done
     # If the deepcopy is not correct, the copy should also be done and the game should crash
     # If the deepcopy is properly done, then the copy should not be done
-    _, done, _, _ = copy.step([Action.STAY.value])
+    done = copy.step([Action.STAY.value]).done
     assert not done
 
 
@@ -142,18 +143,18 @@ def test_move_end_game():
     S0 X .
     .  . .
     .  . .""",
-    ).core()
+    ).single_objective()
     env.reset()
-    env.step([Action.SOUTH.value])
-    assert not env.done
-    env.step([Action.SOUTH.value])
-    assert not env.done
-    env.step([Action.EAST.value])
-    assert not env.done
-    env.step([Action.NORTH.value])
-    assert not env.done
-    env.step([Action.NORTH.value])
-    assert env.done
+    done = env.step([Action.SOUTH.value]).done
+    assert not done
+    done = env.step([Action.SOUTH.value]).done
+    assert not done
+    done = env.step([Action.EAST.value]).done
+    assert not done
+    done = env.step([Action.NORTH.value]).done
+    assert not done
+    done = env.step([Action.NORTH.value]).done
+    assert done
 
 
 def test_force_end_state():
@@ -173,26 +174,27 @@ def test_force_state_agent_dies():
     env = LLE.from_str(
         """
         S0 S1 G
-        X  X L0W
+        X  . L0W
+        .  X  .
     """,
-    ).core()
+    ).single_objective()
     env.reset()
 
-    s = WorldState([(1, 0), (1, 1)], [False])
-    env.set_state(s)
-    assert env.done
+    ws = WorldState([(1, 0), (1, 1)], [False], [True, False])
+    env.set_state(ws)
+
+    with pytest.raises(ValueError):
+        available = env.available_actions()
+        env.step(env.action_space.sample(available))
 
 
 def test_agent_state_size():
-    env = LLE.level(1).core()
+    env = LLE.level(1).single_objective()
     assert env.agent_state_size == 2
 
-    env = LLE.level(1).state_type(ObservationType.FLATTENED).core()
-    try:
+    env = LLE.level(1).state_type(ObservationType.FLATTENED).single_objective()
+    with pytest.raises((ValueError, NotImplementedError)):
         env.agent_state_size
-        assert False, "So far, only state generators of type `StateGenerator` have a `agent_state_size`."
-    except (ValueError, NotImplementedError):
-        pass
 
 
 def test_builder_obs_type_string():

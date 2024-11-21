@@ -2,8 +2,9 @@ import cv2
 from abc import ABC, abstractmethod
 from enum import IntEnum
 import numpy as np
+from numpy._typing import NDArray
 import numpy.typing as npt
-from lle import World
+from lle import World, WorldState
 from .types import AgentId, Position
 
 
@@ -83,6 +84,12 @@ class ObservationGenerator(ABC):
     def observe(self) -> npt.NDArray[np.float32]:
         """Observe the world and return an observation for each agent."""
 
+    def to_world_state(self, data: npt.NDArray[np.float32]) -> WorldState:
+        """
+        Convert the observation data to a WorldState object.
+        """
+        raise NotImplementedError(f"This method is not implemented for {self.__class__.__name__}")
+
     @property
     @abstractmethod
     def obs_type(self) -> ObservationType:
@@ -102,6 +109,7 @@ class StateGenerator(ObservationGenerator):
     def __init__(self, world: World, normalize: bool):
         super().__init__(world)
         self.n_gems = world.n_gems
+        self.n_agents = world.n_agents
         if normalize:
             self.dimensions = np.array([world.height, world.width] * world.n_agents)
         else:
@@ -111,6 +119,10 @@ class StateGenerator(ObservationGenerator):
         state = self._world.get_state().as_array()
         state[: self._world.n_agents * 2] = state[: self._world.n_agents * 2] / self.dimensions
         return np.tile(state, reps=(self._world.n_agents, 1))
+
+    def to_world_state(self, state):
+        state[: self._world.n_agents * 2] = state[: self._world.n_agents * 2] * self.dimensions
+        return WorldState.from_array(state, self.n_agents, self.n_gems)
 
     @property
     def obs_type(self) -> ObservationType:

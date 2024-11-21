@@ -2,7 +2,6 @@ from threading import Thread
 from typing import List
 from lle.types import Position
 import pytest
-import random
 from copy import deepcopy
 
 from lle import World, WorldState, Action, EventType
@@ -350,6 +349,16 @@ def test_set_invalid_state():
     # Two agents on the same position
     with pytest.raises(InvalidWorldStateError):
         world.set_state(WorldState([(0, 0), (0, 0)], [True]))
+
+
+def test_set_invalid_state_dead():
+    world = World("""
+        S0 L0S X
+        S1  .  X""")
+    # The asked state is not possible since agent 1 dies in the laser
+    with pytest.raises(InvalidWorldStateError):
+        s = WorldState([(0, 0), (0, 1)], [], [True, True])
+        world.set_state(s)
 
 
 def test_world_state_hash_eq():

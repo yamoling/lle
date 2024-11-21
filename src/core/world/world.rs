@@ -466,12 +466,6 @@ impl World {
                 tile.reset();
             }
         }
-        for (agent, alive) in &mut self.agents.iter_mut().zip(state.agents_alive.iter()) {
-            agent.reset();
-            if !alive {
-                agent.die();
-            }
-        }
         // Collect the necessary gems BEFORE entering the tiles with the agents
         for (pos, &collect) in izip!(&self.gems_positions, &state.gems_collected) {
             if collect {
@@ -496,12 +490,29 @@ impl World {
             }
         }
         // Set the agents positions after the pre-enter in case it fails
-        self.agents_positions = state.agents_positions.to_vec();
+        self.agents_positions = state.agents_positions.clone();
         let mut events = vec![];
-        for (pos, agent) in izip!(&self.agents_positions, &mut self.agents) {
+        for (pos, alive, agent) in izip!(
+            &self.agents_positions,
+            &state.agents_alive,
+            &mut self.agents
+        ) {
+            agent.reset();
             if let Some(event) = self.grid[pos.i][pos.j].enter(agent) {
                 events.push(event);
             }
+            // If agents were specifically set to be dead, then do so.
+            if !alive {
+                agent.die();
+            }
+        }
+
+        let actual_state = self.get_state();
+        if actual_state != *state {
+            return Err(RuntimeWorldError::InvalidWorldState {
+                reason: "The given state is invalid (e.g. an agent whose alive status was set to `true` died).".into(),
+                state: state.clone(),
+            });
         }
         self.available_actions = self.compute_available_actions();
         Ok(events)

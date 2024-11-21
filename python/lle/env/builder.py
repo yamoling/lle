@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Literal
 from typing_extensions import deprecated
 from lle import World, ObservationType
 
@@ -19,7 +19,10 @@ class Builder:
         self._death_strategy = "end"
         self._walkable_lasers = True
 
-    def str_to_obs(self, obs_type: str) -> ObservationType:
+    def str_to_obs(
+        self,
+        obs_type: Literal["layered", "flattened", "partial3x3", "partial5x5", "partial7x7", "state", "image", "perspective"],
+    ) -> ObservationType:
         match obs_type:
             case "layered":
                 return ObservationType.LAYERED
@@ -87,19 +90,19 @@ class Builder:
         # These imports are necessary here to avoid circular imports
         from .single_objective import SOLLE
 
-        return SOLLE(self.core())
+        return SOLLE(
+            world=self._world,
+            obs_type=self._obs_type,
+            state_type=self._state_type,
+            death_strategy=self._death_strategy,
+            walkable_lasers=self._walkable_lasers,
+        )
 
     def multi_objective(self):
         # This import is necessary here to avoid circular imports
         from .multi_objective import MOLLE
 
-        return MOLLE(self.core())
-
-    def core(self):
-        # This import is necessary here to avoid circular imports
-        from .core import Core
-
-        return Core(
+        return MOLLE(
             world=self._world,
             obs_type=self._obs_type,
             state_type=self._state_type,

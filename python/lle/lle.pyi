@@ -10,12 +10,10 @@ from . import tiles
 from enum import Enum, auto
 
 __version__: str
-
 class Agent:
     r"""
     An agent in the world.
     """
-
     num: int
     """The agent id."""
     is_dead: bool
@@ -30,7 +28,7 @@ class World:
     The `World` represents the environment in which the agents evolve.
     A world is created from a string where each character represents a tile.
     There are 6 predefined levels for convenience.
-
+    
     ```python
     from lle import World
     # Create from a predefined level
@@ -41,7 +39,6 @@ class World:
     w3 = World("S0 X")
     ```
     """
-
     exit_pos: list[tuple[int, int]]
     """The positions of the exits tiles."""
     random_start_pos: list[list[tuple[int, int]]]
@@ -58,6 +55,8 @@ class World:
     """The number of gems in the world."""
     n_agents: int
     """The number of agents in the world."""
+    n_arrived: int
+    """The number of agents that have reached an exit during the episode."""
     world_string: str
     """The string upon which the world has been constructed (as toml)."""
     image_dimensions: tuple[int, int]
@@ -66,22 +65,22 @@ class World:
     """The number of gems collected by the agents so far since the last reset."""
     agents_positions: list[tuple[int, int]]
     """The (i, j) position of each agent."""
-    gems: dict[tuple[int, int], tiles.Gem]
+    gems:  dict[tuple[int, int], tiles.Gem]
     """The gems with their respective position."""
-    lasers: list[tuple[tuple[int, int], tiles.Laser]]
+    lasers:  list[tuple[tuple[int, int], tiles.Laser]]
     """The (i, j) position of every laser.
     Since two lasers can cross, there can be duplicates in the positions."""
-    laser_sources: dict[tuple[int, int], tiles.LaserSource]
+    laser_sources:  dict[tuple[int, int], tiles.LaserSource]
     """A mapping from (i, j) positions to laser sources."""
     start_pos: list[tuple[int, int]]
     """The start position of each agent for this reset."""
     agents: list[Agent]
     """The list of agents in the world."""
-    def __new__(cls, map_str: str): ...
-    def __init__(self, map_str: str) -> None:
+    def __new__(cls,map_str:str): ...
+    def __init__(self, map_str:str) -> None:
         r"""
         Constructs a World from a string.
-
+        
         Raises:
             - `RuntimeError`: if the file is not a valid level.
             - `ValueError` if the file is not a valid level (inconsistent dimensions or invalid grid).
@@ -89,10 +88,10 @@ class World:
         ...
 
     @staticmethod
-    def from_file(filename: str) -> World:
+    def from_file(filename:str) -> World:
         r"""
         Parse the content of `filename` to create a World.
-
+        
         The file can either be a toml or a plain text file.
         Raises:
             - `FileNotFoundError`: if the file does not exist.
@@ -100,7 +99,7 @@ class World:
         ...
 
     @staticmethod
-    def level(level: int) -> World:
+    def level(level:int) -> World:
         r"""
         Retrieve the standard level (between `1` and `6`).
         Raises:
@@ -108,22 +107,24 @@ class World:
         """
         ...
 
-    def seed(self, seed_value: int) -> None: ...
+    def seed(self, seed_value:int) -> None:
+        ...
+
     def step(self, action: Action | list[Action]) -> list[WorldEvent]:
         r"""
         Simultaneously perform an action for each agent in the world.
         Performing a step generates events (see `WorldEvent`) to give information about the consequences of the joint action.
-
+        
         Args:
            action: The action to perform for each agent. A single action is also accepted if there is a single agent in the world.
-
+        
         Returns:
           The list of events that occurred while agents took their action.
-
+        
         Raises:
             - `InvalidActionError` if an agent takes an action that is not available.
             - `ValueError` if the number of actions is different from the number of agents
-
+        
         Example:
         ```python
         world = World("S1 G X S0 X")
@@ -132,7 +133,7 @@ class World:
         assert len(events) == 1
         assert events[0].agent_id == 1
         assert events[0].event_type == EventType.GEM_COLLECTED
-
+        
         events = world.step([Action.EAST, Action.EAST])
         assert len(events) == 2
         assert all(e.event_type == EventType.AGENT_EXIT for e in events)
@@ -162,7 +163,7 @@ class World:
         The result has shape (x, n_agents) where x is the number of joint actions available.
         Returns:
           The list of available joint actions.
-
+        
         Example:
         ```python
         world = World(". .  .  . .\n. S0 . S1 .\n. X  .  X .\n")
@@ -180,7 +181,7 @@ class World:
         """
         ...
 
-    def set_state(self, state: WorldState) -> list[WorldEvent]:
+    def set_state(self, state:WorldState) -> list[WorldEvent]:
         r"""
         Force the world to a given state
         Args:
@@ -198,10 +199,10 @@ class World:
         """
         ...
 
-    def __deepcopy__(self, _memo: dict) -> World:
+    def __deepcopy__(self, _memo:dict) -> World:
         r"""
         Returns a deep copy of the object.
-
+        
         Example:
         ```python
         from copy import deepcopy
@@ -228,19 +229,25 @@ class World:
         """
         ...
 
-    def __setstate__(self, state: tuple[str, WorldState]) -> None:
+    def __setstate__(self, state:tuple[str, WorldState]) -> None:
         r"""
         Enable deserialisation with pickle
         """
         ...
 
-    def __repr__(self) -> str: ...
+    def __repr__(self) -> str:
+        ...
+
 
 class WorldEvent:
     event_type: EventType
     agent_id: int
-    def __str__(self) -> str: ...
-    def __repr__(self) -> str: ...
+    def __str__(self) -> str:
+        ...
+
+    def __repr__(self) -> str:
+        ...
+
 
 class WorldState:
     r"""
@@ -271,31 +278,49 @@ class WorldState:
             return instance
     ```
     """
-
     agents_positions: list[tuple[int, int]]
     """The position of each agent."""
     gems_collected: list[bool]
     """The collection status of each gem."""
     agents_alive: list[bool]
     """The status of each agent."""
-    def __new__(cls, agents_positions, gems_collected, agents_alive=...): ...
-    def __init__(self, agents_positions, gems_collected, agents_alive=...) -> None: ...
-    def as_array(self) -> numpy.typing.NDArray[numpy.float32]: ...
+    def __new__(cls,agents_positions,gems_collected,agents_alive = ...): ...
+    def __init__(self, agents_positions,gems_collected,agents_alive = ...) -> None:
+        ...
+
+    def as_array(self) -> numpy.typing.NDArray[numpy.float32]:
+        ...
+
     @staticmethod
-    def from_array(array: typing.Sequence[float], n_agents: int, n_gems: int) -> WorldState: ...
-    def __deepcopy__(self, _memo: dict) -> WorldState: ...
-    def __getstate__(self) -> tuple[list[bool], list[tuple[int, int]], list[bool]]: ...
-    def __setstate__(self, state: tuple[typing.Sequence[bool], typing.Sequence[tuple[int, int]], typing.Sequence[bool]]) -> None: ...
-    def __getnewargs__(self) -> tuple[list[tuple[int, int]], list[bool], typing.Optional[list[bool]]]: ...
-    def __repr__(self) -> str: ...
-    def __hash__(self) -> int: ...
-    def __richcmp__(self, other: WorldState, cmp: int) -> bool: ...
+    def from_array(array:typing.Sequence[float], n_agents:int, n_gems:int) -> WorldState:
+        ...
+
+    def __deepcopy__(self, _memo:dict) -> WorldState:
+        ...
+
+    def __getstate__(self) -> tuple[list[bool], list[tuple[int, int]], list[bool]]:
+        ...
+
+    def __setstate__(self, state:tuple[typing.Sequence[bool], typing.Sequence[tuple[int, int]], typing.Sequence[bool]]) -> None:
+        ...
+
+    def __getnewargs__(self) -> tuple[list[tuple[int, int]], list[bool], typing.Optional[list[bool]]]:
+        ...
+
+    def __repr__(self) -> str:
+        ...
+
+    def __hash__(self) -> int:
+        ...
+
+    def __richcmp__(self, other:WorldState, cmp:int) -> bool:
+        ...
+
 
 class Action(Enum):
     r"""
     An action that can be taken in the world by the agents.
     """
-
     NORTH = auto()
     SOUTH = auto()
     EAST = auto()
@@ -314,13 +339,17 @@ class Action(Enum):
     def name(self) -> str:
         """The string name of this action."""
         ...
-    ALL: list[Action]
+    ALL:  list[Action]
     """Ordered list of actions"""
-    N: int
+    N:  int
     """The number of actions (cardinality of the action space)"""
 
-    def __hash__(self) -> int: ...
-    def __repr__(self) -> str: ...
+    def __hash__(self) -> int:
+        ...
+
+    def __repr__(self) -> str:
+        ...
+
     def opposite(self) -> Action:
         r"""
         The opposite action of this action.
@@ -328,11 +357,14 @@ class Action(Enum):
         """
         ...
 
+
 class EventType(Enum):
     r"""
     An enumeration of the events that can occur in the world.
     """
-
     AGENT_EXIT = auto()
     GEM_COLLECTED = auto()
     AGENT_DIED = auto()
+
+
+

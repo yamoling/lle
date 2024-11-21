@@ -1,13 +1,12 @@
-from dataclasses import dataclass
 from enum import IntEnum
-from typing import Literal, Sequence, TypeVar
+from typing import Literal, Sequence, TypeVar, Optional
+from abc import abstractmethod
 
-import cv2
 import numpy as np
 import numpy.typing as npt
-from marlenv import Observation, DiscreteActionSpace
+from marlenv import Observation, DiscreteActionSpace, State, MARLEnv, Step, DiscreteSpace
 
-from lle import Action, EventType, World, WorldState
+from lle import Action, EventType, World, WorldEvent, WorldState
 from lle.observations import ObservationType, StateGenerator
 
 from .builder import Builder
@@ -22,14 +21,15 @@ R = TypeVar("R", bound=float | npt.NDArray[np.float32])
 
 class DeathStrategy(IntEnum):
     END = 0
-    STAY = 1
-    RESPAWN = 2
+    """End the game when an agent dies"""
+    RESPAWN = 1
+    """The agent respawns on its start position when it dies"""
 
 
-@dataclass
-class Core:
+class LLE(MARLEnv[DiscreteActionSpace, npt.NDArray[np.float32], npt.NDArray[np.float32], R]):
     """Laser Learning Environment (LLE)"""
 
+    name: str
     obs_type: str
     state_type: str
     death_strategy: DeathStrategy
@@ -40,6 +40,7 @@ class Core:
     def __init__(
         self,
         world: World,
+        reward_space: Optional[DiscreteSpace],
         obs_type: ObservationType = ObservationType.STATE,
         state_type: ObservationType = ObservationType.STATE,
         death_strategy: Literal["respawn", "end", "stay"] = "end",
@@ -50,23 +51,24 @@ class Core:
         self.state_type = state_type.name
         self.observation_generator = obs_type.get_observation_generator(world)
         self.state_generator = state_type.get_observation_generator(world)
+        super().__init__(
+            DiscreteActionSpace(self.world.n_agents, Action.N, [a.name for a in Action.ALL]),
+            self.observation_generator.shape,
+            self.get_state().shape,
+            reward_space=reward_space,
+        )
+
         match death_strategy:
             case "end":
                 self.death_strategy = DeathStrategy.END
             case "respawn":
                 self.death_strategy = DeathStrategy.RESPAWN
-            case "stay":
-                self.death_strategy = DeathStrategy.STAY
             case other:
                 raise ValueError(f"Unknown death strategy: {other}")
         self.walkable_lasers = walkable_lasers
-        self.n_actions = Action.N
         self.n_agents = world.n_agents
-        self.action_space = DiscreteActionSpace(self.world.n_agents, Action.N, [a.name for a in Action.ALL])
-        self.state_shape = self.get_state().shape
-        self.observation_shape = self.observation_generator.shape
-        self.done = False
         self.n_arrived = 0
+        self.done = False
 
     @property
     def width(self) -> int:
@@ -84,9 +86,6 @@ class Core:
             case other:
                 raise NotImplementedError(f"State type {other} does not support `unit_state_size`.")
 
-    def get_observation(self):
-        return Observation(self.observation_generator.observe(), self.available_actions(), self.get_state())
-
     def available_actions(self):
         available_actions = np.full((self.world.n_agents, self.n_actions), False, dtype=bool)
         lasers = self.world.lasers
@@ -103,58 +102,59 @@ class Core:
         return available_actions
 
     def step(self, actions: np.ndarray | Sequence[int]):
-        assert not self.done, "Can not play when the game is done !"
+        if self.done:
+            raise ValueError("Cannot step in a done environment")
         agents_actions = [Action(a) for a in actions]
-        prev_positions = self.world.agents_positions
         events = self.world.step(agents_actions)
-        set_state = None
-        reset = False
+        self._update(events)
+        return Step(
+            self.get_observation(),
+            self.get_state(),
+            reward=self.compute_reward(events),
+            done=self.done,
+            info={"gems_collected": self.world.gems_collected, "exit_rate": self.n_arrived / self.n_agents},
+        )
 
+    def _update(self, events: list[WorldEvent]):
         for event in events:
             match event.event_type:
                 case EventType.AGENT_DIED:
-                    match self.death_strategy:
-                        case DeathStrategy.END:
-                            self.done = True
-                        case DeathStrategy.STAY:
-                            if set_state is None:
-                                set_state = self.world.get_state()
-                            # Changing the correct index in-place does not work
-                            new_positions = set_state.agents_positions
-                            new_positions[event.agent_id] = prev_positions[event.agent_id]
-                            set_state.agents_positions = new_positions
+                    if self.death_strategy == DeathStrategy.END:
+                        self.done = True
+                    else:
+                        raise NotImplementedError("Respawn strategy is not implemented yet")
                 case EventType.AGENT_EXIT:
                     self.n_arrived += 1
-        if set_state is not None:
-            self.world.set_state(set_state)
-        if reset:
-            self.reset()
-        if self.n_arrived == self.world.n_agents:
-            self.done = True
-        info = {"gems_collected": self.world.gems_collected, "exit_rate": self.n_arrived / self.n_agents}
-        return self.get_observation(), self.done, info, events
+                    if self.n_arrived == self.n_agents:
+                        self.done = True
+
+    @abstractmethod
+    def compute_reward(self, events: list[WorldEvent]) -> R:
+        """Compute the reward according to the events that occurred"""
 
     def reset(self):
         self.world.reset()
-        self.done = False
         self.n_arrived = 0
-        return self.get_observation()
+        self.done = False
+        return self.get_observation(), self.get_state()
 
-    def get_state(self) -> npt.NDArray[np.float32]:
+    def get_state(self):
         # We assume that the state is the same as the observation of the first agent
         # of the observation generator.
-        return self.state_generator.observe()[0]
+        return State(self.state_generator.observe()[0])
 
-    def render(self, mode: Literal["human", "rgb_array"] = "human"):
-        image = self.world.get_image()
-        match mode:
-            case "human":
-                cv2.imshow("LLE", image)
-                cv2.waitKey(1)
-            case "rgb_array":
-                return image
-            case other:
-                raise NotImplementedError(f"Rendering mode not implemented: {other}")
+    def set_state(self, state: State[npt.NDArray[np.float32]] | WorldState):
+        if isinstance(state, WorldState):
+            world_state = state
+        else:
+            world_state = self.state_generator.to_world_state(state.data)
+        self.n_arrived = 0
+        self.done = False
+        events = self.world.set_state(world_state)
+        self._update(events)
+
+    def get_observation(self):
+        return Observation(self.observation_generator.observe(), self.available_actions())
 
     @staticmethod
     def from_str(world_string: str):
@@ -172,10 +172,7 @@ class Core:
         return Builder(World.level(level)).name(f"LLE-lvl{level}")
 
     def seed(self, seed_value: int):
-        self.world.seed(seed_value)
+        return self.world.seed(seed_value)
 
-    def set_state(self, state: WorldState):
-        self.world.set_state(state)
-        agents = self.world.agents
-        self.done = any(agent.is_dead for agent in agents) or all(agent.has_arrived for agent in agents)
-        self.n_arrived = sum(agent.has_arrived for agent in agents)
+    def get_image(self):
+        return self.world.get_image()

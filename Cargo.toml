@@ -1,6 +1,6 @@
 [package]
 name = "lle"
-version = "1.6.0"
+version = "2.0.0"
 edition = "2021"
 readme = "readme.md"
 license-file = "licence"
@@ -17,8 +17,6 @@ exclude = ["python/*", "uv.lock", "stubcheck.sh", "pyproject.toml", "docs"]
 name = "lle"
 path = "src/lib.rs"
 crate-type = ["cdylib", "rlib"]
-# Enabling crate-type=["cdylib"] (default in maturin) prevents integration tests from importing lle
-# crate-type = ["cdylib"] 
 
 [[bin]]
 name = "stub-gen"

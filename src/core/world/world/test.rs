@@ -511,3 +511,20 @@ world_string = """
         Err(other) => panic!("Expected NotEnoughExitTiles, got {other:?}"),
     }
 }
+
+#[test]
+fn test_wrong_world_state() {
+    let mut w = World::try_from(
+        "
+        S0 L0S X
+        S1  .  X
+    ",
+    )
+    .unwrap();
+    w.reset();
+    let s = WorldState::new_alive([(0, 0).into(), (1, 1).into()].into(), [].into());
+    match w.set_state(&s) {
+        Err(RuntimeWorldError::InvalidWorldState { .. }) => {}
+        other => panic!("Expected InvalidAgentPosition, got {other:?}"),
+    }
+}
