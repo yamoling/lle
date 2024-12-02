@@ -145,7 +145,9 @@ impl PyDirection {
     /// It required "default arguments" to be provided to the __new__ method
     /// before replacing them by the actual values in __setstate__.
     pub fn __getnewargs__(&self, py: Python) -> PyObject {
-        PyTuple::new_bound(py, vec![String::from("N")].iter()).into()
+        PyTuple::new(py, vec![String::from("N")].iter())
+            .unwrap()
+            .into()
     }
 
     pub fn __setstate__(&mut self, state: String) {

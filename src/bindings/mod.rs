@@ -20,7 +20,7 @@ pub use pyworld_state::PyWorldState;
 
 #[pymodule]
 pub fn lle(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    let tiles = PyModule::new_bound(py, "lle.tiles")?;
+    let tiles = PyModule::new(py, "lle.tiles")?;
     tiles.add_class::<pytile::PyGem>()?;
     tiles.add_class::<pytile::PyLaser>()?;
     tiles.add_class::<pytile::PyLaserSource>()?;
@@ -29,7 +29,7 @@ pub fn lle(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // With "m.add_submodule()", it is not possible to do `from lle.tiles import X`.
     // cf: https://github.com/PyO3/pyo3/issues/759
     m.add("tiles", &tiles)?;
-    py.import_bound("sys")?
+    py.import("sys")?
         .getattr("modules")?
         .set_item("lle.tiles", &tiles)?;
 
@@ -41,26 +41,23 @@ pub fn lle(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<pyworld::PyWorld>()?;
     m.add_class::<pyworld_state::PyWorldState>()?;
 
-    let exceptions = PyModule::new_bound(py, "lle.exceptions")?;
+    let exceptions = PyModule::new(py, "lle.exceptions")?;
     // exceptions.add_class::<pyexceptions::InvalidWorldStateError>()?;
     exceptions.add(
         "InvalidWorldStateError",
-        py.get_type_bound::<pyexceptions::InvalidWorldStateError>(),
+        py.get_type::<pyexceptions::InvalidWorldStateError>(),
     )?;
     exceptions.add(
         "InvalidActionError",
-        py.get_type_bound::<pyexceptions::InvalidActionError>(),
+        py.get_type::<pyexceptions::InvalidActionError>(),
     )?;
-    exceptions.add(
-        "ParsingError",
-        py.get_type_bound::<pyexceptions::ParsingError>(),
-    )?;
+    exceptions.add("ParsingError", py.get_type::<pyexceptions::ParsingError>())?;
     exceptions.add(
         "InvalidLevelError",
-        py.get_type_bound::<pyexceptions::InvalidLevelError>(),
+        py.get_type::<pyexceptions::InvalidLevelError>(),
     )?;
     m.add("exceptions", &exceptions)?;
-    py.import_bound("sys")?
+    py.import("sys")?
         .getattr("modules")?
         .set_item("lle.exceptions", &exceptions)?;
     m.add("__version__", crate::VERSION)?;

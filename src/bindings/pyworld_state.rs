@@ -98,7 +98,7 @@ impl PyWorldState {
                 res.push(0.0);
             }
         }
-        PyArray1::from_vec_bound(py, res).into()
+        PyArray1::from_vec(py, res)
     }
 
     #[staticmethod]

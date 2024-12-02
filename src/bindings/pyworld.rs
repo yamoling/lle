@@ -78,6 +78,7 @@ pub struct PyWorld {
 ///  - the `World` struct is wrapped in an `Arc<Mutex<_>>`
 ///  - the other fields are immutable
 unsafe impl Send for PyWorld {}
+unsafe impl Sync for PyWorld {}
 
 impl From<World> for PyWorld {
     fn from(world: World) -> Self {
@@ -346,7 +347,7 @@ impl PyWorld {
         let dims = (dims.1 as usize, dims.0 as usize, 3);
         let img = self.renderer.update(&self.world.lock().unwrap());
         let buffer = img.into_raw();
-        PyArray1::from_vec_bound(py, buffer).reshape(dims).unwrap()
+        PyArray1::from_vec(py, buffer).reshape(dims).unwrap()
     }
 
     /// Force the world to a given state
@@ -387,8 +388,8 @@ impl PyWorld {
     /// This method is called to instantiate the object before deserialisation.
     /// It required "default arguments" to be provided to the __new__ method
     /// before replacing them by the actual values in __setstate__.
-    pub fn __getnewargs__(&self, py: Python) -> PyObject {
-        PyTuple::new_bound(py, vec![String::from("S0 X")].iter()).into()
+    pub fn __getnewargs__<'py>(&self, py: Python<'py>) -> Bound<'py, PyTuple> {
+        PyTuple::new(py, vec![String::from("S0 X")].iter()).unwrap()
     }
 
     /// Enable serialisation with pickle
@@ -449,8 +450,8 @@ impl PyWorld {
 
 impl Clone for PyWorld {
     fn clone(&self) -> Self {
-        let core = self.world.lock().unwrap().clone();
-        let renderer = Renderer::new(&core);
+        let world = self.world.lock().unwrap().clone();
+        let renderer = Renderer::new(&world);
         PyWorld {
             exit_pos: self.exit_pos.clone(),
             random_start_pos: self.random_start_pos.clone(),
@@ -460,7 +461,7 @@ impl Clone for PyWorld {
             width: self.width,
             n_gems: self.n_gems,
             n_agents: self.n_agents,
-            world: Arc::new(Mutex::new(core)),
+            world: Arc::new(Mutex::new(world)),
             renderer,
         }
     }
