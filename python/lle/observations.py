@@ -186,6 +186,7 @@ class LayeredPadded(ObservationGenerator):
         self.GEM = self.VOID + 1
         self.EXIT = self.GEM + 1
         self._shape = (self.EXIT + 1, world.height, world.width)
+        self.ordered_gem_pos = sorted(world.gems.keys())
 
         self.static_obs = self._setup()
 
@@ -206,6 +207,18 @@ class LayeredPadded(ObservationGenerator):
             obs[self.VOID, i, j] = 1.0
 
         return obs
+
+    def to_world_state(self, data: NDArray[np.float32]) -> WorldState:
+        """
+        Assumes that the agents are alive.
+        """
+        _, i, j = np.nonzero(data[self.A0 : self.A0 + self.n_agents])
+        agents_positions = [(int(i[n]), int(j[n])) for n in range(self.n_agents)]
+        gems_collected = []
+        # We need the gem positions to be ordered because they are initially stored in a hashmap
+        for i, j in self.ordered_gem_pos:
+            gems_collected.append(bool(data[self.GEM, i, j] == 0.0))
+        return WorldState(agents_positions, gems_collected)
 
     def observe(self):
         obs = np.copy(self.static_obs)

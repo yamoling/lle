@@ -55,8 +55,6 @@ class World:
     """The number of gems in the world."""
     n_agents: int
     """The number of agents in the world."""
-    n_arrived: int
-    """The number of agents that have reached an exit during the episode."""
     world_string: str
     """The string upon which the world has been constructed (as toml)."""
     image_dimensions: tuple[int, int]
@@ -284,8 +282,8 @@ class WorldState:
     """The collection status of each gem."""
     agents_alive: list[bool]
     """The status of each agent."""
-    def __new__(cls,agents_positions,gems_collected,agents_alive = ...): ...
-    def __init__(self, agents_positions,gems_collected,agents_alive = ...) -> None:
+    def __new__(cls,agents_positions: list[tuple[int, int]], gems_collected: list[bool], agents_alive: typing.Optional[list[bool]] = None): ...
+    def __init__(self, agents_positions: list[tuple[int, int]], gems_collected: list[bool], agents_alive: typing.Optional[list[bool]] = None) -> None:
         ...
 
     def as_array(self) -> numpy.typing.NDArray[numpy.float32]:
