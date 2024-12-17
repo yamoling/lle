@@ -140,6 +140,7 @@ __all__ = [
     "exceptions",
     "observations",
     "tiles",
+    "Direction",
 ]
 
 from .types import AgentId, LaserId, Position
@@ -151,11 +152,13 @@ from .lle import (
     EventType,
     WorldState,
     Agent,
-    tiles,
     exceptions,
 )
 
+
+from lle.tiles import Direction
 from .observations import ObservationType
 from .env import LLE
 from . import env
 from . import observations
+from . import tiles

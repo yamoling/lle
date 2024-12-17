@@ -9,7 +9,7 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-    "numpy>=2.1.0",
+    "numpy>=2.2.0",
     "multi-agent-rlenv>=2.0.0",
     "opencv-python>=4.10.0.84",
 ]
@@ -27,6 +27,7 @@ name = "Yannick Molinghen"
 [tool.maturin]
 features = ["pyo3/extension-module"]
 python-source = "python"
+module-name = "lle"
 version = { path = "python/lle/__ini__.py", "attr" = "__version__" }
 
 [tool.ruff]
@@ -38,6 +39,6 @@ dev-dependencies = [
     "pytest>=8.3.2",
     "pytest-xdist>=3.6.1",
     "maturin>=1.7.0",
-    "pdoc>=14.7.0",
+    "pdoc>=15.0.1",
     "ruff>=0.6.8",
 ]

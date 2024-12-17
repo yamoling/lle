@@ -213,7 +213,7 @@ class World:
         """
         ...
 
-    def __getnewargs__(self) -> typing.Any:
+    def __getnewargs__(self) -> tuple:
         r"""
         This method is called to instantiate the object before deserialisation.
         It required "default arguments" to be provided to the __new__ method

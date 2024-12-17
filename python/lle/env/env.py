@@ -1,10 +1,11 @@
-from enum import IntEnum
-from typing import Literal, Sequence, TypeVar, Optional
 from abc import abstractmethod
+from dataclasses import dataclass
+from enum import IntEnum
+from typing import Literal, Optional, Sequence, TypeVar
 
 import numpy as np
 import numpy.typing as npt
-from marlenv import Observation, DiscreteActionSpace, State, MARLEnv, Step, DiscreteSpace
+from marlenv import DiscreteActionSpace, DiscreteSpace, MARLEnv, Observation, State, Step
 
 from lle import Action, EventType, World, WorldEvent, WorldState
 from lle.observations import ObservationType, StateGenerator
@@ -26,16 +27,14 @@ class DeathStrategy(IntEnum):
     """The agent respawns on its start position when it dies"""
 
 
+@dataclass
 class LLE(MARLEnv[DiscreteActionSpace, npt.NDArray[np.float32], npt.NDArray[np.float32], R]):
     """Laser Learning Environment (LLE)"""
 
-    name: str
     obs_type: str
     state_type: str
     death_strategy: DeathStrategy
-    n_agents: int
-    n_actions: int
-    action_space: DiscreteActionSpace
+    walkable_lasers: bool
 
     def __init__(
         self,
@@ -43,7 +42,8 @@ class LLE(MARLEnv[DiscreteActionSpace, npt.NDArray[np.float32], npt.NDArray[np.f
         reward_space: Optional[DiscreteSpace],
         obs_type: ObservationType = ObservationType.STATE,
         state_type: ObservationType = ObservationType.STATE,
-        death_strategy: Literal["respawn", "end", "stay"] = "end",
+        name: Optional[str] = None,
+        death_strategy: Literal["respawn", "end"] = "end",
         walkable_lasers: bool = True,
     ):
         self.world = world
@@ -57,6 +57,8 @@ class LLE(MARLEnv[DiscreteActionSpace, npt.NDArray[np.float32], npt.NDArray[np.f
             self.get_state().shape,
             reward_space=reward_space,
         )
+        if name is not None:
+            self.name = name
 
         match death_strategy:
             case "end":

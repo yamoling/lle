@@ -84,7 +84,7 @@ jobs:
       - name: Format code
         run: |
           pip install ruff 
-          ruff format python/lle
+          ruff format python
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:

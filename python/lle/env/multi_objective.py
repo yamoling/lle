@@ -1,9 +1,9 @@
-from typing import Literal
+from typing import Literal, Optional
 import numpy as np
 import numpy.typing as npt
-from marlenv import DiscreteSpace, DiscreteMARLEnv
+from marlenv import DiscreteSpace
 
-from lle import EventType, WorldEvent, WorldState, World
+from lle import EventType, WorldEvent, World
 from lle.observations import ObservationType
 
 from .env import REWARD_DEATH, REWARD_DONE, REWARD_EXIT, REWARD_GEM, LLE
@@ -17,7 +17,7 @@ RW_DONE_IDX = 3
 
 class MOLLE(LLE[npt.NDArray[np.float32]]):
     """
-    Multi-Objective Laser Learning Environment (MO LLE)
+    Multi-Objective Laser Learning Environment (MO-LLE)
     """
 
     def __init__(
@@ -25,10 +25,19 @@ class MOLLE(LLE[npt.NDArray[np.float32]]):
         world: World,
         obs_type: ObservationType = ObservationType.STATE,
         state_type: ObservationType = ObservationType.STATE,
-        death_strategy: Literal["respawn", "end", "stay"] = "end",
+        death_strategy: Literal["respawn", "end"] = "end",
         walkable_lasers: bool = True,
+        name: Optional[str] = None,
     ):
-        super().__init__(world, DiscreteSpace(4, ["death", "gem", "exit", "done"]), obs_type, state_type, death_strategy, walkable_lasers)
+        super().__init__(
+            world,
+            DiscreteSpace(4, ["death", "gem", "exit", "done"]),
+            obs_type,
+            state_type,
+            name,
+            death_strategy,
+            walkable_lasers,
+        )
 
     def compute_reward(self, events: list[WorldEvent]):
         reward = np.zeros(self.reward_space.shape, dtype=np.float32)

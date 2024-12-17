@@ -9,8 +9,9 @@ class Builder:
     _world: World
     _obs_type: ObservationType
     _state_type: ObservationType
-    _death_strategy: Literal["respawn", "end", "stay"]
+    _death_strategy: Literal["respawn", "end"]
     _walkable_lasers: bool
+    _env_name: str
 
     def __init__(self, world: World):
         self._world = world
@@ -18,10 +19,21 @@ class Builder:
         self._state_type = ObservationType.STATE
         self._death_strategy = "end"
         self._walkable_lasers = True
+        self._env_name = "LLE"
 
     def str_to_obs(
         self,
-        obs_type: Literal["layered", "flattened", "partial3x3", "partial5x5", "partial7x7", "state", "image", "perspective"],
+        obs_type: Literal[
+            "layered",
+            "flattened",
+            "partial3x3",
+            "partial5x5",
+            "partial7x7",
+            "state",
+            "image",
+            "perspective",
+            "normalized-state",
+        ],
     ) -> ObservationType:
         match obs_type:
             case "layered":
@@ -36,6 +48,8 @@ class Builder:
                 return ObservationType.PARTIAL_7x7
             case "state":
                 return ObservationType.STATE
+            case "state-normalized":
+                return ObservationType.NORMALIZED_STATE
             case "image":
                 return ObservationType.RGB_IMAGE
             case "perspective":
@@ -76,7 +90,7 @@ class Builder:
         self._walkable_lasers = walkable_lasers
         return self
 
-    def death_strategy(self, death_strategy: Literal["respawn", "end", "stay"]):
+    def death_strategy(self, death_strategy: Literal["respawn", "end"]):
         """Set the behaviour of the agents when they die (end the episode by default)."""
         self._death_strategy = death_strategy
         return self
@@ -96,6 +110,7 @@ class Builder:
             state_type=self._state_type,
             death_strategy=self._death_strategy,
             walkable_lasers=self._walkable_lasers,
+            name=f"{self._env_name}-SO",
         )
 
     def multi_objective(self):
@@ -108,6 +123,7 @@ class Builder:
             state_type=self._state_type,
             death_strategy=self._death_strategy,
             walkable_lasers=self._walkable_lasers,
+            name=f"{self._env_name}-MO",
         )
 
     @deprecated("Use single_objective() or multi_objective() instead.")

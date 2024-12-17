@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Optional
 
 from lle import EventType, WorldEvent, World
 from lle.observations import ObservationType
@@ -15,10 +15,11 @@ class SOLLE(LLE[float]):
         world: World,
         obs_type: ObservationType = ObservationType.STATE,
         state_type: ObservationType = ObservationType.STATE,
-        death_strategy: Literal["respawn"] | Literal["end"] | Literal["stay"] = "end",
+        death_strategy: Literal["respawn", "end"] = "end",
         walkable_lasers: bool = True,
+        name: Optional[str] = None,
     ):
-        super().__init__(world, None, obs_type, state_type, death_strategy, walkable_lasers)
+        super().__init__(world, None, obs_type, state_type, name, death_strategy, walkable_lasers)
 
     def compute_reward(self, events: list[WorldEvent]):
         reward = 0.0

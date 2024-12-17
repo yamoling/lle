@@ -1,3 +1,5 @@
+import tempfile
+import os
 from lle import LLE, Action, WorldState
 from lle.env.env import REWARD_DEATH, REWARD_GEM, REWARD_EXIT, REWARD_DONE
 from lle.env.multi_objective import RW_DEATH_IDX, RW_GEM_IDX, RW_EXIT_IDX, RW_DONE_IDX
@@ -240,3 +242,26 @@ def test_multi_objective_death():
 def test_seed():
     LLE.level(1).single_objective().seed(0)
     LLE.level(1).multi_objective().seed(0)
+
+
+def test_env_name():
+    for level in range(1, 7):
+        env = LLE.level(level).single_objective()
+        assert env.name == f"LLE-lvl{level}-SO"
+
+        env = LLE.level(level).multi_objective()
+        assert env.name == f"LLE-lvl{level}-MO"
+
+    env = LLE.from_str("S0 X").single_objective()
+    assert env.name == "LLE-SO"
+
+    env = LLE.from_str("S0 X").multi_objective()
+    assert env.name == "LLE-MO"
+
+    with tempfile.NamedTemporaryFile(mode="w+", delete=True) as temp_file:
+        temp_file.write("S0 X")
+        temp_file.flush()
+
+        env = LLE.from_file(temp_file.name).single_objective()
+        base = os.path.basename(temp_file.name)
+        assert env.name == f"LLE-{base}-SO"
