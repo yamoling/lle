@@ -70,17 +70,12 @@ jobs:
         target:
           - x86_64
           - aarch64
-        python-version: 
-          - '3.11'
-          - '3.12'
-          - '3.13'
         exclude:
           - os: windows-latest
             target: 'aarch64'
           # Build is currently failing on Ubuntu aarch64 for python 3.13
           - os: ubuntu-latest
             target: 'aarch64'
-            python-version: '3.13'
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -96,14 +91,13 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          # args: --release --out dist --find-interpreter 
-          args: --release --out dist -i python${{ matrix.python-version }} 
+          args: --release --out dist --find-interpreter 
           sccache: 'true'
           manylinux: auto
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.os }}-${{ matrix.target }}-${{ matrix.python-version }}
+          name: wheels-${{ matrix.os }}-${{ matrix.target }}
           path: dist
 
   sdist:
