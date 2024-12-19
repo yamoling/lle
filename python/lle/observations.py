@@ -84,6 +84,9 @@ class ObservationGenerator(ABC):
     def observe(self) -> npt.NDArray[np.float32]:
         """Observe the world and return an observation for each agent."""
 
+    def get_state(self) -> npt.NDArray[np.float32]:
+        return self.observe()[0]
+
     def to_world_state(self, data: npt.NDArray[np.float32]) -> WorldState:
         """
         Convert the observation data to a WorldState object.

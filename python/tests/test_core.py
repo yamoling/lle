@@ -13,7 +13,7 @@ def test_available_actions():
 @ X  .  S1 @
 @ @  @  @  @
 """
-    ).single_objective()
+    ).build()
     env.reset()
     available_actions = env.available_actions()
     # Agent 0
@@ -41,7 +41,7 @@ L0E . .  .  . . @
 @   . .  .  . G @
 @   . X  X  . . @
 @   @ @  @  @ @ @"""
-    ).single_objective()
+    ).build()
     obs, state = env.reset()
 
     def check_available_actions(available: np.ndarray, expected_available: list[list[Action]]) -> bool:
@@ -57,13 +57,13 @@ L0E . .  .  . . @
 
     # Move the agent to the end location and check the available actions
     for _ in range(3):
-        obs, *_ = env.step([Action.SOUTH.value, Action.SOUTH.value])
+        step = env.step([Action.SOUTH.value, Action.SOUTH.value])
         check_available_actions(
-            obs.available_actions,
+            step.obs.available_actions,
             [[Action.NORTH, Action.SOUTH, Action.WEST, Action.STAY], [Action.NORTH, Action.SOUTH, Action.EAST, Action.STAY]],
         )
-    obs, *_ = env.step([Action.SOUTH.value, Action.SOUTH.value])
-    check_available_actions(obs.available_actions, [[Action.STAY] * 2])
+    step = env.step([Action.SOUTH.value, Action.SOUTH.value])
+    check_available_actions(step.obs.available_actions, [[Action.STAY] * 2])
 
 
 def test_width_height():
@@ -71,7 +71,7 @@ def test_width_height():
         """S0 X .
 .  . .
 .  . ."""
-    ).single_objective()
+    ).build()
     assert env.width == 3
     assert env.height == 3
 
@@ -79,7 +79,7 @@ def test_width_height():
         """S0 X . .
 .  . . .
 G  . . ."""
-    ).single_objective()
+    ).build()
     assert env.width == 4
     assert env.height == 3
 
@@ -89,7 +89,7 @@ def test_state_default():
         """S0 X .
                         .  . .
                         .  . ."""
-    ).single_objective()
+    ).build()
     assert env.state_shape == (env.n_agents * 3 + env.world.n_gems,)
     env.reset()
     state = env.get_state()
@@ -104,7 +104,7 @@ def test_state_flattened():
 .  . .""",
         )
         .state_type(ObservationType.FLATTENED)
-        .single_objective()
+        .build()
     )
     assert env.state_shape == (np.prod(env.state_shape),)
     env.reset()
@@ -117,12 +117,12 @@ def test_action_meanings():
         """S0 X .
 .  . .
 .  . ."""
-    ).single_objective()
+    ).build()
     assert env.action_space.action_names == [a.name for a in Action.ALL]
 
 
 def test_deep_copy():
-    env = LLE.from_str("S0 X").single_objective()
+    env = LLE.from_str("S0 X").build()
     copy = deepcopy(env)
     assert env is not copy
 
@@ -143,7 +143,7 @@ def test_move_end_game():
     S0 X .
     .  . .
     .  . .""",
-    ).single_objective()
+    ).build()
     env.reset()
     done = env.step([Action.SOUTH.value]).done
     assert not done
@@ -163,7 +163,7 @@ def test_force_end_state():
         S0 . G
         X  . .
     """,
-    ).single_objective()
+    ).build()
     env.reset()
     s = WorldState([(1, 0)], [True])
     env.set_state(s)
@@ -177,7 +177,7 @@ def test_force_state_agent_dies():
         X  . L0W
         .  X  .
     """,
-    ).single_objective()
+    ).build()
     env.reset()
 
     ws = WorldState([(1, 0), (1, 1)], [False], [True, False])
@@ -189,56 +189,56 @@ def test_force_state_agent_dies():
 
 
 def test_agent_state_size():
-    env = LLE.level(1).single_objective()
+    env = LLE.level(1).build()
     assert env.agent_state_size == 2
 
-    env = LLE.level(1).state_type(ObservationType.FLATTENED).single_objective()
+    env = LLE.level(1).state_type(ObservationType.FLATTENED).build()
     with pytest.raises((ValueError, NotImplementedError)):
         env.agent_state_size
 
 
 def test_builder_obs_type_string():
-    env = LLE.level(1).obs_type("layered").single_objective()
-    env2 = LLE.level(1).obs_type(ObservationType.LAYERED).single_objective()
+    env = LLE.level(1).obs_type("layered").build()
+    env2 = LLE.level(1).obs_type(ObservationType.LAYERED).build()
     assert env.has_same_inouts(env2)
 
-    env = LLE.level(1).obs_type("flattened").single_objective()
-    env2 = LLE.level(1).obs_type(ObservationType.FLATTENED).single_objective()
+    env = LLE.level(1).obs_type("flattened").build()
+    env2 = LLE.level(1).obs_type(ObservationType.FLATTENED).build()
     assert env.has_same_inouts(env2)
 
-    env = LLE.level(1).obs_type("partial3x3").single_objective()
-    env2 = LLE.level(1).obs_type(ObservationType.PARTIAL_3x3).single_objective()
+    env = LLE.level(1).obs_type("partial3x3").build()
+    env2 = LLE.level(1).obs_type(ObservationType.PARTIAL_3x3).build()
     assert env.has_same_inouts(env2)
 
-    env = LLE.level(1).obs_type("partial5x5").single_objective()
-    env2 = LLE.level(1).obs_type(ObservationType.PARTIAL_5x5).single_objective()
+    env = LLE.level(1).obs_type("partial5x5").build()
+    env2 = LLE.level(1).obs_type(ObservationType.PARTIAL_5x5).build()
     assert env.has_same_inouts(env2)
 
-    env = LLE.level(1).obs_type("partial7x7").single_objective()
-    env2 = LLE.level(1).obs_type(ObservationType.PARTIAL_7x7).single_objective()
+    env = LLE.level(1).obs_type("partial7x7").build()
+    env2 = LLE.level(1).obs_type(ObservationType.PARTIAL_7x7).build()
     assert env.has_same_inouts(env2)
 
-    env = LLE.level(1).obs_type("state").single_objective()
-    env2 = LLE.level(1).obs_type(ObservationType.STATE).single_objective()
+    env = LLE.level(1).obs_type("state").build()
+    env2 = LLE.level(1).obs_type(ObservationType.STATE).build()
     assert env.has_same_inouts(env2)
 
-    env = LLE.level(1).obs_type("image").single_objective()
-    env2 = LLE.level(1).obs_type(ObservationType.RGB_IMAGE).single_objective()
+    env = LLE.level(1).obs_type("image").build()
+    env2 = LLE.level(1).obs_type(ObservationType.RGB_IMAGE).build()
     assert env.has_same_inouts(env2)
 
-    env = LLE.level(1).obs_type("perspective").single_objective()
-    env2 = LLE.level(1).obs_type(ObservationType.AGENT0_PERSPECTIVE_LAYERED).single_objective()
+    env = LLE.level(1).obs_type("perspective").build()
+    env2 = LLE.level(1).obs_type(ObservationType.AGENT0_PERSPECTIVE_LAYERED).build()
     assert env.has_same_inouts(env2)
 
 
 def test_n_agents():
-    env = LLE.from_str("S0 S1 X X").single_objective()
+    env = LLE.from_str("S0 S1 X X").build()
     env.reset()
     assert env.n_agents == 2
 
     import marlenv
 
-    env = LLE.level(6).obs_type(ObservationType.LAYERED).state_type(ObservationType.STATE).single_objective()
+    env = LLE.level(6).obs_type(ObservationType.LAYERED).state_type(ObservationType.STATE).build()
     env = marlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
     assert env.n_agents == 4
     env.reset()

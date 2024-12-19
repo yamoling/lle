@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Literal
-from typing_extensions import deprecated
 from lle import World, ObservationType
+from .reward_strategy import RewardStrategy, SingleObjective, MultiObjective
 
 
 @dataclass
@@ -12,6 +12,7 @@ class Builder:
     _death_strategy: Literal["respawn", "end"]
     _walkable_lasers: bool
     _env_name: str
+    _reward_strategy: RewardStrategy
 
     def __init__(self, world: World):
         self._world = world
@@ -20,6 +21,7 @@ class Builder:
         self._death_strategy = "end"
         self._walkable_lasers = True
         self._env_name = "LLE"
+        self._reward_strategy = SingleObjective(world.n_agents)
 
     def str_to_obs(
         self,
@@ -100,32 +102,30 @@ class Builder:
         self._env_name = name
         return self
 
-    def single_objective(self):
-        # These imports are necessary here to avoid circular imports
-        from .single_objective import SOLLE
+    def multi_objective(self, is_multi_objective: bool = True):
+        if not is_multi_objective:
+            return self.single_objective()
+        self._reward_strategy = MultiObjective(self._world.n_agents)
+        self._env_name = f"{self._env_name}-MO"
+        return self
 
-        return SOLLE(
-            world=self._world,
-            obs_type=self._obs_type,
-            state_type=self._state_type,
-            death_strategy=self._death_strategy,
-            walkable_lasers=self._walkable_lasers,
-            name=f"{self._env_name}-SO",
-        )
+    def single_objective(self, is_single_objective: bool = True):
+        if not is_single_objective:
+            return self.multi_objective()
+        self._reward_strategy = SingleObjective(self._world.n_agents)
+        self._env_name = f"{self._env_name}-SO"
+        return self
 
-    def multi_objective(self):
-        # This import is necessary here to avoid circular imports
-        from .multi_objective import MOLLE
-
-        return MOLLE(
-            world=self._world,
-            obs_type=self._obs_type,
-            state_type=self._state_type,
-            death_strategy=self._death_strategy,
-            walkable_lasers=self._walkable_lasers,
-            name=f"{self._env_name}-MO",
-        )
-
-    @deprecated("Use single_objective() or multi_objective() instead.")
     def build(self):
-        return self.single_objective()
+        # avoid circular imports
+        from .env import LLE
+
+        return LLE(
+            world=self._world,
+            obs_type=self._obs_type,
+            state_type=self._state_type,
+            death_strategy=self._death_strategy,
+            walkable_lasers=self._walkable_lasers,
+            name=self._env_name,
+            reward_strategy=self._reward_strategy,
+        )

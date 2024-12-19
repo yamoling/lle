@@ -1,13 +1,12 @@
 import tempfile
 import os
 from lle import LLE, Action, WorldState
-from lle.env.env import REWARD_DEATH, REWARD_GEM, REWARD_EXIT, REWARD_DONE
-from lle.env.multi_objective import RW_DEATH_IDX, RW_GEM_IDX, RW_EXIT_IDX, RW_DONE_IDX
+from lle.env.reward_strategy import REWARD_DEATH, REWARD_GEM, REWARD_EXIT, REWARD_DONE, MultiObjective
 import numpy as np
 
 
 def test_void_reward():
-    env = LLE.from_str("S0 V X").single_objective()
+    env = LLE.from_str("S0 V X").build()
     env.reset()
     _, _, reward, done, _, _ = env.step([Action.EAST.value])
     assert reward == REWARD_DEATH
@@ -19,7 +18,7 @@ def test_collect_reward():
         """S0 X . .
 .  . . .
 G  . . ."""
-    ).single_objective()
+    ).build()
     env.reset()
     env.step([Action.SOUTH.value])
     reward = env.step([Action.SOUTH.value]).reward
@@ -32,7 +31,7 @@ def test_time_reward():
     . .  . X
     . S0 . .
     . .  . ."""
-    ).single_objective()
+    ).build()
     env.reset()
     for action in Action.ALL:
         reward = env.step([action.value]).reward
@@ -46,7 +45,7 @@ def test_finish_reward():
 @ . S0 . . @
 @ . .  X . @
 @ @ @  @ @ @"""
-    ).single_objective()
+    ).build()
     env.reset()
     env.step([Action.EAST.value])
     reward = env.step([Action.SOUTH.value]).reward
@@ -60,7 +59,7 @@ def test_arrive_reward_only_once():
     S0 . G
     S1 X X
 """,
-    ).single_objective()
+    ).build()
     action_rewards = [
         ([Action.EAST, Action.STAY], 0),  # Agent 0
         ([Action.STAY, Action.EAST], 1),  # Agent 1 finishes the game
@@ -83,7 +82,7 @@ def test_reward_after_reset():
     .  . . .
     G  . . .
     """
-    ).single_objective()
+    ).build()
 
     def play():
         """Collect the gem and finish the game. Check that the reward is is correct when collecting it."""
@@ -112,7 +111,7 @@ def test_reward_after_set_state():
         """
     S0 . G
     S1 X X""",
-    ).single_objective()
+    ).build()
     env.reset()
     world_state = WorldState([(0, 1), (1, 1)], [False])
     env.set_state(world_state)
@@ -127,7 +126,7 @@ def test_reward_set_state_all_arrived():
     S1 X X""",
         )
         .state_type("state")
-        .single_objective()
+        .build()
     )
 
     world_state = WorldState([(0, 2), (1, 1)], [True])
@@ -141,16 +140,17 @@ def test_reward_set_state_all_arrived():
 
 
 def test_set_state():
-    env = LLE.level(6).state_type("state").single_objective()
+    # Walkable lasers must be set to false, otherwise agents could die
+    env = LLE.level(6).state_type("state").walkable_lasers(False).build()
     states = [env.reset()[1]]
     world_states = [env.world.get_state()]
     i = 0
     done = False
     while not done and i < 100:
         i += 1
-        _, state, _, done, _, _ = env.step(env.action_space.sample(env.available_actions()))
+        step = env.step(env.action_space.sample(env.available_actions()))
         world_states.append(env.world.get_state())
-        states.append(state)
+        states.append(step.state)
 
     for state, world_state in zip(states, world_states):
         env.set_state(state)
@@ -164,7 +164,7 @@ def test_reward():
     S0 G .
     .  . X
     """
-    ).single_objective()
+    ).build()
     env.reset()
     assert env.step([Action.EAST.value]).reward == REWARD_GEM
     assert env.step([Action.EAST.value]).reward == 0.0
@@ -177,7 +177,7 @@ def test_reward_death():
     S0 L0S X
     S1  .  X
     """
-    ).single_objective()
+    ).build()
     env.reset()
     step = env.step([Action.STAY.value, Action.EAST.value])
     assert step.reward == REWARD_DEATH
@@ -190,78 +190,83 @@ def test_reward_collect_and_death():
     S0 L0S X
     S1  G  X
     """
-    ).single_objective()
+    ).build()
     env.reset()
     step = env.step([Action.STAY.value, Action.EAST.value])
-    assert step.reward == REWARD_DEATH
+    assert step.reward.item() == REWARD_DEATH
     assert step.done
 
 
 def test_multi_objective_rewards():
-    env = LLE.from_str(
-        """
+    env = (
+        LLE.from_str(
+            """
     S0 G .
     .  . X
     """,
-    ).multi_objective()
-    indices = [RW_GEM_IDX, RW_EXIT_IDX, RW_DONE_IDX, RW_DEATH_IDX]
+        )
+        .multi_objective()
+        .build()
+    )
     env.reset()
     # Collect the gem
     reward = env.step([Action.EAST.value]).reward
-    assert reward[RW_GEM_IDX] == REWARD_GEM
-    for idx in indices:
-        if idx != RW_GEM_IDX:
-            assert reward[idx] == 0
+    assert reward[MultiObjective.RW_GEM_IDX] == 1.0
+    for idx in [MultiObjective.RW_EXIT_IDX, MultiObjective.RW_DONE_IDX, MultiObjective.RW_DEATH_IDX]:
+        assert reward[idx] == 0
 
     # Step east
     assert np.all(env.step([Action.EAST.value]).reward == 0.0)
     # Finish the level
     step = env.step([Action.SOUTH.value])
     assert step.done
-    assert step.reward[RW_EXIT_IDX] == REWARD_EXIT
-    assert step.reward[RW_DONE_IDX] == REWARD_DONE
-    for idx in indices:
-        if idx not in [RW_EXIT_IDX, RW_DONE_IDX]:
-            assert step.reward[idx] == 0
+    assert step.reward[MultiObjective.RW_EXIT_IDX] == REWARD_EXIT
+    assert step.reward[MultiObjective.RW_DONE_IDX] == REWARD_DONE
+    for idx in [MultiObjective.RW_GEM_IDX, MultiObjective.RW_DEATH_IDX]:
+        assert step.reward[idx] == 0
 
 
 def test_multi_objective_death():
-    env = LLE.from_str(
-        """
+    env = (
+        LLE.from_str(
+            """
     S0 L0S X
     S1  G  X
     """,
-    ).multi_objective()
+        )
+        .multi_objective()
+        .build()
+    )
     env.reset()
     reward = env.step([Action.STAY.value, Action.EAST.value]).reward
-    assert reward[RW_DEATH_IDX] == REWARD_DEATH
-    for idx in [RW_GEM_IDX, RW_EXIT_IDX, RW_DONE_IDX]:
+    assert reward[MultiObjective.RW_DEATH_IDX] == REWARD_DEATH
+    for idx in [MultiObjective.RW_GEM_IDX, MultiObjective.RW_EXIT_IDX, MultiObjective.RW_DONE_IDX]:
         assert reward[idx] == 0
 
 
 def test_seed():
-    LLE.level(1).single_objective().seed(0)
-    LLE.level(1).multi_objective().seed(0)
+    LLE.level(1).build().seed(0)
+    LLE.level(1).multi_objective().build().seed(0)
 
 
 def test_env_name():
     for level in range(1, 7):
-        env = LLE.level(level).single_objective()
+        env = LLE.level(level).single_objective().build()
         assert env.name == f"LLE-lvl{level}-SO"
 
-        env = LLE.level(level).multi_objective()
+        env = LLE.level(level).multi_objective().build()
         assert env.name == f"LLE-lvl{level}-MO"
 
-    env = LLE.from_str("S0 X").single_objective()
+    env = LLE.from_str("S0 X").single_objective().build()
     assert env.name == "LLE-SO"
 
-    env = LLE.from_str("S0 X").multi_objective()
+    env = LLE.from_str("S0 X").multi_objective().build()
     assert env.name == "LLE-MO"
 
     with tempfile.NamedTemporaryFile(mode="w+", delete=True) as temp_file:
         temp_file.write("S0 X")
         temp_file.flush()
 
-        env = LLE.from_file(temp_file.name).single_objective()
+        env = LLE.from_file(temp_file.name).single_objective().build()
         base = os.path.basename(temp_file.name)
         assert env.name == f"LLE-{base}-SO"

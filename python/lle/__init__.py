@@ -28,9 +28,9 @@ The `LLE` class is meant for Multi-Agent Reinforcement Leanring (MARL) and to be
 ```python
 from lle import LLE
 
-env = LLE.level(6).obs_type("layered").single_objective()
+env = LLE.level(6).obs_type("layered").build()
 obs = env.reset()
-action = env.action_space.sample(env.available_actions())
+action = env.sample_action()
 env.step(action)
 ```
 
@@ -152,13 +152,13 @@ from .lle import (
     EventType,
     WorldState,
     Agent,
+    tiles,
     exceptions,
 )
 
 
-from lle.tiles import Direction
+from lle.tiles import Direction  # type: ignore
 from .observations import ObservationType
 from .env import LLE
 from . import env
 from . import observations
-from . import tiles

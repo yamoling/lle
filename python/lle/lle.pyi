@@ -240,6 +240,7 @@ class World:
 class WorldEvent:
     event_type: EventType
     agent_id: int
+    def __new__(cls,event_type:EventType, agent_id:int): ...
     def __str__(self) -> str:
         ...
 
@@ -364,5 +365,11 @@ class EventType(Enum):
     GEM_COLLECTED = auto()
     AGENT_DIED = auto()
 
+
+    def __repr__(self) -> str:
+        ...
+
+    def __hash__(self) -> int:
+        ...
 
 

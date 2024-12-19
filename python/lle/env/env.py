@@ -1,23 +1,16 @@
-from abc import abstractmethod
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Literal, Optional, Sequence, TypeVar
+from typing import Literal, Optional, Sequence
 
 import numpy as np
 import numpy.typing as npt
-from marlenv import DiscreteActionSpace, DiscreteSpace, MARLEnv, Observation, State, Step
+from marlenv import DiscreteActionSpace, MARLEnv, Observation, State, Step
 
-from lle import Action, EventType, World, WorldEvent, WorldState
+from lle import Action, World, WorldState
 from lle.observations import ObservationType, StateGenerator
 
 from .builder import Builder
-
-REWARD_DEATH = -1.0
-REWARD_GEM = 1.0
-REWARD_EXIT = 1.0
-REWARD_DONE = 1.0
-
-R = TypeVar("R", bound=float | npt.NDArray[np.float32])
+from .reward_strategy import RewardStrategy, SingleObjective
 
 
 class DeathStrategy(IntEnum):
@@ -26,20 +19,30 @@ class DeathStrategy(IntEnum):
     RESPAWN = 1
     """The agent respawns on its start position when it dies"""
 
+    @staticmethod
+    def from_str(value: Literal["end", "respawn"]):
+        match value:
+            case "end":
+                return DeathStrategy.END
+            case "respawn":
+                return DeathStrategy.RESPAWN
+        raise ValueError(f"Unknown death strategy: {value}")
+
 
 @dataclass
-class LLE(MARLEnv[DiscreteActionSpace, npt.NDArray[np.float32], npt.NDArray[np.float32], R]):
+class LLE(MARLEnv[Sequence[int] | npt.NDArray, DiscreteActionSpace]):
     """Laser Learning Environment (LLE)"""
 
     obs_type: str
     state_type: str
     death_strategy: DeathStrategy
     walkable_lasers: bool
+    reward_strategy: RewardStrategy
 
     def __init__(
         self,
         world: World,
-        reward_space: Optional[DiscreteSpace],
+        reward_strategy: Optional[RewardStrategy] = None,
         obs_type: ObservationType = ObservationType.STATE,
         state_type: ObservationType = ObservationType.STATE,
         name: Optional[str] = None,
@@ -51,11 +54,14 @@ class LLE(MARLEnv[DiscreteActionSpace, npt.NDArray[np.float32], npt.NDArray[np.f
         self.state_type = state_type.name
         self.observation_generator = obs_type.get_observation_generator(world)
         self.state_generator = state_type.get_observation_generator(world)
+        if reward_strategy is None:
+            reward_strategy = SingleObjective(world.n_agents)
+        self.reward_strategy = reward_strategy
         super().__init__(
             DiscreteActionSpace(self.world.n_agents, Action.N, [a.name for a in Action.ALL]),
             self.observation_generator.shape,
             self.get_state().shape,
-            reward_space=reward_space,
+            reward_space=self.reward_strategy.reward_space,
         )
         if name is not None:
             self.name = name
@@ -69,8 +75,6 @@ class LLE(MARLEnv[DiscreteActionSpace, npt.NDArray[np.float32], npt.NDArray[np.f
                 raise ValueError(f"Unknown death strategy: {other}")
         self.walkable_lasers = walkable_lasers
         self.n_agents = world.n_agents
-        self.n_arrived = 0
-        self.done = False
 
     @property
     def width(self) -> int:
@@ -87,6 +91,14 @@ class LLE(MARLEnv[DiscreteActionSpace, npt.NDArray[np.float32], npt.NDArray[np.f
                 return self.state_generator.unit_size
             case other:
                 raise NotImplementedError(f"State type {other} does not support `unit_state_size`.")
+
+    @property
+    def n_arrived(self):
+        return self.reward_strategy.n_arrived
+
+    @property
+    def done(self):
+        return self.n_arrived == self.n_agents or self.reward_strategy.n_deads > 0
 
     def available_actions(self):
         available_actions = np.full((self.world.n_agents, self.n_actions), False, dtype=bool)
@@ -108,52 +120,32 @@ class LLE(MARLEnv[DiscreteActionSpace, npt.NDArray[np.float32], npt.NDArray[np.f
             raise ValueError("Cannot step in a done environment")
         agents_actions = [Action(a) for a in actions]
         events = self.world.step(agents_actions)
-        self._update(events)
+        # Beware to compute the reward before checking if the episode is done !
+        reward = self.reward_strategy.compute_reward(events)
         return Step(
             self.get_observation(),
             self.get_state(),
-            reward=self.compute_reward(events),
+            reward=reward,
             done=self.done,
             info={"gems_collected": self.world.gems_collected, "exit_rate": self.n_arrived / self.n_agents},
         )
 
-    def _update(self, events: list[WorldEvent]):
-        for event in events:
-            match event.event_type:
-                case EventType.AGENT_DIED:
-                    if self.death_strategy == DeathStrategy.END:
-                        self.done = True
-                    else:
-                        raise NotImplementedError("Respawn strategy is not implemented yet")
-                case EventType.AGENT_EXIT:
-                    self.n_arrived += 1
-                    if self.n_arrived == self.n_agents:
-                        self.done = True
-
-    @abstractmethod
-    def compute_reward(self, events: list[WorldEvent]) -> R:
-        """Compute the reward according to the events that occurred"""
-
     def reset(self):
         self.world.reset()
-        self.n_arrived = 0
-        self.done = False
+        self.reward_strategy.reset()
         return self.get_observation(), self.get_state()
 
     def get_state(self):
-        # We assume that the state is the same as the observation of the first agent
-        # of the observation generator.
-        return State(self.state_generator.observe()[0])
+        return State(self.state_generator.get_state())
 
     def set_state(self, state: State[npt.NDArray[np.float32]] | WorldState):
         if isinstance(state, WorldState):
             world_state = state
         else:
             world_state = self.state_generator.to_world_state(state.data)
-        self.n_arrived = 0
-        self.done = False
+        self.reward_strategy.reset()
         events = self.world.set_state(world_state)
-        self._update(events)
+        self.reward_strategy.compute_reward(events)
 
     def get_observation(self):
         return Observation(self.observation_generator.observe(), self.available_actions())
