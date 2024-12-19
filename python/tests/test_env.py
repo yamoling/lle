@@ -141,16 +141,36 @@ def test_reward_set_state_all_arrived():
 
 def test_set_state():
     # Walkable lasers must be set to false, otherwise agents could die
-    env = LLE.level(6).state_type("state").walkable_lasers(False).build()
+    env = (
+        LLE.from_str("""
+width=10
+height=10
+exits = [{ j_min = 9 }]
+[[agents]]
+start_positions = [{ }] # random spawn
+
+[[agents]]
+start_positions = [{ }]        
+
+[[agents]]
+start_positions = [{ }]
+
+[[agents]]
+start_positions = [{ }]""")
+        .state_type("state")
+        .build()
+    )
     states = [env.reset()[1]]
     world_states = [env.world.get_state()]
     i = 0
     done = False
-    while not done and i < 100:
+    while not done and i < 1000:
         i += 1
         step = env.step(env.action_space.sample(env.available_actions()))
         world_states.append(env.world.get_state())
         states.append(step.state)
+        if step.is_terminal:
+            env.reset()
 
     for state, world_state in zip(states, world_states):
         env.set_state(state)
