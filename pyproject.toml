@@ -10,7 +10,7 @@ classifiers = [
 ]
 dependencies = [
     "numpy>=2.2.0",
-    "multi-agent-rlenv>=3.0.0rc1",
+    "multi-agent-rlenv>=3.0.0",
     "opencv-python>=4.10.0.84",
 ]
 description = "Laser Learning Environment (LLE) for Multi-Agent Reinforcement Learning"
