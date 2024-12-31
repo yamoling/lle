@@ -532,3 +532,42 @@ fn test_wrong_world_state() {
         other => panic!("Expected InvalidAgentPosition, got {other:?}"),
     }
 }
+
+#[test]
+/// This test was introduced because the agents were attributed start positions that
+/// were forbidden. The resaon was that thte positions were not re-ordered after the
+/// agents were ordered by number of available start positions.
+///
+/// Test the worst case scenario for the position selection algorithm:
+/// since the algorithm assigns a position to each agent from the one with the least
+/// possible positions to the one with the most, the worst case scenario is when
+/// the possible start positions of each agent overlap the the all the previous agents
+/// (i.e. the agents with less available start positions).
+fn test_random_start_positions() {
+    let toml_config = r#"
+width = 10
+height = 10
+exits = [{i_min=9}]
+[[agents]]
+start_positions = [{i=0, j=0}, {i=1, j=0}, {i=2, j=0}, {i=3, j=0}]
+
+[[agents]]
+start_positions = [{i=0, j=0}, {i=1, j=0}, {i=2, j=0}]
+
+[[agents]]
+start_positions = [{i=0, j=0}, {i=1, j=0}]
+
+[[agents]]
+start_positions = [{i=0, j=0}]
+"#;
+    // The start positions of the agents overlap but at not the same for every agent.
+    let mut world = World::try_from(toml_config).unwrap();
+    for _ in 0..1_000 {
+        world.reset();
+        let positions = world.agents_positions();
+        assert_eq!(positions[0], Position { i: 3, j: 0 });
+        assert_eq!(positions[1], Position { i: 2, j: 0 });
+        assert_eq!(positions[2], Position { i: 1, j: 0 });
+        assert_eq!(positions[3], Position { i: 0, j: 0 });
+    }
+}
