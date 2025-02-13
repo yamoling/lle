@@ -1,4 +1,6 @@
 # Laser Learning Environment (LLE)
+Documentation: [https://yamoling.github.io/lle/](https://yamoling.github.io/lle/)
+
 LLE is a fast Multi-Agent Reinforcement Learning environment written in Rust which has proven to be a difficult exploration benchmark so far. The agents start in the start tiles, must collect the gems and finish the game by reaching the exit tiles. There are five actions: North, South, East, West and Stay. 
 
 When an agent enters a laser of its own colour, it blocks it. Otherwise, it dies and the game ends.
@@ -9,7 +11,7 @@ When an agent enters a laser of its own colour, it blocks it. Otherwise, it dies
 ## Installation
 You can install the Laser Learning Environment with pip or poetry.
 ```bash
-pip install laser-learning-environment # Stable release with pip
+pip install laser-learning-environment # Latest stable release with pip
 pip install git+https://github.com/yamoling/lle # latest push on master
 ```
 
@@ -24,11 +26,11 @@ from lle import LLE
 
 env = LLE.from_str("S0 G X").single_objective()
 done = truncated = False
-obs = env.reset()
+obs, state = env.reset()
 while not (done or truncated):
     # env.render() # Uncomment to render
-    actions = env.action_space.sample(env.available_actions())
-    obs, reward, done, truncated, info = env.step(actions)
+    actions = env.sample_action()
+    obs, state, reward, done, truncated, info = env.step(actions)
 ```
 
 

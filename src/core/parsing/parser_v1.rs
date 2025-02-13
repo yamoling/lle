@@ -1,12 +1,11 @@
 use crate::{AgentId, Position, Tile};
 
-use super::{laser_config::LaserConfig, world_config::Config, ParseError};
+use super::{laser_config::LaserConfig, world_config::WorldConfig, ParseError};
 
 #[derive(Default)]
 pub struct ParsingData {
     pub width: Option<usize>,
     pub height: usize,
-    pub map_string: String,
     pub gem_positions: Vec<Position>,
     pub start_positions: Vec<Vec<Position>>,
     pub void_positions: Vec<Position>,
@@ -16,13 +15,6 @@ pub struct ParsingData {
 }
 
 impl ParsingData {
-    fn init(map_str: &str) -> Self {
-        Self {
-            map_string: map_str.into(),
-            ..Default::default()
-        }
-    }
-
     pub fn add_wall(&mut self, pos: Position) {
         self.walls_positions.push(pos);
     }
@@ -84,18 +76,16 @@ impl ParsingData {
     }
 }
 
-impl TryInto<Config> for ParsingData {
+impl TryInto<WorldConfig> for ParsingData {
     type Error = ParseError;
-    fn try_into(self) -> Result<Config, Self::Error> {
+    fn try_into(self) -> Result<WorldConfig, Self::Error> {
         if self.height == 0 {
-            println!("Coucou");
             return Err(ParseError::EmptyWorld);
         }
         let width = self.width.ok_or(ParseError::MissingWidth)?;
-        Ok(Config::new(
+        Ok(WorldConfig::new(
             width,
             self.height,
-            self.map_string.into(),
             self.gem_positions,
             self.start_positions,
             self.void_positions,
@@ -106,8 +96,40 @@ impl TryInto<Config> for ParsingData {
     }
 }
 
-pub fn parse(world_str: &str) -> Result<Config, ParseError> {
-    let mut data = ParsingData::init(world_str);
+pub fn to_v1_string(config: &WorldConfig) -> Result<String, ()> {
+    let mut res = vec![vec![String::from("."); config.width()]; config.height()];
+    for (agent_num, pos) in config.random_starts().iter().enumerate() {
+        if pos.len() > 1 {
+            return Err(());
+        }
+        let pos = pos[0];
+        res[pos.i][pos.j] = format!("S{agent_num}");
+    }
+
+    for pos in config.gems() {
+        res[pos.i][pos.j] = "G".into();
+    }
+    for pos in config.walls() {
+        res[pos.i][pos.j] = "@".into();
+    }
+    for pos in config.exits() {
+        res[pos.i][pos.j] = "X".into();
+    }
+    for pos in config.voids() {
+        res[pos.i][pos.j] = "V".into();
+    }
+    for (pos, config) in config.sources() {
+        res[pos.i][pos.j] = config.to_string();
+    }
+    Ok(res
+        .into_iter()
+        .map(|row| row.join(" "))
+        .collect::<Vec<String>>()
+        .join("\n"))
+}
+
+pub fn parse(world_str: &str) -> Result<WorldConfig, ParseError> {
+    let mut data = ParsingData::default();
     for line in world_str.lines() {
         let line = line.trim();
         if line.is_empty() {

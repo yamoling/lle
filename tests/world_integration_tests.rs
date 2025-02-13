@@ -237,7 +237,11 @@ fn test_force_state_agent_dies() {
     .unwrap();
     w.reset();
 
-    let s = WorldState::new_alive([(1, 0).into(), (1, 1).into()].into(), [false; 1].into());
+    let s = WorldState {
+        agents_positions: vec![(1, 0).into(), (1, 1).into()],
+        gems_collected: vec![false],
+        agents_alive: vec![true, false],
+    };
     w.set_state(&s).unwrap();
     assert!(w.agents()[0].has_arrived());
     // Agent 1 should ne have arrived (it died before arriving)
@@ -480,16 +484,16 @@ fn test_wrong_agent_id_for_laser_source() {
 
 #[test]
 fn test_compute_world_string() {
-    let world = World::try_from("S0 L0S X").unwrap();
-    let initial_string = world.initial_world_string().trim();
-    let current_string = world.compute_world_string();
+    let world_string = "S0 L0S X";
+    let world = World::try_from(world_string).unwrap();
+    let current_string = world.world_string();
     let current_string = current_string.trim();
-    assert_eq!(initial_string, current_string);
+    assert_eq!(world_string, current_string);
 
     let (_, source) = &world.sources()[0];
     source.set_agent_id(1);
     let expected = "S0 L1S X";
-    let res = world.compute_world_string();
+    let res = world.world_string();
     let res = res.trim();
     assert_eq!(expected, res);
 }

@@ -51,7 +51,7 @@ jobs:
       - name: Install UV
         uses: yezz123/setup-uv@v4
         with:
-          uv-version: 0.3.0
+          uv-version: 0.5.6
       - name: Pytest
         run: |
           uv sync
@@ -73,23 +73,25 @@ jobs:
         exclude:
           - os: windows-latest
             target: 'aarch64'
+          # Build is currently failing on Ubuntu aarch64 for python 3.13
+          - os: ubuntu-latest
+            target: 'aarch64'
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with:
-          python-version: 3.12
       - uses: actions-rust-lang/setup-rust-toolchain@v1
-      - run: cargo run --bin stub-gen
+      - name: Python stub generation
+        run: cargo run --bin stub-gen
       - name: Format code
         run: |
           pip install ruff 
-          ruff format python/lle
+          ruff format python
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist --find-interpreter
+          args: --release --out dist --find-interpreter 
           sccache: 'true'
           manylinux: auto
       - name: Upload wheels

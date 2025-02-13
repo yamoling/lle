@@ -351,6 +351,16 @@ def test_set_invalid_state():
         world.set_state(WorldState([(0, 0), (0, 0)], [True]))
 
 
+def test_set_invalid_state_dead():
+    world = World("""
+        S0 L0S X
+        S1  .  X""")
+    # The asked state is not possible since agent 1 dies in the laser
+    with pytest.raises(InvalidWorldStateError):
+        s = WorldState([(0, 0), (0, 1)], [], [True, True])
+        world.set_state(s)
+
+
 def test_world_state_hash_eq():
     world = World("S0 G X")
     world.reset()
@@ -630,3 +640,27 @@ start_positions = [
     assert world.width == 10
     assert world.height == 5
     assert world.n_agents == 4
+
+
+def test_seed():
+    toml_str = """
+width = 10
+height = 10
+exits = [{ i = 0, j = 9 }]
+
+[[agents]]
+# Start anywhere on the map
+start_positions = [{  }]
+"""
+    for seed in range(10):
+        world = World(toml_str)
+        world.seed(seed)
+        world.reset()
+        starts1 = world.start_pos
+
+        world = World(toml_str)
+        world.seed(seed)
+        world.reset()
+        starts2 = world.start_pos
+
+        assert starts1 == starts2

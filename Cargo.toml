@@ -1,6 +1,6 @@
 [package]
 name = "lle"
-version = "1.5.2"
+version = "2.1.1"
 edition = "2021"
 readme = "readme.md"
 license-file = "licence"
@@ -17,8 +17,6 @@ exclude = ["python/*", "uv.lock", "stubcheck.sh", "pyproject.toml", "docs"]
 name = "lle"
 path = "src/lib.rs"
 crate-type = ["cdylib", "rlib"]
-# Enabling crate-type=["cdylib"] (default in maturin) prevents integration tests from importing lle
-# crate-type = ["cdylib"] 
 
 [[bin]]
 name = "stub-gen"
@@ -28,11 +26,11 @@ path = "src/stub_gen.rs"
 image = "0.25.5"
 itertools = "0.13.0"
 lazy_static = "1.5.0"
-numpy = "0.22.1"
-pyo3 = "0.22"
+numpy = "0.23.0"
+pyo3 = "0.23.3"
 # pyo3-stub-gen = { path = "/home/yann/projects/rust/pyo3-stub-gen/pyo3-stub-gen" }
 # pyo3-stub-gen-derive = { path = "/home/yann/projects/rust/pyo3-stub-gen/pyo3-stub-gen-derive" }
 pyo3-stub-gen = { git = "https://github.com/yamoling/pyo3-stub-gen/", rev = "5fd712bcace754e75caceacfb3eecfda5c6c18dd", version = "0.6.1" }
 rand = "0.8.5"
-serde = "1.0.214"
+serde = "1.0.216"
 toml = "0.8.19"

@@ -11,7 +11,7 @@ def test_walkable_laser_enabled():
 @ X  .  S1 @
 @ @  @  @  @
             """
-    ).single_objective()
+    ).build()
     env.reset()
     available_actions = env.available_actions()
 
@@ -34,7 +34,7 @@ def test_walkable_laser_disabled_laser_enabled():
             """
         )
         .walkable_lasers(False)
-        .single_objective()
+        .build()
     )
     env.reset()
     available_actions = env.available_actions()
@@ -58,7 +58,7 @@ def test_walkable_laser_disabled_laser_disabled():
             """
         )
         .walkable_lasers(False)
-        .single_objective()
+        .build()
     )
     env.reset()
     available_actions = env.available_actions()
@@ -80,7 +80,7 @@ def test_walkable_laser_disabled_laser_enabled2():
             """
         )
         .walkable_lasers(False)
-        .single_objective()
+        .build()
     )
     env.reset()
     available_actions = env.available_actions()
@@ -104,7 +104,7 @@ def test_walkable_laser_disabled_laser_disabled2():
             """
         )
         .walkable_lasers(False)
-        .single_objective()
+        .build()
     )
     env.reset()
     available_actions = env.available_actions()

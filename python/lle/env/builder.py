@@ -1,7 +1,7 @@
 from dataclasses import dataclass
-from typing import Literal, Optional
-from typing_extensions import deprecated
+from typing import Literal
 from lle import World, ObservationType
+from .reward_strategy import RewardStrategy, SingleObjective, MultiObjective
 
 
 @dataclass
@@ -9,8 +9,10 @@ class Builder:
     _world: World
     _obs_type: ObservationType
     _state_type: ObservationType
-    _death_strategy: Literal["respawn", "end", "stay"]
+    _death_strategy: Literal["respawn", "end"]
     _walkable_lasers: bool
+    _env_name: str
+    _reward_strategy: RewardStrategy
 
     def __init__(self, world: World):
         self._world = world
@@ -18,8 +20,23 @@ class Builder:
         self._state_type = ObservationType.STATE
         self._death_strategy = "end"
         self._walkable_lasers = True
+        self._env_name = "LLE"
+        self._reward_strategy = SingleObjective(world.n_agents)
 
-    def str_to_obs(self, obs_type: str) -> ObservationType:
+    def str_to_obs(
+        self,
+        obs_type: Literal[
+            "layered",
+            "flattened",
+            "partial3x3",
+            "partial5x5",
+            "partial7x7",
+            "state",
+            "image",
+            "perspective",
+            "normalized-state",
+        ],
+    ) -> ObservationType:
         match obs_type:
             case "layered":
                 return ObservationType.LAYERED
@@ -33,6 +50,8 @@ class Builder:
                 return ObservationType.PARTIAL_7x7
             case "state":
                 return ObservationType.STATE
+            case "state-normalized":
+                return ObservationType.NORMALIZED_STATE
             case "image":
                 return ObservationType.RGB_IMAGE
             case "perspective":
@@ -73,7 +92,7 @@ class Builder:
         self._walkable_lasers = walkable_lasers
         return self
 
-    def death_strategy(self, death_strategy: Literal["respawn", "end", "stay"]):
+    def death_strategy(self, death_strategy: Literal["respawn", "end"]):
         """Set the behaviour of the agents when they die (end the episode by default)."""
         self._death_strategy = death_strategy
         return self
@@ -83,30 +102,30 @@ class Builder:
         self._env_name = name
         return self
 
-    def single_objective(self):
-        # These imports are necessary here to avoid circular imports
-        from .single_objective import SOLLE
+    def multi_objective(self, is_multi_objective: bool = True):
+        if not is_multi_objective:
+            return self.single_objective()
+        self._reward_strategy = MultiObjective(self._world.n_agents)
+        self._env_name = f"{self._env_name}-MO"
+        return self
 
-        return SOLLE(self.core())
+    def single_objective(self, is_single_objective: bool = True):
+        if not is_single_objective:
+            return self.multi_objective()
+        self._reward_strategy = SingleObjective(self._world.n_agents)
+        self._env_name = f"{self._env_name}-SO"
+        return self
 
-    def multi_objective(self):
-        # This import is necessary here to avoid circular imports
-        from .multi_objective import MOLLE
+    def build(self):
+        # avoid circular imports
+        from .env import LLE
 
-        return MOLLE(self.core())
-
-    def core(self):
-        # This import is necessary here to avoid circular imports
-        from .core import Core
-
-        return Core(
+        return LLE(
             world=self._world,
             obs_type=self._obs_type,
             state_type=self._state_type,
             death_strategy=self._death_strategy,
             walkable_lasers=self._walkable_lasers,
+            name=self._env_name,
+            reward_strategy=self._reward_strategy,
         )
-
-    @deprecated("Use single_objective() or multi_objective() instead.")
-    def build(self):
-        return self.single_objective()

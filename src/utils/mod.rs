@@ -32,7 +32,8 @@ pub fn sample_different(
 ) -> Vec<Position> {
     let mut result = Vec::with_capacity(random_start_positions.len());
     // Sort agents by the number of possible positions
-    let mut agent_indices: Vec<usize> = (0..random_start_positions.len()).collect();
+    let n_agents = random_start_positions.len();
+    let mut agent_indices: Vec<usize> = (0..n_agents).collect();
     agent_indices.sort_by_key(|&i| random_start_positions[i].len());
 
     /// Recursive backtracking function to assign positions.
@@ -67,7 +68,9 @@ pub fn sample_different(
         return false;
     }
     if assign_positions(0, &agent_indices, &random_start_positions, rng, &mut result) {
-        result
+        // Re-order the result to match the original order of the agents
+        let ordered_result = agent_indices.into_iter().map(|id| result[id]).collect();
+        ordered_result
     } else {
         panic!("Could not assign positions to agents");
     }

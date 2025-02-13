@@ -1,9 +1,5 @@
-from .core import Core as LLE
-from .single_objective import SOLLE
-from .multi_objective import MOLLE
+from .env import LLE
 
 __all__ = [
     "LLE",
-    "SOLLE",
-    "MOLLE",
 ]

@@ -7,8 +7,11 @@ use std::{
 
 use crate::{
     agent::Agent,
-    core::{levels, parsing::parse},
-    tiles::{Gem, Laser, LaserSource, Start, Tile},
+    core::{
+        levels,
+        parsing::{parse, WorldConfig},
+    },
+    tiles::{Gem, Laser, LaserSource, Tile},
     utils::{find_duplicates, sample_different},
     Action, AgentId, ParseError, Position, RuntimeWorldError, WorldEvent, WorldState,
 };
@@ -18,7 +21,6 @@ type JointAction = Vec<Action>;
 pub struct World {
     width: usize,
     height: usize,
-    world_string: String,
 
     grid: Vec<Vec<Tile>>,
     agents: Vec<Agent>,
@@ -49,7 +51,6 @@ impl World {
         walls_positions: Vec<Position>,
         source_positions: Vec<Position>,
         lasers_positions: Vec<Position>,
-        world_str: &str,
     ) -> Self {
         let agents = random_start_positions
             .iter()
@@ -68,7 +69,6 @@ impl World {
             exits: exit_positions,
             grid,
             start_positions: vec![],
-            world_string: world_str.into(),
             available_actions: vec![],
             laser_source_positions: source_positions,
             lasers_positions,
@@ -82,34 +82,31 @@ impl World {
         self.agents.len()
     }
 
-    /// The world string upon which the world has been created.
-    pub fn initial_world_string(&self) -> &str {
-        &self.world_string
-    }
-
     pub fn seed(&mut self, seed: u64) {
         self.rng = rand::SeedableRng::seed_from_u64(seed);
     }
 
-    /// The current world string, taking into account the fact that some tiles may have changed (laser direction or colour).
-    pub fn compute_world_string(&self) -> String {
-        let mut str_tiles = vec![];
-        for row in &self.grid {
-            let mut str_row = vec![];
-            for tile in row {
-                str_row.push(tile.to_file_string());
-            }
-            str_row.push("\n".into());
-            str_tiles.push(str_row);
-        }
-        for (agent_id, pos) in self.start_positions.iter().enumerate() {
-            str_tiles[pos.i][pos.j] = Tile::Start(Start::new(agent_id)).to_file_string();
-        }
-        str_tiles
-            .iter()
-            .map(|row| row.join(" "))
-            .collect::<Vec<String>>()
-            .join("\n")
+    pub fn get_config(&self) -> WorldConfig {
+        let source_configs = self
+            .sources()
+            .into_iter()
+            .map(|(p, s)| (p, s.into()))
+            .collect();
+        WorldConfig::new(
+            self.width,
+            self.height,
+            self.gems_positions.clone(),
+            self.random_start_positions.clone(),
+            self.void_positions.clone(),
+            self.exits.clone(),
+            self.wall_positions.clone(),
+            source_configs,
+        )
+    }
+
+    /// The world string, taking into account the fact that some tiles may have changed (laser direction or colour).
+    pub fn world_string(&self) -> String {
+        self.get_config().to_string()
     }
 
     pub fn agents(&self) -> &Vec<Agent> {
@@ -227,6 +224,41 @@ impl World {
 
     pub fn void_positions(&self) -> Vec<Position> {
         self.void_positions.clone()
+    }
+
+    /// Iterator over all the possible states of the World.
+    /// NOT YET TESTED
+    pub fn all_states(
+        &'_ self,
+        restrict_to_alive_agents: bool,
+    ) -> impl Iterator<Item = WorldState> + '_ {
+        let agents_positions = (0..self.height)
+            .cartesian_product(0..self.width)
+            .map(|(i, j)| Position { i, j })
+            .filter(|pos| !self.wall_positions.contains(pos))
+            .combinations(self.n_agents());
+
+        let collection_status = (0..self.n_gems())
+            .map(|_| vec![true, false])
+            .multi_cartesian_product();
+
+        let alive_status = match restrict_to_alive_agents {
+            true => vec![true],
+            false => vec![true, false],
+        }
+        .into_iter()
+        .combinations(self.n_agents());
+
+        agents_positions
+            .cartesian_product(collection_status)
+            .cartesian_product(alive_status)
+            .map(
+                |((agents_positions, gems_collected), agents_alive)| WorldState {
+                    agents_positions,
+                    gems_collected,
+                    agents_alive,
+                },
+            )
     }
 
     fn compute_available_actions(&self) -> Vec<Vec<Action>> {
@@ -434,12 +466,6 @@ impl World {
                 tile.reset();
             }
         }
-        for (agent, alive) in &mut self.agents.iter_mut().zip(state.agents_alive.iter()) {
-            agent.reset();
-            if !alive {
-                agent.die();
-            }
-        }
         // Collect the necessary gems BEFORE entering the tiles with the agents
         for (pos, &collect) in izip!(&self.gems_positions, &state.gems_collected) {
             if collect {
@@ -464,12 +490,29 @@ impl World {
             }
         }
         // Set the agents positions after the pre-enter in case it fails
-        self.agents_positions = state.agents_positions.to_vec();
+        self.agents_positions = state.agents_positions.clone();
         let mut events = vec![];
-        for (pos, agent) in izip!(&self.agents_positions, &mut self.agents) {
+        for (pos, alive, agent) in izip!(
+            &self.agents_positions,
+            &state.agents_alive,
+            &mut self.agents
+        ) {
+            agent.reset();
             if let Some(event) = self.grid[pos.i][pos.j].enter(agent) {
                 events.push(event);
             }
+            // If agents were specifically set to be dead, then do so.
+            if !alive {
+                agent.die();
+            }
+        }
+
+        let actual_state = self.get_state();
+        if actual_state != *state {
+            return Err(RuntimeWorldError::InvalidWorldState {
+                reason: "The given state is invalid (e.g. an agent whose alive status was set to `true` died).".into(),
+                state: state.clone(),
+            });
         }
         self.available_actions = self.compute_available_actions();
         Ok(events)
@@ -523,10 +566,10 @@ impl TryFrom<&str> for World {
 
 impl Clone for World {
     fn clone(&self) -> Self {
-        let mut world = Self::try_from(self.world_string.clone()).unwrap();
         let state = self.get_state();
-        world.set_state(&state).unwrap();
-        world
+        let mut clone = self.get_config().to_world().unwrap();
+        clone.set_state(&state).unwrap();
+        clone
     }
 }
 

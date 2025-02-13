@@ -18,7 +18,6 @@ fn main() -> Result<()> {
     add_version_declaration(&mut info);
     modify_world_step_action_type(&mut info);
     set_world_attribute_imports(&mut info);
-    // set_world_builder_imports(&mut info);
     set_optional_init_args(&mut info);
     info.generate()?;
     std::fs::rename(INIT_PYI, LLE_PYI)?;
@@ -58,17 +57,10 @@ fn set_optional_init_args(info: &mut StubInfo) {
         .iter_mut()
         .find(|method| method.name == "__init__")
         .unwrap();
-    // Agents alive is optional
-    init.args[2].r#type = TypeInfo {
-        import: HashSet::new(),
-        name: " typing.Optional[list[bool]]=None".to_string(),
-    };
+    init.signature = Some("agents_positions: list[tuple[int, int]], gems_collected: list[bool], agents_alive: typing.Optional[list[bool]] = None");
 
     let new = class.new.as_mut().unwrap();
-    new.args[2].r#type = TypeInfo {
-        import: HashSet::new(),
-        name: " typing.Optional[list[bool]]=None".to_string(),
-    };
+    new.signature = Some("agents_positions: list[tuple[int, int]], gems_collected: list[bool], agents_alive: typing.Optional[list[bool]] = None");
 }
 
 fn modify_world_step_action_type(info: &mut StubInfo) {
@@ -135,31 +127,13 @@ fn add_action_classattrs(info: &mut StubInfo) {
         name: "ALL",
         doc: "Ordered list of actions",
         is_property: false,
-        r#type: TypeInfo::builtin("typing.ClassVar[list[Action]]"),
+        r#type: TypeInfo::builtin(" list[Action]"),
     });
 
     action_classdef.members.push(MemberDef {
         name: "N",
         doc: "The number of actions (cardinality of the action space)",
         is_property: false,
-        r#type: TypeInfo::builtin("typing.ClassVar[int]"),
+        r#type: TypeInfo::builtin(" int"),
     });
 }
-
-// fn set_world_builder_imports(info: &mut StubInfo) {
-//     let world_builder_type_id = std::any::TypeId::of::<PyWorldBuilder>();
-//     let world_builder_def = info
-//         .modules
-//         .get_mut("lle")
-//         .unwrap()
-//         .class
-//         .get_mut(&world_builder_type_id)
-//         .unwrap();
-//     world_builder_def
-//         .methods
-//         .iter_mut()
-//         .find(|m| m.name == "add_laser_source")
-//         .unwrap()
-//         .args[2]
-//         .r#type = TypeInfo::builtin(" tiles.Direction");
-// }

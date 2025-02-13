@@ -1,12 +1,18 @@
 use std::fmt::Display;
 
+use serde::{Deserialize, Serialize};
+
 use crate::ParseError;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Direction {
+    #[serde(alias = "N", alias = "north")]
     North,
+    #[serde(alias = "E", alias = "east")]
     East,
+    #[serde(alias = "S", alias = "south")]
     South,
+    #[serde(alias = "W", alias = "west")]
     West,
 }
 

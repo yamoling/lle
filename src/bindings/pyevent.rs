@@ -17,7 +17,19 @@ pub enum PyEventType {
 
 #[gen_stub_pymethods]
 #[pymethods]
-impl PyEventType {}
+impl PyEventType {
+    fn __repr__(&self) -> String {
+        format!("{self:?}")
+    }
+
+    fn __hash__(&self) -> usize {
+        match self {
+            PyEventType::AgentExit => 0,
+            PyEventType::GemCollected => 1,
+            PyEventType::AgentDied => 2,
+        }
+    }
+}
 
 #[gen_stub_pyclass]
 #[derive(Clone)]
@@ -30,18 +42,16 @@ pub struct PyWorldEvent {
     agent_id: AgentId,
 }
 
+#[gen_stub_pymethods]
+#[pymethods]
 impl PyWorldEvent {
+    #[new]
     pub fn new(event_type: PyEventType, agent_id: AgentId) -> Self {
         Self {
             event_type,
             agent_id,
         }
     }
-}
-
-#[gen_stub_pymethods]
-#[pymethods]
-impl PyWorldEvent {
     fn __str__(&self) -> String {
         format!("{:?}, agent id: {}", self.event_type, self.agent_id)
     }

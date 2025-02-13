@@ -78,6 +78,7 @@ pub struct PyWorld {
 ///  - the `World` struct is wrapped in an `Arc<Mutex<_>>`
 ///  - the other fields are immutable
 unsafe impl Send for PyWorld {}
+unsafe impl Sync for PyWorld {}
 
 impl From<World> for PyWorld {
     fn from(world: World) -> Self {
@@ -155,10 +156,10 @@ impl PyWorld {
         }
     }
 
-    /// The string upon which the world has been constructed.
+    /// The string upon which the world has been constructed (as toml).
     #[getter]
     fn world_string(&self) -> String {
-        self.world.lock().unwrap().initial_world_string().into()
+        self.world.lock().unwrap().world_string()
     }
 
     /// The dimensions (in pixels) of the image redered (width, height)
@@ -231,6 +232,10 @@ impl PyWorld {
     fn start_pos(&self) -> Vec<PyPosition> {
         let world = self.world.lock().unwrap();
         world.starts().iter().map(|p| (*p).into()).collect()
+    }
+
+    fn seed(&self, seed_value: u64) {
+        self.world.lock().unwrap().seed(seed_value);
     }
 
     /// Simultaneously perform an action for each agent in the world.
@@ -342,7 +347,7 @@ impl PyWorld {
         let dims = (dims.1 as usize, dims.0 as usize, 3);
         let img = self.renderer.update(&self.world.lock().unwrap());
         let buffer = img.into_raw();
-        PyArray1::from_vec_bound(py, buffer).reshape(dims).unwrap()
+        PyArray1::from_vec(py, buffer).reshape(dims).unwrap()
     }
 
     /// Force the world to a given state
@@ -383,15 +388,15 @@ impl PyWorld {
     /// This method is called to instantiate the object before deserialisation.
     /// It required "default arguments" to be provided to the __new__ method
     /// before replacing them by the actual values in __setstate__.
-    pub fn __getnewargs__(&self, py: Python) -> PyObject {
-        PyTuple::new_bound(py, vec![String::from("S0 X")].iter()).into()
+    pub fn __getnewargs__<'py>(&self, py: Python<'py>) -> Bound<'py, PyTuple> {
+        PyTuple::new(py, vec![String::from("S0 X")].iter()).unwrap()
     }
 
     /// Enable serialisation with pickle
     pub fn __getstate__(&self) -> PyResult<(String, PyWorldState)> {
         let world = self.world.lock().unwrap();
         let state: PyWorldState = world.get_state().into();
-        let world_string = world.compute_world_string().to_owned();
+        let world_string = world.world_string();
         Ok((world_string, state))
     }
 
@@ -445,8 +450,8 @@ impl PyWorld {
 
 impl Clone for PyWorld {
     fn clone(&self) -> Self {
-        let core = self.world.lock().unwrap().clone();
-        let renderer = Renderer::new(&core);
+        let world = self.world.lock().unwrap().clone();
+        let renderer = Renderer::new(&world);
         PyWorld {
             exit_pos: self.exit_pos.clone(),
             random_start_pos: self.random_start_pos.clone(),
@@ -456,8 +461,22 @@ impl Clone for PyWorld {
             width: self.width,
             n_gems: self.n_gems,
             n_agents: self.n_agents,
-            world: Arc::new(Mutex::new(core)),
+            world: Arc::new(Mutex::new(world)),
             renderer,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PyWorld;
+
+    #[test]
+    /// This test simulates the pickling and unpickling process of a world.
+    fn pickle() {
+        let world = PyWorld::level(1).unwrap();
+        let bin = world.__getstate__().unwrap();
+        let mut new_world = PyWorld::new("S0 X".to_string()).unwrap();
+        new_world.__setstate__(bin).unwrap();
     }
 }

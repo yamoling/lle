@@ -7,26 +7,24 @@ use crate::{
 
 use crate::ParseError;
 
-use super::laser_config::LaserConfig;
+use super::{laser_config::LaserConfig, parser_v1::to_v1_string, toml::TomlConfig};
 
 #[derive(Debug)]
-pub struct Config {
-    pub width: usize,
-    pub height: usize,
-    pub map_string: String,
-    pub gem_positions: Vec<Position>,
-    random_start_positions: Vec<Vec<Position>>,
-    pub void_positions: Vec<Position>,
-    exit_positions: Vec<Position>,
-    pub walls_positions: Vec<Position>,
-    pub source_configs: Vec<(Position, LaserConfig)>,
+pub struct WorldConfig {
+    width: usize,
+    height: usize,
+    gems: Vec<Position>,
+    random_starts: Vec<Vec<Position>>,
+    voids: Vec<Position>,
+    exits: Vec<Position>,
+    walls: Vec<Position>,
+    lasers: Vec<(Position, LaserConfig)>,
 }
 
-impl Config {
+impl WorldConfig {
     pub fn new(
         width: usize,
         height: usize,
-        map_string: String,
         gem_positions: Vec<Position>,
         random_start_positions: Vec<Vec<Position>>,
         void_positions: Vec<Position>,
@@ -37,34 +35,65 @@ impl Config {
         Self {
             width,
             height,
-            map_string,
-            gem_positions,
-            random_start_positions,
-            void_positions,
-            exit_positions,
-            walls_positions,
-            source_configs,
+            gems: gem_positions,
+            random_starts: random_start_positions,
+            voids: void_positions,
+            exits: exit_positions,
+            walls: walls_positions,
+            lasers: source_configs,
         }
+    }
+
+    pub fn exits(&self) -> &Vec<Position> {
+        &self.exits
+    }
+
+    pub fn random_starts(&self) -> &Vec<Vec<Position>> {
+        &self.random_starts
+    }
+
+    pub fn width(&self) -> usize {
+        self.width
+    }
+
+    pub fn height(&self) -> usize {
+        self.height
+    }
+
+    pub fn voids(&self) -> &Vec<Position> {
+        &self.voids
+    }
+
+    pub fn walls(&self) -> &Vec<Position> {
+        &self.walls
+    }
+
+    pub fn gems(&self) -> &Vec<Position> {
+        &self.gems
+    }
+
+    pub fn sources(&self) -> &Vec<(Position, LaserConfig)> {
+        &self.lasers
     }
 
     pub fn add_random_starts(&mut self, starts: Vec<Vec<Position>>) {
         for (i, start) in starts.into_iter().enumerate() {
-            let start = self.filter_positions(start, &self.walls_positions);
-            while i >= self.random_start_positions.len() {
-                self.random_start_positions.push(vec![]);
+            let start = self.filter_positions(start, &self.walls);
+            while i >= self.random_starts.len() {
+                self.random_starts.push(vec![]);
             }
-            self.random_start_positions[i].extend(start);
+            self.random_starts[i].extend(start);
         }
     }
 
     pub fn add_exits(&mut self, exits: Vec<Position>) {
-        let exits = self.filter_positions(exits, &self.walls_positions);
-        self.exit_positions.extend(exits);
+        let exits = self.filter_positions(exits, &self.walls);
+        self.exits.extend(exits);
     }
 
     pub fn add_gems(&mut self, gems: Vec<Position>) {
-        let gems = self.filter_positions(gems, &self.walls_positions);
-        self.gem_positions.extend(gems);
+        let gems = self.filter_positions(gems, &self.walls);
+        self.gems.extend(gems);
     }
 
     fn filter_positions(
@@ -81,34 +110,41 @@ impl Config {
     pub fn to_world(self) -> Result<World, ParseError> {
         self.validate()?;
         let (grid, lasers_positions) = self.make_grid();
-        let source_positions = self.source_configs.iter().map(|(pos, _)| *pos).collect();
+        let source_positions = self.lasers.iter().map(|(pos, _)| *pos).collect();
         Ok(World::new(
             grid,
-            self.gem_positions,
-            self.random_start_positions,
-            self.void_positions,
-            self.exit_positions,
-            self.walls_positions,
+            self.gems,
+            self.random_starts,
+            self.voids,
+            self.exits,
+            self.walls,
             source_positions,
             lasers_positions,
-            &self.map_string,
         ))
+    }
+
+    pub fn to_string(&self) -> String {
+        if let Ok(string) = to_v1_string(&self) {
+            return string;
+        }
+        let toml_config: TomlConfig = self.into();
+        toml_config.to_toml_string()
     }
 
     fn validate(&self) -> Result<(), ParseError> {
         // There are some agents
-        if self.random_start_positions.is_empty() {
+        if self.random_starts.is_empty() {
             return Err(ParseError::NoAgents);
         }
         // There are enough start/exit tiles
-        if self.exit_positions.len() < self.n_agents() {
+        if self.exits.len() < self.n_agents() {
             return Err(ParseError::NotEnoughExitTiles {
                 n_starts: self.n_agents(),
-                n_exits: self.exit_positions.len(),
+                n_exits: self.exits.len(),
             });
         }
         // All agents have at least one start tile
-        for (agent_id, starts) in self.random_start_positions.iter().enumerate() {
+        for (agent_id, starts) in self.random_starts.iter().enumerate() {
             if starts.is_empty() {
                 return Err(ParseError::AgentWithoutStart { agent_id });
             }
@@ -116,7 +152,7 @@ impl Config {
 
         // Check that there are enough start tiles for all agents
         let n_starts = self
-            .random_start_positions
+            .random_starts
             .iter()
             .fold(0usize, |sum, current| sum + current.len());
         if n_starts < self.n_agents() {
@@ -127,7 +163,7 @@ impl Config {
         }
 
         // Check that there are no lasers with an agent ID that does not exist
-        for (_, source) in self.source_configs.iter() {
+        for (_, source) in self.lasers.iter() {
             if source.agent_id >= self.n_agents() {
                 return Err(ParseError::InvalidLaserSourceAgentId {
                     asked_id: source.agent_id,
@@ -140,7 +176,7 @@ impl Config {
     }
 
     pub fn n_agents(&self) -> usize {
-        self.random_start_positions.len()
+        self.random_starts.len()
     }
 
     fn make_grid(&self) -> (Vec<Vec<Tile>>, Vec<Position>) {
@@ -152,21 +188,19 @@ impl Config {
             }
             grid.push(row);
         }
-        for pos in &self.gem_positions {
+        for pos in &self.gems {
             grid[pos.i][pos.j] = Tile::Gem(Gem::default());
         }
-        for pos in &self.exit_positions {
+        for pos in &self.exits {
             grid[pos.i][pos.j] = Tile::Exit { agent: None };
         }
-        for pos in &self.void_positions {
+        for pos in &self.voids {
             grid[pos.i][pos.j] = Tile::Void(Void::default());
         }
-        for pos in &self.walls_positions {
+        for pos in &self.walls {
             grid[pos.i][pos.j] = Tile::Wall;
         }
-        let laser_positions = laser_setup(&mut grid, &self.source_configs)
-            .into_iter()
-            .collect();
+        let laser_positions = laser_setup(&mut grid, &self.lasers).into_iter().collect();
         (grid, laser_positions)
     }
 }

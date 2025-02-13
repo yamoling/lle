@@ -56,7 +56,7 @@ class World:
     n_agents: int
     """The number of agents in the world."""
     world_string: str
-    """The string upon which the world has been constructed."""
+    """The string upon which the world has been constructed (as toml)."""
     image_dimensions: tuple[int, int]
     """The dimensions (in pixels) of the image redered (width, height)"""
     gems_collected: int
@@ -103,6 +103,9 @@ class World:
         Raises:
             - `ValueError`: if the level is invalid.
         """
+        ...
+
+    def seed(self, seed_value:int) -> None:
         ...
 
     def step(self, action: Action | list[Action]) -> list[WorldEvent]:
@@ -210,7 +213,7 @@ class World:
         """
         ...
 
-    def __getnewargs__(self) -> typing.Any:
+    def __getnewargs__(self) -> tuple:
         r"""
         This method is called to instantiate the object before deserialisation.
         It required "default arguments" to be provided to the __new__ method
@@ -237,6 +240,7 @@ class World:
 class WorldEvent:
     event_type: EventType
     agent_id: int
+    def __new__(cls,event_type:EventType, agent_id:int): ...
     def __str__(self) -> str:
         ...
 
@@ -279,8 +283,8 @@ class WorldState:
     """The collection status of each gem."""
     agents_alive: list[bool]
     """The status of each agent."""
-    def __new__(cls,agents_positions,gems_collected,agents_alive = ...): ...
-    def __init__(self, agents_positions,gems_collected,agents_alive = ...) -> None:
+    def __new__(cls,agents_positions: list[tuple[int, int]], gems_collected: list[bool], agents_alive: typing.Optional[list[bool]] = None): ...
+    def __init__(self, agents_positions: list[tuple[int, int]], gems_collected: list[bool], agents_alive: typing.Optional[list[bool]] = None) -> None:
         ...
 
     def as_array(self) -> numpy.typing.NDArray[numpy.float32]:
@@ -334,10 +338,13 @@ class Action(Enum):
     def name(self) -> str:
         """The string name of this action."""
         ...
-    ALL: typing.ClassVar[list[Action]]
+    ALL:  list[Action]
     """Ordered list of actions"""
-    N: typing.ClassVar[int]
+    N:  int
     """The number of actions (cardinality of the action space)"""
+
+    def __hash__(self) -> int:
+        ...
 
     def __repr__(self) -> str:
         ...
@@ -358,5 +365,11 @@ class EventType(Enum):
     GEM_COLLECTED = auto()
     AGENT_DIED = auto()
 
+
+    def __repr__(self) -> str:
+        ...
+
+    def __hash__(self) -> int:
+        ...
 
 

@@ -1,6 +1,6 @@
 import numpy as np
 
-from lle import World, Action, ObservationType
+from lle import World, Action, ObservationType, LLE
 from lle.observations import PartialGenerator, Layered, AgentZeroPerspective
 
 
@@ -24,6 +24,26 @@ G  . . ."""
     world.step([Action.NORTH])
     obs1 = observer.observe()
     assert all(obs1[:, 2] == 1.0)
+
+
+def test_retrieve_normalized_world_state():
+    w = World.level(1)
+    w.reset()
+    state = w.get_state()
+    generator = ObservationType.NORMALIZED_STATE.get_observation_generator(w)
+    np_state = generator.observe()[0]
+    res = generator.to_world_state(np_state)
+    assert res == state
+
+
+def test_retrieve_not_normalized_world_state():
+    w = World.level(1)
+    w.reset()
+    state = w.get_state()
+    generator = ObservationType.STATE.get_observation_generator(w)
+    np_state = generator.observe()[0]
+    res = generator.to_world_state(np_state)
+    assert res == state
 
 
 def test_observe_rgb_not_empty():
