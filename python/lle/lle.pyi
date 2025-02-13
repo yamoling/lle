@@ -63,13 +63,12 @@ class World:
     """The number of gems collected by the agents so far since the last reset."""
     agents_positions: list[tuple[int, int]]
     """The (i, j) position of each agent."""
-    gems:  dict[tuple[int, int], tiles.Gem]
-    """The gems with their respective position."""
-    lasers:  list[tuple[tuple[int, int], tiles.Laser]]
-    """The (i, j) position of every laser.
-    Since two lasers can cross, there can be duplicates in the positions."""
-    laser_sources:  dict[tuple[int, int], tiles.LaserSource]
-    """A mapping from (i, j) positions to laser sources."""
+    gems:  list[tiles.Gem]
+    """All the gems of the environment."""
+    lasers:  list[tiles.Laser]
+    """Every laser tile in the world."""
+    laser_sources:  list[tiles.LaserSource]
+    """All the laser sources of the environment"""
     start_pos: list[tuple[int, int]]
     """The start position of each agent for this reset."""
     agents: list[Agent]
@@ -102,6 +101,24 @@ class World:
         Retrieve the standard level (between `1` and `6`).
         Raises:
             - `ValueError`: if the level is invalid.
+        """
+        ...
+
+    def gem_at(self, position:tuple[int, int]) -> tiles.Gem:
+        r"""
+        Retrieve the gem at the given position.
+        Raises:
+          - `PyIndexError`: if the position is out of bounds.
+          - `PyValueError`: if the tile at the given position is not a gem.
+        """
+        ...
+
+    def source_at(self, position:tuple[int, int]) -> tiles.LaserSource:
+        r"""
+        Retrieve the laser source at the given position.
+        Raises:
+         - `PyIndexError`: if the position is out of bounds.
+         - `PyValueError`: if the tile at the given position is not a laser source.
         """
         ...
 

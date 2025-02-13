@@ -5,7 +5,7 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use crate::{
     agent::AgentId,
-    bindings::pydirection::PyDirection,
+    bindings::{pydirection::PyDirection, pyposition::PyPosition},
     tiles::{Laser, LaserId},
     Position, Tile, World,
 };
@@ -31,7 +31,9 @@ pub struct PyLaser {
     /// Whether the laser is enabled.
     #[pyo3(get)]
     is_enabled: bool,
-    pos: Position,
+    /// The (i, j) position of the tile.
+    #[pyo3(get)]
+    pos: PyPosition,
     world: Arc<Mutex<World>>,
 }
 
@@ -46,7 +48,7 @@ impl PyLaser {
             direction: PyDirection::from(laser.direction()),
             is_on: laser.is_on(),
             is_enabled: laser.is_enabled(),
-            pos,
+            pos: PyPosition::from(pos),
             world,
         }
     }
@@ -71,7 +73,7 @@ impl PyLaser {
     #[getter]
     pub fn agent(&self) -> Option<AgentId> {
         let world = &mut self.world.lock().unwrap();
-        let tile = inner(world, self.pos).unwrap();
+        let tile = inner(world, self.pos.into()).unwrap();
         match tile {
             Tile::Laser(laser) => laser.agent(),
             _ => None,

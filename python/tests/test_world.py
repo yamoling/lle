@@ -400,12 +400,13 @@ def test_get_standard_level():
 def test_laser_tile_state():
     world = World("L0E S0 . X")
     world.reset()
-    for _, laser in world.lasers:
+    assert len(world.lasers) == 3
+    for laser in world.lasers:
         assert laser.is_off
 
     world.step([Action.EAST])
-    for pos, laser in world.lasers:
-        match pos:
+    for laser in world.lasers:
+        match laser.pos:
             case (0, 1):
                 assert laser.is_on
             case _:
@@ -420,7 +421,7 @@ def test_disable_deadly_laser_source_and_walk_into_it():
         """
     )
     world.reset()
-    world.laser_sources[0, 2].disable()
+    world.source_at((0, 2)).disable()
     events = world.step([Action.STAY, Action.NORTH])
     assert len(events) == 0
     assert all(a.is_alive for a in world.agents)
@@ -434,20 +435,23 @@ def test_change_laser_colour():
         """
     )
     world.reset()
-    for (i, _), laser in world.lasers:
+    assert len(world.lasers) == 8
+    for laser in world.lasers:
+        i, _ = laser.pos
         if i == 0:
             assert laser.agent_id == 1
         else:
             assert laser.agent_id == 0
 
-    bot_source = world.laser_sources[1, 0]
+    bot_source = world.source_at((1, 0))
 
     NEW_COLOUR = 1
     bot_source.set_colour(NEW_COLOUR)
     world.reset()
 
     # Check that all the laser tiles have changed their colour
-    for (i, _), laser in world.lasers:
+    for laser in world.lasers:
+        i, _ = laser.pos
         if i == 1:
             assert laser.agent_id == NEW_COLOUR
     events = world.step([Action.SOUTH, Action.SOUTH])
@@ -458,7 +462,7 @@ def test_change_laser_colour():
 def test_change_laser_colour_to_negative_colour():
     world = World("L0E S0 . X")
     world.reset()
-    source = world.laser_sources[0, 0]
+    source = world.source_at((0, 0))
 
     try:
         source.set_colour(-1)
@@ -470,16 +474,16 @@ def test_change_laser_colour_to_negative_colour():
 def test_laser_colour_change_remains_after_reset():
     world = World("L0E S0 S1 X X")
     world.reset()
-    source = world.laser_sources[0, 0]
+    source = world.source_at((0, 0))
     source.agent_id = 1
     world.reset()
-    assert world.laser_sources[0, 0].agent_id == 1
+    assert world.source_at((0, 0)).agent_id == 1
 
 
 def test_change_laser_colour_to_invalid_colour():
     world = World("L0E S0 . X")
     world.reset()
-    source = world.laser_sources[0, 0]
+    source = world.source_at((0, 0))
 
     try:
         source.set_colour(2)
@@ -515,17 +519,19 @@ def test_change_laser_colour_back():
         """
     )
     world.reset()
-    bot_source = world.laser_sources[1, 0]
+    assert len(world.lasers) == 8
+    bot_source = world.source_at((1, 0))
     bot_source.set_colour(1)
     world.reset()
-    assert world.laser_sources[1, 0].agent_id == 1
-    for _, laser in world.lasers:
+    assert world.source_at((1, 0)).agent_id == 1
+    for laser in world.lasers:
         assert laser.agent_id == 1
 
     bot_source.set_colour(0)
     world.reset()
-    assert world.laser_sources[1, 0].agent_id == 0
-    for (i, j), laser in world.lasers:
+    assert world.source_at((1, 0)).agent_id == 0
+    for laser in world.lasers:
+        i, j = laser.pos
         if i == 0:
             assert laser.agent_id == 1
         elif i == 1:

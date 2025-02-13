@@ -9,8 +9,8 @@ from marlenv import DiscreteActionSpace, MARLEnv, Observation, State, Step
 from lle import Action, World, WorldState
 from lle.observations import ObservationType, StateGenerator
 
-from .builder import Builder
 from .reward_strategy import RewardStrategy, SingleObjective
+from .extras_generators import ExtraGenerator, NoExtras
 
 
 class DeathStrategy(IntEnum):
@@ -38,6 +38,7 @@ class LLE(MARLEnv[Sequence[int] | npt.NDArray, DiscreteActionSpace]):
     death_strategy: DeathStrategy
     walkable_lasers: bool
     reward_strategy: RewardStrategy
+    extras_generator: ExtraGenerator
 
     def __init__(
         self,
@@ -48,6 +49,7 @@ class LLE(MARLEnv[Sequence[int] | npt.NDArray, DiscreteActionSpace]):
         name: Optional[str] = None,
         death_strategy: Literal["respawn", "end"] = "end",
         walkable_lasers: bool = True,
+        extras_generator: Optional[ExtraGenerator] = None,
     ):
         self.world = world
         self.obs_type = obs_type.name
@@ -57,11 +59,16 @@ class LLE(MARLEnv[Sequence[int] | npt.NDArray, DiscreteActionSpace]):
         if reward_strategy is None:
             reward_strategy = SingleObjective(world.n_agents)
         self.reward_strategy = reward_strategy
+        if extras_generator is None:
+            extras_generator = NoExtras(world.n_agents)
+        self.extras_generator = extras_generator
         super().__init__(
-            DiscreteActionSpace(self.world.n_agents, Action.N, [a.name for a in Action.ALL]),
-            self.observation_generator.shape,
-            self.get_state().shape,
+            action_space=DiscreteActionSpace(self.world.n_agents, Action.N, [a.name for a in Action.ALL]),
+            observation_shape=self.observation_generator.shape,
+            state_shape=self.get_state().shape,
             reward_space=self.reward_strategy.reward_space,
+            extra_shape=(self.extras_generator.size,),
+            extra_meanings=self.extras_generator.meanings,
         )
         if name is not None:
             self.name = name
@@ -75,6 +82,7 @@ class LLE(MARLEnv[Sequence[int] | npt.NDArray, DiscreteActionSpace]):
                 raise ValueError(f"Unknown death strategy: {other}")
         self.walkable_lasers = walkable_lasers
         self.n_agents = world.n_agents
+        self.done = False
 
     @property
     def width(self) -> int:
@@ -90,15 +98,11 @@ class LLE(MARLEnv[Sequence[int] | npt.NDArray, DiscreteActionSpace]):
             case StateGenerator():
                 return self.state_generator.unit_size
             case other:
-                raise NotImplementedError(f"State type {other} does not support `unit_state_size`.")
+                raise NotImplementedError(f"State type {other} does not support `agent_state_size`.")
 
     @property
     def n_arrived(self):
         return self.reward_strategy.n_arrived
-
-    @property
-    def done(self):
-        return self.n_arrived == self.n_agents or self.reward_strategy.n_deads > 0
 
     def available_actions(self):
         available_actions = np.full((self.world.n_agents, self.n_actions), False, dtype=bool)
@@ -110,7 +114,7 @@ class LLE(MARLEnv[Sequence[int] | npt.NDArray, DiscreteActionSpace]):
                     agent_pos = agents_pos[agent]
                     new_pos = (agent_pos[0] + action.delta[0], agent_pos[1] + action.delta[1])
                     # ignore action if new position is an active laser of another color
-                    if any(laser_pos == new_pos and laser.agent_id != agent and laser.is_on for laser_pos, laser in lasers):
+                    if any(laser.pos == new_pos and laser.agent_id != agent and laser.is_on for laser in lasers):
                         continue
                 available_actions[agent, action.value] = True
         return available_actions
@@ -122,6 +126,7 @@ class LLE(MARLEnv[Sequence[int] | npt.NDArray, DiscreteActionSpace]):
         events = self.world.step(agents_actions)
         # Beware to compute the reward before checking if the episode is done !
         reward = self.reward_strategy.compute_reward(events)
+        self.done = self.compute_done()
         return Step(
             self.get_observation(),
             self.get_state(),
@@ -133,6 +138,8 @@ class LLE(MARLEnv[Sequence[int] | npt.NDArray, DiscreteActionSpace]):
     def reset(self):
         self.world.reset()
         self.reward_strategy.reset()
+        self.extras_generator.reset()
+        self.done = False
         return self.get_observation(), self.get_state()
 
     def get_state(self):
@@ -146,23 +153,33 @@ class LLE(MARLEnv[Sequence[int] | npt.NDArray, DiscreteActionSpace]):
         self.reward_strategy.reset()
         events = self.world.set_state(world_state)
         self.reward_strategy.compute_reward(events)
+        self.done = self.compute_done()
 
     def get_observation(self):
-        return Observation(self.observation_generator.observe(), self.available_actions())
+        return Observation(
+            self.observation_generator.observe(),
+            self.available_actions(),
+            self.extras_generator.compute(),
+        )
 
     @staticmethod
     def from_str(world_string: str):
+        from .builder import Builder
+
         return Builder(World(world_string))
 
     @staticmethod
     def from_file(path: str):
         import os
+        from .builder import Builder
 
         return Builder(World.from_file(path)).name(f"LLE-{os.path.basename(path)}")
 
     @staticmethod
     def level(level: int):
         """Load a level from the levels folder"""
+        from .builder import Builder
+
         return Builder(World.level(level)).name(f"LLE-lvl{level}")
 
     def seed(self, seed_value: int):
@@ -170,3 +187,6 @@ class LLE(MARLEnv[Sequence[int] | npt.NDArray, DiscreteActionSpace]):
 
     def get_image(self):
         return self.world.get_image()
+
+    def compute_done(self):
+        return self.n_arrived == self.n_agents or self.reward_strategy.n_deads > 0

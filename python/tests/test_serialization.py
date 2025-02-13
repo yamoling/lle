@@ -40,8 +40,9 @@ def test_pickled_world_keeps_same_laser_ids():
     world = World("L0E L1S S0 S1 X X")
     serialised = pickle.dumps(world)
     deserialised: World = pickle.loads(serialised)
-    for pos in world.laser_sources:
-        assert pos in deserialised.laser_sources
-        assert world.laser_sources[pos].laser_id == deserialised.laser_sources[pos].laser_id
-        assert world.laser_sources[pos].agent_id == deserialised.laser_sources[pos].agent_id
-        assert world.laser_sources[pos].direction == deserialised.laser_sources[pos].direction
+    for source in world.laser_sources:
+        pos = source.pos
+        assert source in deserialised.laser_sources
+        assert world.source_at(pos).laser_id == deserialised.source_at(pos).laser_id
+        assert world.source_at(pos).agent_id == deserialised.source_at(pos).agent_id
+        assert world.source_at(pos).direction == deserialised.source_at(pos).direction

@@ -1,7 +1,10 @@
 from dataclasses import dataclass
-from typing import Literal
+from typing import Iterable, Literal, Optional
 from lle import World, ObservationType
-from .reward_strategy import RewardStrategy, SingleObjective, MultiObjective
+from lle.tiles import LaserSource
+from .reward_strategy import RewardStrategy, SingleObjective, MultiObjective, PotentialShapedLLE
+from .env import LLE
+from .extras_generators import ExtraGenerator, LaserSubgoal, MultiGenerator, NoExtras
 
 
 @dataclass
@@ -13,6 +16,7 @@ class Builder:
     _walkable_lasers: bool
     _env_name: str
     _reward_strategy: RewardStrategy
+    _extras_generator: ExtraGenerator
 
     def __init__(self, world: World):
         self._world = world
@@ -22,41 +26,7 @@ class Builder:
         self._walkable_lasers = True
         self._env_name = "LLE"
         self._reward_strategy = SingleObjective(world.n_agents)
-
-    def str_to_obs(
-        self,
-        obs_type: Literal[
-            "layered",
-            "flattened",
-            "partial3x3",
-            "partial5x5",
-            "partial7x7",
-            "state",
-            "image",
-            "perspective",
-            "normalized-state",
-        ],
-    ) -> ObservationType:
-        match obs_type:
-            case "layered":
-                return ObservationType.LAYERED
-            case "flattened":
-                return ObservationType.FLATTENED
-            case "partial3x3":
-                return ObservationType.PARTIAL_3x3
-            case "partial5x5":
-                return ObservationType.PARTIAL_5x5
-            case "partial7x7":
-                return ObservationType.PARTIAL_7x7
-            case "state":
-                return ObservationType.STATE
-            case "state-normalized":
-                return ObservationType.NORMALIZED_STATE
-            case "image":
-                return ObservationType.RGB_IMAGE
-            case "perspective":
-                return ObservationType.AGENT0_PERSPECTIVE_LAYERED
-        raise ValueError(f"Invalid observation type: {obs_type}")
+        self._extras_generator = NoExtras(world.n_agents)
 
     def obs_type(
         self,
@@ -67,7 +37,7 @@ class Builder:
         Set the observation type of the environment (set to ObservationType.LAYERED by default).
         """
         if isinstance(obs_type, str):
-            obs_type = self.str_to_obs(obs_type)
+            obs_type = str_to_obs(obs_type)
         self._obs_type = obs_type
         return self
 
@@ -80,7 +50,7 @@ class Builder:
         Set the state type of the environment (set to ObservationType.STATE by default).
         """
         if isinstance(state_type, str):
-            state_type = self.str_to_obs(state_type)
+            state_type = str_to_obs(state_type)
         self._state_type = state_type
         return self
 
@@ -102,25 +72,75 @@ class Builder:
         self._env_name = name
         return self
 
-    def multi_objective(self, is_multi_objective: bool = True):
-        if not is_multi_objective:
-            return self.single_objective()
+    def multi_objective(self):
+        match self._reward_strategy:
+            case MultiObjective():
+                return self
+            case PotentialShapedLLE():
+                if isinstance(self._reward_strategy.strategy, MultiObjective):
+                    return self
+                raise ValueError("Cannot set multi-objective after setting a reward shaping strategy. Call `multi_objective()` first.")
         self._reward_strategy = MultiObjective(self._world.n_agents)
         self._env_name = f"{self._env_name}-MO"
         return self
 
-    def single_objective(self, is_single_objective: bool = True):
-        if not is_single_objective:
-            return self.multi_objective()
-        self._reward_strategy = SingleObjective(self._world.n_agents)
-        self._env_name = f"{self._env_name}-SO"
+    def pbrs(
+        self,
+        gamma: float = 0.99,
+        reward_value: float = 0.5,
+        lasers_to_reward: Optional[Iterable[LaserSource]] = None,
+        with_extras: bool = True,
+    ):
+        """
+        Add Potential-Based Reward Shaping such that crossing the given lasers (all by default) gives a reward.
+        """
+        if lasers_to_reward is None:
+            lasers_to_reward = self._world.laser_sources
+        if with_extras:
+            self.add_extras("laser_subgoal")
+        self._env_name = f"{self._env_name}-PBRS"
+        self._reward_strategy = PotentialShapedLLE(
+            self._reward_strategy,
+            self._world,
+            gamma,
+            reward_value,
+            lasers_to_reward,
+        )
         return self
 
-    def build(self):
-        # avoid circular imports
-        from .env import LLE
+    def add_extras(self, *extras: Literal["laser_subgoal"] | ExtraGenerator):
+        """
+        Add extra information to the observation.
+        """
+        if len(extras) == 0:
+            return self
 
-        return LLE(
+        match self._extras_generator:
+            case NoExtras():
+                all_extras = list[ExtraGenerator]()
+            case MultiGenerator():
+                all_extras = self._extras_generator.generators
+            case ExtraGenerator() as other:
+                all_extras = [other]
+
+        for extra_type in extras:
+            match extra_type:
+                case NoExtras():
+                    pass
+                case ExtraGenerator():
+                    all_extras.append(extra_type)
+                case "laser_subgoal":
+                    all_extras.append(LaserSubgoal(self._world))
+                case other:
+                    raise ValueError(f"Invalid extra type: {other}")
+        if len(all_extras) == 1:
+            self._extras_generator = all_extras[0]
+        else:
+            self._extras_generator = MultiGenerator(*all_extras)
+        return self
+
+    def build(self) -> LLE:
+        env = LLE(
             world=self._world,
             obs_type=self._obs_type,
             state_type=self._state_type,
@@ -128,4 +148,41 @@ class Builder:
             walkable_lasers=self._walkable_lasers,
             name=self._env_name,
             reward_strategy=self._reward_strategy,
+            extras_generator=self._extras_generator,
         )
+        return env
+
+
+def str_to_obs(
+    obs_type: Literal[
+        "layered",
+        "flattened",
+        "partial3x3",
+        "partial5x5",
+        "partial7x7",
+        "state",
+        "image",
+        "perspective",
+        "normalized-state",
+    ],
+) -> ObservationType:
+    match obs_type:
+        case "layered":
+            return ObservationType.LAYERED
+        case "flattened":
+            return ObservationType.FLATTENED
+        case "partial3x3":
+            return ObservationType.PARTIAL_3x3
+        case "partial5x5":
+            return ObservationType.PARTIAL_5x5
+        case "partial7x7":
+            return ObservationType.PARTIAL_7x7
+        case "state":
+            return ObservationType.STATE
+        case "state-normalized":
+            return ObservationType.NORMALIZED_STATE
+        case "image":
+            return ObservationType.RGB_IMAGE
+        case "perspective":
+            return ObservationType.AGENT0_PERSPECTIVE_LAYERED
+    raise ValueError(f"Invalid observation type: {obs_type}")

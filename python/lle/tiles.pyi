@@ -34,6 +34,8 @@ class Laser:
     """Whether the laser is turned on."""
     is_enabled: bool
     """Whether the laser is enabled."""
+    pos: tuple[int, int]
+    """The (i, j) position of the tile."""
     is_off: bool
     """Whether the laser is turned off."""
     is_disabled: bool

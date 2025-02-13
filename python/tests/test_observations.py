@@ -111,14 +111,17 @@ def test_observe_layered_gems_walls():
 
     for i, j in world.wall_pos:
         assert np.all(layers[:, WALL_LAYER, i, j] == 1)
-    for i, j in world.gems.keys():
+    for gem in world.gems:
+        i, j = gem.pos
         assert np.all(layers[:, GEM_LAYER, i, j] == 1)
     for i, j in world.exit_pos:
         assert np.all(layers[:, EXIT_LAYER, i, j] == 1)
-    for (i, j), laser in world.lasers:
+    for laser in world.lasers:
         if laser.is_on:
+            i, j = laser.pos
             assert np.all(layers[:, LASER_0_LAYER + laser.agent_id, i, j] == 1)
-    for (i, j), source in world.laser_sources.items():
+    for source in world.laser_sources:
+        (i, j) = source.pos
         assert np.all(layers[:, LASER_0_LAYER + source.agent_id, i, j] == -1)
     assert np.all(layers[:, VOID_LAYER] == 0)
 
@@ -334,3 +337,93 @@ def test_perspective():
     assert np.all(obs1[L0, 2, :3] == 1)
 
     assert np.all(obs2[L0] == 0)
+
+
+def _perform_tests_extras_one_agent(env: LLE):
+    assert env.extra_shape[0] == 1
+
+    obs, _ = env.reset()
+    assert obs.extras_shape[0] == 1
+    assert obs.extras[0][0] == 0.0
+
+
+def test_subgoal_extras_one_laser():
+    env = (
+        LLE.from_str("""
+                       S0  X 
+                       .  L0W""")
+        .add_extras("laser_subgoal")
+        .build()
+    )
+    _perform_tests_extras_one_agent(env)
+    env.reset()
+    _perform_tests_extras_one_agent(env)
+
+
+def test_pbrs_subgoals_extras_one_laser():
+    env = (
+        LLE.from_str("""
+                       S0  X 
+                       .  L0W""")
+        .pbrs(with_extras=True)
+        .build()
+    )
+    _perform_tests_extras_one_agent(env)
+    env.reset()
+    _perform_tests_extras_one_agent(env)
+
+
+def _perform_tests_two_agents(env: LLE):
+    assert env.extra_shape[0] == 2
+
+    obs, _ = env.reset()
+    assert obs.extras_shape[0] == 2
+    assert np.all(obs.extras == 0.0)
+
+    step = env.step([Action.SOUTH.value, Action.STAY.value])
+    obs = step.obs
+    assert obs.extras_shape[0] == 2
+    assert np.sum(obs.extras[0]) == 1.0
+    assert np.sum(obs.extras[1]) == 0.0
+
+    step = env.step([Action.NORTH.value, Action.STAY.value])
+    obs = step.obs
+    assert obs.extras_shape[0] == 2
+    assert np.sum(obs.extras[0]) == 1.0
+    assert np.sum(obs.extras[1]) == 0.0
+
+    # Even when an agent dies, the subgoal is reached
+    step = env.step([Action.STAY.value, Action.SOUTH.value])
+    assert step.done
+    obs = step.obs
+    assert obs.extras_shape[0] == 2
+    assert np.sum(obs.extras[0]) == 1.0
+    assert np.sum(obs.extras[1]) == 1.0
+
+
+def test_pbrs_subgoals_extras_two_lasers_two_agents():
+    env = (
+        LLE.from_str("""
+                       S0  S1 X  X
+                       .   .  . L0W
+                       .   .  . L1W""")
+        .pbrs(with_extras=True)
+        .build()
+    )
+    _perform_tests_two_agents(env)
+    env.reset()
+    _perform_tests_two_agents(env)
+
+
+def test_extras_subgoals_extras_two_lasers_two_agents():
+    env = (
+        LLE.from_str("""
+                       S0  S1 X  X
+                       .   .  . L0W
+                       .   .  . L1W""")
+        .add_extras("laser_subgoal")
+        .build()
+    )
+    _perform_tests_two_agents(env)
+    env.reset()
+    _perform_tests_two_agents(env)

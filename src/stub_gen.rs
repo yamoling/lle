@@ -97,20 +97,35 @@ fn set_world_attribute_imports(info: &mut StubInfo) {
         .iter_mut()
         .find(|m| m.name == "gems")
         .unwrap();
-    gems.r#type.name = " dict[tuple[int, int], tiles.Gem]".to_string();
+    gems.r#type.name = " list[tiles.Gem]".to_string();
+
+    let gem_at = world_def
+        .methods
+        .iter_mut()
+        .find(|m| m.name == "gem_at")
+        .unwrap();
+    gem_at.r#return.name = "tiles.Gem".to_string();
+
     let lasers = world_def
         .members
         .iter_mut()
         .find(|m| m.name == "lasers")
         .unwrap();
-    lasers.r#type.name = " list[tuple[tuple[int, int], tiles.Laser]]".to_string();
+    lasers.r#type.name = " list[tiles.Laser]".to_string();
 
     let laser_sources = world_def
         .members
         .iter_mut()
         .find(|m| m.name == "laser_sources")
         .unwrap();
-    laser_sources.r#type.name = " dict[tuple[int, int], tiles.LaserSource]".to_string();
+    laser_sources.r#type.name = " list[tiles.LaserSource]".to_string();
+
+    let source_at = world_def
+        .methods
+        .iter_mut()
+        .find(|m| m.name == "source_at")
+        .unwrap();
+    source_at.r#return.name = "tiles.LaserSource".to_string();
 }
 
 /// Classattrs are currently not supported by pyo3-stub-gen-derive, so we add them manually

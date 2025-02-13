@@ -10,7 +10,6 @@ S1 L1N X
 """
         )
         .death_strategy("end")
-        .single_objective()
         .build()
     )
     env.reset()
