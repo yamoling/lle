@@ -1,11 +1,17 @@
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from abc import abstractmethod, ABC
+from typing import Iterable
+from functools import cached_property
 
 import numpy as np
 import numpy.typing as npt
 from marlenv import DiscreteSpace
 
-from lle import WorldEvent, EventType
+from lle import EventType, World, WorldEvent
+from lle.tiles import LaserSource
+from lle.types import Position
+
+from .utils import get_lasers_of
 
 REWARD_GEM = 1.0
 REWARD_EXIT = 1.0
@@ -17,6 +23,9 @@ REWARD_DEATH = -1.0
 class RewardStrategy(ABC):
     objectives: list[str]
     n_agents: int
+    reward_space: DiscreteSpace
+    n_arrived: int
+    n_deads: int
 
     def __init__(self, n_agents: int, objectives: list[str]):
         self.objectives = objectives
@@ -25,7 +34,7 @@ class RewardStrategy(ABC):
         self.n_arrived = 0
         self.n_deads = 0
 
-    @property
+    @cached_property
     def n_objectives(self) -> int:
         return self.reward_space.shape[0]
 
@@ -91,3 +100,67 @@ class MultiObjective(RewardStrategy):
         elif self.n_arrived == self.n_agents:
             reward[MultiObjective.RW_DONE_IDX] += REWARD_DONE
         return reward
+
+
+class PotentialShapedLLE(RewardStrategy):
+    """
+    Potential shaping for the Laser Learning Environment (LLE).
+
+    https://people.eecs.berkeley.edu/~pabbeel/cs287-fa09/readings/NgHaradaRussell-shaping-ICML1999.pdf
+    """
+
+    def __init__(
+        self,
+        strategy: RewardStrategy,
+        world: World,
+        gamma: float,
+        reward_value: float,
+        lasers_to_reward: Iterable[LaserSource],
+    ):
+        self.world = world
+        self.reward_value = reward_value
+        self.gamma = gamma
+        match strategy:
+            case SingleObjective():
+                super().__init__(strategy.n_agents, strategy.objectives)
+            case MultiObjective():
+                objectives = strategy.objectives + ["PBRS"]
+                super().__init__(strategy.n_agents, objectives)
+        self.strategy = strategy
+        self.pos_to_reward = self._compute_positions_to_reward(world, lasers_to_reward)
+        self.agents_pos_reached = np.full((world.n_agents, len(self.pos_to_reward)), False, dtype=np.bool)
+        self.previous_potential = self.compute_potential()
+
+    def compute_reward(self, events: list[WorldEvent]):
+        reward = self.strategy.compute_reward(events)
+        current_potential = self.compute_potential()
+        potential_reward = self.gamma * self.previous_potential - current_potential
+        if self.n_objectives == 1:
+            reward[0] += potential_reward
+        else:
+            reward = np.concat((reward, [potential_reward]))
+        # Book keeping
+        self.previous_potential = current_potential
+        self.n_deads = self.strategy.n_deads
+        self.n_arrived = self.strategy.n_arrived
+        return reward
+
+    @staticmethod
+    def _compute_positions_to_reward(world: World, lasers_to_reward: Iterable[LaserSource]):
+        pos_to_reward = list[set[Position]]()
+        for source in lasers_to_reward:
+            in_laser_rewards = set(laser.pos for laser in get_lasers_of(world, source))
+            pos_to_reward.append(in_laser_rewards)
+        return pos_to_reward
+
+    def compute_potential(self):
+        for agent_num, agent_pos in enumerate(self.world.agents_positions):
+            for j, rewarded_positions in enumerate(self.pos_to_reward):
+                if agent_pos in rewarded_positions:
+                    self.agents_pos_reached[agent_num, j] = True
+        return float(self.agents_pos_reached.size - self.agents_pos_reached.sum()) * self.reward_value
+
+    def reset(self):
+        super().reset()
+        self.strategy.reset()
+        self.previous_potential = self.compute_potential()

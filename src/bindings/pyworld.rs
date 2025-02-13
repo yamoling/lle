@@ -1,18 +1,15 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 use itertools::izip;
 use numpy::{PyArray1, PyArray3, PyArrayMethods};
 use pyo3::{
-    exceptions::PyTypeError,
+    exceptions::{PyIndexError, PyTypeError, PyValueError},
     prelude::*,
     types::{PyDict, PyTuple},
 };
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
-use crate::{Action, Renderer, World};
+use crate::{Action, Renderer, Tile, World};
 
 use super::{
     pyaction::PyAction,
@@ -186,45 +183,79 @@ impl PyWorld {
             .collect()
     }
 
-    /// The gems with their respective position.
+    /// Retrieve the gem at the given position.
+    /// Raises:
+    ///   - `PyIndexError`: if the position is out of bounds.
+    ///   - `PyValueError`: if the tile at the given position is not a gem.
+    fn gem_at(&self, position: PyPosition) -> PyResult<PyGem> {
+        let world = self.world.lock().unwrap();
+        let tile = match world.at(&position.into()) {
+            Some(tile) => tile,
+            None => return Err(PyIndexError::new_err("Position out of bounds")),
+        };
+        match tile {
+            Tile::Gem(g) => Ok(PyGem::new(g, position, self.world.clone())),
+            _ => Err(PyValueError::new_err(format!(
+                "Tile at position {position:?} is not a gem"
+            ))),
+        }
+    }
+
+    /// All the gems of the environment.
     #[getter]
-    fn gems(&self) -> HashMap<PyPosition, PyGem> {
+    fn gems(&self) -> Vec<PyGem> {
         let arc_world = self.world.clone();
         let world = self.world.lock().unwrap();
         izip!(world.gems_positions(), world.gems())
             .into_iter()
-            .map(|(pos, gem)| (pos.into(), PyGem::new(gem, pos.into(), arc_world.clone())))
+            .map(|(pos, gem)| PyGem::new(gem, pos.into(), arc_world.clone()))
             .collect()
     }
 
-    /// The (i, j) position of every laser.
-    /// Since two lasers can cross, there can be duplicates in the positions.
+    /// Every laser tile in the world.
     #[getter]
-    fn lasers(&self) -> Vec<(PyPosition, PyLaser)> {
+    fn lasers(&self) -> Vec<PyLaser> {
         let arc_world = self.world.clone();
         let world = self.world.lock().unwrap();
         world
             .lasers()
             .iter()
-            .map(|(pos, laser)| ((*pos).into(), PyLaser::new(laser, *pos, arc_world.clone())))
+            .map(|(pos, laser)| (PyLaser::new(laser, *pos, arc_world.clone())))
             .collect()
     }
 
-    /// A mapping from (i, j) positions to laser sources.
+    /// All the laser sources of the environment
     #[getter]
-    fn laser_sources(&self) -> HashMap<PyPosition, PyLaserSource> {
+    fn laser_sources(&self) -> Vec<PyLaserSource> {
         let arc_world = self.world.clone();
         let world = self.world.lock().unwrap();
         world
             .sources()
             .iter()
             .map(|(pos, laser_source)| {
-                (
-                    (*pos).into(),
-                    PyLaserSource::new(arc_world.clone(), pos.into(), laser_source),
-                )
+                PyLaserSource::new(arc_world.clone(), pos.into(), laser_source)
             })
             .collect()
+    }
+
+    /// Retrieve the laser source at the given position.
+    /// Raises:
+    ///  - `PyIndexError`: if the position is out of bounds.
+    ///  - `PyValueError`: if the tile at the given position is not a laser source.
+    fn source_at(&self, position: PyPosition) -> PyResult<PyLaserSource> {
+        let world = self.world.lock().unwrap();
+        let tile = match world.at(&position.into()) {
+            Some(source) => source,
+            None => return Err(PyIndexError::new_err("Position out of bounds")),
+        };
+        match tile {
+            Tile::LaserSource(source) => {
+                Ok(PyLaserSource::new(self.world.clone(), position, source))
+            }
+            _ => Err(PyValueError::new_err(format!(
+                "Tile at position {position:?} is not a laser source"
+            ))),
+        }
     }
 
     #[getter]

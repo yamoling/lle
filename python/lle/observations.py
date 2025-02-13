@@ -189,7 +189,7 @@ class LayeredPadded(ObservationGenerator):
         self.GEM = self.VOID + 1
         self.EXIT = self.GEM + 1
         self._shape = (self.EXIT + 1, world.height, world.width)
-        self.ordered_gem_pos = sorted(world.gems.keys())
+        self.ordered_gem_pos = sorted(gem.pos for gem in world.gems)
 
         self.static_obs = self._setup()
 
@@ -202,7 +202,8 @@ class LayeredPadded(ObservationGenerator):
         for i, j in self._world.wall_pos:
             obs[self.WALL, i, j] = 1.0
 
-        for (i, j), source in self._world.laser_sources.items():
+        for source in self._world.laser_sources:
+            i, j = source.pos
             obs[self.LASER_0 + source.agent_id, i, j] = -1.0
             obs[self.WALL, i, j] = 1.0
 
@@ -225,10 +226,12 @@ class LayeredPadded(ObservationGenerator):
 
     def observe(self):
         obs = np.copy(self.static_obs)
-        for (i, j), laser in self._world.lasers:
+        for laser in self._world.lasers:
+            i, j = laser.pos
             if laser.is_on:
                 obs[self.LASER_0 + laser.agent_id, i, j] = 1.0
-        for (i, j), gem in self._world.gems.items():
+        for gem in self._world.gems:
+            i, j = gem.pos
             if not gem.is_collected:
                 obs[self.GEM, i, j] = 1.0
         for i, (y, x) in enumerate(self._world.agents_positions):
@@ -319,7 +322,7 @@ class PartialGenerator(ObservationGenerator):
             for a2, other_pos in enumerate(self._world.agents_positions):
                 self.encode_layer(obs[a, a2], agent_pos, [other_pos])
             # Gems
-            self.encode_layer(obs[a, self.GEM], agent_pos, [gem_pos for gem_pos, gem in self._world.gems.items() if not gem.is_collected])
+            self.encode_layer(obs[a, self.GEM], agent_pos, [gem.pos for gem in self._world.gems if not gem.is_collected])
             # Exits
             self.encode_layer(obs[a, self.EXIT], agent_pos, [exit_pos for exit_pos in self._world.exit_pos])
             # Walls
@@ -329,16 +332,16 @@ class PartialGenerator(ObservationGenerator):
             for agent_id, positions in laser_positions.items():
                 self.encode_layer(obs[a, self.LASER_0 + agent_id], agent_pos, positions)
             # Laser sources
-            for pos, source in self._world.laser_sources.items():
-                self.encode_layer(obs[a, self.LASER_0 + source.agent_id], agent_pos, [pos], fill_value=-1.0)
+            for source in self._world.laser_sources:
+                self.encode_layer(obs[a, self.LASER_0 + source.agent_id], agent_pos, [source.pos], fill_value=-1.0)
         return obs
 
     def _get_lasers_positions(self) -> dict[AgentId, list[Position]]:
         laser_positions = dict[AgentId, list[Position]]()
-        for laser_pos, laser in self._world.lasers:
+        for laser in self._world.lasers:
             if laser.is_on:
                 lasers = laser_positions.get(laser.agent_id, [])
-                lasers.append(laser_pos)
+                lasers.append(laser.pos)
                 laser_positions[laser.agent_id] = lasers
         return laser_positions
 

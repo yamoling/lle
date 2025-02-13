@@ -271,14 +271,14 @@ def test_seed():
 
 def test_env_name():
     for level in range(1, 7):
-        env = LLE.level(level).single_objective().build()
-        assert env.name == f"LLE-lvl{level}-SO"
+        env = LLE.level(level).build()
+        assert env.name == f"LLE-lvl{level}"
 
         env = LLE.level(level).multi_objective().build()
         assert env.name == f"LLE-lvl{level}-MO"
 
-    env = LLE.from_str("S0 X").single_objective().build()
-    assert env.name == "LLE-SO"
+    env = LLE.from_str("S0 X").build()
+    assert env.name == "LLE"
 
     env = LLE.from_str("S0 X").multi_objective().build()
     assert env.name == "LLE-MO"
@@ -287,6 +287,6 @@ def test_env_name():
         temp_file.write("S0 X")
         temp_file.flush()
 
-        env = LLE.from_file(temp_file.name).single_objective().build()
+        env = LLE.from_file(temp_file.name).build()
         base = os.path.basename(temp_file.name)
-        assert env.name == f"LLE-{base}-SO"
+        assert env.name == f"LLE-{base}"

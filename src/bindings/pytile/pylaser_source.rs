@@ -129,6 +129,15 @@ impl PyLaserSource {
         self.set_agent_id(colour)
     }
 
+    /// Equality is based on the agent ID, direction, laser ID, and position.
+    /// Whether a laser source is enabled is not considered.
+    pub fn __eq__(&self, other: &PyLaserSource) -> bool {
+        self.agent_id == other.agent_id
+            && self.direction == other.direction
+            && self.laser_id == other.laser_id
+            && self.pos == other.pos
+    }
+
     pub fn __str__(&self) -> String {
         format!(
             "LaserSource(laser_id={}, is_enabled={}, direction={}, agent_id={})",
