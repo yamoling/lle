@@ -39,5 +39,4 @@ dev-dependencies = [
     "pytest-xdist>=3.6.1",
     "maturin>=1.7.0",
     "pdoc>=15.0.1",
-    "ruff>=0.6.8",
 ]

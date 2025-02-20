@@ -15,7 +15,6 @@ mod pyworld_state;
 pub use pyaction::PyAction;
 pub use pytile::{PyLaser, PyLaserSource};
 pub use pyworld::PyWorld;
-// pub use pyworld_builder::PyWorldBuilder;
 pub use pyworld_state::PyWorldState;
 
 #[pymodule]
