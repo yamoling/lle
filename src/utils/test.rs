@@ -2,7 +2,7 @@ use crate::Position;
 
 #[test]
 fn test_sample_different() {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let random_start_positions = vec![
         vec![(0, 0).into()],
         vec![(1, 0).into()],
@@ -14,7 +14,7 @@ fn test_sample_different() {
 
 #[test]
 fn test_sample_different_deterministic() {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let random_start_positions = vec![
         vec![Position { i: 0, j: 0 }],
         vec![Position { i: 0, j: 0 }, Position { i: 1, j: 0 }],
@@ -31,7 +31,7 @@ fn test_sample_different_deterministic() {
 #[test]
 #[should_panic]
 fn test_sample_different_impossible() {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let random_start_positions = vec![
         vec![Position { i: 0, j: 0 }],
         vec![Position { i: 0, j: 1 }],

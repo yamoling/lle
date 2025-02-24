@@ -83,10 +83,6 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - name: Python stub generation
         run: cargo run --bin stub-gen
-      - name: Format code
-        run: |
-          pip install ruff 
-          ruff format python
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:

@@ -9,9 +9,9 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-    "numpy>=2.2.0",
+    "numpy>=2.0.0",
     "multi-agent-rlenv>=3.0.0",
-    "opencv-python>=4.10.0.84",
+    "opencv-python>=4.0.0",
 ]
 description = "Laser Learning Environment (LLE) for Multi-Agent Reinforcement Learning"
 name = "laser-learning-environment"
@@ -39,5 +39,4 @@ dev-dependencies = [
     "pytest-xdist>=3.6.1",
     "maturin>=1.7.0",
     "pdoc>=15.0.1",
-    "ruff>=0.6.8",
 ]
