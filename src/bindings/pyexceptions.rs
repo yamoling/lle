@@ -91,6 +91,7 @@ pub fn parse_error_to_exception(error: ParseError) -> PyErr {
         ParseError::AgentWithoutStart { agent_id } => {
             format!("Agent {agent_id} has no start tile")
         },
+        ParseError::InconsistentNumberOfAgents { toml_n_agents_field, actual_n_agents } => format!("It is explicitely specified that there are {toml_n_agents_field} agents, but there are actually {actual_n_agents} agents in the rest of the configuration."),
         ParseError::InconsistentWorldStringWidth {
             toml_width,
             world_str_width,

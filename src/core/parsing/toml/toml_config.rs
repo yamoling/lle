@@ -13,6 +13,7 @@ use super::{AgentConfig, PositionsConfig, TomlLaserConfig};
 pub struct TomlConfig {
     pub width: Option<usize>,
     pub height: Option<usize>,
+    pub n_agents: Option<usize>,
     pub world_string: Option<String>,
     #[serde(default)]
     pub agents: Vec<AgentConfig>,
@@ -26,6 +27,8 @@ pub struct TomlConfig {
     pub voids: Vec<PositionsConfig>,
     #[serde(default)]
     pub lasers: Vec<TomlLaserConfig>,
+    #[serde(default)]
+    pub starts: Vec<PositionsConfig>,
 }
 
 impl TomlConfig {
@@ -60,7 +63,15 @@ impl TomlConfig {
                 self.agents.push(AgentConfig::default());
             }
             let positions = starts.iter().map(|pos| PositionsConfig::from(pos));
-            self.agents[agent_num].start_positions.extend(positions);
+            self.agents[agent_num].starts.extend(positions);
+        }
+        if let Some(n) = self.n_agents {
+            if n < self.agents.len() {
+                return Err(ParseError::InconsistentNumberOfAgents {
+                    toml_n_agents_field: n,
+                    actual_n_agents: self.agents.len(),
+                });
+            }
         }
 
         for pos in config.exits() {
@@ -120,26 +131,44 @@ pub fn parse(toml_content: &str) -> Result<WorldConfig, ParseError> {
 impl TryInto<WorldConfig> for TomlConfig {
     type Error = ParseError;
     fn try_into(mut self) -> Result<WorldConfig, Self::Error> {
+        if let Some(n) = self.n_agents {
+            while n > self.agents.len() {
+                self.agents.push(AgentConfig::default());
+            }
+        }
         self.complete_with_world_string()?;
         let width = match self.width {
             Some(w) => w,
             None => return Err(ParseError::EmptyWorld),
         };
-        let height = self.height.unwrap();
+        let height = match self.height {
+            Some(h) => h,
+            None => return Err(ParseError::EmptyWorld),
+        };
+        let starts_positions = compute_positions(&self.starts, width, height)?;
         let walls_positions = compute_positions(&self.walls, width, height)?;
-        let random_start_positions = self
+        let exit_positions = compute_positions(&self.exits, width, height)?;
+        let agents_random_start_positions = self
             .agents
             .iter()
-            .map(|a| a.compute_start_positions(width, height, &walls_positions))
+            .map(|a| {
+                a.compute_start_positions(
+                    &starts_positions,
+                    width,
+                    height,
+                    &walls_positions,
+                    &exit_positions,
+                )
+            })
             .collect::<Result<Vec<_>, _>>()?;
         let source_configs = self.lasers.iter().map(|l| (l.position, l.into())).collect();
         Ok(WorldConfig::new(
             width,
             height,
             compute_positions(&self.gems, width, height)?,
-            random_start_positions,
+            agents_random_start_positions,
             compute_positions(&self.voids, width, height)?,
-            compute_positions(&self.exits, width, height)?,
+            exit_positions,
             walls_positions,
             source_configs,
         ))
@@ -153,7 +182,7 @@ impl From<&WorldConfig> for TomlConfig {
         let mut agents = vec![];
         for starts in value.random_starts() {
             agents.push(AgentConfig {
-                start_positions: starts
+                starts: starts
                     .iter()
                     .map(|pos| PositionsConfig::from(pos))
                     .collect(),
@@ -171,6 +200,7 @@ impl From<&WorldConfig> for TomlConfig {
         Self {
             width: Some(width),
             height: Some(height),
+            n_agents: Some(agents.len()),
             world_string: None,
             agents,
             exits,
@@ -178,13 +208,14 @@ impl From<&WorldConfig> for TomlConfig {
             walls,
             voids,
             lasers,
+            starts: vec![],
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{ParseError, World};
+    use crate::{ParseError, Position, World};
 
     use super::parse;
 
@@ -256,6 +287,78 @@ world_string = "S0 X"
     }
 
     #[test]
+    fn parse_start_pos_rows() {
+        match parse(
+            r#"
+height = 10
+width = 10
+n_agents = 2
+starts = [{row = 0}]
+"#,
+        ) {
+            Ok(config) => {
+                // Start positions should be (0, 0), (0, 1) ... (0, 9)
+                for start in config.random_starts() {
+                    for j in 0..config.width() {
+                        assert!(start.contains(&Position { i: 0, j }));
+                    }
+                }
+            }
+            _ => panic!("The TOML should be parsed successfully"),
+        }
+    }
+
+    #[test]
+    fn parse_start_pos_cols() {
+        match parse(
+            r#"
+height = 10
+width = 10
+n_agents = 2
+starts = [{col = 0}]
+"#,
+        ) {
+            Ok(config) => {
+                for start in config.random_starts() {
+                    for i in 0..config.height() {
+                        assert!(start.contains(&Position { i, j: 0 }));
+                    }
+                }
+            }
+            _ => panic!("The TOML should be parsed successfully"),
+        }
+    }
+
+    #[test]
+    fn parse_start_pos_rows_and_cols() {
+        match parse(
+            r#"
+height = 10
+width = 10
+n_agents = 2
+starts = [{col = 0}, {row=0}]
+"#,
+        ) {
+            Ok(config) => {
+                for start in config.random_starts() {
+                    assert_eq!(
+                        start.len(),
+                        19,
+                        "There should only be 19 starts since duplicates should be removed"
+                    );
+                    for i in 0..config.height() {
+                        assert!(start.contains(&Position { i, j: 0 }));
+                    }
+                    for j in 0..config.width() {
+                        assert!(start.contains(&Position { i: 0, j }));
+                    }
+                }
+            }
+            _ => panic!("The TOML should be parsed successfully"),
+        }
+    }
+
+    #[test]
     fn start_position_in_wall() {
         let toml_content = r#"
 world_string="""
@@ -267,7 +370,7 @@ start_positions = [{i_min=1}]
         "#;
         let world = World::try_from(toml_content).unwrap();
         let starts = world.possible_starts();
-        assert_eq!(2, starts[0].len())
+        assert_eq!(1, starts[0].len())
     }
 
     #[test]
@@ -304,5 +407,21 @@ start_positions = [
         let w = World::try_from(toml_content).unwrap();
         assert_eq!(w.exits_positions().len(), 6);
         assert_eq!(w.gems_positions().len(), 1);
+    }
+
+    #[test]
+    fn test_global_start_pos() {
+        let toml_content = r#"
+width = 10
+height = 10
+n_agents = 5
+starts = [{ row = 0 }]
+exits = [{ col = 4 }]
+"#;
+        let w = World::try_from(toml_content).unwrap();
+        assert_eq!(w.exits_positions().len(), 10);
+        for starts in w.possible_starts() {
+            assert_eq!(starts.len(), 9);
+        }
     }
 }

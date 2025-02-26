@@ -8,7 +8,7 @@ import numpy.typing as npt
 from marlenv import DiscreteSpace
 
 from lle import EventType, World, WorldEvent
-from lle.tiles import LaserSource
+from lle import tiles
 from lle.types import Position
 
 from .utils import get_lasers_of
@@ -115,7 +115,7 @@ class PotentialShapedLLE(RewardStrategy):
         world: World,
         gamma: float,
         reward_value: float,
-        lasers_to_reward: Iterable[LaserSource],
+        lasers_to_reward: Iterable[tiles.LaserSource],
     ):
         self.world = world
         self.reward_value = reward_value
@@ -146,7 +146,7 @@ class PotentialShapedLLE(RewardStrategy):
         return reward
 
     @staticmethod
-    def _compute_positions_to_reward(world: World, lasers_to_reward: Iterable[LaserSource]):
+    def _compute_positions_to_reward(world: World, lasers_to_reward: Iterable[tiles.LaserSource]):
         pos_to_reward = list[set[Position]]()
         for source in lasers_to_reward:
             in_laser_rewards = set(laser.pos for laser in get_lasers_of(world, source))

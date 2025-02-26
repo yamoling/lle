@@ -655,7 +655,7 @@ height = 10
 exits = [{ i = 0, j = 9 }]
 
 [[agents]]
-# Start anywhere on the map
+# Start anywhere on the map (except on exits or walls).
 start_positions = [{  }]
 """
     for seed in range(10):

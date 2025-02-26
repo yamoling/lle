@@ -9,6 +9,12 @@ pub enum PositionsConfig {
         i: usize,
         j: usize,
     },
+    Row {
+        row: usize,
+    },
+    Column {
+        col: usize,
+    },
     Rect {
         #[serde(default)]
         i_min: usize,
@@ -52,6 +58,18 @@ impl PositionsConfig {
                     }
                 }
                 Ok(positions)
+            }
+            Self::Row { row } => {
+                if *row >= height {
+                    return Err(ParseError::PositionOutOfBounds { i: *row, j: 0 });
+                }
+                Ok((0..width).map(|j| Position { i: *row, j }).collect())
+            }
+            Self::Column { col } => {
+                if *col >= width {
+                    return Err(ParseError::PositionOutOfBounds { i: 0, j: *col });
+                }
+                Ok((0..height).map(|i| Position { i, j: *col }).collect())
             }
         }
     }
