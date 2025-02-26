@@ -163,4 +163,5 @@ class PotentialShapedLLE(RewardStrategy):
     def reset(self):
         super().reset()
         self.strategy.reset()
+        self.agents_pos_reached.fill(False)
         self.previous_potential = self.compute_potential()

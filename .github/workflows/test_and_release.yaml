@@ -99,7 +99,7 @@ jobs:
   sdist:
     name: 📦 Packaging source dist 🐍
     if: startsWith(github.ref, 'refs/tags/') # Only build when there is a tag
-    needs: dist
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

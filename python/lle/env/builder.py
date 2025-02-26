@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Iterable, Literal, Optional
 from lle import World, ObservationType
 from lle.tiles import LaserSource
+import marlenv
 from .reward_strategy import RewardStrategy, SingleObjective, MultiObjective, PotentialShapedLLE
 from .env import LLE
 from .extras_generators import ExtraGenerator, LaserSubgoal, MultiGenerator, NoExtras
@@ -151,6 +152,10 @@ class Builder:
             extras_generator=self._extras_generator,
         )
         return env
+
+    def builder(self):
+        env = self.build()
+        return marlenv.Builder(env)
 
 
 def str_to_obs(
