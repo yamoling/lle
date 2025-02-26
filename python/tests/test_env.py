@@ -290,3 +290,37 @@ def test_env_name():
         env = LLE.from_file(temp_file.name).build()
         base = os.path.basename(temp_file.name)
         assert env.name == f"LLE-{base}"
+
+
+def test_pbrs_reset_between_two_episodes():
+    """
+    We go south (and receive the shaped reward for crossing the laser) then terminate the episode.
+    We then chek that we get the same reward when doing the same actions, after reset.
+    """
+    ACTIONS = [
+        [Action.SOUTH.value],
+        [Action.EAST.value],
+        [Action.SOUTH.value],
+        [Action.WEST.value],
+    ]
+    SHAPED_REWARD = 1.0
+    EXPECTED_REWARDS = [
+        SHAPED_REWARD,
+        0.0,
+        0.0,
+        REWARD_EXIT + REWARD_DONE,
+    ]
+    env = (
+        LLE.from_str("""
+                       S0 .  .
+                       .  . L0W
+                       X  .  .""")
+        .pbrs(reward_value=SHAPED_REWARD, gamma=1.0)
+        .build()
+    )
+
+    for _ in range(5):
+        env.reset()
+        for action, expected_reward in zip(ACTIONS, EXPECTED_REWARDS):
+            reward = env.step(action).reward
+            assert reward == expected_reward

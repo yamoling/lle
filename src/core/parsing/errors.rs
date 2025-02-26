@@ -59,6 +59,10 @@ pub enum ParseError {
         toml_height: usize,
         world_str_height: usize,
     },
+    InconsistentNumberOfAgents {
+        toml_n_agents_field: usize,
+        actual_n_agents: usize,
+    },
     PositionOutOfBounds {
         i: usize,
         j: usize,

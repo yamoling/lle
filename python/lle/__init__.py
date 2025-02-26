@@ -76,10 +76,11 @@ You can also use TOML files to define maps, which enables more complex maps, for
 Positions can be specified as a list of positions `{i, j}` and rectangles `{i_min, i_max, j_min, j_max}`, and the `world_string` field can be used to define the map as discussed in the "Plain string" section.
 
 ```toml
-width = 10 # Optional, can deduced from `world_string`
-height = 5 # Optional, can deduced from `world_string`
+width = 10 # Optional, deduced from `world_string`
+height = 5 # Optional, deduced from `world_string`
 exits = [{ j_min = 9 }]
 gems = [{ i = 0, j = 2 }]
+starts = [{ row = 2}] # All tiles on row=2 are start positions for all agents
 world_string = '''
 X . . . S1 . . . . .
 . . . . .  . . . . .
@@ -89,20 +90,21 @@ X . . . S1 . . . . .
 '''
 
 [[agents]]
-# Define a rectangle of possible start positions.
+# Define a rectangle of possible start positions with both ends included.
 # The default minimal value is 0.
-# The default maximal value is the width or height of the map.
-start_positions = [{ i_min = 0, i_max = 2 }]
+# The default maximal value is the width (for j) or height (for i) of the map.
+starts = [{ i_min = 0, i_max = 2 }] # Rectangle from (0, 0) to (2, 4) included
 
 [[agents]]
 # Deduced from the string map that agent 1 has a start position at (0, 5).
 
 [[agents]]
-start_positions = [{ i = 0, j = 5 }, { i = 4, j = 5 }]
+# Can either start on the 2nd row or on the 7th column.
+starts = [{ row = 2 }, { col = 7 }]
 
 [[agents]]
-# Start positions can be a mix of rectangles and positions.
-start_positions = [
+# Start positions can be a mix of rectangles, rows, columns and positions.
+starts = [
     { i = 4, j = 9 },
     { i_min = 1, i_max = 3, j_min = 0, j_max = 3 },
     { j_min = 4 },

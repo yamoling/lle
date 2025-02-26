@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from enum import IntEnum
+from functools import cached_property
 from typing import Literal, Optional, Sequence
 
 import numpy as np
@@ -9,8 +10,8 @@ from marlenv import DiscreteActionSpace, MARLEnv, Observation, State, Step
 from lle import Action, World, WorldState
 from lle.observations import ObservationType, StateGenerator
 
-from .reward_strategy import RewardStrategy, SingleObjective
 from .extras_generators import ExtraGenerator, NoExtras
+from .reward_strategy import RewardStrategy, SingleObjective
 
 
 class DeathStrategy(IntEnum):
@@ -78,21 +79,22 @@ class LLE(MARLEnv[Sequence[int] | npt.NDArray, DiscreteActionSpace]):
                 self.death_strategy = DeathStrategy.END
             case "respawn":
                 self.death_strategy = DeathStrategy.RESPAWN
+                raise NotImplementedError("Respawn strategy is not implemented yet")
             case other:
                 raise ValueError(f"Unknown death strategy: {other}")
         self.walkable_lasers = walkable_lasers
         self.n_agents = world.n_agents
         self.done = False
 
-    @property
+    @cached_property
     def width(self) -> int:
         return self.world.width
 
-    @property
+    @cached_property
     def height(self) -> int:
         return self.world.height
 
-    @property
+    @cached_property
     def agent_state_size(self):
         match self.state_generator:
             case StateGenerator():
@@ -171,6 +173,7 @@ class LLE(MARLEnv[Sequence[int] | npt.NDArray, DiscreteActionSpace]):
     @staticmethod
     def from_file(path: str):
         import os
+
         from .builder import Builder
 
         return Builder(World.from_file(path)).name(f"LLE-{os.path.basename(path)}")
