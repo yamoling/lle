@@ -324,3 +324,17 @@ def test_pbrs_reset_between_two_episodes():
         for action, expected_reward in zip(ACTIONS, EXPECTED_REWARDS):
             reward = env.step(action).reward
             assert reward == expected_reward
+
+
+def test_pbrs_not_all_lasers():
+    env = (
+        LLE.from_str("""
+                       S0 .  .
+                       .  . L0W
+                       .  . L0W
+                       X  .  .""")
+        .pbrs(lasers_to_reward=[(1, 2)])
+        .build()
+    )
+    env.reset()
+    assert env.extras_shape == (1,)

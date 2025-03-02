@@ -1,10 +1,11 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Optional, Sequence
 
 import numpy as np
 import numpy.typing as npt
 
-from lle import World
+from lle import World, tiles
 
 from .utils import get_lasers_of
 
@@ -63,11 +64,13 @@ class MultiGenerator(ExtraGenerator):
 
 
 class LaserSubgoal(ExtraGenerator):
-    def __init__(self, world: World):
-        super().__init__(len(world.laser_sources), [f"Source {source.laser_id} at {source.pos}" for source in world.laser_sources])
+    def __init__(self, world: World, sources: Optional[Sequence[tiles.LaserSource]] = None):
         self.world = world
-        self.pos_to_reward = [set(laser.pos for laser in get_lasers_of(world, source)) for source in world.laser_sources]
-        self.agents_pos_reached = np.full((world.n_agents, len(world.laser_sources)), False, dtype=np.bool)
+        if sources is None:
+            sources = world.laser_sources
+        super().__init__(len(sources), [f"Source {source.laser_id} at {source.pos}" for source in sources])
+        self.pos_to_reward = [set(laser.pos for laser in get_lasers_of(world, source)) for source in sources]
+        self.agents_pos_reached = np.full((world.n_agents, len(sources)), False, dtype=np.bool)
 
     def compute(self):
         for agent, agent_pos in enumerate(self.world.agents_positions):

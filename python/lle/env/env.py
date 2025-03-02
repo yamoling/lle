@@ -68,8 +68,8 @@ class LLE(MARLEnv[Sequence[int] | npt.NDArray, DiscreteActionSpace]):
             observation_shape=self.observation_generator.shape,
             state_shape=self.get_state().shape,
             reward_space=self.reward_strategy.reward_space,
-            extra_shape=(self.extras_generator.size,),
-            extra_meanings=self.extras_generator.meanings,
+            extras_shape=(self.extras_generator.size,),
+            extras_meanings=self.extras_generator.meanings,
         )
         if name is not None:
             self.name = name
