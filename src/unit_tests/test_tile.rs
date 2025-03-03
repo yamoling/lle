@@ -18,7 +18,7 @@ fn test_start() {
     let mut start = Tile::Start(Start::new(agent.id()));
     start.reset();
     assert_eq!(start.agent(), None);
-    assert!(start.is_waklable());
+    assert!(start.is_walkable());
     assert!(!start.is_occupied());
     assert_eq!(start.agent(), None);
     start.enter(&mut agent);
@@ -37,7 +37,7 @@ fn test_gem() {
     if let Tile::Gem(g) = &tile {
         assert!(!g.is_collected());
     }
-    assert!(tile.is_waklable());
+    assert!(tile.is_walkable());
     assert!(!tile.is_occupied());
 
     // Enter the tile to collect the gem
@@ -75,7 +75,7 @@ fn test_laser_basic() {
 
     let mut laser = Tile::Laser(laser);
     laser.reset();
-    assert!(laser.is_waklable());
+    assert!(laser.is_walkable());
     assert!(!laser.is_occupied());
 }
 
