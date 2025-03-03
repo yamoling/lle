@@ -1,7 +1,8 @@
 from dataclasses import dataclass
-from typing import Iterable, Literal, Optional
+from typing import Literal, Optional, Sequence
 from lle import World, ObservationType
 from lle import tiles
+from ..types import Position
 import marlenv
 from .reward_strategy import RewardStrategy, SingleObjective, MultiObjective, PotentialShapedLLE
 from .env import LLE
@@ -89,23 +90,33 @@ class Builder:
         self,
         gamma: float = 0.99,
         reward_value: float = 0.5,
-        lasers_to_reward: Optional[Iterable[tiles.LaserSource]] = None,
+        lasers_to_reward: Optional[Sequence[tiles.LaserSource | Position]] = None,
         with_extras: bool = True,
     ):
         """
         Add Potential-Based Reward Shaping such that crossing the given lasers (all by default) gives a reward.
         """
         if lasers_to_reward is None:
-            lasers_to_reward = self._world.laser_sources
+            sources = self._world.laser_sources
+        else:
+            sources = []
+            for source in lasers_to_reward:
+                match source:
+                    case tuple() as pos:
+                        sources.append(self._world.source_at(pos))
+                    case tiles.LaserSource():
+                        sources.append(source)
+                    case other:
+                        raise ValueError(f"Invalid laser source: {other}")
         if with_extras:
-            self.add_extras("laser_subgoal")
+            self.add_extras(LaserSubgoal(self._world, sources))
         self._env_name = f"{self._env_name}-PBRS"
         self._reward_strategy = PotentialShapedLLE(
             self._reward_strategy,
             self._world,
             gamma,
             reward_value,
-            lasers_to_reward,
+            sources,
         )
         return self
 

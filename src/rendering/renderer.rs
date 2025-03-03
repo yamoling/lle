@@ -177,7 +177,6 @@ impl TileVisitor for Renderer {
         }
         // Draw the tile below the laser
         laser.wrapped().accept(self, data);
-        // The below tile should draw the agent
     }
 
     fn visit_laser_source(&self, source: &LaserSource, data: &mut VisitorData) {

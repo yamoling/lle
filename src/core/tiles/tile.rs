@@ -64,7 +64,7 @@ impl Tile {
         }
     }
 
-    pub fn is_waklable(&self) -> bool {
+    pub fn is_walkable(&self) -> bool {
         match self {
             Self::Gem(_) => true,
             Self::LaserSource(_) => false,

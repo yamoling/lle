@@ -340,7 +340,7 @@ def test_perspective():
 
 
 def _perform_tests_extras_one_agent(env: LLE):
-    assert env.extra_shape[0] == 1
+    assert env.extras_shape[0] == 1
 
     obs, _ = env.reset()
     assert obs.extras_shape[0] == 1
@@ -374,7 +374,7 @@ def test_pbrs_subgoals_extras_one_laser():
 
 
 def _perform_tests_two_agents(env: LLE):
-    assert env.extra_shape[0] == 2
+    assert env.extras_shape[0] == 2
 
     obs, _ = env.reset()
     assert obs.extras_shape[0] == 2
