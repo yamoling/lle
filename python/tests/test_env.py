@@ -338,3 +338,25 @@ def test_pbrs_not_all_lasers():
     )
     env.reset()
     assert env.extras_shape == (1,)
+
+
+def test_randomized_lasers():
+    env = (
+        LLE.from_str("""
+                       S0 S1 L0S
+                       .   . L1W
+                       .   . L0W
+                       X   X  .""")
+        .randomize_lasers()
+        .build()
+    )
+    colour_encountered = [[False] * env.n_agents for _ in range(len(env.world.laser_sources))]
+    # The probability of this test failing is ≃ 1/2^1000, so it is practically impossible
+    for _ in range(1_000):
+        env.reset()
+        for source in env.world.laser_sources:
+            colour_encountered[source.laser_id][source.agent_id] = True
+
+        if all(all(ce) for ce in colour_encountered):
+            return
+    assert False, "The two colours were never encountered for some lasers"

@@ -12,6 +12,12 @@ from .utils import get_lasers_of
 
 @dataclass
 class ExtraGenerator(ABC):
+    """
+    `ExtraGenerator`s are used to generate additional information of the environment aside from the observation itself.
+
+    An example of extras is whether the subgoals of the environment have already been reached. With `n` subgoals, there would be `n` boolean extras.
+    """
+
     size: int
     meanings: list[str]
 
@@ -64,7 +70,16 @@ class MultiGenerator(ExtraGenerator):
 
 
 class LaserSubgoal(ExtraGenerator):
+    """
+    Generates extras that indicate whether the agents have reached each laser, which are subgoals of the environment.
+    """
+
     def __init__(self, world: World, sources: Optional[Sequence[tiles.LaserSource]] = None):
+        """
+        Args:
+            world: The world
+            sources: The laser sources to consider. If None, all laser sources in the world are considered.
+        """
         self.world = world
         if sources is None:
             sources = world.laser_sources

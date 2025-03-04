@@ -19,6 +19,7 @@ class Builder:
     _env_name: str
     _reward_strategy: RewardStrategy
     _extras_generator: ExtraGenerator
+    _randomize_lasers: bool
 
     def __init__(self, world: World):
         self._world = world
@@ -29,6 +30,7 @@ class Builder:
         self._env_name = "LLE"
         self._reward_strategy = SingleObjective(world.n_agents)
         self._extras_generator = NoExtras(world.n_agents)
+        self._randomize_lasers = False
 
     def obs_type(
         self,
@@ -120,6 +122,11 @@ class Builder:
         )
         return self
 
+    def randomize_lasers(self):
+        """Randomize the colour of the lasers at each reset."""
+        self._randomize_lasers = True
+        return self
+
     def add_extras(self, *extras: Literal["laser_subgoal"] | ExtraGenerator):
         """
         Add extra information to the observation.
@@ -161,6 +168,7 @@ class Builder:
             name=self._env_name,
             reward_strategy=self._reward_strategy,
             extras_generator=self._extras_generator,
+            randomize_lasers=self._randomize_lasers,
         )
         return env
 

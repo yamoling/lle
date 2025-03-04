@@ -5,6 +5,7 @@ from typing import Literal, Optional, Sequence
 
 import numpy as np
 import numpy.typing as npt
+import random
 from marlenv import DiscreteActionSpace, MARLEnv, Observation, State, Step
 
 from lle import Action, World, WorldState
@@ -32,7 +33,19 @@ class DeathStrategy(IntEnum):
 
 @dataclass
 class LLE(MARLEnv[Sequence[int] | npt.NDArray, DiscreteActionSpace]):
-    """Laser Learning Environment (LLE)"""
+    """
+    Laser Learning Environment (LLE).
+
+    The preferred way to to instanciate an environment is via `level`, `from_file` or `from_str` methods that return a `Builder`:
+    ```python
+    env = (
+        LLE.level(5)         # alternatively: LLE.from_file(...) or LLE.from_str(...)
+        .obs_type("layered") # Set the observation type
+        .randomize_lasers()  # Randomize the laser colours on reset
+        .build()             # Retrieve the LLE instance
+    )
+    ```
+    """
 
     obs_type: str
     state_type: str
@@ -40,6 +53,7 @@ class LLE(MARLEnv[Sequence[int] | npt.NDArray, DiscreteActionSpace]):
     walkable_lasers: bool
     reward_strategy: RewardStrategy
     extras_generator: ExtraGenerator
+    randomize_lasers: bool
 
     def __init__(
         self,
@@ -51,6 +65,7 @@ class LLE(MARLEnv[Sequence[int] | npt.NDArray, DiscreteActionSpace]):
         death_strategy: Literal["respawn", "end"] = "end",
         walkable_lasers: bool = True,
         extras_generator: Optional[ExtraGenerator] = None,
+        randomize_lasers: bool = False,
     ):
         self.world = world
         self.obs_type = obs_type.name
@@ -83,6 +98,7 @@ class LLE(MARLEnv[Sequence[int] | npt.NDArray, DiscreteActionSpace]):
             case other:
                 raise ValueError(f"Unknown death strategy: {other}")
         self.walkable_lasers = walkable_lasers
+        self.randomize_lasers = randomize_lasers
         self.n_agents = world.n_agents
         self.done = False
 
@@ -142,6 +158,9 @@ class LLE(MARLEnv[Sequence[int] | npt.NDArray, DiscreteActionSpace]):
         self.reward_strategy.reset()
         self.extras_generator.reset()
         self.done = False
+        if self.randomize_lasers:
+            for source in self.world.laser_sources:
+                source.set_colour(random.randint(0, self.n_agents - 1))
         return self.get_observation(), self.get_state()
 
     def get_state(self):
@@ -186,7 +205,8 @@ class LLE(MARLEnv[Sequence[int] | npt.NDArray, DiscreteActionSpace]):
         return Builder(World.level(level)).name(f"LLE-lvl{level}")
 
     def seed(self, seed_value: int):
-        return self.world.seed(seed_value)
+        random.seed(seed_value)
+        self.world.seed(seed_value)
 
     def get_image(self):
         return self.world.get_image()
