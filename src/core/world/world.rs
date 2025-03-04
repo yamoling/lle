@@ -269,7 +269,7 @@ impl World {
                 for action in [Action::North, Action::East, Action::South, Action::West] {
                     if let Ok(pos) = &action + agent_pos {
                         if let Some(tile) = self.at(&pos) {
-                            if tile.is_waklable() && !tile.is_occupied() {
+                            if tile.is_walkable() && !tile.is_occupied() {
                                 agent_actions.push(action.clone());
                             }
                         }

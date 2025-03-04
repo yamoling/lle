@@ -25,10 +25,6 @@ impl Void {
         self.agent.take().unwrap()
     }
 
-    pub fn is_waklable(&self) -> bool {
-        true
-    }
-
     pub fn reset(&mut self) {
         self.agent = None;
     }

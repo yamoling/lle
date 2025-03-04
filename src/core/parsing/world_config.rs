@@ -224,7 +224,7 @@ fn laser_setup(
                 i: i as usize,
                 j: j as usize,
             };
-            if !grid[pos.i][pos.j].is_waklable() {
+            if !grid[pos.i][pos.j].is_walkable() {
                 break;
             }
             beam_positions.push(pos);

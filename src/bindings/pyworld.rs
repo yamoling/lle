@@ -9,7 +9,7 @@ use pyo3::{
 };
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
-use crate::{Action, Renderer, Tile, World};
+use crate::{Action, AgentId, Renderer, Tile, World};
 
 use super::{
     pyaction::PyAction,
@@ -181,6 +181,54 @@ impl PyWorld {
             .into_iter()
             .map(|p| (*p).into())
             .collect()
+    }
+
+    /// Set the position of each agent.
+    ///
+    /// Returns:
+    ///     The list of events that occurred while the agents entered their new positions.
+    ///
+    /// Raises:
+    ///     - `InvalidWorldStateError`: if the number of positions is different from the number of agents.
+    ///     - `IndexError`: if a position is out of bounds.
+    fn set_agents_positions(
+        &self,
+        agents_positions: Vec<PyPosition>,
+    ) -> PyResult<Vec<PyWorldEvent>> {
+        let mut world = self.world.lock().unwrap();
+        let mut state = world.get_state();
+        state.agents_positions = agents_positions.into_iter().map(|p| p.into()).collect();
+        match world.set_state(&state) {
+            Ok(events) => Ok(events.iter().map(|e| PyWorldEvent::from(e)).collect()),
+            Err(e) => Err(runtime_error_to_pyexception(e)),
+        }
+    }
+
+    /// Set the position of a single agent.
+    ///
+    /// Returns:
+    ///     The list of events that occurred while the agent entered its new position.
+    ///
+    /// Raises:
+    ///    - `IndexError`: if the position is out of bounds.
+    ///    - `ValueError`: if the agent id does not exist.
+    fn set_agent_position(
+        &self,
+        agent_id: AgentId,
+        position: PyPosition,
+    ) -> PyResult<Vec<PyWorldEvent>> {
+        if agent_id >= self.n_agents {
+            return Err(PyValueError::new_err(format!(
+                "Agent id {agent_id} is out of bounds"
+            )));
+        }
+        let mut world = self.world.lock().unwrap();
+        let mut state = world.get_state();
+        state.agents_positions[agent_id] = position.into();
+        match world.set_state(&state) {
+            Ok(events) => Ok(events.iter().map(|e| PyWorldEvent::from(e)).collect()),
+            Err(e) => Err(runtime_error_to_pyexception(e)),
+        }
     }
 
     /// Retrieve the gem at the given position.

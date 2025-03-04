@@ -131,7 +131,7 @@ pub fn runtime_error_to_pyexception(error: RuntimeWorldError) -> PyErr {
                 "Invalid number of actions: given {given}, expected {expected}",
             ))
         }
-        RuntimeWorldError::OutOfWorldPosition { position } => exceptions::PyValueError::new_err(
+        RuntimeWorldError::OutOfWorldPosition { position } => exceptions::PyIndexError::new_err(
             format!("Position {position:?} is out of the world's boundaries",),
         ),
         RuntimeWorldError::InvalidNumberOfAgents { given, expected } => {

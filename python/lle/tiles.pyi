@@ -91,6 +91,13 @@ class LaserSource:
         """
         ...
 
+    def __eq__(self, other:LaserSource) -> bool:
+        r"""
+        Equality is based on the agent ID, direction, laser ID, and position.
+        Whether a laser source is enabled is not considered.
+        """
+        ...
+
     def __str__(self) -> str:
         ...
 

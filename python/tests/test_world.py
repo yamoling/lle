@@ -344,6 +344,9 @@ def test_set_invalid_state():
     with pytest.raises(InvalidWorldStateError):
         world.set_state(WorldState([(0, 0)], [True]))
     # Invalid agent position (out of bounds)
+    with pytest.raises(IndexError):
+        world.set_state(WorldState([(10, 1), (1, 0)], [True]))
+    # Invalid agent position (on a wall)
     with pytest.raises(InvalidWorldStateError):
         world.set_state(WorldState([(1, 1), (1, 0)], [True]))
     # Two agents on the same position
@@ -388,6 +391,43 @@ def test_world_state_hash_neq():
 
     assert hash(s1) != hash(s2)
     assert s1 != s2
+
+
+def test_set_agent_position():
+    world = World("""S0 . . X""")
+    for j in range(4):
+        world.set_agent_position(0, (0, j))
+        assert world.agents_positions[0] == (0, j)
+
+
+def test_set_wrong_agent_position():
+    world = World("""S0 . . X""")
+    with pytest.raises(ValueError):
+        world.set_agent_position(25, (0, 0))
+
+    with pytest.raises(IndexError):
+        world.set_agent_position(0, (0, 25))
+
+
+def test_set_agents_positions_two_agents():
+    world = World("""
+                  S0 . . X
+                  S1 . . X
+                  """)
+    for j in range(world.width):
+        world.set_agents_positions([(0, j), (1, j)])
+        assert world.agents_positions == [(0, j), (1, j)]
+        world.set_agents_positions([(1, j), (0, j)])
+        assert world.agents_positions == [(1, j), (0, j)]
+
+
+def test_set_conflicting_agents_positions():
+    world = World("""
+                  S0 . . X
+                  S1 . . X
+                  """)
+    with pytest.raises(InvalidWorldStateError):
+        world.set_agents_positions([(0, 0), (0, 0)])
 
 
 def test_get_standard_level():
