@@ -59,7 +59,7 @@ class LLE(MARLEnv[Sequence[int] | npt.NDArray, DiscreteActionSpace]):
         self,
         world: World,
         reward_strategy: Optional[RewardStrategy] = None,
-        obs_type: ObservationType = ObservationType.STATE,
+        obs_type: ObservationType = ObservationType.LAYERED,
         state_type: ObservationType = ObservationType.STATE,
         name: Optional[str] = None,
         death_strategy: Literal["respawn", "end"] = "end",
@@ -67,11 +67,11 @@ class LLE(MARLEnv[Sequence[int] | npt.NDArray, DiscreteActionSpace]):
         extras_generator: Optional[ExtraGenerator] = None,
         randomize_lasers: bool = False,
     ):
-        self.world = world
+        self._world = world
         self.obs_type = obs_type.name
         self.state_type = state_type.name
-        self.observation_generator = obs_type.get_observation_generator(world)
-        self.state_generator = state_type.get_observation_generator(world)
+        self._observation_generator = obs_type.get_observation_generator(world)
+        self._state_generator = state_type.get_observation_generator(world)
         if reward_strategy is None:
             reward_strategy = SingleObjective(world.n_agents)
         self.reward_strategy = reward_strategy
@@ -80,7 +80,7 @@ class LLE(MARLEnv[Sequence[int] | npt.NDArray, DiscreteActionSpace]):
         self.extras_generator = extras_generator
         super().__init__(
             action_space=DiscreteActionSpace(self.world.n_agents, Action.N, [a.name for a in Action.ALL]),
-            observation_shape=self.observation_generator.shape,
+            observation_shape=self._observation_generator.shape,
             state_shape=self.get_state().shape,
             reward_space=self.reward_strategy.reward_space,
             extras_shape=(self.extras_generator.size,),
@@ -110,11 +110,15 @@ class LLE(MARLEnv[Sequence[int] | npt.NDArray, DiscreteActionSpace]):
     def height(self) -> int:
         return self.world.height
 
+    @property
+    def world(self):
+        return self._world
+
     @cached_property
     def agent_state_size(self):
-        match self.state_generator:
+        match self._state_generator:
             case StateGenerator():
-                return self.state_generator.unit_size
+                return self._state_generator.unit_size
             case other:
                 raise NotImplementedError(f"State type {other} does not support `agent_state_size`.")
 
@@ -164,13 +168,13 @@ class LLE(MARLEnv[Sequence[int] | npt.NDArray, DiscreteActionSpace]):
         return self.get_observation(), self.get_state()
 
     def get_state(self):
-        return State(self.state_generator.get_state())
+        return State(self._state_generator.get_state())
 
     def set_state(self, state: State[npt.NDArray[np.float32]] | WorldState):
         if isinstance(state, WorldState):
             world_state = state
         else:
-            world_state = self.state_generator.to_world_state(state.data)
+            world_state = self._state_generator.to_world_state(state.data)
         self.reward_strategy.reset()
         events = self.world.set_state(world_state)
         self.reward_strategy.compute_reward(events)
@@ -178,7 +182,7 @@ class LLE(MARLEnv[Sequence[int] | npt.NDArray, DiscreteActionSpace]):
 
     def get_observation(self):
         return Observation(
-            self.observation_generator.observe(),
+            self._observation_generator.observe(),
             self.available_actions(),
             self.extras_generator.compute(),
         )

@@ -12,6 +12,7 @@ dependencies = [
     "numpy>=2.0.0",
     "multi-agent-rlenv>=3.2.0",
     "opencv-python>=4.0.0",
+    "orjson>=3.10.15",
 ]
 description = "Laser Learning Environment (LLE) for Multi-Agent Reinforcement Learning"
 name = "laser-learning-environment"

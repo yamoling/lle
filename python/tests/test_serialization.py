@@ -1,5 +1,6 @@
-from lle import World, WorldState
+from lle import World, WorldState, LLE
 import pickle
+import orjson
 import random
 
 
@@ -46,3 +47,14 @@ def test_pickled_world_keeps_same_laser_ids():
         assert world.source_at(pos).laser_id == deserialised.source_at(pos).laser_id
         assert world.source_at(pos).agent_id == deserialised.source_at(pos).agent_id
         assert world.source_at(pos).direction == deserialised.source_at(pos).direction
+
+
+def test_serialize_env_to_json():
+    env = LLE.from_str("S0 L0E X").build()
+    s = orjson.dumps(env, option=orjson.OPT_SERIALIZE_NUMPY)
+    deserialized = orjson.loads(s)
+    assert deserialized["n_agents"] == env.n_agents
+    assert deserialized["obs_type"] == env.obs_type
+    assert deserialized["state_type"] == env.state_type
+    assert deserialized["walkable_lasers"] == env.walkable_lasers
+    assert deserialized["randomize_lasers"] == env.randomize_lasers

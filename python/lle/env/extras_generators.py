@@ -33,6 +33,7 @@ class ExtraGenerator(ABC):
         """Reset the generator state"""
 
 
+@dataclass
 class NoExtras(ExtraGenerator):
     def __init__(self, n_agents: int):
         super().__init__(0, [])
@@ -42,6 +43,7 @@ class NoExtras(ExtraGenerator):
         return self.extras
 
 
+@dataclass
 class MultiGenerator(ExtraGenerator):
     def __init__(self, *generators: ExtraGenerator):
         size = 0
@@ -69,6 +71,7 @@ class MultiGenerator(ExtraGenerator):
             generator.reset()
 
 
+@dataclass
 class LaserSubgoal(ExtraGenerator):
     """
     Generates extras that indicate whether the agents have reached each laser, which are subgoals of the environment.

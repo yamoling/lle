@@ -9,28 +9,30 @@ When an agent enters a laser of its own colour, it blocks it. Otherwise, it dies
 
 # Quick start
 ## Installation
-You can install the Laser Learning Environment with pip or poetry.
+Install the Laser Learning Environment with uv, pip, poetry, ...
 ```bash
 pip install laser-learning-environment # Latest stable release with pip
 pip install git+https://github.com/yamoling/lle # latest push on master
 ```
 
 ## Usage
-LLE can be used at two levels of abstraction: as an `RLEnv` for cooperative multi-agent reinforcement learning or as a `World` for many other purposes.
+LLE can be used at two levels of abstraction: as an `MARLEnv` for cooperative multi-agent reinforcement learning or as a `World` for many other purposes.
 ### For cooperative multi-agent reinforcement learning
-The `LLE` class inherits from the `RLEnv` class in the [rlenv](https://github.com/yamoling/rlenv) framework. Here is an example with the following map: ![LLE](docs/3x1.png)
+The `LLE` class inherits from the `MARLEnv` class in the [marlenv](https://github.com/yamoling/multi-agent-rlenv) framework. Here is an example with the following map: ![LLE](docs/3x1.png)
 
 
 ```python
 from lle import LLE
 
-env = LLE.from_str("S0 G X").single_objective()
-done = truncated = False
+env = LLE.from_str("S0 G X").build()
+done = False
 obs, state = env.reset()
-while not (done or truncated):
+while not done:
     # env.render() # Uncomment to render
     actions = env.sample_action()
-    obs, state, reward, done, truncated, info = env.step(actions)
+    step = env.step(actions)
+    # Access the step data with `step.obs`, `step.reward`, ...
+    done = step.is_terminal # Either done or truncated
 ```
 
 
@@ -91,16 +93,9 @@ cargo run --bin stub-gen
 
 
 ## Tests
-This project **does not** respect Rust unit tests convention and takes inspiration from [this structure](http://xion.io/post/code/rust-unit-test-placement.html). Unit tests are in the `src/unit_tests` folder and are explicitely linked to in each file with the `#path` directive. 
-Integration tests are written on the python side.
-
-Run unit tests with 
+Run unit tests in rust & python with 
 ```bash
 cargo test
-```
-
-Run integration tests with
-```bash
 maturin develop
 pytest
 ```

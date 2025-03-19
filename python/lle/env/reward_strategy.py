@@ -47,6 +47,7 @@ class RewardStrategy(ABC):
         """Compute the reward for the given events."""
 
 
+@dataclass
 class SingleObjective(RewardStrategy):
     def __init__(self, n_agents: int):
         super().__init__(n_agents, ["reward"])
@@ -71,6 +72,7 @@ class SingleObjective(RewardStrategy):
         return np.array([reward], dtype=np.float32)
 
 
+@dataclass
 class MultiObjective(RewardStrategy):
     RW_GEM_IDX = 0
     RW_EXIT_IDX = 1
@@ -102,12 +104,18 @@ class MultiObjective(RewardStrategy):
         return reward
 
 
+@dataclass
 class PotentialShapedLLE(RewardStrategy):
     """
     Potential shaping for the Laser Learning Environment (LLE).
 
     https://people.eecs.berkeley.edu/~pabbeel/cs287-fa09/readings/NgHaradaRussell-shaping-ICML1999.pdf
     """
+
+    gamma: float
+    reward_value: float
+    strategy: RewardStrategy
+    pos_to_reward: list[set[Position]]
 
     def __init__(
         self,
@@ -117,7 +125,7 @@ class PotentialShapedLLE(RewardStrategy):
         reward_value: float,
         lasers_to_reward: Iterable[tiles.LaserSource],
     ):
-        self.world = world
+        self._world = world
         self.reward_value = reward_value
         self.gamma = gamma
         match strategy:
@@ -128,19 +136,19 @@ class PotentialShapedLLE(RewardStrategy):
                 super().__init__(strategy.n_agents, objectives)
         self.strategy = strategy
         self.pos_to_reward = self._compute_positions_to_reward(world, lasers_to_reward)
-        self.agents_pos_reached = np.full((world.n_agents, len(self.pos_to_reward)), False, dtype=np.bool)
-        self.previous_potential = self.compute_potential()
+        self._agents_pos_reached = np.full((world.n_agents, len(self.pos_to_reward)), False, dtype=np.bool)
+        self._previous_potential = self.compute_potential()
 
     def compute_reward(self, events: list[WorldEvent]):
         reward = self.strategy.compute_reward(events)
         current_potential = self.compute_potential()
-        potential_reward = self.gamma * self.previous_potential - current_potential
+        potential_reward = self.gamma * self._previous_potential - current_potential
         if self.n_objectives == 1:
             reward[0] += potential_reward
         else:
             reward = np.concat((reward, [potential_reward]))
         # Book keeping
-        self.previous_potential = current_potential
+        self._previous_potential = current_potential
         self.n_deads = self.strategy.n_deads
         self.n_arrived = self.strategy.n_arrived
         return reward
@@ -154,14 +162,14 @@ class PotentialShapedLLE(RewardStrategy):
         return pos_to_reward
 
     def compute_potential(self):
-        for agent_num, agent_pos in enumerate(self.world.agents_positions):
+        for agent_num, agent_pos in enumerate(self._world.agents_positions):
             for j, rewarded_positions in enumerate(self.pos_to_reward):
                 if agent_pos in rewarded_positions:
-                    self.agents_pos_reached[agent_num, j] = True
-        return float(self.agents_pos_reached.size - self.agents_pos_reached.sum()) * self.reward_value
+                    self._agents_pos_reached[agent_num, j] = True
+        return float(self._agents_pos_reached.size - self._agents_pos_reached.sum()) * self.reward_value
 
     def reset(self):
         super().reset()
         self.strategy.reset()
-        self.agents_pos_reached.fill(False)
-        self.previous_potential = self.compute_potential()
+        self._agents_pos_reached.fill(False)
+        self._previous_potential = self.compute_potential()
