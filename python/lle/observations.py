@@ -6,6 +6,7 @@ from numpy._typing import NDArray
 import numpy.typing as npt
 from lle import World, WorldState
 from .types import AgentId, Position
+from dataclasses import dataclass
 
 
 class ObservationType(IntEnum):
@@ -75,6 +76,7 @@ class ObservationType(IntEnum):
                 raise ValueError(f"Unknown observation type: {other}")
 
 
+@dataclass
 class ObservationGenerator(ABC):
     def __init__(self, world: World):
         super().__init__()
@@ -156,6 +158,7 @@ class RGBImage(ObservationGenerator):
         return (3, 160, 120)
 
 
+@dataclass
 class LayeredPadded(ObservationGenerator):
     """
     Layered observation of the map (walls, lasers, ...).
