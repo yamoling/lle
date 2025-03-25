@@ -4,9 +4,9 @@ use std::rc::Rc;
 
 use crate::RuntimeWorldError;
 use crate::{
+    WorldEvent,
     agent::{Agent, AgentId},
     tiles::{Direction, LaserId, Tile},
-    WorldEvent,
 };
 
 use super::Gem;

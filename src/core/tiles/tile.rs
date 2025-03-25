@@ -1,13 +1,14 @@
 use crate::{
+    ParseError, RuntimeWorldError, WorldEvent,
     agent::{Agent, AgentId},
     rendering::{TileVisitor, VisitorData},
-    ParseError, RuntimeWorldError, WorldEvent,
 };
 use core::panic;
 use std::rc::Rc;
 
 use super::{Gem, Laser, LaserBeam, LaserSource, Start, Void};
 
+#[derive(Debug)]
 pub enum Tile {
     Gem(Gem),
     Floor { agent: Option<AgentId> },

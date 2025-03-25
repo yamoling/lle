@@ -1,8 +1,9 @@
 use crate::{
-    agent::{Agent, AgentId},
     WorldEvent,
+    agent::{Agent, AgentId},
 };
 
+#[derive(Debug)]
 pub struct Start {
     agent: Option<AgentId>,
     start_agent_id: AgentId,
@@ -33,6 +34,7 @@ impl Start {
         self.agent
     }
 
+    /// The id of the agent that starts on this tile.
     pub fn start_agent_id(&self) -> AgentId {
         self.start_agent_id
     }

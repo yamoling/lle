@@ -535,7 +535,7 @@ fn test_wrong_world_state() {
 
 #[test]
 /// This test was introduced because the agents were attributed start positions that
-/// were forbidden. The resaon was that thte positions were not re-ordered after the
+/// were forbidden. The reason was that thte positions were not re-ordered after the
 /// agents were ordered by number of available start positions.
 ///
 /// Test the worst case scenario for the position selection algorithm:

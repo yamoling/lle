@@ -1,6 +1,6 @@
 use crate::{AgentId, Position, Tile};
 
-use super::{laser_config::LaserConfig, world_config::WorldConfig, ParseError};
+use super::{ParseError, laser_config::LaserConfig, world_config::WorldConfig};
 
 #[derive(Default)]
 pub struct ParsingData {
@@ -156,7 +156,9 @@ pub fn parse(world_str: &str) -> Result<WorldConfig, ParseError> {
                         data.add_laser_source(pos, source_config);
                     }
                     Tile::Laser(..) => {
-                        unreachable!("Lasers and LaserSources should not be parsed at this stage (i.e. without global context)")
+                        unreachable!(
+                            "Lasers and LaserSources should not be parsed at this stage (i.e. without global context)"
+                        )
                     }
                 }
             } else {
@@ -170,4 +172,28 @@ pub fn parse(world_str: &str) -> Result<WorldConfig, ParseError> {
         data.add_row(n_cols)?;
     }
     data.try_into()
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::ParseError;
+
+    use super::parse;
+
+    #[test]
+    fn test_laser_kill_on_spawn() {
+        let config = parse(
+            "
+        L1S  X  .
+         S0 S1  X
+        ",
+        )
+        .unwrap();
+        let world = config.to_world();
+        match world {
+            Ok(_) => panic!("Should not be able to place a laser that kills an agent on spawn"),
+            Err(ParseError::AgentDiesOnSpawn { .. }) => {}
+            Err(e) => panic!("Unexpected error: {:?}", e),
+        }
+    }
 }

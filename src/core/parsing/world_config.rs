@@ -1,8 +1,8 @@
 use std::{collections::HashSet, vec};
 
 use crate::{
-    tiles::{Gem, Laser, Tile, Void},
     Position, World,
+    tiles::{Gem, Laser, Tile, Void},
 };
 
 use crate::ParseError;
@@ -109,7 +109,7 @@ impl WorldConfig {
 
     pub fn to_world(self) -> Result<World, ParseError> {
         self.validate()?;
-        let (grid, lasers_positions) = self.make_grid();
+        let (grid, lasers_positions) = self.make_grid()?;
         let source_positions = self.lasers.iter().map(|(pos, _)| *pos).collect();
         Ok(World::new(
             grid,
@@ -179,7 +179,7 @@ impl WorldConfig {
         self.random_starts.len()
     }
 
-    fn make_grid(&self) -> (Vec<Vec<Tile>>, Vec<Position>) {
+    fn make_grid(&self) -> Result<(Vec<Vec<Tile>>, Vec<Position>), ParseError> {
         let mut grid = Vec::with_capacity(self.height);
         for _ in 0..self.height {
             let mut row = Vec::with_capacity(self.width);
@@ -200,8 +200,8 @@ impl WorldConfig {
         for pos in &self.walls {
             grid[pos.i][pos.j] = Tile::Wall;
         }
-        let laser_positions = laser_setup(&mut grid, &self.lasers).into_iter().collect();
-        (grid, laser_positions)
+        let laser_positions = laser_setup(&mut grid, &self.lasers)?.into_iter().collect();
+        Ok((grid, laser_positions))
     }
 }
 
@@ -210,7 +210,7 @@ impl WorldConfig {
 fn laser_setup(
     grid: &mut Vec<Vec<Tile>>,
     laser_configs: &[(Position, LaserConfig)],
-) -> HashSet<Position> {
+) -> Result<HashSet<Position>, ParseError> {
     let mut laser_positions = HashSet::new();
     let width = grid[0].len() as i32;
     let height: i32 = grid.len() as i32;
@@ -234,10 +234,21 @@ fn laser_setup(
         let source = source.build(beam_positions.len());
         for (i, pos) in beam_positions.into_iter().enumerate() {
             let wrapped = grid[pos.i].remove(pos.j);
+            match &wrapped {
+                Tile::Start(start) => {
+                    if start.start_agent_id() != source.agent_id() {
+                        return Err(ParseError::AgentDiesOnSpawn {
+                            agent_id: start.start_agent_id(),
+                            position: pos,
+                        });
+                    }
+                }
+                _ => {}
+            }
             let laser = Tile::Laser(Laser::new(wrapped, source.beam(), i));
             grid[pos.i].insert(pos.j, laser);
         }
         grid[pos.i][pos.j] = Tile::LaserSource(source);
     }
-    laser_positions
+    Ok(laser_positions)
 }

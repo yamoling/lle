@@ -1,6 +1,6 @@
-use crate::{agent::Agent, AgentId, WorldEvent};
+use crate::{AgentId, WorldEvent, agent::Agent};
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Void {
     agent: Option<AgentId>,
 }

@@ -1,6 +1,6 @@
 use std::{error::Error, fmt::Display};
 
-use crate::{agent::AgentId, Position};
+use crate::{Position, agent::AgentId};
 
 #[derive(Debug)]
 pub enum ParseError {
@@ -36,6 +36,10 @@ pub enum ParseError {
         expected_n_cols: usize,
         actual_n_cols: usize,
         row: usize,
+    },
+    AgentDiesOnSpawn {
+        agent_id: AgentId,
+        position: Position,
     },
     InvalidLaserSourceAgentId {
         asked_id: AgentId,
