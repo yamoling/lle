@@ -109,9 +109,6 @@ pub fn parse_error_to_exception(error: ParseError) -> PyErr {
         } => format!(
             "Inconsistent world string height: toml height is {toml_height}, world string height is {world_str_height}"
         ),
-        ParseError::AgentDiesOnSpawn { agent_id, position } => {
-            format!("Agent {agent_id} dies on spawn at position {position:?}")
-        }
         ParseError::PositionOutOfBounds { i, j } => {
             format!("Position ({i}, {j}) is out of the world's boundaries")
         }

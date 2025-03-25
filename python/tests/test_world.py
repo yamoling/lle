@@ -710,3 +710,27 @@ start_positions = [{  }]
         starts2 = world.start_pos
 
         assert starts1 == starts2
+
+
+def test_laser_on_start_pos_error():
+    try:
+        World("""
+    S0  S1 X . X
+    L1N .  . . .
+    """)
+        assert False, "S0 should be removed because the agent would die in a laser on start"
+    except ParsingError:
+        pass
+
+
+def test_laser_on_start_pos_removed():
+    world = World('''
+world_string = """
+ .  S1 X . X
+L1N .  . . ."""
+
+[[agents]]
+start_positions = [{ i = 0, j = 0 }, { i = 1, j = 1 }]
+''')
+    assert len(world.random_start_pos[0]) == 1, "S0 should be removed because the agent would die in a laser on start"
+    assert world.random_start_pos[0][0] == (1, 1)

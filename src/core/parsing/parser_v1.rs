@@ -1,4 +1,4 @@
-use crate::{AgentId, Position, Tile};
+use crate::{AgentId, Position};
 
 use super::{ParseError, laser_config::LaserConfig, world_config::WorldConfig};
 
@@ -143,30 +143,29 @@ pub fn parse(world_str: &str) -> Result<WorldConfig, ParseError> {
                 i: data.height,
                 j: col,
             };
-            if let Ok(tile) = Tile::try_from_str(token, data.height, col) {
-                match tile {
-                    Tile::Floor { .. } => {}
-                    Tile::Wall => data.add_wall(pos),
-                    Tile::Gem(..) => data.add_gem(pos),
-                    Tile::Start(s) => data.add_start_position(s.start_agent_id(), pos)?,
-                    Tile::Exit { .. } => data.add_exit(pos),
-                    Tile::Void(..) => data.add_void(pos),
-                    Tile::LaserSource(..) => {
-                        let source_config = LaserConfig::from_str(token, data.n_lasers())?;
-                        data.add_laser_source(pos, source_config);
-                    }
-                    Tile::Laser(..) => {
-                        unreachable!(
-                            "Lasers and LaserSources should not be parsed at this stage (i.e. without global context)"
-                        )
-                    }
+            match token.to_uppercase().chars().next().unwrap() {
+                '.' => {}
+                'G' => data.add_gem(pos),
+                '@' => data.add_wall(pos),
+                'X' => data.add_exit(pos),
+                'V' => data.add_void(pos),
+                'S' => {
+                    let agent_id = token[1..].parse().map_err(|_| ParseError::InvalidAgentId {
+                        given_agent_id: token[1..].into(),
+                    })?;
+                    data.add_start_position(agent_id, pos)?;
                 }
-            } else {
-                return Err(ParseError::InvalidTile {
-                    tile_str: token.into(),
-                    line: data.height,
-                    col,
-                });
+                'L' => {
+                    let source_config = LaserConfig::from_str(token, data.n_lasers())?;
+                    data.add_laser_source(pos, source_config);
+                }
+                _ => {
+                    return Err(ParseError::InvalidTile {
+                        tile_str: token.into(),
+                        line: pos.i,
+                        col: pos.j,
+                    });
+                }
             }
         }
         data.add_row(n_cols)?;
@@ -191,8 +190,11 @@ mod tests {
         .unwrap();
         let world = config.to_world();
         match world {
-            Ok(_) => panic!("Should not be able to place a laser that kills an agent on spawn"),
-            Err(ParseError::AgentDiesOnSpawn { .. }) => {}
+            Ok(_) => panic!(
+                "The start location of agent 0 should have been removed and no remaining start position remains for agent 0"
+            ),
+            Err(ParseError::AgentWithoutStart { .. }) => {}
+            Err(ParseError::NotEnoughExitTiles { .. }) => {}
             Err(e) => panic!("Unexpected error: {:?}", e),
         }
     }

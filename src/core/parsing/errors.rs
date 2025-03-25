@@ -37,10 +37,6 @@ pub enum ParseError {
         actual_n_cols: usize,
         row: usize,
     },
-    AgentDiesOnSpawn {
-        agent_id: AgentId,
-        position: Position,
-    },
     InvalidLaserSourceAgentId {
         asked_id: AgentId,
         n_agents: AgentId,
