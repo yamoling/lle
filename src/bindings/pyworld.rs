@@ -156,7 +156,9 @@ impl PyWorld {
     #[setter]
     fn set_exit_pos(&mut self, exit_pos: Vec<PyPosition>) -> PyResult<()> {
         let pos = exit_pos.clone().into_iter().map(|p| p.into()).collect();
-        self.world.lock().unwrap().set_exit_positions(pos)?;
+        if let Err(e) = self.world.lock().unwrap().set_exit_positions(pos) {
+            return Err(parse_error_to_exception(e));
+        }
         self.exit_pos = exit_pos;
         Ok(())
     }
@@ -233,8 +235,10 @@ impl PyWorld {
         let mut world = self.world.lock().unwrap();
         let mut state = world.get_state();
         state.agents_positions[agent_id] = position.into();
-        let events = world.set_state(&state)?;
-        Ok(events.iter().map(|e| PyWorldEvent::from(e)).collect())
+        match world.set_state(&state) {
+            Ok(events) => Ok(events.iter().map(|e| PyWorldEvent::from(e)).collect()),
+            Err(e) => Err(runtime_error_to_pyexception(e)),
+        }
     }
 
     /// Retrieve the gem at the given position.

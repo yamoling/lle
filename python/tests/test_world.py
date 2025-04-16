@@ -734,3 +734,23 @@ start_positions = [{ i = 0, j = 0 }, { i = 1, j = 1 }]
 ''')
     assert len(world.random_start_pos[0]) == 1, "S0 should be removed because the agent would die in a laser on start"
     assert world.random_start_pos[0][0] == (1, 1)
+
+
+def test_set_exit_positions():
+    world = World("S0 . X")
+    world.reset()
+    assert world.exit_pos[0] == (0, 2)
+    world.exit_pos = [(0, 1)]
+
+    world.reset()
+    assert world.exit_pos[0] == (0, 1)
+    events = world.step([Action.EAST])
+    assert events[0].event_type == EventType.AGENT_EXIT
+
+    world.exit_pos = [(0, 2)]
+    world.reset()
+    assert world.exit_pos[0] == (0, 2)
+    events = world.step([Action.EAST])
+    assert len(events) == 0
+    events = world.step([Action.EAST])
+    assert events[0].event_type == EventType.AGENT_EXIT
