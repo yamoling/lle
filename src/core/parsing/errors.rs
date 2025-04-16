@@ -1,6 +1,6 @@
 use std::{error::Error, fmt::Display};
 
-use crate::{agent::AgentId, Position};
+use crate::{Position, agent::AgentId};
 
 #[derive(Debug)]
 pub enum ParseError {

@@ -1,8 +1,8 @@
 use std::{collections::HashSet, vec};
 
 use crate::{
-    tiles::{Gem, Laser, Tile, Void},
     Position, World,
+    tiles::{Gem, Laser, Tile, Void},
 };
 
 use crate::ParseError;
@@ -107,9 +107,10 @@ impl WorldConfig {
             .collect()
     }
 
-    pub fn to_world(self) -> Result<World, ParseError> {
-        self.validate()?;
+    pub fn to_world(mut self) -> Result<World, ParseError> {
+        self.pre_validate()?;
         let (grid, lasers_positions) = self.make_grid();
+        self.post_validate()?;
         let source_positions = self.lasers.iter().map(|(pos, _)| *pos).collect();
         Ok(World::new(
             grid,
@@ -131,18 +132,33 @@ impl WorldConfig {
         toml_config.to_toml_string()
     }
 
-    fn validate(&self) -> Result<(), ParseError> {
+    fn pre_validate(&self) -> Result<(), ParseError> {
         // There are some agents
         if self.random_starts.is_empty() {
             return Err(ParseError::NoAgents);
         }
-        // There are enough start/exit tiles
+        // There are enough exit tiles
         if self.exits.len() < self.n_agents() {
             return Err(ParseError::NotEnoughExitTiles {
                 n_starts: self.n_agents(),
                 n_exits: self.exits.len(),
             });
         }
+
+        // Check that there are no lasers with an agent ID that does not exist
+        for (_, source) in self.lasers.iter() {
+            if source.agent_id >= self.n_agents() {
+                return Err(ParseError::InvalidLaserSourceAgentId {
+                    asked_id: source.agent_id,
+                    n_agents: self.n_agents(),
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    fn post_validate(&self) -> Result<(), ParseError> {
         // All agents have at least one start tile
         for (agent_id, starts) in self.random_starts.iter().enumerate() {
             if starts.is_empty() {
@@ -161,17 +177,6 @@ impl WorldConfig {
                 n_agents: self.n_agents(),
             });
         }
-
-        // Check that there are no lasers with an agent ID that does not exist
-        for (_, source) in self.lasers.iter() {
-            if source.agent_id >= self.n_agents() {
-                return Err(ParseError::InvalidLaserSourceAgentId {
-                    asked_id: source.agent_id,
-                    n_agents: self.n_agents(),
-                });
-            }
-        }
-
         Ok(())
     }
 
@@ -179,7 +184,7 @@ impl WorldConfig {
         self.random_starts.len()
     }
 
-    fn make_grid(&self) -> (Vec<Vec<Tile>>, Vec<Position>) {
+    fn make_grid(&mut self) -> (Vec<Vec<Tile>>, Vec<Position>) {
         let mut grid = Vec::with_capacity(self.height);
         for _ in 0..self.height {
             let mut row = Vec::with_capacity(self.width);
@@ -200,44 +205,62 @@ impl WorldConfig {
         for pos in &self.walls {
             grid[pos.i][pos.j] = Tile::Wall;
         }
-        let laser_positions = laser_setup(&mut grid, &self.lasers).into_iter().collect();
+        let laser_positions = self.laser_setup(&mut grid).into_iter().collect();
         (grid, laser_positions)
     }
-}
 
-/// Place the laser sources and wrap the required tiles behind a
-/// `Laser` tile.
-fn laser_setup(
-    grid: &mut Vec<Vec<Tile>>,
-    laser_configs: &[(Position, LaserConfig)],
-) -> HashSet<Position> {
-    let mut laser_positions = HashSet::new();
-    let width = grid[0].len() as i32;
-    let height: i32 = grid.len() as i32;
-    for (pos, source) in laser_configs {
-        let mut beam_positions = vec![];
-        let delta = source.direction.delta();
-        let (mut i, mut j) = (pos.i as i32, pos.j as i32);
-        (i, j) = ((i + delta.0), (j + delta.1));
-        while i >= 0 && j >= 0 && i < height && j < width {
-            let pos = Position {
-                i: i as usize,
-                j: j as usize,
-            };
-            if !grid[pos.i][pos.j].is_walkable() {
-                break;
-            }
-            beam_positions.push(pos);
+    /// Place the laser sources and wrap the required tiles behind a
+    /// `Laser` tile.
+    fn laser_setup(&mut self, grid: &mut Vec<Vec<Tile>>) -> HashSet<Position> {
+        let mut laser_positions = HashSet::new();
+        let width = grid[0].len() as i32;
+        let height: i32 = grid.len() as i32;
+        for (pos, source) in &self.lasers {
+            let mut beam_positions = vec![];
+            let delta = source.direction.delta();
+            let (mut i, mut j) = (pos.i as i32, pos.j as i32);
             (i, j) = ((i + delta.0), (j + delta.1));
+            while i >= 0 && j >= 0 && i < height && j < width {
+                let pos = Position {
+                    i: i as usize,
+                    j: j as usize,
+                };
+                if !grid[pos.i][pos.j].is_walkable() {
+                    break;
+                }
+                beam_positions.push(pos);
+                (i, j) = ((i + delta.0), (j + delta.1));
+            }
+            laser_positions.extend(&beam_positions);
+            let source = source.build(beam_positions.len());
+            let mut is_blocked = false;
+            for (i, pos) in beam_positions.into_iter().enumerate() {
+                let agent_starts = &self.random_starts[source.agent_id()];
+                if agent_starts.len() == 1 && agent_starts.contains(&pos) {
+                    is_blocked = true;
+                }
+                let wrapped = grid[pos.i].remove(pos.j);
+                let laser = Tile::Laser(Laser::new(wrapped, source.beam(), i));
+                if !is_blocked {
+                    // Remove the random starts on this location for agents of a different ID if the agent would die on reset
+                    for (start_agent_id, starts) in self.random_starts.iter_mut().enumerate() {
+                        if start_agent_id == source.agent_id() {
+                            continue;
+                        }
+                        let len_before = starts.len();
+                        starts.retain(|start| *start != pos);
+                        if starts.len() != len_before {
+                            eprintln!(
+                                "[WARNING] {pos:?} is not a valid start position for agent {start_agent_id} since the agent would be killed on startup. The starting position {pos:?} has therefore been removed for agent {start_agent_id}."
+                            );
+                        }
+                    }
+                }
+
+                grid[pos.i].insert(pos.j, laser);
+            }
+            grid[pos.i][pos.j] = Tile::LaserSource(source);
         }
-        laser_positions.extend(&beam_positions);
-        let source = source.build(beam_positions.len());
-        for (i, pos) in beam_positions.into_iter().enumerate() {
-            let wrapped = grid[pos.i].remove(pos.j);
-            let laser = Tile::Laser(Laser::new(wrapped, source.beam(), i));
-            grid[pos.i].insert(pos.j, laser);
-        }
-        grid[pos.i][pos.j] = Tile::LaserSource(source);
+        laser_positions
     }
-    laser_positions
 }

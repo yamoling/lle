@@ -1,7 +1,6 @@
 use pyo3::{
-    create_exception,
+    PyErr, create_exception,
     exceptions::{self, PyValueError},
-    PyErr,
 };
 
 use crate::{ParseError, RuntimeWorldError};
@@ -76,7 +75,8 @@ pub fn parse_error_to_exception(error: ParseError) -> PyErr {
         }
         ParseError::InvalidLaserSourceAgentId { asked_id, n_agents } => {
             format!(
-                "Invalid laser source agent id: {asked_id}. There are only {n_agents} agents -> expected an id between 0 and {}.", n_agents -1
+                "Invalid laser source agent id: {asked_id}. There are only {n_agents} agents -> expected an id between 0 and {}.",
+                n_agents - 1
             )
         }
         ParseError::InvalidDirection { given, expected } => {
@@ -90,8 +90,13 @@ pub fn parse_error_to_exception(error: ParseError) -> PyErr {
         }
         ParseError::AgentWithoutStart { agent_id } => {
             format!("Agent {agent_id} has no start tile")
-        },
-        ParseError::InconsistentNumberOfAgents { toml_n_agents_field, actual_n_agents } => format!("It is explicitely specified that there are {toml_n_agents_field} agents, but there are actually {actual_n_agents} agents in the rest of the configuration."),
+        }
+        ParseError::InconsistentNumberOfAgents {
+            toml_n_agents_field,
+            actual_n_agents,
+        } => format!(
+            "It is explicitely specified that there are {toml_n_agents_field} agents, but there are actually {actual_n_agents} agents in the rest of the configuration."
+        ),
         ParseError::InconsistentWorldStringWidth {
             toml_width,
             world_str_width,
@@ -104,10 +109,12 @@ pub fn parse_error_to_exception(error: ParseError) -> PyErr {
         } => format!(
             "Inconsistent world string height: toml height is {toml_height}, world string height is {world_str_height}"
         ),
-        ParseError::PositionOutOfBounds { i, j } => format!("Position ({i}, {j}) is out of the world's boundaries"),
+        ParseError::PositionOutOfBounds { i, j } => {
+            format!("Position ({i}, {j}) is out of the world's boundaries")
+        }
         ParseError::MissingHeight => "Missing height in the world configuration file".into(),
         ParseError::MissingWidth => "Missing width in the world configuration file".into(),
-        ParseError::UnknownTomlKey {message, .. } => message,
+        ParseError::UnknownTomlKey { message, .. } => message,
         ParseError::NotV2 => panic!("NotV2 exception should not be raised here"),
     };
     ParsingError::new_err(msg)
