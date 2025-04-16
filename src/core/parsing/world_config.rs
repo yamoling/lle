@@ -233,22 +233,30 @@ impl WorldConfig {
             }
             laser_positions.extend(&beam_positions);
             let source = source.build(beam_positions.len());
+            let mut is_blocked = false;
             for (i, pos) in beam_positions.into_iter().enumerate() {
+                let agent_starts = &self.random_starts[source.agent_id()];
+                if agent_starts.len() == 1 && agent_starts.contains(&pos) {
+                    is_blocked = true;
+                }
                 let wrapped = grid[pos.i].remove(pos.j);
                 let laser = Tile::Laser(Laser::new(wrapped, source.beam(), i));
-                // Remove the random starts on this location for agents of a different ID
-                for (i, starts) in self.random_starts.iter_mut().enumerate() {
-                    if i == source.agent_id() {
-                        continue;
-                    }
-                    let len_before = starts.len();
-                    starts.retain(|start| *start != pos);
-                    if starts.len() != len_before {
-                        eprintln!(
-                            "[WARNING] {pos:?} is not a valid start position for agent {i} since the agent would be killed on startup. The starting position {pos:?} has therefore been removed for agent {i}."
-                        );
+                if !is_blocked {
+                    // Remove the random starts on this location for agents of a different ID if the agent would die on reset
+                    for (start_agent_id, starts) in self.random_starts.iter_mut().enumerate() {
+                        if start_agent_id == source.agent_id() {
+                            continue;
+                        }
+                        let len_before = starts.len();
+                        starts.retain(|start| *start != pos);
+                        if starts.len() != len_before {
+                            eprintln!(
+                                "[WARNING] {pos:?} is not a valid start position for agent {start_agent_id} since the agent would be killed on startup. The starting position {pos:?} has therefore been removed for agent {start_agent_id}."
+                            );
+                        }
                     }
                 }
+
                 grid[pos.i].insert(pos.j, laser);
             }
             grid[pos.i][pos.j] = Tile::LaserSource(source);
