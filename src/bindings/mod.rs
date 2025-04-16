@@ -13,6 +13,9 @@ mod pyworld;
 mod pyworld_state;
 
 pub use pyaction::PyAction;
+pub use pyexceptions::{
+    InvalidActionError, InvalidLevelError, InvalidWorldStateError, ParsingError,
+};
 pub use pytile::{PyLaser, PyLaserSource};
 pub use pyworld::PyWorld;
 pub use pyworld_state::PyWorldState;
