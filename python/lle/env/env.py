@@ -6,7 +6,7 @@ from typing import Literal, Optional, Sequence
 import numpy as np
 import numpy.typing as npt
 import random
-from marlenv import DiscreteActionSpace, MARLEnv, Observation, State, Step
+from marlenv import DiscreteSpace, MARLEnv, Observation, State, Step, MultiDiscreteSpace
 
 from lle import Action, World, WorldState
 from lle.observations import ObservationType, StateGenerator
@@ -32,7 +32,7 @@ class DeathStrategy(IntEnum):
 
 
 @dataclass
-class LLE(MARLEnv[Sequence[int] | npt.NDArray, DiscreteActionSpace]):
+class LLE(MARLEnv[MultiDiscreteSpace]):
     """
     Laser Learning Environment (LLE).
 
@@ -79,7 +79,8 @@ class LLE(MARLEnv[Sequence[int] | npt.NDArray, DiscreteActionSpace]):
             extras_generator = NoExtras(world.n_agents)
         self.extras_generator = extras_generator
         super().__init__(
-            action_space=DiscreteActionSpace(self.world.n_agents, Action.N, [a.name for a in Action.ALL]),
+            world.n_agents,
+            action_space=DiscreteSpace.action(Action.N, [a.name for a in Action.ALL]).repeat(world.n_agents),
             observation_shape=self._observation_generator.shape,
             state_shape=self.get_state().shape,
             reward_space=self.reward_strategy.reward_space,

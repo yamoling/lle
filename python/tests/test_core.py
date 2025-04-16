@@ -118,7 +118,8 @@ def test_action_meanings():
 .  . .
 .  . ."""
     ).build()
-    assert env.action_space.action_names == [a.name for a in Action.ALL]
+    for individual_space in env.action_space.spaces:
+        assert individual_space.labels == [a.name for a in Action.ALL]
 
 
 def test_deep_copy():
