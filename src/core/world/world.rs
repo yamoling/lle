@@ -1,19 +1,19 @@
 /// The core logic of LLE, which should not be parametrisable.
-use itertools::{izip, Itertools};
+use itertools::{Itertools, izip};
 use std::{
     fs::File,
     io::{BufReader, Read},
 };
 
 use crate::{
+    Action, AgentId, ParseError, Position, RuntimeWorldError, WorldEvent, WorldState,
     agent::Agent,
     core::{
         levels,
-        parsing::{parse, WorldConfig},
+        parsing::{WorldConfig, parse},
     },
     tiles::{Gem, Laser, LaserSource, Tile},
     utils::{find_duplicates, sample_different},
-    Action, AgentId, ParseError, Position, RuntimeWorldError, WorldEvent, WorldState,
 };
 
 type JointAction = Vec<Action>;
@@ -159,6 +159,47 @@ impl World {
             }
         }
         lasers
+    }
+
+    pub fn set_exit_positions(&mut self, exits: Vec<Position>) -> Result<(), ParseError> {
+        if exits.len() < self.n_agents() {
+            return Err(ParseError::NotEnoughExitTiles {
+                n_starts: self.n_agents(),
+                n_exits: exits.len(),
+            });
+        }
+        // Replace current exits by floor tiles
+        for pos in &self.exits {
+            let tile = self.grid[pos.i].remove(pos.j);
+            let replacement = match tile {
+                Tile::Exit { agent } => Tile::Floor { agent },
+                Tile::Laser(mut laser) => {
+                    laser.set_tile(Tile::Floor {
+                        agent: laser.agent(),
+                    });
+                    Tile::Laser(laser)
+                }
+                other => panic!("Tile is not an exit: {:?}", other),
+            };
+            self.grid[pos.i].insert(pos.j, replacement);
+        }
+        // Set new exits
+        self.exits = exits;
+        for pos in &self.exits {
+            let tile = self.grid[pos.i].remove(pos.j);
+            let replacement = match tile {
+                Tile::Floor { agent } => Tile::Exit { agent },
+                Tile::Laser(mut laser) => {
+                    laser.set_tile(Tile::Exit {
+                        agent: laser.agent(),
+                    });
+                    Tile::Laser(laser)
+                }
+                other => panic!("Tile is not a floor: {:?}", other),
+            };
+            self.grid[pos.i].insert(pos.j, replacement);
+        }
+        Ok(())
     }
 
     pub fn exits_positions(&self) -> Vec<Position> {
@@ -538,7 +579,7 @@ impl World {
             Err(_) => {
                 return Err(ParseError::InvalidFileName {
                     file_name: file.into(),
-                })
+                });
             }
         };
         let mut reader = BufReader::new(file);

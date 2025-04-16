@@ -106,6 +106,14 @@ impl Laser {
         }
     }
 
+    pub fn set_tile(&mut self, tile: Tile) {
+        if let Tile::Laser(wrapped) = self.wrapped.as_mut() {
+            wrapped.set_tile(tile);
+        } else {
+            self.wrapped = Box::new(tile);
+        }
+    }
+
     pub fn wrapped(&self) -> &Tile {
         &self.wrapped
     }

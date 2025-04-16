@@ -153,6 +153,14 @@ impl PyWorld {
         }
     }
 
+    #[setter]
+    fn set_exit_pos(&mut self, exit_pos: Vec<PyPosition>) -> PyResult<()> {
+        let pos = exit_pos.clone().into_iter().map(|p| p.into()).collect();
+        self.world.lock().unwrap().set_exit_positions(pos)?;
+        self.exit_pos = exit_pos;
+        Ok(())
+    }
+
     /// The string upon which the world has been constructed (as toml).
     #[getter]
     fn world_string(&self) -> String {
@@ -225,10 +233,8 @@ impl PyWorld {
         let mut world = self.world.lock().unwrap();
         let mut state = world.get_state();
         state.agents_positions[agent_id] = position.into();
-        match world.set_state(&state) {
-            Ok(events) => Ok(events.iter().map(|e| PyWorldEvent::from(e)).collect()),
-            Err(e) => Err(runtime_error_to_pyexception(e)),
-        }
+        let events = world.set_state(&state)?;
+        Ok(events.iter().map(|e| PyWorldEvent::from(e)).collect())
     }
 
     /// Retrieve the gem at the given position.
