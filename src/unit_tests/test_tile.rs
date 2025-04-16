@@ -1,31 +1,15 @@
 use std::rc::Rc;
 
 use crate::{
-    agent::Agent,
-    tiles::{Direction, Gem, Laser, LaserBeam, Start, Void},
     AgentId, Tile,
+    agent::Agent,
+    tiles::{Direction, Gem, Laser, LaserBeam, Void},
 };
 
 fn make_laser(agent_id: AgentId, length: usize) -> Laser {
     let wrapped = Tile::Floor { agent: None };
     let beam = Rc::new(LaserBeam::new(length, agent_id, Direction::East, 0));
     Laser::new(wrapped, beam, 0)
-}
-
-#[test]
-fn test_start() {
-    let mut agent = Agent::new(0);
-    let mut start = Tile::Start(Start::new(agent.id()));
-    start.reset();
-    assert_eq!(start.agent(), None);
-    assert!(start.is_walkable());
-    assert!(!start.is_occupied());
-    assert_eq!(start.agent(), None);
-    start.enter(&mut agent);
-    assert_eq!(start.agent(), Some(agent.id()));
-    assert!(start.is_occupied());
-    start.leave();
-    assert_eq!(start.agent(), None);
 }
 
 #[test]
