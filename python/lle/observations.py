@@ -2,7 +2,6 @@ import cv2
 from abc import ABC, abstractmethod
 from enum import IntEnum
 import numpy as np
-from numpy._typing import NDArray
 import numpy.typing as npt
 from lle import World, WorldState
 from .types import AgentId, Position
@@ -215,7 +214,7 @@ class LayeredPadded(ObservationGenerator):
 
         return obs
 
-    def to_world_state(self, data: NDArray[np.float32]) -> WorldState:
+    def to_world_state(self, data: npt.NDArray[np.float32]) -> WorldState:
         """
         Assumes that the agents are alive.
         """
