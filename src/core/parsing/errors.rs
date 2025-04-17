@@ -1,12 +1,6 @@
 use std::{error::Error, fmt::Display};
 
-use pyo3::{PyErr, PyResult, exceptions};
-
-use crate::{
-    Position,
-    agent::AgentId,
-    bindings::{InvalidLevelError, ParsingError},
-};
+use crate::{Position, agent::AgentId};
 
 #[derive(Debug)]
 pub enum ParseError {

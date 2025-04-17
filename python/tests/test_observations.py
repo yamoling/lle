@@ -59,6 +59,21 @@ S0 X  .  .
     assert image.max() > image.min()
 
 
+def test_observe_layered_change_exits():
+    world = World("S0 X . .")
+    observer = Layered(world)
+
+    assert world.exit_pos[0] == (0, 1)
+    assert len(world.exit_pos) == 1
+
+    world.exit_pos = [(0, 2), (0, 3)]
+    world.reset()
+    obs = observer.observe()
+
+    assert np.all(obs[:, observer.EXIT, 0, 2] == 1)
+    assert np.all(obs[:, observer.EXIT, 0, 3] == 1)
+
+
 def test_observe_layered_deactivated_laser():
     world = World(
         """

@@ -754,3 +754,16 @@ def test_set_exit_positions():
     assert len(events) == 0
     events = world.step([Action.EAST])
     assert events[0].event_type == EventType.AGENT_EXIT
+
+
+def test_laser_sources_in_wall_pos():
+    world = World(
+        """
+        S0 . . X 
+       L0E . . X
+        S1 . . X
+       L1E . . X 
+"""
+    )
+    for source in world.laser_sources:
+        assert source.pos in world.wall_pos
