@@ -1,6 +1,6 @@
 use std::{error::Error, fmt::Display, sync::PoisonError};
 
-use crate::{agent::AgentId, Action, Position, WorldState};
+use crate::{Action, Position, WorldState, agent::AgentId};
 
 #[derive(Debug)]
 pub enum RuntimeWorldError {

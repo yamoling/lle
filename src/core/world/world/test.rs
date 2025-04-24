@@ -1,8 +1,9 @@
 use core::panic;
+use std::vec;
 
 use crate::{
-    agent::Agent, core::WorldState, tiles::Laser, Action, ParseError, Position, RuntimeWorldError,
-    WorldEvent,
+    Action, ParseError, Position, RuntimeWorldError, WorldEvent, agent::Agent, core::WorldState,
+    tiles::Laser,
 };
 
 use super::World;
@@ -30,10 +31,12 @@ fn test_tile_type() {
     //let start = world.start_positions[0].get(&(0, 0)).unwrap();
     assert_eq!(world.start_positions[0], Position { i: 0, j: 0 });
 
-    assert!(world
-        .gems_positions
-        .iter()
-        .any(|pos| pos.i == 0 && pos.j == 2));
+    assert!(
+        world
+            .gems_positions
+            .iter()
+            .any(|pos| pos.i == 0 && pos.j == 2)
+    );
     let source = world
         .sources()
         .iter()
@@ -570,4 +573,83 @@ start_positions = [{i=0, j=0}]
         assert_eq!(positions[2], Position { i: 1, j: 0 });
         assert_eq!(positions[3], Position { i: 0, j: 0 });
     }
+}
+
+#[test]
+fn set_exits() {
+    let mut world = World::try_from(
+        "
+        S0 . G
+        X  . .
+    ",
+    )
+    .unwrap();
+    world.reset();
+    assert!(world.exits_positions().len() == 1);
+    assert!(world.exits_positions().contains(&Position { i: 1, j: 0 }));
+
+    world
+        .set_exit_positions(vec![(0, 1).into(), (1, 1).into()])
+        .unwrap();
+    assert_eq!(world.exits_positions().len(), 2);
+    assert!(world.exits_positions().contains(&Position { i: 0, j: 1 }));
+    assert!(world.exits_positions().contains(&Position { i: 1, j: 1 }));
+}
+
+#[test]
+fn set_exits_events() {
+    let mut world = World::try_from(
+        "
+        S0 . G
+        X  . .
+    ",
+    )
+    .unwrap();
+    world.reset();
+
+    world
+        .set_exit_positions(vec![(0, 1).into(), (1, 1).into()])
+        .unwrap();
+    let events = world.step(&[Action::East]).unwrap();
+    assert_eq!(events.len(), 1);
+    assert_eq!(
+        events
+            .iter()
+            .filter(|e| matches!(e, WorldEvent::AgentExit { .. }))
+            .count(),
+        1
+    );
+    assert_eq!(
+        events
+            .iter()
+            .filter(|e| matches!(e, WorldEvent::GemCollected { .. }))
+            .count(),
+        0
+    );
+    assert_eq!(
+        events
+            .iter()
+            .filter(|e| matches!(e, WorldEvent::AgentDied { .. }))
+            .count(),
+        0
+    );
+}
+
+#[test]
+fn set_exits_old_exit_inactive() {
+    let mut world = World::try_from(
+        "
+        S0 . G
+        X  . .
+    ",
+    )
+    .unwrap();
+    world.reset();
+
+    world
+        .set_exit_positions(vec![(0, 1).into(), (1, 1).into()])
+        .unwrap();
+
+    let events = world.step(&[Action::South]).unwrap();
+    assert!(events.is_empty());
 }

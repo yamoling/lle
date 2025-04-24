@@ -198,15 +198,7 @@ class LayeredPadded(ObservationGenerator):
     def _setup(self):
         """Initial setup with static data (walls, gems, exits)"""
         obs = np.zeros(self._shape, dtype=np.float32)
-        for i, j in self._world.exit_pos:
-            obs[self.EXIT, i, j] = 1.0
-
         for i, j in self._world.wall_pos:
-            obs[self.WALL, i, j] = 1.0
-
-        for source in self._world.laser_sources:
-            i, j = source.pos
-            obs[self.LASER_0 + source.agent_id, i, j] = -1.0
             obs[self.WALL, i, j] = 1.0
 
         for i, j in self._world.void_pos:
@@ -228,6 +220,11 @@ class LayeredPadded(ObservationGenerator):
 
     def observe(self):
         obs = np.copy(self.static_obs)
+        for i, j in self._world.exit_pos:
+            obs[self.EXIT, i, j] = 1.0
+        for source in self._world.laser_sources:
+            i, j = source.pos
+            obs[self.LASER_0 + source.agent_id, i, j] = -1.0
         for laser in self._world.lasers:
             i, j = laser.pos
             if laser.is_on:

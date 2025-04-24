@@ -507,17 +507,28 @@ def test_change_laser_colour_to_negative_colour():
     try:
         source.set_colour(-1)
         raise Exception("Negative colours are not allowed")
-    except ValueError:
+    except OverflowError:
         pass
 
 
 def test_laser_colour_change_remains_after_reset():
-    world = World("L0E S0 S1 X X")
+    world = World("L0E X X @ S0 S1")
     world.reset()
     source = world.source_at((0, 0))
     source.agent_id = 1
     world.reset()
     assert world.source_at((0, 0)).agent_id == 1
+
+
+def test_laser_colour_change_kills_agent_on_start():
+    world = World("L0E X X S0 S1")
+    world.reset()
+    source = world.source_at((0, 0))
+    try:
+        source.agent_id = 1
+        assert False, "This should not be allowed because agent 1 would be killed on reset."
+    except ValueError:
+        pass
 
 
 def test_change_laser_colour_to_invalid_colour():
@@ -734,3 +745,36 @@ start_positions = [{ i = 0, j = 0 }, { i = 1, j = 1 }]
 ''')
     assert len(world.random_start_pos[0]) == 1, "S0 should be removed because the agent would die in a laser on start"
     assert world.random_start_pos[0][0] == (1, 1)
+
+
+def test_set_exit_positions():
+    world = World("S0 . X")
+    world.reset()
+    assert world.exit_pos[0] == (0, 2)
+    world.exit_pos = [(0, 1)]
+
+    world.reset()
+    assert world.exit_pos[0] == (0, 1)
+    events = world.step([Action.EAST])
+    assert events[0].event_type == EventType.AGENT_EXIT
+
+    world.exit_pos = [(0, 2)]
+    world.reset()
+    assert world.exit_pos[0] == (0, 2)
+    events = world.step([Action.EAST])
+    assert len(events) == 0
+    events = world.step([Action.EAST])
+    assert events[0].event_type == EventType.AGENT_EXIT
+
+
+def test_laser_sources_in_wall_pos():
+    world = World(
+        """
+        S0 . . X 
+       L0E . . X
+        S1 . . X
+       L1E . . X 
+"""
+    )
+    for source in world.laser_sources:
+        assert source.pos in world.wall_pos

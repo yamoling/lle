@@ -10,7 +10,7 @@ classifiers = [
 ]
 dependencies = [
     "numpy>=2.0.0",
-    "multi-agent-rlenv>=3.2.0",
+    "multi-agent-rlenv>=3.5.0",
     "opencv-python>=4.0.0",
     "orjson>=3.10.15",
 ]
