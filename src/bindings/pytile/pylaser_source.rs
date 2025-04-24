@@ -1,13 +1,17 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashSet,
+    sync::{Arc, Mutex},
+};
 
+use itertools::enumerate;
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use crate::{
+    Position, Tile, World,
     agent::AgentId,
     bindings::{pydirection::PyDirection, pyposition::PyPosition},
     tiles::{LaserId, LaserSource},
-    Tile, World,
 };
 
 #[gen_stub_pyclass]
@@ -99,33 +103,46 @@ impl PyLaserSource {
     }
 
     #[setter]
-    pub fn set_agent_id(&mut self, agent_id: i32) -> PyResult<()> {
-        if agent_id < 0 {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                "Agent ID must be positive",
-            ));
-        }
+    pub fn set_agent_id(&mut self, new_agent_id: usize) -> PyResult<()> {
         let world = self.world.lock().unwrap();
-        let agent_id = agent_id as usize;
-        if agent_id >= world.n_agents() {
+        if new_agent_id >= world.n_agents() {
             return Err(pyo3::exceptions::PyValueError::new_err(
                 "Agent ID is greater than the number of agents",
             ));
         }
         if let Some(Tile::LaserSource(laser_source)) = world.at(&self.pos.clone().into()) {
-            laser_source.set_agent_id(agent_id as AgentId);
-            self.agent_id = agent_id as AgentId;
+            laser_source.set_agent_id(new_agent_id as AgentId);
         } else {
             return Err(pyo3::exceptions::PyValueError::new_err(
                 "Tile is not a LaserSource",
             ));
         }
+        // We have to check that the laser does not cross a start position
+        // of an agent of a different colour.
+        let lasers_positions: HashSet<Position> = world
+            .lasers()
+            .into_iter()
+            .filter(|(_, l)| l.laser_id() == self.laser_id)
+            .map(|(pos, _)| pos)
+            .collect();
+        for (start_agent_id, pos) in enumerate(world.possible_starts()) {
+            if start_agent_id != new_agent_id {
+                let starts_set = HashSet::from_iter(pos.into_iter());
+                let intersection: Vec<_> = lasers_positions.intersection(&starts_set).collect();
+                if intersection.len() > 0 {
+                    return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                        "Laser source cannot be changed to agent ID {new_agent_id} since it would cross the start position of agent {start_agent_id} at {intersection:?}",
+                    )));
+                }
+            }
+        }
+        self.agent_id = new_agent_id as AgentId;
         Ok(())
     }
 
     /// Change the colour of the laser to the one of the given agent ID.
     /// Alias to `source.agent_id = new_agent_id`.
-    fn set_colour(&mut self, colour: i32) -> PyResult<()> {
+    fn set_colour(&mut self, colour: usize) -> PyResult<()> {
         self.set_agent_id(colour)
     }
 

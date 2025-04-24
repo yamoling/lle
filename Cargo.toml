@@ -1,6 +1,6 @@
 [package]
 name = "lle"
-version = "2.4.0"
+version = "2.5.0"
 edition = "2024"
 readme = "readme.md"
 license-file = "licence"
@@ -26,11 +26,11 @@ path = "src/stub_gen.rs"
 image = "0.25.5"
 itertools = "0.14.0"
 lazy_static = "1.5.0"
-numpy = "0.23.0"
-pyo3 = "0.23.3"
+numpy = "0.24.0"
+pyo3 = "0.24.2"
 # pyo3-stub-gen = { path = "/home/yann/projects/rust/pyo3-stub-gen/pyo3-stub-gen" }
 # pyo3-stub-gen-derive = { path = "/home/yann/projects/rust/pyo3-stub-gen/pyo3-stub-gen-derive" }
 pyo3-stub-gen = { git = "https://github.com/yamoling/pyo3-stub-gen/", rev = "5fd712bcace754e75caceacfb3eecfda5c6c18dd", version = "0.6.1" }
-rand = "0.9.0"
+rand = "0.9.1"
 serde = "1.0.217"
 toml = "0.8.20"

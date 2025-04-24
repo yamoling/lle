@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    fs,
+    sync::{Arc, Mutex},
+};
 
 use itertools::izip;
 use numpy::{PyArray1, PyArray3, PyArrayMethods};
@@ -142,6 +145,15 @@ impl PyWorld {
         Ok(PyWorld::from(world))
     }
 
+    /// Save the world configuration to the given file.
+    fn save(&self, filename: String) -> PyResult<()> {
+        let world_string = self.world_string();
+        fs::write(&filename, world_string).map_err(|e| {
+            PyValueError::new_err(format!("Could not write to file: {filename}: {e}"))
+        })?;
+        Ok(())
+    }
+
     /// Retrieve the standard level (between `1` and `6`).
     /// Raises:
     ///     - `ValueError`: if the level is invalid.
@@ -163,7 +175,9 @@ impl PyWorld {
         Ok(())
     }
 
-    /// The string upon which the world has been constructed (as toml).
+    /// Compute the world configuration string from the `World`.
+    /// If possible, the string is returned in "plain text" format.
+    /// Otherwise, it is returned in toml format.
     #[getter]
     fn world_string(&self) -> String {
         self.world.lock().unwrap().world_string()

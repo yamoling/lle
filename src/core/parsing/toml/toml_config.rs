@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use toml;
 
 use crate::{
-    core::parsing::{parse_v1, WorldConfig},
     ParseError, Position,
+    core::parsing::{WorldConfig, parse_v1},
 };
 
 use super::{AgentConfig, PositionsConfig, TomlLaserConfig};

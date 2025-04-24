@@ -507,17 +507,28 @@ def test_change_laser_colour_to_negative_colour():
     try:
         source.set_colour(-1)
         raise Exception("Negative colours are not allowed")
-    except ValueError:
+    except OverflowError:
         pass
 
 
 def test_laser_colour_change_remains_after_reset():
-    world = World("L0E S0 S1 X X")
+    world = World("L0E X X @ S0 S1")
     world.reset()
     source = world.source_at((0, 0))
     source.agent_id = 1
     world.reset()
     assert world.source_at((0, 0)).agent_id == 1
+
+
+def test_laser_colour_change_kills_agent_on_start():
+    world = World("L0E X X S0 S1")
+    world.reset()
+    source = world.source_at((0, 0))
+    try:
+        source.agent_id = 1
+        assert False, "This should not be allowed because agent 1 would be killed on reset."
+    except ValueError:
+        pass
 
 
 def test_change_laser_colour_to_invalid_colour():
