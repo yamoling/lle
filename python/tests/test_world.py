@@ -778,3 +778,38 @@ def test_laser_sources_in_wall_pos():
     )
     for source in world.laser_sources:
         assert source.pos in world.wall_pos
+
+
+def test_laser_num_higher_than_n_agents():
+    world = World("S0 L1E X")
+    assert world.source_at((0, 1)).agent_id == 1
+
+
+def test_n_laser_colours():
+    world = World(
+        """
+        S0 L0E X
+        S1 L1E X
+        """
+    )
+    assert world.n_laser_colours == 2
+
+
+def test_n_laser_colours_1agent():
+    world = World(
+        """
+        S0 L0E X
+         . L2E X
+        """
+    )
+    assert world.n_laser_colours == 2
+
+
+def test_n_laser_colours_same_colours():
+    world = World(
+        """
+        S0 L0E X
+         . L0E X
+        """
+    )
+    assert world.n_laser_colours == 1
