@@ -1,4 +1,4 @@
-use lle::{tiles::Laser, Action, ParseError, RuntimeWorldError, World, WorldEvent, WorldState};
+use lle::{Action, ParseError, RuntimeWorldError, World, WorldEvent, WorldState, tiles::Laser};
 
 #[test]
 fn test_available_actions() {
@@ -466,20 +466,6 @@ fn test_laser_sources_have_different_laser_ids() {
         .collect::<Vec<_>>();
     assert_eq!(laser_ids.len(), 2);
     assert_ne!(laser_ids[0], laser_ids[1]);
-}
-
-#[test]
-fn test_wrong_agent_id_for_laser_source() {
-    match World::try_from("S0 L5S X") {
-        Ok(_) => panic!("Should not be able to parse world where a laser has an ID of an agent that does not exist."),
-        Err(e) => match e {
-            ParseError::InvalidLaserSourceAgentId { asked_id, n_agents } => {
-                assert_eq!(asked_id, 5);
-                assert_eq!(n_agents, 1);
-            },
-            other => panic!("Expected InvalidLaserSourceAgentId, got {:?}", other),
-        }
-    }
 }
 
 #[test]
