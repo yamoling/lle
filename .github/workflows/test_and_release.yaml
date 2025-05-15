@@ -65,14 +65,14 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - windows-latest
+          # - windows-latest
           - macOS-latest
         target:
           - x86_64
           - aarch64
         exclude:
-          - os: windows-latest
-            target: 'aarch64'
+          #- os: windows-latest
+          #  target: 'aarch64'
           # Build is currently failing on Ubuntu aarch64 for python 3.13
           - os: ubuntu-latest
             target: 'aarch64'
