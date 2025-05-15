@@ -118,6 +118,10 @@ class World:
     r"""
     The list of agents in the world.
     """
+    n_laser_colours: builtins.int
+    r"""
+    The number of different laser colours in the world.
+    """
     def __new__(cls, map_str:builtins.str) -> World: ...
     def __init__(self, map_str:builtins.str) -> None:
         r"""

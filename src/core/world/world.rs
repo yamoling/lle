@@ -82,6 +82,14 @@ impl World {
         self.agents.len()
     }
 
+    pub fn n_laser_colours(&self) -> usize {
+        self.sources()
+            .iter()
+            .map(|(_, s)| s.agent_id())
+            .unique()
+            .count()
+    }
+
     pub fn seed(&mut self, seed: u64) {
         self.rng = rand::SeedableRng::seed_from_u64(seed);
     }

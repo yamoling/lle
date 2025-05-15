@@ -314,13 +314,13 @@ def test_padded_layered():
     world = World("S0 X")
     baseline = ObservationType.LAYERED.get_observation_generator(world)
     obs = ObservationType.LAYERED_PADDED_1AGENT.get_observation_generator(world)
-    assert obs.shape[0] == baseline.shape[0] + 2
+    assert obs.shape[0] == baseline.shape[0] + 1
     assert obs.shape[1:] == baseline.shape[1:]
     obs = ObservationType.LAYERED_PADDED_2AGENTS.get_observation_generator(world)
-    assert obs.shape[0] == baseline.shape[0] + 4
+    assert obs.shape[0] == baseline.shape[0] + 2
     assert obs.shape[1:] == baseline.shape[1:]
     obs = ObservationType.LAYERED_PADDED_3AGENTS.get_observation_generator(world)
-    assert obs.shape[0] == baseline.shape[0] + 6
+    assert obs.shape[0] == baseline.shape[0] + 3
     assert obs.shape[1:] == baseline.shape[1:]
 
 
@@ -442,3 +442,18 @@ def test_extras_subgoals_extras_two_lasers_two_agents():
     _perform_tests_two_agents(env)
     env.reset()
     _perform_tests_two_agents(env)
+
+
+def test_layered_observation_laser_agent_id_gap():
+    world = World("S0 L0S L2E X")
+    generator = Layered(world)
+    assert generator.highest_laser_agent_id == 2
+
+
+def test_layered_observation_laser_source_agent_id_above_n_agents():
+    world = World("S0 L1E X")
+    generator = Layered(world)
+    data = generator.observe()
+    laser_1_layer = data[0, generator.LASER_0 + 1]
+    assert laser_1_layer[0, 1] == -1
+    assert laser_1_layer[0, 2] == 1

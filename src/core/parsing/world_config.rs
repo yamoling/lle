@@ -145,15 +145,15 @@ impl WorldConfig {
             });
         }
 
-        // Check that there are no lasers with an agent ID that does not exist
-        for (_, source) in self.lasers.iter() {
-            if source.agent_id >= self.n_agents() {
-                return Err(ParseError::InvalidLaserSourceAgentId {
-                    asked_id: source.agent_id,
-                    n_agents: self.n_agents(),
-                });
-            }
-        }
+        // // Check that there are no lasers with an agent ID that does not exist
+        // for (_, source) in self.lasers.iter() {
+        //     if source.agent_id >= self.n_agents() {
+        //         return Err(ParseError::InvalidLaserSourceAgentId {
+        //             asked_id: source.agent_id,
+        //             n_agents: self.n_agents(),
+        //         });
+        //     }
+        // }
 
         Ok(())
     }
@@ -235,9 +235,10 @@ impl WorldConfig {
             let source = source.build(beam_positions.len());
             let mut is_blocked = false;
             for (i, pos) in beam_positions.into_iter().enumerate() {
-                let agent_starts = &self.random_starts[source.agent_id()];
-                if agent_starts.len() == 1 && agent_starts.contains(&pos) {
-                    is_blocked = true;
+                if let Some(agent_starts) = self.random_starts.get(source.agent_id()) {
+                    if agent_starts.len() == 1 && agent_starts.contains(&pos) {
+                        is_blocked = true;
+                    }
                 }
                 let wrapped = grid[pos.i].remove(pos.j);
                 let laser = Tile::Laser(Laser::new(wrapped, source.beam(), i));

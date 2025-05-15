@@ -442,6 +442,12 @@ impl PyWorld {
             .collect()
     }
 
+    /// The number of different laser colours in the world.
+    #[getter]
+    pub fn n_laser_colours(&self) -> usize {
+        self.world.lock().unwrap().n_laser_colours()
+    }
+
     /// Renders the world as an image and returns it in a numpy array.
     /// Returns:
     ///     The image of the world as a numpy array of shape (height * 32, width * 32, 3) with type uint8.
