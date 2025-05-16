@@ -1,6 +1,6 @@
 [package]
 name = "lle"
-version = "2.6.0"
+version = "2.6.1"
 edition = "2024"
 readme = "readme.md"
 license-file = "licence"
@@ -15,7 +15,7 @@ exclude = ["python/*", "uv.lock", "stubcheck.sh", "pyproject.toml", "docs"]
 [lib]
 name = "lle"
 path = "src/lib.rs"
-crate-type = ["cdylib", "rlib"]
+crate-type = ["cdylib"]
 
 [[bin]]
 name = "stub-gen"

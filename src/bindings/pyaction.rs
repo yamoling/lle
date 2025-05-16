@@ -1,4 +1,7 @@
-use pyo3::prelude::*;
+use pyo3::{
+    prelude::*,
+    types::{PyDict, PyTuple},
+};
 use pyo3_stub_gen::derive::{gen_stub_pyclass_enum, gen_stub_pymethods};
 
 use crate::Action;
@@ -95,6 +98,33 @@ impl PyAction {
     fn opposite(&self) -> Self {
         let action: Action = self.into();
         action.opposite().into()
+    }
+
+    fn __deepcopy__(&self, _memo: &Bound<'_, PyDict>) -> Self {
+        self.clone()
+    }
+
+    fn __getstate__(&self) -> PyResult<u32> {
+        Ok(self.value())
+    }
+
+    fn __setstate__(&mut self, state: u32) -> PyResult<()> {
+        *self = match state {
+            0 => Self::North,
+            1 => Self::South,
+            2 => Self::East,
+            3 => Self::West,
+            4 => Self::Stay,
+            _ => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "Invalid action value: {state}. Valid values for actions are between 0 and 4."
+                )));
+            }
+        };
+        Ok(())
+    }
+    fn __getnewargs__<'a>(&self, py: Python<'a>) -> Bound<'a, PyTuple> {
+        PyTuple::new(py, [self.value()].iter()).unwrap()
     }
 }
 

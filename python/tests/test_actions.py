@@ -32,3 +32,21 @@ def test_hash_equal():
         assert h == hash(a)
         hashes.add(h)
         actions.add(a)
+
+
+def test_deepcopy():
+    import copy
+
+    for a in Action.ALL:
+        b = copy.deepcopy(a)
+        assert a == b
+        assert a is not b
+
+
+def test_pickle():
+    import pickle
+
+    for a in Action.ALL:
+        b = pickle.loads(pickle.dumps(a))
+        assert a == b
+        assert a is not b
