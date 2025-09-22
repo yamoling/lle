@@ -8,15 +8,20 @@ use crate::{tiles::Direction, Action, RuntimeWorldError};
 pub struct Position {
     pub i: usize,
     pub j: usize,
+    pub k: usize,
 }
 
 impl Position {
-    pub fn as_xy(&self) -> (usize, usize) {
-        (self.j, self.i)
+    pub fn new2d(i: usize, j: usize) -> Self {
+        Self { i, j, k: 0 }
     }
 
-    pub fn as_ij(&self) -> (usize, usize) {
-        (self.i, self.j)
+    pub fn as_xyz(&self) -> (usize,usize,usize) {
+        (self.j,self.k, self.i)
+    }
+
+    pub fn as_ijk(&self) -> (usize, usize, usize) {
+        (self.i, self.j, self.k)
     }
 
     pub fn x(&self) -> usize {
@@ -25,6 +30,10 @@ impl Position {
 
     pub fn y(&self) -> usize {
         self.i
+    }
+
+    pub fn z(&self) -> usize {
+        self.k
     }
 }
 
@@ -36,6 +45,7 @@ impl Add<Direction> for Position {
         Self::Output {
             i: (self.i as i32 + dx) as usize,
             j: (self.j as i32 + dy) as usize,
+            k: self.k,
         }
     }
 }
@@ -53,30 +63,38 @@ impl Add<&Action> for &Position {
                 position: Position {
                     j: j as usize,
                     i: i as usize,
+                    k: self.k,
                 },
             });
         }
         Ok(Position {
             j: j as usize,
             i: i as usize,
+            k: self.k,
         })
     }
 }
 
-impl Into<(usize, usize)> for &Position {
-    fn into(self) -> (usize, usize) {
-        (self.i, self.j)
+impl Into<(usize, usize, usize)> for &Position {
+    fn into(self) -> (usize, usize, usize) {
+        (self.i, self.j, self.k)
     }
 }
 
 impl PartialEq<Position> for Position {
     fn eq(&self, other: &Position) -> bool {
-        self.i == other.i && self.j == other.j
+        self.i == other.i && self.j == other.j && self.k == other.k
+    }
+}
+
+impl PartialEq<(usize, usize, usize)> for Position {
+    fn eq(&self, other: &(usize, usize, usize)) -> bool {
+        self.i == other.0 && self.j == other.1 && self.k == other.2
     }
 }
 
 impl PartialEq<(usize, usize)> for Position {
     fn eq(&self, other: &(usize, usize)) -> bool {
-        self.i == other.0 && self.j == other.1
+        self.i == other.0 && self.j == other.1 && self.k == 0
     }
 }

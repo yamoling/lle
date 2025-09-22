@@ -16,11 +16,11 @@ fn test_sample_different() {
 fn test_sample_different_deterministic() {
     let mut rng = rand::rng();
     let random_start_positions = vec![
-        vec![Position { i: 0, j: 0 }],
-        vec![Position { i: 0, j: 0 }, Position { i: 1, j: 0 }],
+        vec![Position::new2d(0,0)],
+        vec![Position::new2d(0,0), Position::new2d(1, 0)],
         vec![
-            Position { i: 0, j: 0 },
-            Position { i: 1, j: 0 },
+            Position::new2d(0,0),
+            Position::new2d(1, 0),
             (2, 0).into(),
         ],
     ];
@@ -33,10 +33,25 @@ fn test_sample_different_deterministic() {
 fn test_sample_different_impossible() {
     let mut rng = rand::rng();
     let random_start_positions = vec![
-        vec![Position { i: 0, j: 0 }],
-        vec![Position { i: 0, j: 1 }],
-        vec![Position { i: 0, j: 2 }],
-        vec![Position { i: 0, j: 0 }, (0, 1).into(), (0, 2).into()],
+        vec![Position::new2d(0,0)],
+        vec![Position::new2d(0,1)],
+        vec![Position::new2d(0,2)],
+        vec![Position::new2d(0,0), (0, 1).into(), (0, 2).into()],
     ];
     super::sample_different(&mut rng, &random_start_positions);
+}
+
+
+#[test]
+fn test_into_equality() {
+    let pos: Position = (1, 2, 0).into();
+    assert_eq!(pos.i, 1);
+    assert_eq!(pos.j, 2);
+    assert_eq!(pos.k, 0);
+    let (i, j, k): (usize, usize, usize) = pos.into();
+    assert_eq!(i, 1);
+    assert_eq!(j, 2);
+    assert_eq!(k, 0);
+    let pos2: Position = (1, 2).into();
+    assert_eq!(pos2,pos);
 }
