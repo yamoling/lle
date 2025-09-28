@@ -1,5 +1,5 @@
 use crate::{
-    RuntimeWorldError, WorldEvent,
+    RuntimeWorldError, WorldEvent, Grid,
     agent::{Agent, AgentId},
     rendering::{TileVisitor, VisitorData},
 };
@@ -131,6 +131,17 @@ impl Tile {
             Self::LaserSource(source) => visitor.visit_laser_source(source, data),
             _ => {} // Nothing to do
         };
+    }
+}
+
+impl Grid<Tile> {
+    pub fn default_init(self) -> Self {
+        let size = self.width * self.height * self.layers;
+        let mut grid = self.grid;
+        for _ in 0..size {
+            grid.push(Tile::Floor { agent: None });
+        }
+        Self { grid, ..self }
     }
 }
 
