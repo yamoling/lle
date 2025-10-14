@@ -1,5 +1,5 @@
 use crate::{
-    RuntimeWorldError, WorldEvent, Grid,
+    Grid, RuntimeWorldError, WorldEvent,
     agent::{Agent, AgentId},
     rendering::{TileVisitor, VisitorData},
 };

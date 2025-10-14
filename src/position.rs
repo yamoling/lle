@@ -2,7 +2,7 @@ use std::ops::Add;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{tiles::Direction, Action, RuntimeWorldError};
+use crate::{Action, RuntimeWorldError, tiles::Direction};
 
 #[derive(Debug, Clone, Copy, Eq, Hash, Deserialize, Serialize)]
 pub struct Position {
@@ -16,8 +16,8 @@ impl Position {
         Self { i, j, k: 0 }
     }
 
-    pub fn as_xyz(&self) -> (usize,usize,usize) {
-        (self.j,self.k, self.i)
+    pub fn as_xyz(&self) -> (usize, usize, usize) {
+        (self.j, self.k, self.i)
     }
 
     pub fn as_ijk(&self) -> (usize, usize, usize) {

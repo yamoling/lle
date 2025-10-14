@@ -18,7 +18,8 @@ impl Into<Position> for PyPosition {
     }
 }
 
-impl Into<Position> for (usize, usize) { // simply for convenience
+impl Into<Position> for (usize, usize) {
+    // simply for convenience
     fn into(self) -> Position {
         Position {
             i: self.0,

@@ -14,7 +14,7 @@ impl<T> Grid<T> {
      */
     pub fn new(width: usize, height: usize, layers: usize) -> Self {
         Self {
-            grid: Vec::with_capacity(width*height*layers),
+            grid: Vec::with_capacity(width * height * layers),
             width,
             height,
             layers,
@@ -29,7 +29,6 @@ impl<T> Grid<T> {
         }
     }
 
-    
     pub fn at(&self, pos: &Position) -> &T {
         if let Some(index) = self.index(pos) {
             &self.grid[index]
@@ -37,7 +36,7 @@ impl<T> Grid<T> {
             panic!("Position out of bounds: {:?}", pos);
         }
     }
-    
+
     pub fn pop(&mut self, pos: &Position) -> T {
         if let Some(index) = self.index(pos) {
             self.grid.remove(index)
@@ -45,7 +44,7 @@ impl<T> Grid<T> {
             panic!("Position out of bounds: {:?}", pos);
         }
     }
-    
+
     pub fn insert(&mut self, pos: &Position, value: T) {
         if let Some(index) = self.index(pos) {
             self.grid.insert(index, value);
@@ -53,8 +52,8 @@ impl<T> Grid<T> {
             panic!("Position out of bounds: {:?}", pos);
         }
     }
-    
-    // Calculate the index in the 1D vector for a given 3D position. 
+
+    // Calculate the index in the 1D vector for a given 3D position.
     // can be changed arbitrarily to fit any storage order, but must be consistent as (axis0*dim(axis1*axis2)) + (axis1*dim(axis2)) + axis2
     /// if changed, must also change the `index_to_position` function for iterator construction
     fn index(&self, pos: &Position) -> Option<usize> {
@@ -70,7 +69,7 @@ impl<T> Grid<T> {
             let rem = index % (self.width * self.height);
             let j = rem / self.width;
             let i = rem % self.width;
-            Some(Position {i, j, k})
+            Some(Position { i, j, k })
         } else {
             None
         }
@@ -103,7 +102,6 @@ impl<'a, T> Iterator for GridIterator<'a, T> {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
