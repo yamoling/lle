@@ -6,7 +6,7 @@ use std::{
 };
 
 use crate::{
-    Action, AgentId, ParseError, Position, RuntimeWorldError, WorldEvent, WorldState,
+    Action, AgentId, Grid, ParseError, Position, RuntimeWorldError, WorldEvent, WorldState,
     agent::Agent,
     core::{
         levels,
@@ -22,7 +22,7 @@ pub struct World {
     width: usize,
     height: usize,
 
-    grid: Vec<Vec<Tile>>,
+    grid: Grid<Tile>,
     agents: Vec<Agent>,
     laser_source_positions: Vec<Position>,
     lasers_positions: Vec<Position>,
@@ -43,7 +43,7 @@ pub struct World {
 impl World {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        grid: Vec<Vec<Tile>>,
+        grid: Grid<Tile>,
         gem_positions: Vec<Position>,
         random_start_positions: Vec<Vec<Position>>,
         void_positions: Vec<Position>,
@@ -58,8 +58,8 @@ impl World {
             .map(|(id, _)| Agent::new(id as AgentId))
             .collect();
         let mut w = Self {
-            width: grid[0].len(),
-            height: grid.len(),
+            width: grid.width,
+            height: grid.height,
             gems_positions: gem_positions,
             agents_positions: vec![],
             random_start_positions,
@@ -133,7 +133,7 @@ impl World {
         // Important: gems can be wrapped into lasers !
         self.gems_positions
             .iter()
-            .map(|pos| match &self.grid[pos.i][pos.j] {
+            .map(|pos| match self.grid.at(pos) {
                 Tile::Gem(gem) => gem,
                 Tile::Laser(laser) => laser.gem().unwrap(),
                 _ => unreachable!(),
@@ -145,7 +145,7 @@ impl World {
         self.laser_source_positions
             .iter()
             .map(|pos| {
-                if let Tile::LaserSource(source) = &self.grid[pos.i][pos.j] {
+                if let Tile::LaserSource(source) = self.grid.at(pos) {
                     (pos.clone(), source)
                 } else {
                     unreachable!()
@@ -157,7 +157,7 @@ impl World {
     pub fn lasers(&self) -> Vec<(Position, &Laser)> {
         let mut lasers = vec![];
         for pos in &self.lasers_positions {
-            if let Tile::Laser(laser) = &self.grid[pos.i][pos.j] {
+            if let Tile::Laser(laser) = self.grid.at(pos) {
                 lasers.push((pos.clone(), laser));
                 if let Tile::Laser(wrapped) = laser.wrapped() {
                     lasers.push((pos.clone(), wrapped));
@@ -178,7 +178,7 @@ impl World {
         }
         // Replace current exits by floor tiles
         for pos in &self.exits {
-            let tile = self.grid[pos.i].remove(pos.j);
+            let tile = self.grid.pop(pos);
             let replacement = match tile {
                 Tile::Exit { agent } => Tile::Floor { agent },
                 Tile::Laser(mut laser) => {
@@ -189,12 +189,12 @@ impl World {
                 }
                 other => panic!("Tile is not an exit: {:?}", other),
             };
-            self.grid[pos.i].insert(pos.j, replacement);
+            self.grid.insert(pos, replacement);
         }
         // Set new exits
         self.exits = exits;
         for pos in &self.exits {
-            let tile = self.grid[pos.i].remove(pos.j);
+            let tile = self.grid.pop(pos);
             let replacement = match tile {
                 Tile::Floor { agent } => Tile::Exit { agent },
                 Tile::Laser(mut laser) => {
@@ -205,7 +205,7 @@ impl World {
                 }
                 other => panic!("Tile is not a floor: {:?}", other),
             };
-            self.grid[pos.i].insert(pos.j, replacement);
+            self.grid.insert(pos, replacement);
         }
         Ok(())
     }
@@ -238,7 +238,7 @@ impl World {
     pub fn n_gems_collected(&self) -> usize {
         let mut res = 0;
         for pos in &self.gems_positions {
-            if let Tile::Gem(gem) = &self.grid[pos.i][pos.j] {
+            if let Tile::Gem(gem) = self.grid.at(pos) {
                 if gem.is_collected() {
                     res += 1;
                 }
@@ -283,7 +283,7 @@ impl World {
     ) -> impl Iterator<Item = WorldState> + '_ {
         let agents_positions = (0..self.height)
             .cartesian_product(0..self.width)
-            .map(|(i, j)| Position { i, j })
+            .map(|(i, j)| Position::new2d(i, j))
             .filter(|pos| !self.wall_positions.contains(pos))
             .combinations(self.n_agents());
 
@@ -346,13 +346,10 @@ impl World {
     }
 
     /// Creates an iterator over all tiles in the grid with their (i, j) coordinates
+    /// tiles work was transferred into Grid in multi-floor branch
     pub fn tiles(&self) -> Vec<(Position, &Tile)> {
         let mut res = vec![];
-        for (i, row) in self.grid.iter().enumerate() {
-            for (j, tile) in row.iter().enumerate() {
-                res.push((Position { i, j }, tile));
-            }
-        }
+        res.extend(self.grid.iter().map(|(pos, tile)| (pos.clone(), tile))); //? .clone is maybe not useful need review
         res
     }
 
@@ -363,7 +360,7 @@ impl World {
         if pos.j >= self.width {
             return None;
         }
-        Some(&self.grid[pos.i][pos.j])
+        Some(self.grid.at(pos))
     }
 
     pub fn at_mut(&mut self, pos: &Position) -> Option<&mut Tile> {
@@ -373,7 +370,7 @@ impl World {
         if pos.j >= self.width {
             return None;
         }
-        Some(&mut self.grid[pos.i][pos.j])
+        Some(self.grid.at_mut(pos))
     }
 
     pub fn reset(&mut self) {

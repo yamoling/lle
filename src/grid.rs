@@ -37,6 +37,14 @@ impl<T> Grid<T> {
         }
     }
 
+    pub fn at_mut(&mut self, pos: &Position) -> &mut T {
+        if let Some(index) = self.index(pos) {
+            &mut self.grid[index]
+        } else {
+            panic!("Position out of bounds: {:?}", pos);
+        }
+    }
+
     pub fn pop(&mut self, pos: &Position) -> T {
         if let Some(index) = self.index(pos) {
             self.grid.remove(index)
@@ -81,6 +89,13 @@ impl<T> Grid<T> {
             current: 0,
         }
     }
+
+    pub fn iter_mut(&mut self) -> MutableGridIterator<T> {
+        MutableGridIterator {
+            grid: self,
+            current: 0,
+        }
+    }
 }
 
 pub struct GridIterator<'a, T> {
@@ -92,13 +107,32 @@ impl<'a, T> Iterator for GridIterator<'a, T> {
     type Item = (Position, &'a T);
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.current < self.grid.grid.len() {
-            let pos = self.grid.index_to_position(self.current).unwrap();
+        if let Some(pos) = self.grid.index_to_position(self.current) {
             let value = &self.grid.grid[self.current];
             self.current += 1;
             Some((pos, value))
         } else {
             None
+        }
+    }
+}
+
+pub struct MutableGridIterator<'a, T> {
+    grid: &'a mut Grid<T>,
+    current: usize,
+}
+
+impl<T> Iterator for MutableGridIterator<T> {
+    type Item = (Position, &'a mut T);
+}
+
+impl<'a, T> IntoIterator for &'a mut Grid<T> {
+    type Item = (Position, &'a mut T);
+    type IntoIter = MutableGridIterator<'a, T>;
+    fn into_iter(self) -> Self::MutableGridIterator<'a, T> {
+        MutableGridIterator {
+            grid: self,
+            current: 0,
         }
     }
 }
