@@ -122,17 +122,20 @@ pub struct MutableGridIterator<'a, T> {
     current: usize,
 }
 
-impl<T> Iterator for MutableGridIterator<T> {
+impl<'a, T> Iterator for MutableGridIterator<'a, T> {
     type Item = (Position, &'a mut T);
-}
 
-impl<'a, T> IntoIterator for &'a mut Grid<T> {
-    type Item = (Position, &'a mut T);
-    type IntoIter = MutableGridIterator<'a, T>;
-    fn into_iter(self) -> Self::MutableGridIterator<'a, T> {
-        MutableGridIterator {
-            grid: self,
-            current: 0,
+    fn next(&mut self) -> Option<Self::Item> {
+        //!? need ask for how implement mutable iterator correctly in rust //TODO
+        if let Some(pos) = self.grid.index_to_position(self.current) {
+            let value = unsafe {
+                let ptr = self.grid.grid.as_mut_ptr().add(self.current);
+                &mut *ptr
+            };
+            self.current += 1;
+            Some((pos, value))
+        } else {
+            None
         }
     }
 }

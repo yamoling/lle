@@ -374,20 +374,19 @@ impl World {
     }
 
     pub fn reset(&mut self) {
-        for row in self.grid.iter_mut() {
-            for tile in row.iter_mut() {
-                tile.reset();
-            }
+        for (_, tile) in self.grid.iter_mut() {
+            tile.reset();
         }
         self.start_positions = sample_different(&mut self.rng, &self.random_start_positions);
         self.agents_positions = self.start_positions.clone();
         for (pos, agent) in izip!(&self.agents_positions, &self.agents) {
-            self.grid[pos.i][pos.j]
+            self.grid
+                .at_mut(pos)
                 .pre_enter(agent)
                 .expect("The agent should be able to pre-enter");
         }
         for (pos, agent) in izip!(&self.agents_positions, &mut self.agents) {
-            self.grid[pos.i][pos.j].enter(agent);
+            self.grid.at_mut(pos).enter(agent);
         }
         for agent in &mut self.agents {
             agent.reset();
@@ -419,7 +418,7 @@ impl World {
             .agents_positions
             .iter()
             .zip(actions)
-            .map(|(pos, action)| (action + pos))
+            .map(|(pos, action)| action + pos)
             .collect::<Result<Vec<Position>, RuntimeWorldError>>()?;
 
         // Check for vertex conflicts
@@ -445,12 +444,13 @@ impl World {
         // Leave old position
         for (agent, pos) in izip!(&self.agents, &self.agents_positions) {
             if agent.is_alive() {
-                self.grid[pos.i][pos.j].leave();
+                self.grid.at_mut(pos).leave();
             }
         }
         // Pre-enter
         for (agent, pos) in izip!(&self.agents, new_positions) {
-            self.grid[pos.i][pos.j]
+            self.grid
+                .at_mut(pos)
                 .pre_enter(agent)
                 .expect("When moving agents, the pre-enter should not fail");
         }
@@ -458,7 +458,7 @@ impl World {
         let mut events = vec![];
         let mut agent_died = false;
         for (agent, pos) in izip!(&mut self.agents, new_positions) {
-            if let Some(event) = self.grid[pos.i][pos.j].enter(agent) {
+            if let Some(event) = self.grid.at_mut(pos).enter(agent) {
                 if let WorldEvent::AgentDied { .. } = event {
                     agent_died = true;
                 }
@@ -507,21 +507,19 @@ impl World {
         let current_state = self.get_state();
 
         // Reset tiles and agents (but do not enter the new tiles)
-        for row in &mut self.grid {
-            for tile in row {
-                tile.reset();
-            }
+        for (_, tile) in self.grid.iter_mut() {
+            tile.reset();
         }
         // Collect the necessary gems BEFORE entering the tiles with the agents
         for (pos, &collect) in izip!(&self.gems_positions, &state.gems_collected) {
             if collect {
-                if let Tile::Gem(gem) = &mut self.grid[pos.i][pos.j] {
+                if let Tile::Gem(gem) = &mut self.grid.at_mut(pos) {
                     gem.collect();
                 }
             }
         }
         for (pos, agent) in izip!(&state.agents_positions, &self.agents) {
-            if let Err(error) = self.grid[pos.i][pos.j].pre_enter(agent) {
+            if let Err(error) = self.grid.at_mut(pos).pre_enter(agent) {
                 let reason = match error {
                     RuntimeWorldError::TileNotWalkable => "The tile is not walkable",
                     _ => "Unknown reason",
@@ -544,7 +542,7 @@ impl World {
             &mut self.agents
         ) {
             agent.reset();
-            if let Some(event) = self.grid[pos.i][pos.j].enter(agent) {
+            if let Some(event) = self.grid.at_mut(pos).enter(agent) {
                 events.push(event);
             }
             // If agents were specifically set to be dead, then do so.
