@@ -8,7 +8,7 @@ LLE has diﬀerent types of tiles: floor, start, wall, laser, laser source, void
 ![pdoc logo](../../docs/lvl6-annotated.png)
 
 
-## General-purpose `World`
+## General-purpose World
 The `World` class is at the heart of LLE and is meant for fine-grained control of the environment, as opposed to the `LLE` class, meant for generic high-level control in multi-agent reinforcement learning.
 
 ```python
@@ -22,7 +22,7 @@ world.step([Action.EAST])
 world.set_state(state)
 ```
 
-## Cooperative MARL `LLE`
+## Cooperative MARL LLE
 The `LLE` class is meant for Multi-Agent Reinforcement Leanring (MARL) and to be used with the `multi-agent-rlenv` library. As such, it encapsulates the `World` class and provides a high-level API for multi-agent reinforcement learning. `LLE` can be used with either in single-objective or multi-objective mode as shown below.
 
 ```python
@@ -125,33 +125,29 @@ The environment has been presented at [EWRL 2023](https://openreview.net/pdf?id=
 ```
 """
 
-__all__ = [
-    "__version__",
-    "Action",
-    "Agent",
-    "AgentId",
-    "EventType",
-    "LaserId",
-    "LLE",
-    "ObservationType",
-    "Position",
-    "World",
-    "WorldEvent",
-    "WorldState",
-    "env",
-    "exceptions",
-    "observations",
-    "tiles",
-    "Direction",
-    "world",
-]
-
 from .types import AgentId, LaserId, Position
-from .lle import world, exceptions, tiles, Agent, __version__
+from .lle import world, exceptions, tiles, agent, __version__
 from .world import World, WorldState, Action, EventType, WorldEvent
-
-
 from .observations import ObservationType
 from .env import LLE
-from . import env
-from . import observations
+
+__version__: str
+
+
+__all__ = [
+    "AgentId",
+    "LaserId",
+    "Position",
+    "world",
+    "exceptions",
+    "tiles",
+    "agent",
+    "World",
+    "WorldState",
+    "Action",
+    "EventType",
+    "WorldEvent",
+    "ObservationType",
+    "LLE",
+    "__version__",
+]

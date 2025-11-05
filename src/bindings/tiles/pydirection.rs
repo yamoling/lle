@@ -151,4 +151,13 @@ impl PyDirection {
     pub fn __setstate__(&mut self, state: String) {
         *self = PyDirection::try_from(state.as_str()).unwrap();
     }
+
+    pub fn __hash__(&self) -> u64 {
+        match self {
+            Self::North => 0,
+            Self::East => 1,
+            Self::South => 2,
+            Self::West => 3,
+        }
+    }
 }

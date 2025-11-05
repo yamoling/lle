@@ -16,7 +16,7 @@ create_exception!(
 
 /// Raised when the state of the world is invalid.
 #[gen_stub_pyclass]
-#[pyclass(name = "InvalidWorldStateError",extends=PyValueError, module="lle.exceptions")]
+#[pyclass(name = "InvalidWorldStateError", extends=PyValueError, module="lle.exceptions")]
 struct MockInvalidWorldStateError {}
 
 create_exception!(

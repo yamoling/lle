@@ -120,8 +120,8 @@ impl PyWorld {
     /// Constructs a World from a string.
     ///
     /// Raises:
-    ///     - `RuntimeError`: if the file is not a valid level.
-    ///     - `ValueError` if the file is not a valid level (inconsistent dimensions or invalid grid).
+    ///     `RuntimeError`: if the file is not a valid level.
+    ///     `ValueError` if the file is not a valid level (inconsistent dimensions or invalid grid).
     #[allow(unused_variables)]
     pub fn __init__(&self, map_str: String) {
         // Just to have the __init__ method in the generated stub
@@ -131,7 +131,7 @@ impl PyWorld {
     ///
     /// The file can either be a toml or a plain text file.
     /// Raises:
-    ///     - `FileNotFoundError`: if the file does not exist.
+    ///     `FileNotFoundError`: if the file does not exist.
     #[staticmethod]
     fn from_file(filename: String) -> PyResult<Self> {
         let world = match World::from_file(&filename) {
@@ -152,7 +152,7 @@ impl PyWorld {
 
     /// Retrieve the standard level (between `1` and `6`).
     /// Raises:
-    ///     - `ValueError`: if the level is invalid.
+    ///     `ValueError`: if the level is invalid.
     #[staticmethod]
     fn level(level: usize) -> PyResult<Self> {
         match World::get_level(level) {
@@ -209,8 +209,8 @@ impl PyWorld {
     ///     The list of events that occurred while the agents entered their new positions.
     ///
     /// Raises:
-    ///     - `InvalidWorldStateError`: if the number of positions is different from the number of agents.
-    ///     - `IndexError`: if a position is out of bounds.
+    ///     `InvalidWorldStateError`: if the number of positions is different from the number of agents.
+    ///     `IndexError`: if a position is out of bounds.
     fn set_agents_positions(
         &self,
         agents_positions: Vec<PyPosition>,
@@ -230,8 +230,8 @@ impl PyWorld {
     ///     The list of events that occurred while the agent entered its new position.
     ///
     /// Raises:
-    ///    - `IndexError`: if the position is out of bounds.
-    ///    - `ValueError`: if the agent id does not exist.
+    ///    `IndexError`: if the position is out of bounds.
+    ///    `ValueError`: if the agent id does not exist.
     fn set_agent_position(
         &self,
         agent_id: AgentId,
@@ -253,8 +253,8 @@ impl PyWorld {
 
     /// Retrieve the gem at the given position.
     /// Raises:
-    ///   - `PyIndexError`: if the position is out of bounds.
-    ///   - `PyValueError`: if the tile at the given position is not a gem.
+    ///   `PyIndexError`: if the position is out of bounds.
+    ///   `PyValueError`: if the tile at the given position is not a gem.
     fn gem_at(&self, position: PyPosition) -> PyResult<PyGem> {
         let world = self.world.lock().unwrap();
         let tile = match world.at(&position.into()) {
@@ -308,8 +308,8 @@ impl PyWorld {
 
     /// Retrieve the laser source at the given position.
     /// Raises:
-    ///  - `PyIndexError`: if the position is out of bounds.
-    ///  - `PyValueError`: if the tile at the given position is not a laser source.
+    ///  `PyIndexError`: if the position is out of bounds.
+    ///  `PyValueError`: if the tile at the given position is not a laser source.
     fn source_at(&self, position: PyPosition) -> PyResult<PyLaserSource> {
         let world = self.world.lock().unwrap();
         let tile = match world.at(&position.into()) {
@@ -347,8 +347,8 @@ impl PyWorld {
     ///   The list of events that occurred while agents took their action.
     ///
     /// Raises:
-    ///     - `InvalidActionError` if an agent takes an action that is not available.
-    ///     - `ValueError` if the number of actions is different from the number of agents
+    ///     `InvalidActionError` if an agent takes an action that is not available.
+    ///     `ValueError` if the number of actions is different from the number of agents
     ///
     /// Example:
     /// ```python
@@ -418,7 +418,7 @@ impl PyWorld {
     /// ```python
     /// world = World(". .  .  . .\n. S0 . S1 .\n. X  .  X .\n")
     /// world.reset()
-    /// assert len(world.available_joint_actions()) == len(Action.ALL) ** 2
+    /// assert len(world.available_joint_actions()) == len(Action.variants()) ** 2
     /// ```
     pub fn available_joint_actions(&self) -> Vec<Vec<PyAction>> {
         self.world
@@ -465,7 +465,7 @@ impl PyWorld {
     /// Returns:
     ///     The list of events that occurred while agents entered their state.
     /// Raises:
-    ///     - `InvalidWorldStateError`: if the state is invalid.
+    ///     `InvalidWorldStateError`: if the state is invalid.
     fn set_state(&mut self, state: PyWorldState) -> PyResult<Vec<PyWorldEvent>> {
         match self.world.lock().unwrap().set_state(&state.into()) {
             Ok(events) => Ok(events.iter().map(|e| PyWorldEvent::from(e)).collect()),

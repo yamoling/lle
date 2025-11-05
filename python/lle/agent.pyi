@@ -3,11 +3,7 @@
 
 import builtins
 import typing
-from . import exceptions
-from . import tiles
-from . import world
 
-__version__: builtins.str
 @typing.final
 class Agent:
     r"""

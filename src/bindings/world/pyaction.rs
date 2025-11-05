@@ -27,18 +27,22 @@ pub enum PyAction {
 #[pymethods]
 impl PyAction {
     /// Ordered list of all actions
-    #[classattr]
-    const ALL: [PyAction; 5] = [
-        PyAction::North,
-        PyAction::South,
-        PyAction::East,
-        PyAction::West,
-        PyAction::Stay,
-    ];
+    #[staticmethod]
+    const fn variants() -> [PyAction; 5] {
+        [
+            PyAction::North,
+            PyAction::South,
+            PyAction::East,
+            PyAction::West,
+            PyAction::Stay,
+        ]
+    }
 
     /// The number of actions
-    #[classattr]
-    const N: usize = PyAction::ALL.len();
+    #[staticmethod]
+    const fn cardinality() -> usize {
+        PyAction::variants().len()
+    }
 
     /// The (i, j) position delta in coordinates for this action.
     #[getter]
@@ -87,18 +91,6 @@ impl PyAction {
         }
     }
 
-    /// The string name of this action.
-    #[getter]
-    fn name(&self) -> String {
-        match self {
-            Self::North => "NORTH".to_string(),
-            Self::South => "SOUTH".to_string(),
-            Self::East => "EAST".to_string(),
-            Self::West => "WEST".to_string(),
-            Self::Stay => "STAY".to_string(),
-        }
-    }
-
     /// The opposite action of this action.
     /// Note: STAY is its own opposite.
     fn opposite(&self) -> Self {
@@ -131,6 +123,18 @@ impl PyAction {
     }
     fn __getnewargs__<'a>(&self, py: Python<'a>) -> Bound<'a, PyTuple> {
         PyTuple::new(py, [self.value()].iter()).unwrap()
+    }
+
+    #[getter]
+    #[gen_stub(skip)]
+    fn name(&self) -> String {
+        match self {
+            Self::North => "NORTH".to_string(),
+            Self::South => "SOUTH".to_string(),
+            Self::East => "EAST".to_string(),
+            Self::West => "WEST".to_string(),
+            Self::Stay => "STAY".to_string(),
+        }
     }
 }
 

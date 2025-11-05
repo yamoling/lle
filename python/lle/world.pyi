@@ -6,7 +6,7 @@ import enum
 import numpy
 import numpy.typing
 import typing
-from lle import Agent
+from lle.agent import Agent
 from lle.tiles import Gem, Laser, LaserSource
 
 class World:
@@ -125,8 +125,8 @@ class World:
         Constructs a World from a string.
         
         Raises:
-            - `RuntimeError`: if the file is not a valid level.
-            - `ValueError` if the file is not a valid level (inconsistent dimensions or invalid grid).
+            `RuntimeError`: if the file is not a valid level.
+            `ValueError` if the file is not a valid level (inconsistent dimensions or invalid grid).
         """
     @staticmethod
     def from_file(filename: builtins.str) -> World:
@@ -135,7 +135,7 @@ class World:
         
         The file can either be a toml or a plain text file.
         Raises:
-            - `FileNotFoundError`: if the file does not exist.
+            `FileNotFoundError`: if the file does not exist.
         """
     def save(self, filename: builtins.str) -> None:
         r"""
@@ -146,7 +146,7 @@ class World:
         r"""
         Retrieve the standard level (between `1` and `6`).
         Raises:
-            - `ValueError`: if the level is invalid.
+            `ValueError`: if the level is invalid.
         """
     def set_agents_positions(self, agents_positions: typing.Sequence[tuple[builtins.int, builtins.int]]) -> builtins.list[WorldEvent]:
         r"""
@@ -156,8 +156,8 @@ class World:
             The list of events that occurred while the agents entered their new positions.
         
         Raises:
-            - `InvalidWorldStateError`: if the number of positions is different from the number of agents.
-            - `IndexError`: if a position is out of bounds.
+            `InvalidWorldStateError`: if the number of positions is different from the number of agents.
+            `IndexError`: if a position is out of bounds.
         """
     def set_agent_position(self, agent_id: builtins.int, position: tuple[builtins.int, builtins.int]) -> builtins.list[WorldEvent]:
         r"""
@@ -167,22 +167,22 @@ class World:
             The list of events that occurred while the agent entered its new position.
         
         Raises:
-           - `IndexError`: if the position is out of bounds.
-           - `ValueError`: if the agent id does not exist.
+           `IndexError`: if the position is out of bounds.
+           `ValueError`: if the agent id does not exist.
         """
     def gem_at(self, position: tuple[builtins.int, builtins.int]) -> Gem:
         r"""
         Retrieve the gem at the given position.
         Raises:
-          - `PyIndexError`: if the position is out of bounds.
-          - `PyValueError`: if the tile at the given position is not a gem.
+          `PyIndexError`: if the position is out of bounds.
+          `PyValueError`: if the tile at the given position is not a gem.
         """
     def source_at(self, position: tuple[builtins.int, builtins.int]) -> LaserSource:
         r"""
         Retrieve the laser source at the given position.
         Raises:
-         - `PyIndexError`: if the position is out of bounds.
-         - `PyValueError`: if the tile at the given position is not a laser source.
+         `PyIndexError`: if the position is out of bounds.
+         `PyValueError`: if the tile at the given position is not a laser source.
         """
     def seed(self, seed_value: builtins.int) -> None: ...
     def step(self, action: Action | list[Action]) -> builtins.list[WorldEvent]:
@@ -197,8 +197,8 @@ class World:
           The list of events that occurred while agents took their action.
         
         Raises:
-            - `InvalidActionError` if an agent takes an action that is not available.
-            - `ValueError` if the number of actions is different from the number of agents
+            `InvalidActionError` if an agent takes an action that is not available.
+            `ValueError` if the number of actions is different from the number of agents
         
         Example:
         ```python
@@ -237,7 +237,7 @@ class World:
         ```python
         world = World(". .  .  . .\n. S0 . S1 .\n. X  .  X .\n")
         world.reset()
-        assert len(world.available_joint_actions()) == len(Action.ALL) ** 2
+        assert len(world.available_joint_actions()) == len(Action.variants()) ** 2
         ```
         """
     def get_image(self) -> numpy.typing.NDArray[numpy.uint8]:
@@ -254,7 +254,7 @@ class World:
         Returns:
             The list of events that occurred while agents entered their state.
         Raises:
-            - `InvalidWorldStateError`: if the state is invalid.
+            `InvalidWorldStateError`: if the state is invalid.
         """
     def get_state(self) -> WorldState:
         r"""
@@ -383,14 +383,6 @@ class Action(enum.Enum):
     WEST = ...
     STAY = ...
 
-    ALL: builtins.list[Action] = ...
-    r"""
-    Ordered list of all actions
-    """
-    N: builtins.int = 5
-    r"""
-    The number of actions
-    """
     @property
     def delta(self) -> tuple[builtins.int, builtins.int]:
         r"""
@@ -401,10 +393,15 @@ class Action(enum.Enum):
         r"""
         The integer value of this action.
         """
-    @property
-    def name(self) -> builtins.str:
+    @staticmethod
+    def variants() -> builtins.list[Action]:
         r"""
-        The string name of this action.
+        Ordered list of all actions
+        """
+    @staticmethod
+    def cardinality() -> builtins.int:
+        r"""
+        The number of actions
         """
     def __new__(cls, value: builtins.int) -> Action: ...
     def __hash__(self) -> builtins.int: ...

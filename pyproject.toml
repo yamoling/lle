@@ -33,11 +33,12 @@ version = { path = "python/lle/__ini__.py", "attr" = "__version__" }
 [tool.ruff]
 line-length = 140
 
-[tool.uv]
-dev-dependencies = [
+
+[dependency-groups]
+dev = [
     "pip>=24.2",
     "pytest>=8.3.2",
     "pytest-xdist>=3.6.1",
     "maturin>=1.7.0",
-    "pdoc>=15.0.1",
+    "pdoc>=16.0.0",
 ]

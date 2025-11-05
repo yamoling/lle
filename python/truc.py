@@ -1,5 +1,6 @@
-from lle.exceptions import InvalidActionError
-import lle
+from enum import IntEnum, Enum
+from lle import Action
 
 
-from lle import World
+for a in Action.variants():
+    print(a)

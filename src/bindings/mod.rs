@@ -12,74 +12,12 @@ pub use pyexceptions::{
 pub use tiles::{PyLaser, PyLaserSource};
 pub use world::{PyAction, PyEventType, PyPosition, PyWorld, PyWorldEvent, PyWorldState};
 
-// #[pymodule]
-// mod lle {
-//     #[pymodule_export]
-//     use super::exceptions;
-//     #[pymodule_export]
-//     use super::tiles;
-//     #[pymodule_export]
-//     use super::world;
-//     #[allow(non_upper_case_globals)]
-//     #[pymodule_export]
-//     const __version__: &'static str = crate::VERSION;
-//     #[pymodule_export]
-//     use super::pyaction::PyAction;
-//     #[pymodule_export]
-//     use super::pyagent::PyAgent;
-//     #[pymodule_export]
-//     use super::pyevent::{PyEventType, PyWorldEvent};
-//     #[pymodule_export]
-//     use super::pyworld::PyWorld;
-//     #[pymodule_export]
-//     use super::pyworld_state::PyWorldState;
-// }
-
-// #[pymodule]
-// pub fn tiles(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
-//     m.add_class::<pytile::PyGem>()?;
-//     m.add_class::<pytile::PyLaser>()?;
-//     m.add_class::<pytile::PyLaserSource>()?;
-//     m.add_class::<pydirection::PyDirection>()?;
-//     Ok(())
-// }
-
-// #[pymodule]
-// mod tiles {
-//     #[pymodule_export]
-//     use super::pydirection::PyDirection;
-//     #[pymodule_export]
-//     use super::pytile::{PyGem, PyLaser, PyLaserSource};
-// }
-
-// #[pymodule]
-// mod exceptions {
-//     #[pymodule_export]
-//     use super::pyexceptions::{
-//         InvalidActionError, InvalidLevelError, InvalidWorldStateError, ParsingError,
-//     };
-// }
-
-// #[pymodule]
-// mod world {
-//     #[pymodule_export]
-//     use super::pyaction::PyAction;
-//     #[pymodule_export]
-//     use super::pyagent::PyAgent;
-//     #[pymodule_export]
-//     use super::pyevent::{PyEventType, PyWorldEvent};
-//     #[pymodule_export]
-//     use super::pyworld::PyWorld;
-//     #[pymodule_export]
-//     use super::pyworld_state::PyWorldState;
-// }
-
 fn make_tiles_submodule<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyModule>> {
     let tiles = PyModule::new(py, "tiles")?;
+    tiles.add_class::<tiles::PyDirection>()?;
     tiles.add_class::<tiles::PyGem>()?;
     tiles.add_class::<tiles::PyLaser>()?;
     tiles.add_class::<tiles::PyLaserSource>()?;
-    tiles.add_class::<tiles::PyDirection>()?;
     Ok(tiles)
 }
 
@@ -94,7 +32,7 @@ fn make_world_submodule<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyModule>> 
 }
 
 fn make_exceptions_submodule<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyModule>> {
-    let exceptions = PyModule::new(py, "lle.exceptions")?;
+    let exceptions = PyModule::new(py, "exceptions")?;
     exceptions.add(
         "InvalidWorldStateError",
         py.get_type::<pyexceptions::InvalidWorldStateError>(),
@@ -132,7 +70,6 @@ fn add_submodule<'py>(
         .last()
         .unwrap()
         .into();
-    println!("Adding submodule {module_name}.{submodule_name}");
     // We use "m.add()" instead of "m.add_submodule()" to avoid import problems.
     // With "m.add_submodule()", it is not possible to do `from lle.tiles import X`.
     // cf: https://github.com/PyO3/pyo3/issues/759
@@ -149,10 +86,13 @@ fn lle(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     let world = make_world_submodule(py)?;
     let exceptions = make_exceptions_submodule(py)?;
 
-    m.add_class::<pyagent::PyAgent>()?;
     add_submodule(py, m, tiles)?;
     add_submodule(py, m, world)?;
     add_submodule(py, m, exceptions)?;
+
+    let agent = PyModule::new(py, "agent")?;
+    agent.add_class::<pyagent::PyAgent>()?;
+    add_submodule(py, m, agent)?;
 
     m.add("__version__", crate::VERSION)?;
     Ok(())

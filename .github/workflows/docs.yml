@@ -39,13 +39,13 @@ jobs:
         uses: actions/configure-pages@v5
       - uses: actions/setup-python@v5
         with:
-          python-version: 3.12
+          python-version: 3.14
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - run: cargo run --bin stub-gen
       - name: Install UV
         uses: yezz123/setup-uv@v4
         with:
-          uv-version: 0.6.4
+          uv-version: 0.9.7
       - name: Install dependencies
         run: |
           uv sync

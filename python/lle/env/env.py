@@ -80,14 +80,13 @@ class LLE(MARLEnv[MultiDiscreteSpace]):
         self.extras_generator = extras_generator
         super().__init__(
             world.n_agents,
-            action_space=DiscreteSpace.action(Action.N, [a.name for a in Action.ALL]).repeat(world.n_agents),
+            action_space=DiscreteSpace.action(Action.cardinality(), [a.name for a in Action.variants()]).repeat(world.n_agents),
             observation_shape=self._observation_generator.shape,
             state_shape=self.get_state().shape,
             reward_space=self.reward_strategy.reward_space,
             extras_shape=(self.extras_generator.size,),
             extras_meanings=self.extras_generator.meanings,
         )
-        x = 25
         if name is not None:
             self.name = name
 
