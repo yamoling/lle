@@ -144,10 +144,8 @@ impl PyDirection {
     /// This method is called to instantiate the object before deserialisation.
     /// It required "default arguments" to be provided to the __new__ method
     /// before replacing them by the actual values in __setstate__.
-    pub fn __getnewargs__(&self, py: Python) -> PyObject {
-        PyTuple::new(py, vec![String::from("N")].iter())
-            .unwrap()
-            .into()
+    pub fn __getnewargs__<'py>(&self, py: Python<'py>) -> Bound<'py, PyTuple> {
+        PyTuple::new(py, vec![String::from("N")].iter()).unwrap()
     }
 
     pub fn __setstate__(&mut self, state: String) {

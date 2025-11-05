@@ -319,7 +319,7 @@ impl World {
                     if let Ok(pos) = &action + agent_pos {
                         if let Some(tile) = self.at(&pos) {
                             if tile.is_walkable() && !tile.is_occupied() {
-                                agent_actions.push(action.clone());
+                                agent_actions.push(action);
                             }
                         }
                     }
@@ -422,7 +422,7 @@ impl World {
             .agents_positions
             .iter()
             .zip(actions)
-            .map(|(pos, action)| (action + pos))
+            .map(|(pos, action)| action + pos)
             .collect::<Result<Vec<Position>, RuntimeWorldError>>()?;
 
         // Check for vertex conflicts

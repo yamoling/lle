@@ -4,10 +4,10 @@ use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use crate::{
-    agent::AgentId,
-    bindings::{pydirection::PyDirection, pyposition::PyPosition},
-    tiles::{Laser, LaserId},
     Position, Tile, World,
+    agent::AgentId,
+    bindings::{PyPosition, tiles::PyDirection},
+    tiles::{Laser, LaserId},
 };
 
 use super::inner;

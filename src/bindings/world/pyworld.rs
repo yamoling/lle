@@ -12,17 +12,13 @@ use pyo3::{
 };
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
-use crate::{Action, AgentId, Renderer, Tile, World};
-
-use super::{
-    pyaction::PyAction,
+use crate::bindings::{
     pyagent::PyAgent,
-    pyevent::PyWorldEvent,
     pyexceptions::{parse_error_to_exception, runtime_error_to_pyexception},
-    pyposition::PyPosition,
-    pytile::{PyGem, PyLaser, PyLaserSource},
-    pyworld_state::PyWorldState,
+    tiles::{PyGem, PyLaser, PyLaserSource},
+    world::{PyAction, PyPosition, PyWorldEvent, PyWorldState},
 };
+use crate::{Action, AgentId, Renderer, Tile, World};
 
 // Implementation notes:
 // - The `PyWorld` struct is a wrapper around the `World` struct.
@@ -44,7 +40,7 @@ use super::{
 /// w3 = World("S0 X")
 /// ```
 #[gen_stub_pyclass]
-#[pyclass(name = "World", module = "lle", subclass)]
+#[pyclass(name = "World", module = "lle.world", subclass)]
 pub struct PyWorld {
     /// The positions of the exits tiles.
     #[pyo3(get)]
@@ -292,7 +288,7 @@ impl PyWorld {
         world
             .lasers()
             .iter()
-            .map(|(pos, laser)| (PyLaser::new(laser, *pos, arc_world.clone())))
+            .map(|(pos, laser)| PyLaser::new(laser, *pos, arc_world.clone()))
             .collect()
     }
 
@@ -367,7 +363,11 @@ impl PyWorld {
     /// assert len(events) == 2
     /// assert all(e.event_type == EventType.AGENT_EXIT for e in events)
     /// ```
-    pub fn step(&mut self, py: Python, action: PyObject) -> PyResult<Vec<PyWorldEvent>> {
+    pub fn step(
+        &mut self,
+        py: Python,
+        #[gen_stub(override_type(type_repr = "Action | list[Action]"))] action: Py<PyAny>,
+    ) -> PyResult<Vec<PyWorldEvent>> {
         // Check if action is a list or a single action
         let actions: Vec<PyAction> = if let Ok(actions) = action.extract::<Vec<PyAction>>(py) {
             actions

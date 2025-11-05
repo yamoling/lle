@@ -5,7 +5,7 @@ from functools import cached_property
 
 import numpy as np
 import numpy.typing as npt
-from marlenv import DiscreteSpace
+from marlenv.models import DiscreteSpace
 
 from lle import EventType, World, WorldEvent
 from lle import tiles

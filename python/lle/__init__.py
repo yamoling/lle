@@ -78,8 +78,8 @@ Positions can be specified as a list of positions `{i, j}` and rectangles `{i_mi
 ```toml
 width = 10 # Optional, deduced from `world_string`
 height = 5 # Optional, deduced from `world_string`
-exits = [{ j_min = 9 }]
-gems = [{ i = 0, j = 2 }]
+exits = [{ j_min = 9 }] # Exits on all cells with j>=9
+gems = [{ i = 0, j = 2 }] # One single gem at position (0, 2)
 starts = [{ row = 2}] # All tiles on row=2 are start positions for all agents
 world_string = '''
 X . . . S1 . . . . .
@@ -143,23 +143,14 @@ __all__ = [
     "observations",
     "tiles",
     "Direction",
+    "world",
 ]
 
 from .types import AgentId, LaserId, Position
-from .lle import (
-    __version__,
-    Action,
-    World,
-    WorldEvent,
-    EventType,
-    WorldState,
-    Agent,
-    tiles,
-    exceptions,
-)
+from .lle import world, exceptions, tiles, Agent, __version__
+from .world import World, WorldState, Action, EventType, WorldEvent
 
 
-from lle.tiles import Direction  # type: ignore
 from .observations import ObservationType
 from .env import LLE
 from . import env

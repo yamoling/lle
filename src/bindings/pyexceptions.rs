@@ -1,7 +1,9 @@
 use pyo3::{
     PyErr, create_exception,
     exceptions::{self, PyValueError},
+    pyclass,
 };
+use pyo3_stub_gen::derive::gen_stub_pyclass;
 
 use crate::{ParseError, RuntimeWorldError};
 
@@ -12,12 +14,21 @@ create_exception!(
     "Raised when the state of the world is invalid."
 );
 
+/// Raised when the state of the world is invalid.
+#[gen_stub_pyclass]
+#[pyclass(name = "InvalidWorldStateError",extends=PyValueError, module="lle.exceptions")]
+struct MockInvalidWorldStateError {}
+
 create_exception!(
     lle.exceptions,
     InvalidActionError,
     PyValueError,
     "Raised when the action taken by an agent is invalid or when the number of actions provided is different from the number of agents."
 );
+/// Raised when the action taken by an agent is invalid or when the number of actions provided is different from the number of agents.
+#[gen_stub_pyclass]
+#[pyclass(name = "InvalidActionError",extends=PyValueError, module="lle.exceptions")]
+struct MockInvalidActionError {}
 
 create_exception!(
     lle.exceptions,
@@ -25,6 +36,10 @@ create_exception!(
     PyValueError,
     "Raised when there is a problem while parsing a world string."
 );
+/// Raised when there is a problem while parsing a world string.
+#[gen_stub_pyclass]
+#[pyclass(name = "ParsingError",extends=PyValueError, module="lle.exceptions")]
+struct MockParsingError {}
 
 create_exception!(
     lle.exceptions,
@@ -32,6 +47,10 @@ create_exception!(
     PyValueError,
     "Raised when the level asked does not exist."
 );
+/// Raised when the level asked does not exist.
+#[gen_stub_pyclass]
+#[pyclass(name = "InvalidLevelError",extends=PyValueError, module="lle.exceptions")]
+struct MockInvalidLevelError {}
 
 pub fn parse_error_to_exception(error: ParseError) -> PyErr {
     if let ParseError::InvalidFileName { file_name } = error {

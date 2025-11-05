@@ -3,7 +3,6 @@ from typing import Literal, Optional, Sequence
 from lle import World, ObservationType
 from lle import tiles
 from ..types import Position
-import marlenv
 from .reward_strategy import RewardStrategy, SingleObjective, MultiObjective, PotentialShapedLLE
 from .env import LLE
 from .extras_generators import ExtraGenerator, LaserSubgoal, MultiGenerator, NoExtras
@@ -173,6 +172,8 @@ class Builder:
         return env
 
     def builder(self):
+        import marlenv
+
         env = self.build()
         return marlenv.Builder(env)
 

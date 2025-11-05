@@ -10,7 +10,7 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use crate::{
     Position, Tile, World,
     agent::AgentId,
-    bindings::{pydirection::PyDirection, pyposition::PyPosition},
+    bindings::{PyPosition, tiles::PyDirection},
     tiles::{LaserId, LaserSource},
 };
 

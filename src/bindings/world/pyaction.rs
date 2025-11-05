@@ -8,7 +8,7 @@ use crate::Action;
 
 /// An action that can be taken in the world by the agents.
 #[gen_stub_pyclass_enum]
-#[pyclass(name = "Action", module = "lle", eq, eq_int)]
+#[pyclass(name = "Action", module = "lle.world", eq, eq_int)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum PyAction {
     #[pyo3(name = "NORTH")]
@@ -28,7 +28,13 @@ pub enum PyAction {
 impl PyAction {
     /// Ordered list of all actions
     #[classattr]
-    const ALL: [Self; 5] = [Self::North, Self::South, Self::East, Self::West, Self::Stay];
+    const ALL: [PyAction; 5] = [
+        PyAction::North,
+        PyAction::South,
+        PyAction::East,
+        PyAction::West,
+        PyAction::Stay,
+    ];
 
     /// The number of actions
     #[classattr]

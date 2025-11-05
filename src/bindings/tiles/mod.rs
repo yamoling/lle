@@ -1,9 +1,11 @@
 use pyo3::PyResult;
 
+mod pydirection;
 mod pygem;
 mod pylaser;
 mod pylaser_source;
 
+pub use pydirection::PyDirection;
 pub use pygem::PyGem;
 pub use pylaser::PyLaser;
 pub use pylaser_source::PyLaserSource;

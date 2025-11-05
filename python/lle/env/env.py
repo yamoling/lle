@@ -6,7 +6,7 @@ from typing import Literal, Optional, Sequence
 import numpy as np
 import numpy.typing as npt
 import random
-from marlenv import DiscreteSpace, MARLEnv, Observation, State, Step, MultiDiscreteSpace
+from marlenv.models import DiscreteSpace, MARLEnv, Observation, State, Step, MultiDiscreteSpace
 
 from lle import Action, World, WorldState
 from lle.observations import ObservationType, StateGenerator
@@ -87,6 +87,7 @@ class LLE(MARLEnv[MultiDiscreteSpace]):
             extras_shape=(self.extras_generator.size,),
             extras_meanings=self.extras_generator.meanings,
         )
+        x = 25
         if name is not None:
             self.name = name
 

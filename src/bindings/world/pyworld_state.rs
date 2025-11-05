@@ -1,5 +1,4 @@
-use super::pyposition::PyPosition;
-use crate::core::WorldState;
+use crate::{bindings::PyPosition, core::WorldState};
 use numpy::PyArray1;
 use pyo3::{exceptions, prelude::*, pyclass::CompareOp, types::PyDict};
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
@@ -32,7 +31,7 @@ use std::hash::{Hash, Hasher};
 ///         return instance
 /// ```
 #[gen_stub_pyclass]
-#[pyclass(name = "WorldState", module = "lle", subclass)]
+#[pyclass(name = "WorldState", module = "lle.world", subclass)]
 #[derive(Clone, Hash, Debug)]
 pub struct PyWorldState {
     /// The position of each agent.

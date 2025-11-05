@@ -2,94 +2,119 @@
 # ruff: noqa: E501, F401
 
 import builtins
+import enum
 import typing
-from enum import Enum
 
+@typing.final
 class Gem:
-    is_collected: builtins.bool
-    r"""
-    Whether the gem has been collected.
-    """
-    pos: tuple[builtins.int, builtins.int]
-    r"""
-    The (i, j) position of the gem.
-    """
-    agent: typing.Optional[builtins.int]
+    @property
+    def is_collected(self) -> builtins.bool:
+        r"""
+        Whether the gem has been collected.
+        """
+    @property
+    def pos(self) -> tuple[builtins.int, builtins.int]:
+        r"""
+        The (i, j) position of the gem.
+        """
+    @property
+    def agent(self) -> typing.Optional[builtins.int]: ...
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...
     def collect(self) -> None: ...
 
+@typing.final
 class Laser:
     r"""
     A laser tile of the world.
     """
-    laser_id: builtins.int
-    r"""
-    The ID of the laser (unique per laser source)
-    """
-    agent_id: builtins.int
-    r"""
-    The id of the agent that can block the laser.
-    """
-    direction: Direction
-    r"""
-    The direction of the laser beam.
-    """
-    is_on: builtins.bool
-    r"""
-    Whether the laser is turned on.
-    """
-    is_enabled: builtins.bool
-    r"""
-    Whether the laser is enabled.
-    """
-    pos: tuple[builtins.int, builtins.int]
-    r"""
-    The (i, j) position of the tile.
-    """
-    is_off: builtins.bool
-    r"""
-    Whether the laser is turned off.
-    """
-    is_disabled: builtins.bool
-    r"""
-    Whether the laser is disabled.
-    """
-    agent: typing.Optional[builtins.int]
-    r"""
-    The id of the agent currently standing on the tile, if any.
-    """
+    @property
+    def laser_id(self) -> builtins.int:
+        r"""
+        The ID of the laser (unique per laser source)
+        """
+    @property
+    def agent_id(self) -> builtins.int:
+        r"""
+        The id of the agent that can block the laser.
+        """
+    @property
+    def direction(self) -> Direction:
+        r"""
+        The direction of the laser beam.
+        """
+    @property
+    def is_on(self) -> builtins.bool:
+        r"""
+        Whether the laser is turned on.
+        """
+    @property
+    def is_enabled(self) -> builtins.bool:
+        r"""
+        Whether the laser is enabled.
+        """
+    @property
+    def pos(self) -> tuple[builtins.int, builtins.int]:
+        r"""
+        The (i, j) position of the tile.
+        """
+    @property
+    def is_off(self) -> builtins.bool:
+        r"""
+        Whether the laser is turned off.
+        """
+    @property
+    def is_disabled(self) -> builtins.bool:
+        r"""
+        Whether the laser is disabled.
+        """
+    @property
+    def agent(self) -> typing.Optional[builtins.int]:
+        r"""
+        The id of the agent currently standing on the tile, if any.
+        """
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...
 
+@typing.final
 class LaserSource:
-    agent_id: builtins.int
-    r"""
-    The id (colour) of the agent that can block the laser.
-    """
-    direction: Direction
-    r"""
-    The direction of the laser beam.
-    The direction can currently not be changed after creation of the `World`.
-    """
-    is_enabled: builtins.bool
-    r"""
-    Whether the laser source is enabled.
-    """
-    laser_id: builtins.int
-    r"""
-    The unique id of the laser.
-    """
-    pos: tuple[builtins.int, builtins.int]
-    r"""
-    The (i, j) position of the laser tile.
-    """
-    is_disabled: builtins.bool
-    r"""
-    Whether the laser source is disabled.
-    """
-    def set_is_enabled(self, enabled:builtins.bool) -> None: ...
-    def set_is_disabled(self, disabled:builtins.bool) -> None: ...
+    @property
+    def agent_id(self) -> builtins.int:
+        r"""
+        The id (colour) of the agent that can block the laser.
+        """
+    @agent_id.setter
+    def agent_id(self, value: builtins.int) -> None: ...
+    @property
+    def direction(self) -> Direction:
+        r"""
+        The direction of the laser beam.
+        The direction can currently not be changed after creation of the `World`.
+        """
+    @property
+    def is_enabled(self) -> builtins.bool:
+        r"""
+        Whether the laser source is enabled.
+        """
+    @is_enabled.setter
+    def is_enabled(self, value: builtins.bool) -> None: ...
+    @property
+    def laser_id(self) -> builtins.int:
+        r"""
+        The unique id of the laser.
+        """
+    @property
+    def pos(self) -> tuple[builtins.int, builtins.int]:
+        r"""
+        The (i, j) position of the laser tile.
+        """
+    @property
+    def is_disabled(self) -> builtins.bool:
+        r"""
+        Whether the laser source is disabled.
+        """
+    @is_disabled.setter
+    def is_disabled(self, value: builtins.bool) -> None: ...
     def disable(self) -> None:
         r"""
         Disable the laser source and its corresponding laser tiles.
@@ -98,13 +123,12 @@ class LaserSource:
         r"""
         Enable the laser source and its corresponding laser tiles.
         """
-    def set_agent_id(self, new_agent_id:builtins.int) -> None: ...
-    def set_colour(self, colour:builtins.int) -> None:
+    def set_colour(self, colour: builtins.int) -> None:
         r"""
         Change the colour of the laser to the one of the given agent ID.
         Alias to `source.agent_id = new_agent_id`.
         """
-    def __eq__(self, other:LaserSource) -> builtins.bool:
+    def __eq__(self, other: LaserSource) -> builtins.bool:
         r"""
         Equality is based on the agent ID, direction, laser ID, and position.
         Whether a laser source is enabled is not considered.
@@ -112,25 +136,25 @@ class LaserSource:
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...
 
-class Direction(Enum):
+@typing.final
+class Direction(enum.Enum):
     NORTH = ...
     EAST = ...
     SOUTH = ...
     WEST = ...
 
-    is_horizontal: builtins.bool
-
-    is_vertical: builtins.bool
-
-    name: builtins.str
-
-    def __new__(cls, direction:builtins.str) -> Direction:
+    @property
+    def is_horizontal(self) -> builtins.bool: ...
+    @property
+    def is_vertical(self) -> builtins.bool: ...
+    @property
+    def name(self) -> builtins.str: ...
+    def __new__(cls, direction: builtins.str) -> Direction:
         r"""
         This constructor is required for pickling but should not be used for any other purpose.
         """
-
     @staticmethod
-    def from_str(direction:builtins.str) -> Direction:
+    def from_str(direction: builtins.str) -> Direction:
         r"""
         Creates a `Direction` from a string representation.
         
@@ -143,27 +167,21 @@ class Direction(Enum):
         Raises:
           ValueError: If the string is not a valid cardinal direction.
         """
-
     def delta(self) -> tuple[builtins.int, builtins.int]:
         r"""
         The delta of this direction (di, dj).
         """
-
     def opposite(self) -> Direction:
         r"""
         The opposite of this direction.
         """
-
     def __repr__(self) -> builtins.str: ...
-
     def __getstate__(self) -> builtins.str: ...
-
-    def __getnewargs__(self) -> typing.Any:
+    def __getnewargs__(self) -> tuple:
         r"""
         This method is called to instantiate the object before deserialisation.
         It required "default arguments" to be provided to the __new__ method
         before replacing them by the actual values in __setstate__.
         """
-
-    def __setstate__(self, state:builtins.str) -> None: ...
+    def __setstate__(self, state: builtins.str) -> None: ...
 
