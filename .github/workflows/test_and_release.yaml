@@ -54,7 +54,7 @@ jobs:
       - name: Install UV
         uses: yezz123/setup-uv@v4
         with:
-          uv-version: 0.5.6
+          uv-version: 0.9.7
       - name: Pytest
         run: |
           uv sync
