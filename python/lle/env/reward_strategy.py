@@ -7,11 +7,11 @@ import numpy as np
 import numpy.typing as npt
 from marlenv.models import DiscreteSpace
 
-from lle import EventType, World, WorldEvent
 from lle import tiles
 from lle.types import Position
 
 from .utils import get_lasers_of
+from ..world import World, WorldEvent, EventType
 
 REWARD_GEM = 1.0
 REWARD_EXIT = 1.0

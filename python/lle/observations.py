@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from enum import IntEnum
 import numpy as np
 import numpy.typing as npt
-from lle import World, WorldState
+from lle.world import World, WorldState
 from .types import AgentId, Position
 from dataclasses import dataclass
 

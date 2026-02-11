@@ -126,8 +126,9 @@ The environment has been presented at [EWRL 2023](https://openreview.net/pdf?id=
 """
 
 from .types import AgentId, LaserId, Position
-from .lle import world, exceptions, tiles, agent, __version__
-from .world import World, WorldState, Action, EventType, WorldEvent
+from .lle import world, tiles, agent, exceptions, __version__
+from .agent import Agent
+from .world import World, WorldEvent, WorldState, Action, EventType
 from .observations import ObservationType
 from .env import LLE
 
@@ -142,6 +143,7 @@ __all__ = [
     "exceptions",
     "tiles",
     "agent",
+    "Agent",
     "World",
     "WorldState",
     "Action",

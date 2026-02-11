@@ -1,5 +1,6 @@
-from lle import World
 from lle import tiles
+
+from ..world import World
 
 
 def get_lasers_of(world: World, source: tiles.LaserSource):

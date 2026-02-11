@@ -1,11 +1,14 @@
 from dataclasses import dataclass
 from typing import Literal, Optional, Sequence
-from lle import World, ObservationType
-from lle import tiles
+
+# from lle import World, ObservationType
+from .. import tiles
 from ..types import Position
 from .reward_strategy import RewardStrategy, SingleObjective, MultiObjective, PotentialShapedLLE
 from .env import LLE
 from .extras_generators import ExtraGenerator, LaserSubgoal, MultiGenerator, NoExtras
+from ..world import World
+from ..observations import ObservationType
 
 
 @dataclass

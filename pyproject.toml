@@ -35,10 +35,4 @@ line-length = 140
 
 
 [dependency-groups]
-dev = [
-    "pip>=24.2",
-    "pytest>=8.3.2",
-    "pytest-xdist>=3.6.1",
-    "maturin>=1.7.0",
-    "pdoc>=16.0.0",
-]
+dev = ["pip>=24.2", "pytest>=9.0.0", "maturin>=1.7.0", "pdoc>=16.0.0"]

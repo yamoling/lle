@@ -1,3 +1,4 @@
+import random
 from dataclasses import dataclass
 from enum import IntEnum
 from functools import cached_property
@@ -5,12 +6,10 @@ from typing import Literal, Optional, Sequence
 
 import numpy as np
 import numpy.typing as npt
-import random
-from marlenv.models import DiscreteSpace, MARLEnv, Observation, State, Step, MultiDiscreteSpace
+from marlenv.models import DiscreteSpace, MARLEnv, MultiDiscreteSpace, Observation, State, Step
 
-from lle import Action, World, WorldState
-from lle.observations import ObservationType, StateGenerator
-
+from ..observations import ObservationType, StateGenerator
+from ..world import Action, World, WorldState
 from .extras_generators import ExtraGenerator, NoExtras
 from .reward_strategy import RewardStrategy, SingleObjective
 
