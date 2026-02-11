@@ -40,7 +40,7 @@ use crate::{Action, AgentId, Renderer, Tile, World};
 /// w3 = World("S0 X")
 /// ```
 #[gen_stub_pyclass]
-#[pyclass(name = "World", module = "lle.world", subclass)]
+#[pyclass(name = "World", module = "lle.world", subclass, skip_from_py_object)]
 pub struct PyWorld {
     /// The positions of the exits tiles.
     #[pyo3(get)]

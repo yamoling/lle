@@ -72,7 +72,7 @@ impl World {
             available_actions: vec![],
             laser_source_positions: source_positions,
             lasers_positions,
-            rng: rand::SeedableRng::from_os_rng(),
+            rng: rand::SeedableRng::seed_from_u64(0u64),
         };
         w.reset();
         w

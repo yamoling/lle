@@ -115,7 +115,7 @@ class LLE(MARLEnv[MultiDiscreteSpace]):
     def world(self):
         return self._world
 
-    @cached_property
+    @property
     def agent_state_size(self):
         match self._state_generator:
             case StateGenerator():
@@ -142,10 +142,10 @@ class LLE(MARLEnv[MultiDiscreteSpace]):
                 available_actions[agent, action.value] = True
         return available_actions
 
-    def step(self, actions: np.ndarray | Sequence[int]):
+    def step(self, action: np.ndarray | Sequence[int]):
         if self.done:
             raise ValueError("Cannot step in a done environment")
-        agents_actions = [Action(a) for a in actions]
+        agents_actions = [Action(a) for a in action]
         events = self.world.step(agents_actions)
         # Beware to compute the reward before checking if the episode is done !
         reward = self.reward_strategy.compute_reward(events)

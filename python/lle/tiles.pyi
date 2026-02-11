@@ -157,13 +157,13 @@ class Direction(enum.Enum):
     def from_str(direction: builtins.str) -> Direction:
         r"""
         Creates a `Direction` from a string representation.
-        
+
         Args:
            direction (Literal["N", "E", "S", "W"]): The string direction to create.
-        
+
         Returns:
           The corresponding `Direction` object.
-        
+
         Raises:
           ValueError: If the string is not a valid cardinal direction.
         """
@@ -185,4 +185,3 @@ class Direction(enum.Enum):
         """
     def __setstate__(self, state: builtins.str) -> None: ...
     def __hash__(self) -> builtins.int: ...
-

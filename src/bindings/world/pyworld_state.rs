@@ -31,7 +31,7 @@ use std::hash::{Hash, Hasher};
 ///         return instance
 /// ```
 #[gen_stub_pyclass]
-#[pyclass(name = "WorldState", module = "lle.world", subclass)]
+#[pyclass(name = "WorldState", module = "lle.world", subclass, from_py_object)]
 #[derive(Clone, Hash, Debug)]
 pub struct PyWorldState {
     /// The position of each agent.
@@ -189,12 +189,12 @@ impl From<PyWorldState> for WorldState {
     }
 }
 
-impl Into<PyWorldState> for WorldState {
-    fn into(self) -> PyWorldState {
+impl From<WorldState> for PyWorldState {
+    fn from(val: WorldState) -> Self {
         PyWorldState {
-            agents_positions: self.agents_positions.into_iter().map(Into::into).collect(),
-            gems_collected: self.gems_collected,
-            agents_alive: self.agents_alive,
+            agents_positions: val.agents_positions.into_iter().map(Into::into).collect(),
+            gems_collected: val.gems_collected,
+            agents_alive: val.agents_alive,
         }
     }
 }

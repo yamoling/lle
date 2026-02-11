@@ -1,6 +1,7 @@
-from enum import IntEnum, Enum
-from lle import Action
+from lle import World
 
 
-for a in Action.variants():
-    print(a)
+w = World.level(1)
+print(w.all_states2)
+for s in w.all_states:
+    print(s)

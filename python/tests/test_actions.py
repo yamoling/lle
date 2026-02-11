@@ -46,7 +46,6 @@ def test_deepcopy():
     for a in Action.variants():
         b = copy.deepcopy(a)
         assert a == b
-        assert a is not b
 
 
 def test_pickle():

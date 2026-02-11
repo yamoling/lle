@@ -3,7 +3,7 @@ use pyo3::{prelude::*, types::PyTuple};
 use pyo3_stub_gen::derive::{gen_stub_pyclass_enum, gen_stub_pymethods};
 
 #[gen_stub_pyclass_enum]
-#[pyclass(name = "Direction", module = "lle.tiles", eq)]
+#[pyclass(name = "Direction", module = "lle.tiles", eq, skip_from_py_object)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum PyDirection {
     #[pyo3(name = "NORTH")]

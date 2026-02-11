@@ -8,7 +8,7 @@ use crate::Action;
 
 /// An action that can be taken in the world by the agents.
 #[gen_stub_pyclass_enum]
-#[pyclass(name = "Action", module = "lle.world", eq, eq_int)]
+#[pyclass(name = "Action", module = "lle.world", eq, eq_int, from_py_object)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum PyAction {
     #[pyo3(name = "NORTH")]

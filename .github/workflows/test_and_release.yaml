@@ -30,6 +30,7 @@ jobs:
           - '3.13'
           - '3.13t'
           - '3.14'
+          - '3.14t'
         exclude:
           - os: windows-latest
             target: 'aarch64'

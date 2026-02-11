@@ -4,7 +4,7 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum, gen_stub_py
 
 /// An enumeration of the events that can occur in the world.
 #[gen_stub_pyclass_enum]
-#[pyclass(name = "EventType", module = "lle.world", eq, eq_int)]
+#[pyclass(name = "EventType", module = "lle.world", eq, eq_int, from_py_object)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum PyEventType {
     #[pyo3(name = "AGENT_EXIT")]
@@ -33,7 +33,7 @@ impl PyEventType {
 
 #[gen_stub_pyclass]
 #[derive(Clone)]
-#[pyclass(name = "WorldEvent", module = "lle.world")]
+#[pyclass(name = "WorldEvent", module = "lle.world", skip_from_py_object)]
 pub struct PyWorldEvent {
     #[pyo3(get)]
     event_type: PyEventType,
