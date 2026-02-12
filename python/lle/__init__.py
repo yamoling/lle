@@ -112,8 +112,7 @@ starts = [
 ```
 
 ## Citing our work
-The environment has been presented at [EWRL 2023](https://openreview.net/pdf?id=IPfdjr4rIs) and at [BNAIC 2023](https://bnaic2023.tudelft.nl/static/media/BNAICBENELEARN_2023_paper_124.c9f5d29e757e5ee27c44.pdf) where it received the best paper award.
-
+LLE has received the best paper award at at [BNAIC 2023](https://bnaic2023.tudelft.nl/static/media/BNAICBENELEARN_2023_paper_124.c9f5d29e757e5ee27c44.pdf):
 ```bibtex
 @inproceedings{molinghen2023lle,
   title={Laser Learning Environment: A new environment for coordination-critical multi-agent tasks},
@@ -126,7 +125,7 @@ The environment has been presented at [EWRL 2023](https://openreview.net/pdf?id=
 """
 
 from .types import AgentId, LaserId, Position
-from .lle import world, tiles, agent, exceptions, __version__
+from .lle import world, agent, tiles, exceptions, __version__
 from .agent import Agent
 from .world import World, WorldEvent, WorldState, Action, EventType
 from .observations import ObservationType
