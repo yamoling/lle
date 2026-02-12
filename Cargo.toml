@@ -1,6 +1,6 @@
 [package]
 name = "lle"
-version = "2.6.2"
+version = "2.6.3"
 edition = "2024"
 readme = "readme.md"
 license-file = "licence"
