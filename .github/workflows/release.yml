@@ -9,6 +9,18 @@ on:
       - 'v[0-9]+.[0-9]+.[0-9]+'
   workflow_dispatch:
 
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
 jobs:
   test:
     name: 🧪 Tests
@@ -78,6 +90,41 @@ jobs:
         with:
           command: upload
           args: --non-interactive --skip-existing wheels-*/*
+
+  docs:
+    name: 📚 Build docs
+    needs: release
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.14
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - run: cargo run --bin stub-gen
+      - name: Install UV
+        uses: yezz123/setup-uv@v4
+        with:
+          uv-version: 0.10.2
+      - name: Install dependencies
+        run: |
+          uv sync
+          uv run maturin dev
+          uv run pdoc python/lle -o ./docs --docformat=google
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Upload entire repository
+          path: './docs'
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
 
   package:
     name: 📦 Package and publish to crates.io
