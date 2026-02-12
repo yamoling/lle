@@ -14,5 +14,6 @@ for file in os.listdir("agents"):
 
 for path in images:
     img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+    assert img is not None
     img = cv2.cvtColor(img, cv2.COLOR_BGRA2RGBA)
     cv2.imwrite(path, img)
