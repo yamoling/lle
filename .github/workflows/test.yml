@@ -1,0 +1,52 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - dev
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: 🧪 Rust & Python tests
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macOS-latest
+        target:
+          - x86_64
+          - aarch64
+        python-version:
+          - '3.11'
+          - '3.12'
+          - '3.13'
+          - '3.14'
+        exclude:
+          - os: windows-latest
+            target: 'aarch64'
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Rust tests
+        run: cargo test
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install UV
+        uses: yezz123/setup-uv@v4
+        with:
+          uv-version: 0.10.2
+      - name: Pytest
+        run: |
+          uv sync
+          uv run maturin dev
+          uv run pytest
