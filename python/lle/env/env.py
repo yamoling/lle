@@ -1,3 +1,4 @@
+import random
 from dataclasses import dataclass
 from enum import IntEnum
 from functools import cached_property
@@ -5,12 +6,10 @@ from typing import Literal, Optional, Sequence
 
 import numpy as np
 import numpy.typing as npt
-import random
-from marlenv import DiscreteSpace, MARLEnv, Observation, State, Step, MultiDiscreteSpace
+from marlenv.models import DiscreteSpace, MARLEnv, MultiDiscreteSpace, Observation, State, Step
 
-from lle import Action, World, WorldState
-from lle.observations import ObservationType, StateGenerator
-
+from ..observations import ObservationType, StateGenerator
+from ..world import Action, World, WorldState
 from .extras_generators import ExtraGenerator, NoExtras
 from .reward_strategy import RewardStrategy, SingleObjective
 
@@ -80,7 +79,7 @@ class LLE(MARLEnv[MultiDiscreteSpace]):
         self.extras_generator = extras_generator
         super().__init__(
             world.n_agents,
-            action_space=DiscreteSpace.action(Action.N, [a.name for a in Action.ALL]).repeat(world.n_agents),
+            action_space=DiscreteSpace.action(Action.cardinality(), [a.name for a in Action.variants()]).repeat(world.n_agents),
             observation_shape=self._observation_generator.shape,
             state_shape=self.get_state().shape,
             reward_space=self.reward_strategy.reward_space,
@@ -115,7 +114,7 @@ class LLE(MARLEnv[MultiDiscreteSpace]):
     def world(self):
         return self._world
 
-    @cached_property
+    @property
     def agent_state_size(self):
         match self._state_generator:
             case StateGenerator():
@@ -142,10 +141,10 @@ class LLE(MARLEnv[MultiDiscreteSpace]):
                 available_actions[agent, action.value] = True
         return available_actions
 
-    def step(self, actions: np.ndarray | Sequence[int]):
+    def step(self, action: np.ndarray | Sequence[int]):
         if self.done:
             raise ValueError("Cannot step in a done environment")
-        agents_actions = [Action(a) for a in actions]
+        agents_actions = [Action(a) for a in action]
         events = self.world.step(agents_actions)
         # Beware to compute the reward before checking if the episode is done !
         reward = self.reward_strategy.compute_reward(events)

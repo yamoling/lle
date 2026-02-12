@@ -6,7 +6,7 @@ use std::{
 
 use crate::{Position, RuntimeWorldError};
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Copy)]
 pub enum Action {
     North = 0,
     South = 1,

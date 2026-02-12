@@ -18,6 +18,13 @@ def test_import_class_from_tiles():
 def test_import_submodule():
     from lle import tiles
     from lle import exceptions
+    from lle import world
+
+
+def test_import_from_submodules():
+    from lle.world import World, WorldState, WorldEvent, EventType, Action
+    from lle.types import AgentId, LaserId, Position
+    from lle.tiles import Gem, Laser, LaserSource, Direction
 
 
 def test_version():

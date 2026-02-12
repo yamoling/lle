@@ -6,9 +6,9 @@ use std::{
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
-use crate::{agent::AgentId, tiles::Gem, Tile, World};
+use crate::{Tile, World, agent::AgentId, bindings::PyPosition, tiles::Gem};
 
-use super::{super::pyposition::PyPosition, inner};
+use super::inner;
 
 #[gen_stub_pyclass]
 #[pyclass(name = "Gem", module = "lle.tiles")]
@@ -57,7 +57,7 @@ impl PyGem {
                 return Err(pyo3::exceptions::PyValueError::new_err(format!(
                     "Tile at {:?} is not a gem",
                     self.pos
-                )))
+                )));
             }
         };
         self.is_collected = true;

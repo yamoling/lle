@@ -18,15 +18,17 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - windows-latest
+          # - windows-latest
           - macOS-latest
         target:
           - x86_64
           - aarch64
         python-version: 
-          - '3.10'
           - '3.11'
           - '3.12'
+          - '3.13'
+          - '3.13'
+          - '3.14'
         exclude:
           - os: windows-latest
             target: 'aarch64'
@@ -39,10 +41,7 @@ jobs:
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
       - name: Rust tests
-        run: |
-          cargo build
-          cargo test
-
+        run: cargo test
       # Python
       - name: Install Python
         uses: actions/setup-python@v5
@@ -51,7 +50,7 @@ jobs:
       - name: Install UV
         uses: yezz123/setup-uv@v4
         with:
-          uv-version: 0.5.6
+          uv-version: 0.9.7
       - name: Pytest
         run: |
           uv sync
@@ -65,7 +64,7 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          # - windows-latest
+          - windows-latest
           - macOS-latest
         target:
           - x86_64

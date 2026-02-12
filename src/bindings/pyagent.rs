@@ -5,7 +5,7 @@ use crate::agent::Agent;
 
 /// An agent in the world.
 #[gen_stub_pyclass]
-#[pyclass(name = "Agent", module = "lle")]
+#[pyclass(name = "Agent", module = "lle.agent", skip_from_py_object)]
 #[derive(Clone)]
 pub struct PyAgent {
     pub agent: Agent,

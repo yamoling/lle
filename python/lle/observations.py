@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from enum import IntEnum
 import numpy as np
 import numpy.typing as npt
-from lle import World, WorldState
+from lle.world import World, WorldState
 from .types import AgentId, Position
 from dataclasses import dataclass
 
@@ -124,9 +124,9 @@ class StateGenerator(ObservationGenerator):
         state[: self._world.n_agents * 2] = state[: self._world.n_agents * 2] / self.dimensions
         return np.tile(state, reps=(self._world.n_agents, 1))
 
-    def to_world_state(self, state):
-        state[: self._world.n_agents * 2] = state[: self._world.n_agents * 2] * self.dimensions
-        return WorldState.from_array(state, self.n_agents, self.n_gems)
+    def to_world_state(self, data):
+        data[: self._world.n_agents * 2] = data[: self._world.n_agents * 2] * self.dimensions
+        return WorldState.from_array(data.tolist(), self.n_agents, self.n_gems)
 
     @property
     def obs_type(self) -> ObservationType:
@@ -144,9 +144,9 @@ class StateGenerator(ObservationGenerator):
 class RGBImage(ObservationGenerator):
     def observe(self):
         obs = self._world.get_image()
-        obs = cv2.resize(obs, (120, 160))  # type: ignore
+        obs = cv2.resize(obs, (120, 160))
         obs = obs.transpose(2, 1, 0)
-        return np.tile(obs, (self._world.n_agents, 1, 1, 1))
+        return np.tile(obs, (self._world.n_agents, 1, 1, 1)).astype(np.float32)
 
     @property
     def obs_type(self) -> ObservationType:
