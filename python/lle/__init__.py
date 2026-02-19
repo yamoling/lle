@@ -76,6 +76,8 @@ You can also use TOML files to define maps, which enables more complex maps, for
 Positions can be specified as a list of positions `{i, j}` and rectangles `{i_min, i_max, j_min, j_max}`, and the `world_string` field can be used to define the map as discussed in the "Plain string" section.
 
 ```toml
+# Schema for autocompletion and type checking
+#:schema https://github.com/yamoling/lle/tree/master/resources/resources/lle_toml_schema.json
 width = 10 # Optional, deduced from `world_string`
 height = 5 # Optional, deduced from `world_string`
 exits = [{ j_min = 9 }] # Exits on all cells with j>=9

@@ -6,13 +6,13 @@ use crate::ParseError;
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Direction {
-    #[serde(alias = "N", alias = "north")]
+    #[serde(alias = "N", alias = "north", alias = "n")]
     North,
-    #[serde(alias = "E", alias = "east")]
+    #[serde(alias = "E", alias = "east", alias = "e")]
     East,
-    #[serde(alias = "S", alias = "south")]
+    #[serde(alias = "S", alias = "south", alias = "s")]
     South,
-    #[serde(alias = "W", alias = "west")]
+    #[serde(alias = "W", alias = "west", alias = "w")]
     West,
 }
 
