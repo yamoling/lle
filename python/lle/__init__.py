@@ -77,7 +77,7 @@ Positions can be specified as a list of positions `{i, j}` and rectangles `{i_mi
 
 ```toml
 # Schema for autocompletion and type checking
-#:schema https://github.com/yamoling/lle/tree/master/resources/resources/lle_toml_schema.json
+#:schema https://raw.githubusercontent.com/yamoling/lle/refs/heads/master/resources/lle_toml_schema.json
 width = 10 # Optional, deduced from `world_string`
 height = 5 # Optional, deduced from `world_string`
 exits = [{ j_min = 9 }] # Exits on all cells with j>=9
