@@ -59,10 +59,11 @@ impl ParsingData {
         self.laser_configs.len()
     }
 
-    pub fn add_row(&mut self, n_cols: usize) -> Result<(), ParseError> {
+    pub fn add_row(&mut self, n_cols: usize, line: &str) -> Result<(), ParseError> {
         if let Some(w) = self.width {
             if w != n_cols {
                 return Err(ParseError::InconsistentDimensions {
+                    row_str: line.to_string(),
                     expected_n_cols: w,
                     actual_n_cols: n_cols,
                     row: self.height,
@@ -168,7 +169,7 @@ pub fn parse(world_str: &str) -> Result<WorldConfig, ParseError> {
                 }
             }
         }
-        data.add_row(n_cols)?;
+        data.add_row(n_cols, line)?;
     }
     data.try_into()
 }

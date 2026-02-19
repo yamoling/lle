@@ -363,6 +363,7 @@ fn parse_inconsistent_row_lengths() {
                 actual_n_cols,
                 expected_n_cols,
                 row,
+                ..
             } => {
                 assert_eq!(actual_n_cols, 2);
                 assert_eq!(expected_n_cols, 3);
