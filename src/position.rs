@@ -41,10 +41,10 @@ impl Add<Direction> for Position {
     type Output = Position;
 
     fn add(self, rhs: Direction) -> Self::Output {
-        let (dx, dy) = rhs.delta();
+        let (dy, dx) = rhs.delta();
         Self::Output {
-            i: (self.i as i32 + dx) as usize,
-            j: (self.j as i32 + dy) as usize,
+            i: (self.i as i32 + dy) as usize,
+            j: (self.j as i32 + dx) as usize,
             k: self.k,
         }
     }
