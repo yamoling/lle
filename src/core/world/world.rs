@@ -21,6 +21,7 @@ type JointAction = Vec<Action>;
 pub struct World {
     width: usize,
     height: usize,
+    layers: usize,
 
     grid: Grid<Tile>,
     agents: Vec<Agent>,
@@ -60,6 +61,7 @@ impl World {
         let mut w = Self {
             width: grid.width,
             height: grid.height,
+            layers: grid.layers,
             gems_positions: gem_positions,
             agents_positions: vec![],
             random_start_positions,
@@ -103,6 +105,7 @@ impl World {
         WorldConfig::new(
             self.width,
             self.height,
+            self.layers,
             self.gems_positions.clone(),
             self.random_start_positions.clone(),
             self.void_positions.clone(),
@@ -259,6 +262,10 @@ impl World {
         self.height
     }
 
+    pub fn layers(&self) -> usize {
+        self.layers
+    }
+
     pub fn walls(&self) -> Vec<Position> {
         self.wall_positions.clone()
     }
@@ -281,11 +288,12 @@ impl World {
         &'_ self,
         restrict_to_alive_agents: bool,
     ) -> impl Iterator<Item = WorldState> + '_ {
-        let agents_positions = (0..self.height)
-            .cartesian_product(0..self.width)
-            .map(|(i, j)| Position::new2d(i, j))
+        let agents_positions = self
+            .get_state_space()
+            .into_iter()
+            .map(|(i, j, k)| Position { i, j, k })
             .filter(|pos| !self.wall_positions.contains(pos))
-            .combinations(self.n_agents());
+            .combinations(self.n_agents()); //TODO: need to add layers support
 
         let collection_status = (0..self.n_gems())
             .map(|_| vec![true, false])
@@ -360,6 +368,9 @@ impl World {
         if pos.j >= self.width {
             return None;
         }
+        if pos.k >= self.layers {
+            return None;
+        }
         Some(self.grid.at(pos))
     }
 
@@ -368,6 +379,9 @@ impl World {
             return None;
         }
         if pos.j >= self.width {
+            return None;
+        }
+        if pos.k >= self.layers {
             return None;
         }
         Some(self.grid.at_mut(pos))
@@ -498,7 +512,7 @@ impl World {
         }
 
         for pos in &state.agents_positions {
-            if pos.i >= self.height || pos.j >= self.width {
+            if pos.i >= self.height || pos.j >= self.width || pos.k >= self.layers {
                 return Err(RuntimeWorldError::OutOfWorldPosition {
                     position: pos.clone(),
                 });
@@ -589,6 +603,14 @@ impl World {
         let mut world_str = String::new();
         reader.read_to_string(&mut world_str).unwrap();
         World::try_from(world_str)
+    }
+
+    fn get_state_space(&self) -> Vec<(usize, usize, usize)> {
+        vec![(0..self.height), (0..self.width), (0..self.layers)]
+            .into_iter()
+            .multi_cartesian_product()
+            .map(|v| (v[0], v[1], v[2]))
+            .collect_vec() // Added overhead but more readable for future modifications
     }
 }
 
