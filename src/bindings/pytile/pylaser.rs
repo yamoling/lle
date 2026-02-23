@@ -4,10 +4,10 @@ use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use crate::{
+    Position, Tile, World,
     agent::AgentId,
     bindings::{pydirection::PyDirection, pyposition::PyPosition},
     tiles::{Laser, LaserId},
-    Position, Tile, World,
 };
 
 use super::inner;
@@ -31,7 +31,7 @@ pub struct PyLaser {
     /// Whether the laser is enabled.
     #[pyo3(get)]
     is_enabled: bool,
-    /// The (i, j) position of the tile.
+    /// The (i, j, k) position of the tile.
     #[pyo3(get)]
     pos: PyPosition,
     world: Arc<Mutex<World>>,
