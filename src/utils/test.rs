@@ -43,6 +43,8 @@ fn test_into_equality() {
     assert_eq!(pos.i, 1);
     assert_eq!(pos.j, 2);
     assert_eq!(pos.k, 0);
+    let pos_2: Position = (1, 2).into();
+    assert_eq!(pos_2, pos);
     let (i, j, k): (usize, usize, usize) = pos.into();
     assert_eq!(i, 1);
     assert_eq!(j, 2);
