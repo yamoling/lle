@@ -17,14 +17,3 @@ impl Into<Position> for PyPosition {
         }
     }
 }
-
-impl Into<Position> for (usize, usize) {
-    // simply for convenience
-    fn into(self) -> Position {
-        Position {
-            i: self.0,
-            j: self.1,
-            k: 0,
-        }
-    }
-}
