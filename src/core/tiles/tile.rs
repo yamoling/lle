@@ -139,7 +139,7 @@ impl Grid<Tile> {
         let size = self.width * self.height * self.layers;
         let mut grid = self.grid;
         for _ in 0..size {
-            grid.push(Tile::Floor { agent: None });
+            grid.push(Some(Tile::Floor { agent: None }));
         }
         Self { grid, ..self }
     }
