@@ -51,13 +51,21 @@ pub fn parse_error_to_exception(error: ParseError) -> PyErr {
             start1,
             start2,
         } => format!("Agent {agent_id} has two start tiles: {start1:?} and {start2:?}"),
-        ParseError::InconsistentDimensions {
+        ParseError::Inconsistent2Dimensions {
             expected_n_cols,
             actual_n_cols,
             row,
         } => format!(
             "Inconsistent number of columns in row {}: expected {}, got {}",
             row, expected_n_cols, actual_n_cols
+        ),
+        ParseError::Inconsistent3Dimensions {
+            expected_n_dims,
+            actual_n_dims,
+            layer,
+        } => format!(
+            "Inconsistent number of dimensions in layer {}: expected {:?}, got {:?}",
+            layer, expected_n_dims, actual_n_dims
         ),
         ParseError::NotEnoughExitTiles { n_starts, n_exits } => {
             format!("Not enough exit tiles: {n_starts} starts, {n_exits} exits")
@@ -109,11 +117,18 @@ pub fn parse_error_to_exception(error: ParseError) -> PyErr {
         } => format!(
             "Inconsistent world string height: toml height is {toml_height}, world string height is {world_str_height}"
         ),
-        ParseError::PositionOutOfBounds { i, j } => {
-            format!("Position ({i}, {j}) is out of the world's boundaries")
+        ParseError::InconsistentWorldStringLayers {
+            toml_layers,
+            world_str_layers,
+        } => format!(
+            "Inconsistent world string layers: toml layers is {toml_layers}, world string layers is {world_str_layers}"
+        ),
+        ParseError::PositionOutOfBounds { i, j, k } => {
+            format!("Position ({i}, {j}, {k}) is out of the world's boundaries")
         }
         ParseError::MissingHeight => "Missing height in the world configuration file".into(),
         ParseError::MissingWidth => "Missing width in the world configuration file".into(),
+        ParseError::MissingLayers => "Missing layers in the world configuration file".into(),
         ParseError::UnknownTomlKey { message, .. } => message,
         ParseError::NotV2 => panic!("NotV2 exception should not be raised here"),
     };
