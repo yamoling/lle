@@ -359,7 +359,7 @@ fn parse_inconsistent_row_lengths() {
     ) {
         Ok(_) => panic!("Should not be able to parse worlds with inconsistent row lengths"),
         Err(e) => match e {
-            ParseError::InconsistentDimensions {
+            ParseError::Inconsistent2Dimensions {
                 actual_n_cols,
                 expected_n_cols,
                 row,
