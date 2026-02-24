@@ -1,0 +1,259 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "LLE TOML Configuration Schema",
+  "description": "Schema for Laser Learning Environment (LLE) world configuration files in TOML format.",
+  "type": "object",
+  "properties": {
+    "width": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Width of the world grid (number of columns). Required unless inferred from world_string. Example: width = 5"
+    },
+    "height": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Height of the world grid (number of rows). Required unless inferred from world_string. Example: height = 5"
+    },
+    "n_agents": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of agents. If provided, agent entries are padded with defaults up to this count. Example: n_agents = 2"
+    },
+    "world_string": {
+      "type": "string",
+      "description": "A v1 world string representation. Width, height, agent starts, exits, walls, gems, and lasers can be inferred from it. Example: world_string = \".  X\\nS0 .\\n.  G\""
+    },
+    "agents": {
+      "type": "array",
+      "description": "Per-agent configuration, primarily specifying start positions for each agent. Example:\n[[agents]]\nstarts = [{ i = 0, j = 0 }]\n[[agents]]\nstarts = [{ i = 1, j = 1 }]",
+      "items": {
+        "$ref": "#/definitions/AgentConfig"
+      },
+      "default": []
+    },
+    "exits": {
+      "type": "array",
+      "description": "Exit tile positions. Example:\n[[exits]]\ni = 4\nj = 4",
+      "items": {
+        "$ref": "#/definitions/PositionsConfig"
+      },
+      "default": []
+    },
+    "gems": {
+      "type": "array",
+      "description": "Gem tile positions. Example:\n[[gems]]\ni = 2\nj = 3\n[[gems]]\ni = 1\nj = 0",
+      "items": {
+        "$ref": "#/definitions/PositionsConfig"
+      },
+      "default": []
+    },
+    "walls": {
+      "type": "array",
+      "description": "Wall tile positions. Example:\n[[walls]]\ni = 1\nj = 1\n[[walls]]\nrow = 3",
+      "items": {
+        "$ref": "#/definitions/PositionsConfig"
+      },
+      "default": []
+    },
+    "voids": {
+      "type": "array",
+      "description": "Void tile positions. Void tiles are impassable empty spaces. Example:\n[[voids]]\ni = 0\nj = 2\n[[voids]]\ncol = 4",
+      "items": {
+        "$ref": "#/definitions/PositionsConfig"
+      },
+      "default": []
+    },
+    "lasers": {
+      "type": "array",
+      "description": "Laser source configurations. Example:\n[[lasers]]\ndirection = \"East\"\nagent = 0\nlaser_id = 0\n[lasers.position]\ni = 0\nj = 0",
+      "items": {
+        "$ref": "#/definitions/LaserConfig"
+      },
+      "default": []
+    },
+    "starts": {
+      "type": "array",
+      "description": "Global start positions applied to all agents. Example:\n[[starts]]\ni = 0\nj = 0\n[[starts]]\ni = 1\nj = 1",
+      "items": {
+        "$ref": "#/definitions/PositionsConfig"
+      },
+      "default": []
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "AgentConfig": {
+      "type": "object",
+      "description": "Configuration for a single agent, specifying its possible start positions. Example:\n[[agents]]\nstarts = [{ i = 0, j = 0 }, { i = 1, j = 2 }]",
+      "properties": {
+        "starts": {
+          "type": "array",
+          "description": "Possible start positions for this agent. Example: starts = [{ i = 0, j = 0 }, { i = 2, j = 3 }]",
+          "items": {
+            "$ref": "#/definitions/PositionsConfig"
+          },
+          "default": []
+        },
+        "start_positions": {
+          "type": "array",
+          "description": "Completes the start positions of this specific agent, which are added to the global 'starts'. Example: start_positions = [{ i = 0, j = 0 }]",
+          "items": {
+            "$ref": "#/definitions/PositionsConfig"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "PositionsConfig": {
+      "description": "A position specification that can take multiple shapes. Can be an exact coordinate `{i=3, j=6}`, a full row `{row=2}`, a full column `{j=10}`, or a rectangular region `{ i_min=0, i_max=2, j_min=1, j_max=3 }`",
+      "oneOf": [
+        {
+          "$ref": "#/definitions/PositionIJ"
+        },
+        {
+          "$ref": "#/definitions/PositionRow"
+        },
+        {
+          "$ref": "#/definitions/PositionColumn"
+        },
+        {
+          "$ref": "#/definitions/PositionRect"
+        }
+      ]
+    },
+    "PositionIJ": {
+      "type": "object",
+      "description": "An exact position specified by row index i and column index j `{ i=2, j=3 }`",
+      "properties": {
+        "i": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Row index (0-based)"
+        },
+        "j": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Column index (0-based)"
+        }
+      },
+      "required": [
+        "i",
+        "j"
+      ],
+      "additionalProperties": false
+    },
+    "PositionRow": {
+      "type": "object",
+      "description": "All positions in a given row. `{ row=0 }` selects every cell in row 0.",
+      "properties": {
+        "row": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Row index (0-based). Expands to all columns in this row. Example: row = 2"
+        }
+      },
+      "required": [
+        "row"
+      ],
+      "additionalProperties": false
+    },
+    "PositionColumn": {
+      "type": "object",
+      "description": "All positions in a given column. Example: { col = 1 } — selects every cell in column 1.",
+      "properties": {
+        "col": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Column index (0-based). Expands to all rows in this column. Example: col = 4"
+        }
+      },
+      "required": [
+        "col"
+      ],
+      "additionalProperties": false
+    },
+    "PositionRect": {
+      "type": "object",
+      "description": "A rectangular region of positions defined by optional min/max bounds on rows and columns. Bounds default to 0 for minimums and to the world boundary for maximums when omitted. Example: { i_min = 1, i_max = 3, j_min = 0, j_max = 2 } — selects a 3x3 block.",
+      "properties": {
+        "i_min": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Minimum row index (inclusive, 0-based). Defaults to 0. Example: i_min = 1"
+        },
+        "i_max": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Maximum row index (inclusive, 0-based). Defaults to height - 1 if omitted. Example: i_max = 3"
+        },
+        "j_min": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Minimum column index (inclusive, 0-based). Defaults to 0. Example: j_min = 0"
+        },
+        "j_max": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Maximum column index (inclusive, 0-based). Defaults to width - 1 if omitted. Example: j_max = 4"
+        }
+      },
+      "additionalProperties": false
+    },
+    "LaserConfig": {
+      "type": "object",
+      "description": "Configuration for a laser source. Example:\n[[lasers]]\ndirection = \"South\"\nagent = 0\nlaser_id = 1\n[lasers.position]\ni = 0\nj = 2",
+      "properties": {
+        "direction": {
+          "$ref": "#/definitions/Direction",
+          "description": "The direction the laser beam travels. Example: direction = \"East\""
+        },
+        "agent": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "The agent ID that controls (blocks) this laser. Example: agent = 0"
+        },
+        "position": {
+          "$ref": "#/definitions/PositionIJ",
+          "description": "The position of the laser source on the grid. Example:\n[lasers.position]\ni = 0\nj = 0"
+        },
+        "laser_id": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Unique identifier for this laser. Example: laser_id = 0"
+        }
+      },
+      "required": [
+        "direction",
+        "agent",
+        "position",
+        "laser_id"
+      ],
+      "additionalProperties": false
+    },
+    "Direction": {
+      "type": "string",
+      "description": "Cardinal direction for a laser beam. Accepted values are: \"North\", \"East\", \"South\", \"West\" (or shorthand \"N\", \"E\", \"S\", \"W\", or lowercase).",
+      "enum": [
+        "North",
+        "East",
+        "South",
+        "West",
+        "N",
+        "E",
+        "S",
+        "W",
+        "north",
+        "east",
+        "south",
+        "west",
+        "n",
+        "e",
+        "w",
+        "s"
+      ]
+    }
+  }
+}
