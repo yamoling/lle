@@ -8,7 +8,7 @@ LLE has diﬀerent types of tiles: floor, start, wall, laser, laser source, void
 ![pdoc logo](../../docs/lvl6-annotated.png)
 
 
-## General-purpose `World`
+## General-purpose World
 The `World` class is at the heart of LLE and is meant for fine-grained control of the environment, as opposed to the `LLE` class, meant for generic high-level control in multi-agent reinforcement learning.
 
 ```python
@@ -22,7 +22,7 @@ world.step([Action.EAST])
 world.set_state(state)
 ```
 
-## Cooperative MARL `LLE`
+## Cooperative MARL LLE
 The `LLE` class is meant for Multi-Agent Reinforcement Leanring (MARL) and to be used with the `multi-agent-rlenv` library. As such, it encapsulates the `World` class and provides a high-level API for multi-agent reinforcement learning. `LLE` can be used with either in single-objective or multi-objective mode as shown below.
 
 ```python
@@ -78,8 +78,8 @@ Positions can be specified as a list of positions `{i, j}` and rectangles `{i_mi
 ```toml
 width = 10 # Optional, deduced from `world_string`
 height = 5 # Optional, deduced from `world_string`
-exits = [{ j_min = 9 }]
-gems = [{ i = 0, j = 2 }]
+exits = [{ j_min = 9 }] # Exits on all cells with j>=9
+gems = [{ i = 0, j = 2 }] # One single gem at position (0, 2)
 starts = [{ row = 2}] # All tiles on row=2 are start positions for all agents
 world_string = '''
 X . . . S1 . . . . .
@@ -112,8 +112,7 @@ starts = [
 ```
 
 ## Citing our work
-The environment has been presented at [EWRL 2023](https://openreview.net/pdf?id=IPfdjr4rIs) and at [BNAIC 2023](https://bnaic2023.tudelft.nl/static/media/BNAICBENELEARN_2023_paper_124.c9f5d29e757e5ee27c44.pdf) where it received the best paper award.
-
+LLE has received the best paper award at at [BNAIC 2023](https://bnaic2023.tudelft.nl/static/media/BNAICBENELEARN_2023_paper_124.c9f5d29e757e5ee27c44.pdf):
 ```bibtex
 @inproceedings{molinghen2023lle,
   title={Laser Learning Environment: A new environment for coordination-critical multi-agent tasks},
@@ -125,42 +124,31 @@ The environment has been presented at [EWRL 2023](https://openreview.net/pdf?id=
 ```
 """
 
-__all__ = [
-    "__version__",
-    "Action",
-    "Agent",
-    "AgentId",
-    "EventType",
-    "LaserId",
-    "LLE",
-    "ObservationType",
-    "Position",
-    "World",
-    "WorldEvent",
-    "WorldState",
-    "env",
-    "exceptions",
-    "observations",
-    "tiles",
-    "Direction",
-]
-
 from .types import AgentId, LaserId, Position
-from .lle import (
-    __version__,
-    Action,
-    World,
-    WorldEvent,
-    EventType,
-    WorldState,
-    Agent,
-    tiles,
-    exceptions,
-)
-
-
-from lle.tiles import Direction  # type: ignore
+from .lle import world, agent, tiles, exceptions, __version__
+from .agent import Agent
+from .world import World, WorldEvent, WorldState, Action, EventType
 from .observations import ObservationType
 from .env import LLE
-from . import env
-from . import observations
+
+__version__: str
+
+
+__all__ = [
+    "AgentId",
+    "LaserId",
+    "Position",
+    "world",
+    "exceptions",
+    "tiles",
+    "agent",
+    "Agent",
+    "World",
+    "WorldState",
+    "Action",
+    "EventType",
+    "WorldEvent",
+    "ObservationType",
+    "LLE",
+    "__version__",
+]

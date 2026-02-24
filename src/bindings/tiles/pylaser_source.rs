@@ -10,12 +10,13 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use crate::{
     Position, Tile, World,
     agent::AgentId,
-    bindings::{pydirection::PyDirection, pyposition::PyPosition},
+    bindings::{PyPosition, tiles::PyDirection},
     tiles::{LaserId, LaserSource},
 };
 
 #[gen_stub_pyclass]
-#[pyclass(name = "LaserSource", module = "lle.tiles")]
+#[pyclass(name = "LaserSource", module = "lle.tiles", from_py_object)]
+#[derive(Clone)]
 pub struct PyLaserSource {
     /// The id (colour) of the agent that can block the laser.
     #[pyo3(get)]
@@ -146,13 +147,25 @@ impl PyLaserSource {
         self.set_agent_id(colour)
     }
 
+    // let actions: Vec<PyAction> = if let Ok(actions) = action.extract::<Vec<PyAction>>(py) {
+    //     actions
+    // } else if let Ok(action) = action.extract::<PyAction>(py) {
+    //     vec![action]
+    // } else {
+    //     return Err(PyTypeError::new_err(
+    //         "Action must be of type Action or list[Action]",
+    //     ));
+    // };
     /// Equality is based on the agent ID, direction, laser ID, and position.
     /// Whether a laser source is enabled is not considered.
-    pub fn __eq__(&self, other: &PyLaserSource) -> bool {
-        self.agent_id == other.agent_id
-            && self.direction == other.direction
-            && self.laser_id == other.laser_id
-            && self.pos == other.pos
+    pub fn __eq__(&self, py: Python, other: Py<PyAny>) -> bool {
+        if let Ok(source) = other.extract::<PyLaserSource>(py) {
+            return self.agent_id == source.agent_id
+                && self.direction == source.direction
+                && self.laser_id == source.laser_id
+                && self.pos == source.pos;
+        }
+        return false;
     }
 
     pub fn __str__(&self) -> String {

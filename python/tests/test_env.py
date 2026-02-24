@@ -33,7 +33,7 @@ def test_time_reward():
     . .  . ."""
     ).build()
     env.reset()
-    for action in Action.ALL:
+    for action in Action.variants():
         reward = env.step([action.value]).reward
         assert reward == 0
 

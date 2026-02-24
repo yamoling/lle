@@ -1,10 +1,8 @@
 from threading import Thread
-from typing import List
-from lle.types import Position
 import pytest
 from copy import deepcopy
 
-from lle import World, WorldState, Action, EventType
+from lle import Position, World, WorldState, Action, EventType
 from lle.exceptions import ParsingError, InvalidActionError, InvalidWorldStateError
 
 
@@ -594,14 +592,14 @@ def test_subclass_world_state():
         def __init__(
             self,
             other: int,
-            agents_positions: List[tuple[int, int]],
-            gems_collected: List[bool],
-            agents_alive: List[bool] | None = None,
+            agents_positions: list[tuple[int, int]],
+            gems_collected: list[bool],
+            agents_alive: list[bool] | None = None,
         ):
             super().__init__(agents_positions, gems_collected=gems_collected, agents_alive=agents_alive)
             self.other = other
 
-        def __new__(cls, _: int, agents_positions: List[Position], gems_collected: List[bool], agents_alive: List[bool]):
+        def __new__(cls, _: int, agents_positions: list[Position], gems_collected: list[bool], agents_alive: list[bool]):
             return super().__new__(cls, agents_positions, gems_collected, agents_alive)
 
     s1 = WS(4, [(0, 0)], [False], [True])

@@ -45,7 +45,7 @@ L0E . .  .  . . @
     obs, state = env.reset()
 
     def check_available_actions(available: np.ndarray, expected_available: list[list[Action]]) -> bool:
-        available_actions = np.full((2, Action.N), False, dtype=bool)
+        available_actions = np.full((2, Action.cardinality()), False, dtype=bool)
         for agent_id, actions in enumerate(expected_available):
             for action in actions:
                 available_actions[agent_id, action.value] = True
@@ -119,7 +119,7 @@ def test_action_meanings():
 .  . ."""
     ).build()
     for individual_space in env.action_space.spaces:
-        assert individual_space.labels == [a.name for a in Action.ALL]
+        assert individual_space.labels == [a.name for a in Action.variants()]
 
 
 def test_deep_copy():

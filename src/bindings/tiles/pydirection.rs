@@ -3,7 +3,7 @@ use pyo3::{prelude::*, types::PyTuple};
 use pyo3_stub_gen::derive::{gen_stub_pyclass_enum, gen_stub_pymethods};
 
 #[gen_stub_pyclass_enum]
-#[pyclass(name = "Direction", module = "lle.tiles", eq)]
+#[pyclass(name = "Direction", module = "lle.tiles", eq, skip_from_py_object)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum PyDirection {
     #[pyo3(name = "NORTH")]
@@ -144,13 +144,20 @@ impl PyDirection {
     /// This method is called to instantiate the object before deserialisation.
     /// It required "default arguments" to be provided to the __new__ method
     /// before replacing them by the actual values in __setstate__.
-    pub fn __getnewargs__(&self, py: Python) -> PyObject {
-        PyTuple::new(py, vec![String::from("N")].iter())
-            .unwrap()
-            .into()
+    pub fn __getnewargs__<'py>(&self, py: Python<'py>) -> Bound<'py, PyTuple> {
+        PyTuple::new(py, vec![String::from("N")].iter()).unwrap()
     }
 
     pub fn __setstate__(&mut self, state: String) {
         *self = PyDirection::try_from(state.as_str()).unwrap();
+    }
+
+    pub fn __hash__(&self) -> u64 {
+        match self {
+            Self::North => 0,
+            Self::East => 1,
+            Self::South => 2,
+            Self::West => 3,
+        }
     }
 }

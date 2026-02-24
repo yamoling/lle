@@ -6,9 +6,9 @@ use std::{
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
-use crate::{Tile, World, agent::AgentId, tiles::Gem};
+use crate::{Tile, World, agent::AgentId, bindings::PyPosition, tiles::Gem};
 
-use super::{super::pyposition::PyPosition, inner};
+use super::inner;
 
 #[gen_stub_pyclass]
 #[pyclass(name = "Gem", module = "lle.tiles")]

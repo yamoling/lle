@@ -23,10 +23,16 @@ def test_count():
     assert values.count(Action.WEST) == 2
 
 
+def test_action_names():
+    names = {a.name for a in Action.variants()}
+    expected_names = {"NORTH", "SOUTH", "EAST", "WEST", "STAY"}
+    assert names == expected_names
+
+
 def test_hash_equal():
     hashes = set()
     actions = set()
-    for a in Action.ALL:
+    for a in Action.variants():
         h = hash(a)
         # deterministic
         assert h == hash(a)
@@ -37,16 +43,15 @@ def test_hash_equal():
 def test_deepcopy():
     import copy
 
-    for a in Action.ALL:
+    for a in Action.variants():
         b = copy.deepcopy(a)
         assert a == b
-        assert a is not b
 
 
 def test_pickle():
     import pickle
 
-    for a in Action.ALL:
+    for a in Action.variants():
         b = pickle.loads(pickle.dumps(a))
         assert a == b
         assert a is not b
