@@ -65,6 +65,7 @@ impl ParsingData {
         if let Some(w) = self.width {
             if w != n_cols {
                 return Err(ParseError::Inconsistent2Dimensions {
+                    row_str: line.to_string(),
                     expected_n_cols: w,
                     actual_n_cols: n_cols,
                     row: self.height,
@@ -207,7 +208,7 @@ pub fn parse(world_str: &str) -> Result<WorldConfig, ParseError> {
                 }
             }
         }
-        data.add_row(n_cols)?;
+        data.add_row(n_cols, line)?;
         row += 1;
     }
     data.try_into()

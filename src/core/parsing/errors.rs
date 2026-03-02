@@ -33,6 +33,7 @@ pub enum ParseError {
         start2: Position,
     },
     Inconsistent2Dimensions {
+        row_str: String,
         expected_n_cols: usize,
         actual_n_cols: usize,
         row: usize,

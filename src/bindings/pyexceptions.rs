@@ -52,6 +52,7 @@ pub fn parse_error_to_exception(error: ParseError) -> PyErr {
             start2,
         } => format!("Agent {agent_id} has two start tiles: {start1:?} and {start2:?}"),
         ParseError::Inconsistent2Dimensions {
+            row_str,
             expected_n_cols,
             actual_n_cols,
             row,
