@@ -61,7 +61,7 @@ impl ParsingData {
         self.laser_configs.len()
     }
 
-    pub fn add_row(&mut self, n_cols: usize) -> Result<(), ParseError> {
+    pub fn add_row(&mut self, n_cols: usize, line: &str) -> Result<(), ParseError> {
         if let Some(w) = self.width {
             if w != n_cols {
                 return Err(ParseError::Inconsistent2Dimensions {

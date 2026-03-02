@@ -56,8 +56,7 @@ pub fn parse_error_to_exception(error: ParseError) -> PyErr {
             actual_n_cols,
             row,
         } => format!(
-            "Inconsistent number of columns in row {}: expected {}, got {}",
-            row, expected_n_cols, actual_n_cols
+            "Inconsistent number of columns in world string. Row number {row} with content {row_str} expected {expected_n_cols} tiles but got {actual_n_cols} tiles"
         ),
         ParseError::Inconsistent3Dimensions {
             expected_n_dims,
