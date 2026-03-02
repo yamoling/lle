@@ -13,6 +13,8 @@ use super::{AgentConfig, PositionsConfig, TomlLaserConfig};
 pub struct TomlConfig {
     pub width: Option<usize>,
     pub height: Option<usize>,
+    #[serde(default = "default_layers")]
+    pub layers: Option<usize>,
     pub n_agents: Option<usize>,
     pub world_string: Option<String>,
     #[serde(default)]
@@ -29,6 +31,10 @@ pub struct TomlConfig {
     pub lasers: Vec<TomlLaserConfig>,
     #[serde(default)]
     pub starts: Vec<PositionsConfig>,
+}
+
+fn default_layers() -> Option<usize> {
+    Some(1)
 }
 
 impl TomlConfig {
@@ -58,6 +64,17 @@ impl TomlConfig {
         } else {
             self.height = Some(config.height());
         }
+        if let Some(l) = self.layers {
+            if l != config.layers() {
+                return Err(ParseError::InconsistentWorldStringLayers {
+                    toml_layers: l,
+                    world_str_layers: config.layers(),
+                });
+            }
+        } else {
+            self.layers = Some(config.layers());
+        }
+
         for (agent_num, starts) in config.random_starts().iter().enumerate() {
             if self.agents.len() <= agent_num {
                 self.agents.push(AgentConfig::default());
@@ -81,7 +98,6 @@ impl TomlConfig {
         for pos in config.walls() {
             self.walls.push(PositionsConfig::from(pos));
         }
-
         for pos in config.gems() {
             self.gems.push(PositionsConfig::from(pos));
         }
@@ -103,10 +119,11 @@ fn compute_positions(
     pos_configs: &[PositionsConfig],
     width: usize,
     height: usize,
+    layers: usize,
 ) -> Result<Vec<Position>, ParseError> {
     let mut res = vec![];
     for pos_config in pos_configs {
-        res.extend(pos_config.to_positions(width, height)?);
+        res.extend(pos_config.to_positions(width, height, layers)?);
     }
     Ok(res)
 }
@@ -145,9 +162,13 @@ impl TryInto<WorldConfig> for TomlConfig {
             Some(h) => h,
             None => return Err(ParseError::EmptyWorld),
         };
-        let starts_positions = compute_positions(&self.starts, width, height)?;
-        let walls_positions = compute_positions(&self.walls, width, height)?;
-        let exit_positions = compute_positions(&self.exits, width, height)?;
+        let layer = match self.layers {
+            Some(l) => l,
+            None => return Err(ParseError::EmptyWorld),
+        };
+        let starts_positions = compute_positions(&self.starts, width, height, layer)?;
+        let walls_positions = compute_positions(&self.walls, width, height, layer)?;
+        let exit_positions = compute_positions(&self.exits, width, height, layer)?;
         let agents_random_start_positions = self
             .agents
             .iter()
@@ -156,6 +177,7 @@ impl TryInto<WorldConfig> for TomlConfig {
                     &starts_positions,
                     width,
                     height,
+                    layer,
                     &walls_positions,
                     &exit_positions,
                 )
@@ -165,9 +187,10 @@ impl TryInto<WorldConfig> for TomlConfig {
         Ok(WorldConfig::new(
             width,
             height,
-            compute_positions(&self.gems, width, height)?,
+            layer,
+            compute_positions(&self.gems, width, height, layer)?,
             agents_random_start_positions,
-            compute_positions(&self.voids, width, height)?,
+            compute_positions(&self.voids, width, height, layer)?,
             exit_positions,
             walls_positions,
             source_configs,
@@ -179,6 +202,7 @@ impl From<&WorldConfig> for TomlConfig {
     fn from(value: &WorldConfig) -> Self {
         let width = value.width();
         let height = value.height();
+        let layers = value.layers();
         let mut agents = vec![];
         for starts in value.random_starts() {
             agents.push(AgentConfig {
@@ -200,6 +224,7 @@ impl From<&WorldConfig> for TomlConfig {
         Self {
             width: Some(width),
             height: Some(height),
+            layers: Some(layers),
             n_agents: Some(agents.len()),
             world_string: None,
             agents,
@@ -300,7 +325,7 @@ starts = [{row = 0}]
                 // Start positions should be (0, 0), (0, 1) ... (0, 9)
                 for start in config.random_starts() {
                     for j in 0..config.width() {
-                        assert!(start.contains(&Position { i: 0, j }));
+                        assert!(start.contains(&Position { i: 0, j, k: 0 }));
                     }
                 }
             }
@@ -314,6 +339,7 @@ starts = [{row = 0}]
             r#"
 height = 10
 width = 10
+layers = 1
 n_agents = 2
 starts = [{col = 0}]
 "#,
@@ -321,7 +347,7 @@ starts = [{col = 0}]
             Ok(config) => {
                 for start in config.random_starts() {
                     for i in 0..config.height() {
-                        assert!(start.contains(&Position { i, j: 0 }));
+                        assert!(start.contains(&Position { i, j: 0, k: 0 }));
                     }
                 }
             }
@@ -347,10 +373,10 @@ starts = [{col = 0}, {row=0}]
                         "There should only be 19 starts since duplicates should be removed"
                     );
                     for i in 0..config.height() {
-                        assert!(start.contains(&Position { i, j: 0 }));
+                        assert!(start.contains(&Position { i, j: 0, k: 0 }));
                     }
                     for j in 0..config.width() {
-                        assert!(start.contains(&Position { i: 0, j }));
+                        assert!(start.contains(&Position { i: 0, j, k: 0 }));
                     }
                 }
             }
@@ -370,7 +396,7 @@ start_positions = [{i_min=1}]
         "#;
         let world = World::try_from(toml_content).unwrap();
         let starts = world.possible_starts();
-        assert_eq!(1, starts[0].len())
+        assert_eq!(1, starts[0].len(), "possible start has {:?}", starts[0]);
     }
 
     #[test]
@@ -379,7 +405,7 @@ start_positions = [{i_min=1}]
 width = 10
 height = 5
 exits = [{ j_min = 9 }]
-gems = [{ i = 0, j = 2 }]
+gems = [{ i = 0, j = 2}]
 world_string = """
 X . . . S1 . . . . . 
 . . . . .  . . . . . 
@@ -395,7 +421,7 @@ start_positions = [{ i_min = 0, i_max = 0 }]
 # Deduced from the string map that agent 1 has a start position at (0, 5).
 
 [[agents]]
-start_positions = [{ i = 0, j = 5 }, { i = 3, j = 5 }]
+start_positions = [{ i = 0, j = 5 }, { i = 3, j = 5 , k = 0}]
 
 [[agents]]
 start_positions = [

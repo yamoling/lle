@@ -31,7 +31,7 @@ pub struct PyLaserSource {
     /// The unique id of the laser.
     #[pyo3(get)]
     laser_id: LaserId,
-    /// The (i, j) position of the laser tile.
+    /// The (i, j, k) position of the laser tile.
     #[pyo3(get)]
     pos: PyPosition,
     world: Arc<Mutex<World>>,
@@ -41,7 +41,7 @@ unsafe impl Send for PyLaserSource {}
 unsafe impl Sync for PyLaserSource {}
 
 impl PyLaserSource {
-    pub fn new(world: Arc<Mutex<World>>, pos: (usize, usize), source: &LaserSource) -> Self {
+    pub fn new(world: Arc<Mutex<World>>, pos: PyPosition, source: &LaserSource) -> Self {
         Self {
             agent_id: source.agent_id(),
             direction: PyDirection::from(source.direction()),

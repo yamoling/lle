@@ -27,9 +27,9 @@ fn test_tile_type() {
     )
     .unwrap();
     world.reset();
-    assert!(world.start_positions.contains(&(Position { i: 0, j: 0 })));
+    assert!(world.start_positions.contains(&(Position::new2d(0, 0))));
     //let start = world.start_positions[0].get(&(0, 0)).unwrap();
-    assert_eq!(world.start_positions[0], Position { i: 0, j: 0 });
+    assert_eq!(world.start_positions[0], Position::new2d(0, 0));
 
     assert!(
         world
@@ -40,21 +40,21 @@ fn test_tile_type() {
     let source = world
         .sources()
         .iter()
-        .find(|(Position { i, j }, _)| *i == 1 && *j == 0)
+        .find(|(Position { i, j, k: _ }, _)| *i == 1 && *j == 0)
         .unwrap()
         .1;
     assert_eq!(source.agent_id(), 0);
-    let laser = get_laser(&world, Position { i: 1, j: 1 });
+    let laser = get_laser(&world, Position::new2d(1, 1));
     assert_eq!(laser.agent_id(), 0);
     let n_exits_at_1_1 = world
         .exits
         .iter()
-        .filter(|Position { i, j }| *i == 1 && *j == 1)
+        .filter(|Position { i, j, k: _ }| *i == 1 && *j == 1)
         .count();
     assert!(n_exits_at_1_1 == 1);
     assert!(world.wall_positions.len() == 2);
-    assert!(world.wall_positions.contains(&Position { i: 1, j: 2 }));
-    assert!(world.wall_positions.contains(&Position { i: 1, j: 0 }));
+    assert!(world.wall_positions.contains(&Position::new2d(1, 2)));
+    assert!(world.wall_positions.contains(&Position::new2d(1, 0)));
 }
 
 #[test]
@@ -63,8 +63,8 @@ fn test_duplicate_start_pos() {
         Ok(..) => panic!("Should not be able to build a world with duplicate start positions"),
         Err(err) => match err {
             ParseError::DuplicateStartTile { start1, start2, .. } => {
-                assert_eq!(start1, Position { i: 0, j: 0 });
-                assert_eq!(start2, Position { i: 0, j: 1 });
+                assert_eq!(start1, Position::new2d(0, 0));
+                assert_eq!(start2, Position::new2d(0, 1));
             }
             other => panic!("Expected DuplicateStartTile error, got {other:?}"),
         },
@@ -203,7 +203,7 @@ fn test_force_state_invalid_number_of_agents() {
     .unwrap();
     w.reset();
     let s = WorldState::new_alive(
-        [Position { i: 1, j: 2 }, Position { i: 0, j: 0 }].into(),
+        [Position::new2d(1, 2), Position::new2d(0, 0)].into(),
         [true].into(),
     );
     match w.set_state(&s) {
@@ -359,7 +359,7 @@ fn parse_inconsistent_row_lengths() {
     ) {
         Ok(_) => panic!("Should not be able to parse worlds with inconsistent row lengths"),
         Err(e) => match e {
-            ParseError::InconsistentDimensions {
+            ParseError::Inconsistent2Dimensions {
                 actual_n_cols,
                 expected_n_cols,
                 row,
@@ -569,10 +569,10 @@ start_positions = [{i=0, j=0}]
     for _ in 0..1_000 {
         world.reset();
         let positions = world.agents_positions();
-        assert_eq!(positions[0], Position { i: 3, j: 0 });
-        assert_eq!(positions[1], Position { i: 2, j: 0 });
-        assert_eq!(positions[2], Position { i: 1, j: 0 });
-        assert_eq!(positions[3], Position { i: 0, j: 0 });
+        assert_eq!(positions[0], Position::new2d(3, 0));
+        assert_eq!(positions[1], Position::new2d(2, 0));
+        assert_eq!(positions[2], Position::new2d(1, 0));
+        assert_eq!(positions[3], Position::new2d(0, 0));
     }
 }
 
@@ -587,14 +587,14 @@ fn set_exits() {
     .unwrap();
     world.reset();
     assert!(world.exits_positions().len() == 1);
-    assert!(world.exits_positions().contains(&Position { i: 1, j: 0 }));
+    assert!(world.exits_positions().contains(&Position::new2d(1, 0)));
 
     world
         .set_exit_positions(vec![(0, 1).into(), (1, 1).into()])
         .unwrap();
     assert_eq!(world.exits_positions().len(), 2);
-    assert!(world.exits_positions().contains(&Position { i: 0, j: 1 }));
-    assert!(world.exits_positions().contains(&Position { i: 1, j: 1 }));
+    assert!(world.exits_positions().contains(&Position::new2d(0, 1)));
+    assert!(world.exits_positions().contains(&Position::new2d(1, 1)));
 }
 
 #[test]

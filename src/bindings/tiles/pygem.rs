@@ -16,7 +16,7 @@ pub struct PyGem {
     /// Whether the gem has been collected.
     #[pyo3(get)]
     is_collected: bool,
-    /// The (i, j) position of the gem.
+    /// The (i, j, k) position of the gem.
     #[pyo3(get)]
     pos: PyPosition,
     world: Arc<Mutex<World>>,
@@ -28,7 +28,7 @@ unsafe impl Send for PyGem {}
 unsafe impl Sync for PyGem {}
 
 impl PyGem {
-    pub fn new(gem: &Gem, pos: (usize, usize), world: Arc<Mutex<World>>) -> Self {
+    pub fn new(gem: &Gem, pos: PyPosition, world: Arc<Mutex<World>>) -> Self {
         Self {
             is_collected: gem.is_collected(),
             pos: pos.into(),

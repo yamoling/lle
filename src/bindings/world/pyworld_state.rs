@@ -48,10 +48,13 @@ pub struct PyWorldState {
 #[gen_stub_pymethods]
 #[pymethods]
 impl PyWorldState {
+    const POSITION_SIZE: usize = 3; // i, j, and k
+    const AGENT_SIZE: usize = Self::POSITION_SIZE + 1; // 3 for position and 1 for alive status
+
     #[new]
     #[pyo3(signature = (agents_positions, gems_collected, agents_alive=None))]
     pub fn new(
-        agents_positions: Vec<(usize, usize)>,
+        agents_positions: Vec<PyPosition>,
         gems_collected: Vec<bool>,
         agents_alive: Option<Vec<bool>>,
     ) -> Self {
@@ -66,7 +69,7 @@ impl PyWorldState {
     #[pyo3(signature = (agents_positions, gems_collected, agents_alive=None))]
     fn __init__(
         &mut self,
-        agents_positions: Vec<(usize, usize)>,
+        agents_positions: Vec<PyPosition>,
         gems_collected: Vec<bool>,
         agents_alive: Option<Vec<bool>>,
     ) {
@@ -77,11 +80,12 @@ impl PyWorldState {
     }
 
     fn as_array<'a>(&self, py: Python<'a>) -> Bound<'a, PyArray1<f32>> {
-        let len = self.agents_positions.len() * 3 + self.gems_collected.len();
+        let len: usize = self.agents_positions.len() * Self::AGENT_SIZE + self.gems_collected.len(); // 4 because position is represented by 3 values then alive status and finally the collected status of each gem
         let mut res = Vec::with_capacity(len);
-        for (i, j) in &self.agents_positions {
+        for (i, j, k) in &self.agents_positions {
             res.push(*i as f32);
             res.push(*j as f32);
+            res.push(*k as f32);
         }
         for is_collected in &self.gems_collected {
             if *is_collected {
@@ -102,7 +106,7 @@ impl PyWorldState {
 
     #[staticmethod]
     fn from_array(array: Vec<f32>, n_agents: usize, n_gems: usize) -> PyResult<Self> {
-        let expected_len = n_agents * 3 + n_gems;
+        let expected_len = n_agents * Self::AGENT_SIZE + n_gems;
         if array.len() != expected_len {
             return Err(exceptions::PyValueError::new_err(format!(
                 "The array must have a length of {expected_len}.",
@@ -111,16 +115,20 @@ impl PyWorldState {
 
         let mut agents_positions = Vec::with_capacity(n_agents);
         for i in 0..n_agents {
-            agents_positions.push((array[i * 2] as usize, array[i * 2 + 1] as usize));
+            agents_positions.push((
+                array[i * Self::POSITION_SIZE] as usize,
+                array[i * Self::POSITION_SIZE + 1] as usize,
+                array[i * Self::POSITION_SIZE + 2] as usize,
+            ));
         }
         let mut gems_collected = Vec::with_capacity(n_gems);
         for i in 0..n_gems {
-            let is_collected = array[n_agents * 2 + i] == 1.0;
+            let is_collected = array[n_agents * Self::POSITION_SIZE + i] == 1.0;
             gems_collected.push(is_collected);
         }
         let mut agents_alive = Vec::with_capacity(n_agents);
         for i in 0..n_agents {
-            let is_alive = array[n_agents * 2 + n_gems + i] == 1.0;
+            let is_alive = array[n_agents * Self::POSITION_SIZE + n_gems + i] == 1.0;
             agents_alive.push(is_alive);
         }
 

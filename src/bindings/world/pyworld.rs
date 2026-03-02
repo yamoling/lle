@@ -60,6 +60,10 @@ pub struct PyWorld {
     /// The width of the world (in number of tiles).
     #[pyo3(get)]
     width: usize,
+    /// The layers of the world (in number of tiles).
+    #[pyo3(get)]
+    layers: usize,
+
     /// The number of gems in the world.
     #[pyo3(get)]
     n_gems: usize,
@@ -88,7 +92,7 @@ impl From<World> for PyWorld {
             random_start_pos: world
                 .possible_starts()
                 .into_iter()
-                .map(|p| p.into_iter().map(|p| p.as_ij()).collect())
+                .map(|p| p.into_iter().map(|p| p.as_ijk()).collect())
                 .collect(),
             wall_pos: world.walls().into_iter().map(|p| p.into()).collect(),
             void_pos: world
@@ -98,6 +102,7 @@ impl From<World> for PyWorld {
                 .collect(),
             height: world.height(),
             width: world.width(),
+            layers: world.layers(),
             n_gems: world.n_gems(),
             n_agents: world.n_agents(),
             renderer,
@@ -531,7 +536,7 @@ impl PyWorld {
         self.random_start_pos = world
             .possible_starts()
             .iter()
-            .map(|p| p.iter().map(|p| p.as_ij()).collect())
+            .map(|p| p.iter().map(|p| p.as_ijk()).collect())
             .collect();
         self.wall_pos = world.walls().iter().map(|p| (*p).into()).collect();
         self.void_pos = world.void_positions().iter().map(|p| (*p).into()).collect();
@@ -568,6 +573,7 @@ impl Clone for PyWorld {
             void_pos: self.void_pos.clone(),
             height: self.height,
             width: self.width,
+            layers: self.layers,
             n_gems: self.n_gems,
             n_agents: self.n_agents,
             world: Arc::new(Mutex::new(world)),

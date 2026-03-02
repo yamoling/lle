@@ -1,4 +1,4 @@
-use crate::{AgentId, Position};
+use crate::{AgentId, Grid, Position};
 
 use super::{ParseError, laser_config::LaserConfig, world_config::WorldConfig};
 
@@ -6,6 +6,7 @@ use super::{ParseError, laser_config::LaserConfig, world_config::WorldConfig};
 pub struct ParsingData {
     pub width: Option<usize>,
     pub height: usize,
+    pub layers: Option<usize>,
     pub gem_positions: Vec<Position>,
     pub start_positions: Vec<Vec<Position>>,
     pub void_positions: Vec<Position>,
@@ -33,6 +34,7 @@ impl ParsingData {
             self.start_positions.push(Vec::new());
         }
         if !self.start_positions[agent_id].is_empty() {
+            //? why one start position if we create a vector of positions per agent?
             return Err(ParseError::DuplicateStartTile {
                 agent_id,
                 start1: self.start_positions[agent_id][0],
@@ -62,8 +64,7 @@ impl ParsingData {
     pub fn add_row(&mut self, n_cols: usize, line: &str) -> Result<(), ParseError> {
         if let Some(w) = self.width {
             if w != n_cols {
-                return Err(ParseError::InconsistentDimensions {
-                    row_str: line.to_string(),
+                return Err(ParseError::Inconsistent2Dimensions {
                     expected_n_cols: w,
                     actual_n_cols: n_cols,
                     row: self.height,
@@ -75,6 +76,32 @@ impl ParsingData {
         self.height += 1;
         Ok(())
     }
+    pub fn add_layer(&mut self, wh: (usize, usize)) -> Result<(), ParseError> {
+        // TODO refactor
+        match (self.width, self.height) {
+            (Some(w), h) => {
+                if wh != (w, h) {
+                    return Err(ParseError::Inconsistent3Dimensions {
+                        expected_n_dims: (w, h),
+                        actual_n_dims: wh,
+                        layer: self.layers.unwrap_or(1), // dont realy care about the layer number in the error message
+                    });
+                }
+            }
+            (None, h) => {
+                if wh.1 != h {
+                    return Err(ParseError::Inconsistent3Dimensions {
+                        expected_n_dims: (wh.0, h),
+                        actual_n_dims: wh,
+                        layer: self.layers.unwrap_or(1),
+                    });
+                }
+                self.width = Some(wh.0);
+            }
+        }
+        self.layers = Some(self.layers.unwrap_or(1) + 1);
+        Ok(())
+    }
 }
 
 impl TryInto<WorldConfig> for ParsingData {
@@ -84,9 +111,11 @@ impl TryInto<WorldConfig> for ParsingData {
             return Err(ParseError::EmptyWorld);
         }
         let width = self.width.ok_or(ParseError::MissingWidth)?;
+        let layers = self.layers.unwrap_or(1); //? need to be consistent with the default value of layers in ParsingData
         Ok(WorldConfig::new(
             width,
             self.height,
+            layers,
             self.gem_positions,
             self.start_positions,
             self.void_positions,
@@ -98,51 +127,60 @@ impl TryInto<WorldConfig> for ParsingData {
 }
 
 pub fn to_v1_string(config: &WorldConfig) -> Result<String, ()> {
-    let mut res = vec![vec![String::from("."); config.width()]; config.height()];
+    let mut res =
+        Grid::<String>::new(config.width(), config.height(), config.layers()).default_init();
     for (agent_num, pos) in config.random_starts().iter().enumerate() {
         if pos.len() > 1 {
             return Err(());
         }
         let pos = pos[0];
-        res[pos.i][pos.j] = format!("S{agent_num}");
+        res.replace_at(&pos, format!("S{agent_num}"));
     }
 
     for pos in config.gems() {
-        res[pos.i][pos.j] = "G".into();
+        res.replace_at(&pos, "G".into());
     }
     for pos in config.walls() {
-        res[pos.i][pos.j] = "@".into();
+        res.replace_at(&pos, "@".into());
     }
     for pos in config.exits() {
-        res[pos.i][pos.j] = "X".into();
+        res.replace_at(&pos, "X".into());
     }
     for pos in config.voids() {
-        res[pos.i][pos.j] = "V".into();
+        res.replace_at(&pos, "V".into());
     }
     for (pos, config) in config.sources() {
-        res[pos.i][pos.j] = config.to_string();
+        res.replace_at(&pos, config.to_string());
     }
-    Ok(res
-        .into_iter()
-        .map(|row| row.join(" "))
-        .collect::<Vec<String>>()
-        .join("\n"))
+    Ok((&res).into())
 }
 
 pub fn parse(world_str: &str) -> Result<WorldConfig, ParseError> {
     let mut data = ParsingData::default();
+
+    let mut layer = 0usize; // there must be at least one layer but the index of the first layer is 0
+    let mut row = 0usize;
+    let mut n_cols = 0usize;
     for line in world_str.lines() {
         let line = line.trim();
         if line.is_empty() {
             continue;
         }
+        if line.starts_with(';') {
+            layer += 1;
+            assert!(n_cols > 0 && row > 0); // there should be at least one row in the previous layer
+            data.add_layer((n_cols, row))?;
+            row = 0;
+            continue;
+        }
         let tokens = line.split_whitespace();
-        let mut n_cols = 0usize;
+        n_cols = 0usize;
         for (col, token) in tokens.enumerate() {
             n_cols += 1;
             let pos = Position {
-                i: data.height,
+                i: row,
                 j: col,
+                k: layer,
             };
             match token.to_uppercase().chars().next().unwrap() {
                 '.' => {}
@@ -169,7 +207,8 @@ pub fn parse(world_str: &str) -> Result<WorldConfig, ParseError> {
                 }
             }
         }
-        data.add_row(n_cols, line)?;
+        data.add_row(n_cols)?;
+        row += 1;
     }
     data.try_into()
 }
@@ -182,21 +221,24 @@ mod tests {
 
     #[test]
     fn test_laser_kill_on_spawn() {
-        let config = parse(
+        match parse(
             "
-        L1S  X  .
-         S0 S1  X
-        ",
-        )
-        .unwrap();
-        let world = config.to_world();
-        match world {
-            Ok(_) => panic!(
-                "The start location of agent 0 should have been removed and no remaining start position remains for agent 0"
-            ),
-            Err(ParseError::AgentWithoutStart { .. }) => {}
-            Err(ParseError::NotEnoughExitTiles { .. }) => {}
-            Err(e) => panic!("Unexpected error: {:?}", e),
+            L1S  X  .
+            S0 S1  X
+            ",
+        ) {
+            Ok(config) => {
+                let world = config.to_world();
+                match world {
+                    Ok(_) => panic!(
+                        "The start location of agent 0 should have been removed and no remaining start position remains for agent 0"
+                    ),
+                    Err(ParseError::AgentWithoutStart { .. }) => {}
+                    Err(ParseError::NotEnoughExitTiles { .. }) => {}
+                    Err(e) => panic!("Unexpected error: {:?}", e),
+                }
+            }
+            Err(e) => panic!("Unexpected error during parsing: {:?}", e),
         }
     }
 
