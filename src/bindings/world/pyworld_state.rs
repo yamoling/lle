@@ -48,8 +48,11 @@ pub struct PyWorldState {
 #[gen_stub_pymethods]
 #[pymethods]
 impl PyWorldState {
+    #[classattr]
     const POSITION_SIZE: usize = 3; // i, j, and k
-    const AGENT_SIZE: usize = Self::POSITION_SIZE + 1; // 3 for position and 1 for alive status
+
+    #[classattr]
+    const AGENT_SIZE: usize = PyWorldState::POSITION_SIZE + 1; // 3 for position and 1 for alive status
 
     #[new]
     #[pyo3(signature = (agents_positions, gems_collected, agents_alive=None))]

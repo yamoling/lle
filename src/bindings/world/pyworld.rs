@@ -63,6 +63,9 @@ pub struct PyWorld {
     /// The layers of the world (in number of tiles).
     #[pyo3(get)]
     layers: usize,
+    /// The dimensions which is the combination of height, width and layers.
+    #[pyo3(get)]
+    world_dims: (usize, usize, usize),
 
     /// The number of gems in the world.
     #[pyo3(get)]
@@ -103,6 +106,7 @@ impl From<World> for PyWorld {
             height: world.height(),
             width: world.width(),
             layers: world.layers(),
+            world_dims: (world.height(), world.width(), world.layers()),
             n_gems: world.n_gems(),
             n_agents: world.n_agents(),
             renderer,
@@ -453,9 +457,9 @@ impl PyWorld {
         self.world.lock().unwrap().n_laser_colours()
     }
 
-    /// Renders the world as an image and returns it in a numpy array.
+    /// Renders the world as an RGB image and returns it in a numpy array.
     /// Returns:
-    ///     The image of the world as a numpy array of shape (height * 32, width * 32, 3) with type uint8.
+    ///     The image of the world as a numpy array of shape (height * 32, width * 32, 3).
     fn get_image<'a>(&self, py: Python<'a>) -> Bound<'a, PyArray3<u8>> {
         let dims = self.image_dimensions();
         let dims = (dims.1 as usize, dims.0 as usize, 3);
@@ -528,6 +532,8 @@ impl PyWorld {
         self.n_gems = world.n_gems();
         self.height = world.height();
         self.width = world.width();
+        self.layers = world.layers();
+        self.world_dims = (self.height, self.width, self.layers);
         self.exit_pos = world
             .exits_positions()
             .iter()
@@ -574,6 +580,7 @@ impl Clone for PyWorld {
             height: self.height,
             width: self.width,
             layers: self.layers,
+            world_dims: self.world_dims,
             n_gems: self.n_gems,
             n_agents: self.n_agents,
             world: Arc::new(Mutex::new(world)),

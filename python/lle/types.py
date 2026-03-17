@@ -1,8 +1,8 @@
-Position = tuple[int, int]
+Position = tuple[int, int, int]
 """
-Represents a position (i, j) in the gridworld.
+Represents a position (i, j, k) in the gridworld.
 
-This is a semantic type wrapper around tuple[int, int].
+This is a semantic type wrapper around tuple[int, int, int].
 """
 
 AgentId = int

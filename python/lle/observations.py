@@ -115,17 +115,17 @@ class StateGenerator(ObservationGenerator):
         self.n_gems = world.n_gems
         self.n_agents = world.n_agents
         if normalize:
-            self.dimensions = np.array([world.height, world.width] * world.n_agents)
+            self.dimensions = np.array([world.height, world.width, world.layers] * world.n_agents)
         else:
-            self.dimensions = np.array([1.0, 1.0] * world.n_agents)
+            self.dimensions = np.ones(world.n_agents * len(world.world_dims))
 
     def observe(self):
         state = self._world.get_state().as_array()
-        state[: self._world.n_agents * 2] = state[: self._world.n_agents * 2] / self.dimensions
+        state[: self._world.n_agents * WorldState.POSITION_SIZE] = state[: self._world.n_agents * WorldState.POSITION_SIZE] / self.dimensions
         return np.tile(state, reps=(self._world.n_agents, 1))
 
     def to_world_state(self, data):
-        data[: self._world.n_agents * 2] = data[: self._world.n_agents * 2] * self.dimensions
+        data[: self._world.n_agents * WorldState.POSITION_SIZE] = data[: self._world.n_agents * WorldState.POSITION_SIZE] * self.dimensions
         return WorldState.from_array(data.tolist(), self.n_agents, self.n_gems)
 
     @property
@@ -134,7 +134,7 @@ class StateGenerator(ObservationGenerator):
 
     @property
     def shape(self):
-        return (self._world.n_agents * 2 + self.n_gems,)
+        return (self._world.n_agents * WorldState.POSITION_SIZE + self.n_gems,)
 
     @property
     def unit_size(self) -> int:
@@ -194,7 +194,7 @@ class LayeredPadded(ObservationGenerator):
         self.VOID = self.LASER_0 + self.highest_laser_agent_id + 1
         self.GEM = self.VOID + 1
         self.EXIT = self.GEM + 1
-        self._shape = (self.EXIT + 1, world.height, world.width)
+        self._shape = (self.EXIT + 1, world.height, world.width, world.layers)
         self.ordered_gem_pos = sorted(gem.pos for gem in world.gems)
 
         self.static_obs = self._setup()
@@ -202,11 +202,11 @@ class LayeredPadded(ObservationGenerator):
     def _setup(self):
         """Initial setup with static data (walls, gems, exits)"""
         obs = np.zeros(self._shape, dtype=np.float32)
-        for i, j in self._world.wall_pos:
-            obs[self.WALL, i, j] = 1.0
+        for i, j, k in self._world.wall_pos:
+            obs[self.WALL, i, j, k] = 1.0
 
-        for i, j in self._world.void_pos:
-            obs[self.VOID, i, j] = 1.0
+        for i, j, k in self._world.void_pos:
+            obs[self.VOID, i, j, k] = 1.0
 
         return obs
 
@@ -214,31 +214,31 @@ class LayeredPadded(ObservationGenerator):
         """
         Assumes that the agents are alive.
         """
-        _, i, j = np.nonzero(data[self.A0 : self.A0 + self.n_agents])
-        agents_positions = [(int(i[n]), int(j[n])) for n in range(self.n_agents)]
+        _, i, j, k = np.nonzero(data[self.A0 : self.A0 + self.n_agents])
+        agents_positions = [(int(i[n]), int(j[n]), int(k[n])) for n in range(self.n_agents)]
         gems_collected = []
         # We need the gem positions to be ordered because they are initially stored in a hashmap
-        for i, j in self.ordered_gem_pos:
-            gems_collected.append(bool(data[self.GEM, i, j] == 0.0))
+        for i, j, k in self.ordered_gem_pos:
+            gems_collected.append(bool(data[self.GEM, i, j, k] == 0.0))
         return WorldState(agents_positions, gems_collected)
 
     def observe(self):
         obs = np.copy(self.static_obs)
-        for i, j in self._world.exit_pos:
-            obs[self.EXIT, i, j] = 1.0
+        for i, j, k in self._world.exit_pos:
+            obs[self.EXIT, i, j, k] = 1.0
         for source in self._world.laser_sources:
-            i, j = source.pos
-            obs[self.LASER_0 + source.agent_id, i, j] = -1.0
+            i, j, k = source.pos
+            obs[self.LASER_0 + source.agent_id, i, j, k] = -1.0
         for laser in self._world.lasers:
-            i, j = laser.pos
+            i, j, k = laser.pos
             if laser.is_on:
-                obs[self.LASER_0 + laser.agent_id, i, j] = 1.0
+                obs[self.LASER_0 + laser.agent_id, i, j, k] = 1.0
         for gem in self._world.gems:
-            i, j = gem.pos
+            i, j, k = gem.pos
             if not gem.is_collected:
-                obs[self.GEM, i, j] = 1.0
-        for i, (y, x) in enumerate(self._world.agents_positions):
-            obs[self.A0 + i, y, x] = 1.0
+                obs[self.GEM, i, j, k] = 1.0
+        for i, (y, x, z) in enumerate(self._world.agents_positions):
+            obs[self.A0 + i, y, x, z] = 1.0
         return np.tile(obs, (self.n_agents, 1, 1, 1))
 
     @property
@@ -285,8 +285,8 @@ class FlattenedLayered(ObservationGenerator):
         return super().set_world(new_world)
 
 
-def distance(agent_pos: tuple[int, int], other_pos: tuple[int, int]) -> int:
-    return abs(agent_pos[0] - other_pos[0]) + abs(agent_pos[1] - other_pos[1])
+def distance(agent_pos: Position, other_pos: Position) -> int:
+    return abs(agent_pos[0] - other_pos[0]) + abs(agent_pos[1] - other_pos[1]) + abs(agent_pos[2] - other_pos[2])
 
 
 class PartialGenerator(ObservationGenerator):
@@ -313,10 +313,10 @@ class PartialGenerator(ObservationGenerator):
     def encode_layer(self, layer: npt.NDArray[np.float32], origin: Position, positions: list[Position], fill_value: float = 1.0):
         if len(positions) == 0:
             return
-        for i, j in positions:
-            i, j = i - origin[0] + self._center, j - origin[1] + self._center
-            if 0 <= i < self.size and 0 <= j < self.size:
-                layer[i, j] = fill_value
+        for i, j, k in positions:
+            i, j, k = i - origin[0] + self._center, j - origin[1] + self._center, k - origin[2] + self._center
+            if 0 <= i < self.size and 0 <= j < self.size and 0 <= k < self.size:
+                layer[i, j, k] = fill_value
 
     def observe(self) -> npt.NDArray[np.float32]:
         obs = np.zeros((self._world.n_agents, *self._shape), dtype=np.float32)
