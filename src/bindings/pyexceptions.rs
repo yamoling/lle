@@ -52,12 +52,12 @@ pub fn parse_error_to_exception(error: ParseError) -> PyErr {
             start2,
         } => format!("Agent {agent_id} has two start tiles: {start1:?} and {start2:?}"),
         ParseError::InconsistentDimensions {
+            row_str,
             expected_n_cols,
             actual_n_cols,
             row,
         } => format!(
-            "Inconsistent number of columns in row {}: expected {}, got {}",
-            row, expected_n_cols, actual_n_cols
+            "Inconsistent number of columns in world string. Row number {row} with content {row_str} expected {expected_n_cols} tiles but got {actual_n_cols} tiles"
         ),
         ParseError::NotEnoughExitTiles { n_starts, n_exits } => {
             format!("Not enough exit tiles: {n_starts} starts, {n_exits} exits")

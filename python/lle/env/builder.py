@@ -1,14 +1,13 @@
 from dataclasses import dataclass
 from typing import Literal, Optional, Sequence
 
-# from lle import World, ObservationType
 from .. import tiles
+from ..observations import ObservationType
 from ..types import Position
-from .reward_strategy import RewardStrategy, SingleObjective, MultiObjective, PotentialShapedLLE
+from ..world import World
 from .env import LLE
 from .extras_generators import ExtraGenerator, LaserSubgoal, MultiGenerator, NoExtras
-from ..world import World
-from ..observations import ObservationType
+from .reward_strategy import MultiObjective, PotentialShapedLLE, RewardStrategy, SingleObjective
 
 
 @dataclass
@@ -192,6 +191,7 @@ def str_to_obs(
         "image",
         "perspective",
         "normalized-state",
+        "state-normalized",
     ],
 ) -> ObservationType:
     match obs_type:
@@ -213,4 +213,5 @@ def str_to_obs(
             return ObservationType.RGB_IMAGE
         case "perspective":
             return ObservationType.AGENT0_PERSPECTIVE_LAYERED
+
     raise ValueError(f"Invalid observation type: {obs_type}")

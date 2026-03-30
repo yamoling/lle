@@ -150,6 +150,7 @@ class LLE(MARLEnv[MultiDiscreteSpace]):
         reward = self.reward_strategy.compute_reward(events)
         self.done = self.compute_done()
         return Step(
+            action,
             self.get_observation(),
             self.get_state(),
             reward=reward,

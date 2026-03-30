@@ -1,38 +1,41 @@
-[build-system]
-build-backend = "maturin"
-requires = ["maturin>=1.7,<2.0"]
-
 [project]
+name = "laser-learning-environment"
+description = "Laser Learning Environment (LLE) for Multi-Agent Reinforcement Learning"
+readme = "readme.md"
+requires-python = ">=3.12,<4"
 classifiers = [
-    "Programming Language :: Rust",
-    "Programming Language :: Python :: Implementation :: CPython",
-    "Programming Language :: Python :: Implementation :: PyPy",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+  "Programming Language :: Rust",
 ]
 dependencies = [
-    "numpy>=2.0.0",
-    "multi-agent-rlenv>=3.5.0",
-    "opencv-python>=4.0.0",
-    "orjson>=3.10.15",
+  "multi-agent-rlenv>=4.0.0",
+  "numpy>=2.0.0",
+  "opencv-python>=4.0.0",
 ]
-description = "Laser Learning Environment (LLE) for Multi-Agent Reinforcement Learning"
-name = "laser-learning-environment"
-readme = "readme.md"
-requires-python = ">=3.10,<4"
 dynamic = ["version"]
 
 [[project.authors]]
-email = "yannick.molinghen@ulb.be"
 name = "Yannick Molinghen"
+email = "yannick.molinghen@ulb.be"
+
+[dependency-groups]
+dev = [
+    "maturin>=1.7.0",
+    "orjson>=3.11.7",
+    "pdoc>=16.0.0",
+    "pip>=24.2",
+    "pytest>=9.0.0",
+]
+
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
-python-source = "python"
 module-name = "lle"
-version = { path = "python/lle/__init__.py", "attr" = "__version__" }
+python-source = "python"
 
 [tool.ruff]
 line-length = 140
-
-
-[dependency-groups]
-dev = ["pip>=24.2", "pytest>=9.0.0", "maturin>=1.7.0", "pdoc>=16.0.0"]

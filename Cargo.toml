@@ -1,21 +1,21 @@
 [package]
 name = "lle"
-version = "2.6.5"
+version = "2.6.7"
 edition = "2024"
-readme = "readme.md"
-license-file = "licence"
-repository = "https://github.com/yamoling/lle"
-homepage = "https://github.com/yamoling/lle"
 description = "Cooperative MARL environment based on laser-blocking."
-keywords = ["marl", "rl", "lle", "laser", "environment"]
+readme = "readme.md"
+homepage = "https://github.com/yamoling/lle"
+repository = "https://github.com/yamoling/lle"
+license-file = "licence"
+keywords = ["environment", "laser", "lle", "marl", "rl"]
 categories = ["science"]
 
-exclude = ["python/*", "uv.lock", "stubcheck.sh", "pyproject.toml", "docs"]
+exclude = ["docs", "pyproject.toml", "python/*", "stubcheck.sh", "uv.lock"]
 
 [lib]
+crate-type = ["cdylib", "rlib"]
 name = "lle"
 path = "src/lib.rs"
-crate-type = ["cdylib", "rlib"]
 
 [[bin]]
 name = "stub-gen"
@@ -33,5 +33,5 @@ serde = "1.0.217"
 toml = "0.9.8"
 
 [dev-dependencies]
-serde_json = "1.0"
 jsonschema = "0.29"
+serde_json = "1.0"
