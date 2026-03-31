@@ -37,11 +37,12 @@ class LLE(MARLEnv[MultiDiscreteSpace]):
 
     The preferred way to to instanciate an environment is via `level`, `from_file` or `from_str` methods that return a `Builder`:
     ```python
+    import lle
     env = (
-        LLE.level(5)         # alternatively: LLE.from_file(...) or LLE.from_str(...)
+        lle.level(5)         # alternatively: LLE.from_file(...) or LLE.from_str(...)
         .obs_type("layered") # Set the observation type
         .randomize_lasers()  # Randomize the laser colours on reset
-        .build()             # Retrieve the LLE instance
+        .build()             # Build and retrieve the environment
     )
     ```
     """
@@ -158,7 +159,9 @@ class LLE(MARLEnv[MultiDiscreteSpace]):
             info={"gems_collected": self.world.gems_collected, "exit_rate": self.n_arrived / self.n_agents},
         )
 
-    def reset(self):
+    def reset(self, *, seed: Optional[int] = None):
+        if seed is not None:
+            self.seed(seed)
         self.world.reset()
         self.reward_strategy.reset()
         self.extras_generator.reset()
@@ -203,8 +206,8 @@ class LLE(MARLEnv[MultiDiscreteSpace]):
         return Builder(World.from_file(path)).name(f"LLE-{os.path.basename(path)}")
 
     @staticmethod
-    def level(level: int):
-        """Load a level from the levels folder"""
+    def level(level: Literal[1, 2, 3, 4, 5, 6]):
+        """Load a predefined level between 1 and 6."""
         from .builder import Builder
 
         return Builder(World.level(level)).name(f"LLE-lvl{level}")
