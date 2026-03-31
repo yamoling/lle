@@ -11,7 +11,6 @@ classifiers = [
 dependencies = [
   "multi-agent-rlenv>=4.0.1",
   "numpy>=2.0.0",
-  "opencv-python>=4.0.0",
 ]
 dynamic = ["version"]
 
@@ -22,6 +21,7 @@ email = "yannick.molinghen@ulb.be"
 [dependency-groups]
 dev = [
   "maturin>=1.7.0",
+  "opencv-python>=4.13.0.92",
   "orjson>=3.11.7",
   "pdoc>=16.0.0",
   "pip>=24.2",

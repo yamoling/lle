@@ -1,11 +1,13 @@
-import cv2
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from enum import IntEnum
+
 import numpy as np
 import numpy.typing as npt
+
 from lle.world import World, WorldState
+
 from .types import AgentId, Position
-from dataclasses import dataclass
 
 
 class ObservationType(IntEnum):
@@ -134,7 +136,8 @@ class StateGenerator(ObservationGenerator):
 
     @property
     def shape(self):
-        return (self._world.n_agents * 2 + self.n_gems,)
+        """Each agent has three dimensions (x, y, is_alive) + number of gems"""
+        return (self._world.n_agents * 3 + self.n_gems,)
 
     @property
     def unit_size(self) -> int:
@@ -142,10 +145,12 @@ class StateGenerator(ObservationGenerator):
 
 
 class RGBImage(ObservationGenerator):
+    def __init__(self, world: World):
+        super().__init__(world)
+        self._shape = tuple(world.get_image().shape)
+
     def observe(self):
         obs = self._world.get_image()
-        obs = cv2.resize(obs, (120, 160))
-        obs = obs.transpose(2, 1, 0)
         return np.tile(obs, (self._world.n_agents, 1, 1, 1)).astype(np.float32)
 
     @property
@@ -154,7 +159,7 @@ class RGBImage(ObservationGenerator):
 
     @property
     def shape(self):
-        return (3, 160, 120)
+        return self._shape
 
 
 @dataclass
