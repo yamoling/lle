@@ -26,9 +26,9 @@ world.set_state(state)
 The `LLE` class is meant for Multi-Agent Reinforcement Leanring (MARL) and to be used with the `multi-agent-rlenv` library. As such, it encapsulates the `World` class and provides a high-level API for multi-agent reinforcement learning. `LLE` can be used with either in single-objective or multi-objective mode as shown below.
 
 ```python
-from lle import LLE
+import lle
 
-env = LLE.level(6).obs_type("layered").build()
+env = lle.level(6).obs_type("layered").build()
 obs = env.reset()
 action = env.sample_action()
 env.step(action)
@@ -126,14 +126,19 @@ LLE has received the best paper award at at [BNAIC 2023](https://bnaic2023.tudel
 ```
 """
 
-from .types import AgentId, LaserId, Position
-from .lle import world, agent, tiles, exceptions, __version__
+from .lle import __version__, agent, exceptions, tiles, world  # noqa # prevent import reordering
+
+
 from .agent import Agent
-from .world import World, WorldEvent, WorldState, Action, EventType
-from .observations import ObservationType
 from .env import LLE
+from .observations import ObservationType
+from .types import AgentId, LaserId, Position
+from .world import Action, EventType, World, WorldEvent, WorldState
 
 __version__: str
+from_file = LLE.from_file
+from_str = LLE.from_str
+level = LLE.level
 
 
 __all__ = [
@@ -153,4 +158,7 @@ __all__ = [
     "ObservationType",
     "LLE",
     "__version__",
+    "from_file",
+    "from_str",
+    "level",
 ]
