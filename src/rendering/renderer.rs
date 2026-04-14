@@ -46,7 +46,6 @@ impl Renderer {
             panel_fmt: PanelFmt::VStack,
         };
         renderer.static_rendering(core);
-        info!(target: LOG, "Initialized renderer with dimensions {}x{} and {} layers", pixel_width, pixel_height, core.layers());
         renderer
     }
 
