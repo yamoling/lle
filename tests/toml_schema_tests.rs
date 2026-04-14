@@ -22,7 +22,7 @@ fn assert_valid(toml_str: &str) {
     if !errors.is_empty() {
         let msgs: Vec<String> = errors
             .iter()
-            .map(|e| format!("  - {} at {}", e, e.instance_path))
+            .map(|e| format!("  - {} at {}", e, e.instance_path()))
             .collect();
         panic!(
             "TOML should be valid according to schema but got errors:\n{}",

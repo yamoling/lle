@@ -22,9 +22,9 @@ The `LLE` class inherits from the `MARLEnv` class in the [marlenv](https://githu
 
 
 ```python
-from lle import LLE
+import lle
 
-env = LLE.from_str("S0 G X").build()
+env = lle.from_str("S0 G X").build()
 done = False
 obs, state = env.reset()
 while not done:

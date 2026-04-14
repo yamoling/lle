@@ -1,8 +1,9 @@
-import tempfile
 import os
-from lle import LLE, Action, WorldState
-from lle.env.reward_strategy import REWARD_DEATH, REWARD_GEM, REWARD_EXIT, REWARD_DONE, MultiObjective
+import tempfile
+
 import numpy as np
+from lle import LLE, Action, WorldState
+from lle.env.reward_strategy import REWARD_DEATH, REWARD_DONE, REWARD_EXIT, REWARD_GEM, MultiObjective
 
 
 def test_void_reward():
@@ -150,7 +151,7 @@ exits = [{ j_min = 9 }]
 start_positions = [{ }] # random spawn
 
 [[agents]]
-start_positions = [{ }]        
+start_positions = [{ }]
 
 [[agents]]
 start_positions = [{ }]
