@@ -95,7 +95,7 @@ impl From<World> for PyWorld {
             random_start_pos: world
                 .possible_starts()
                 .into_iter()
-                .map(|p| p.into_iter().map(|p| p.as_ijk()).collect())
+                .map(|p| p.into_iter().map(|p| p.into()).collect())
                 .collect(),
             wall_pos: world.walls().into_iter().map(|p| p.into()).collect(),
             void_pos: world
@@ -542,7 +542,7 @@ impl PyWorld {
         self.random_start_pos = world
             .possible_starts()
             .iter()
-            .map(|p| p.iter().map(|p| p.as_ijk()).collect())
+            .map(|p| p.iter().map(|p| p.into()).collect())
             .collect();
         self.wall_pos = world.walls().iter().map(|p| (*p).into()).collect();
         self.void_pos = world.void_positions().iter().map(|p| (*p).into()).collect();

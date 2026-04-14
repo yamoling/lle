@@ -75,20 +75,22 @@ impl Add<&Action> for &Position {
     }
 }
 
-impl Into<(usize, usize, usize)> for &Position {
-    fn into(self) -> (usize, usize, usize) {
-        (self.i, self.j, self.k)
+impl From<(usize, usize, usize)> for Position {
+    fn from((i, j, k): (usize, usize, usize)) -> Self {
+        Self { i, j, k }
     }
 }
 
-impl Into<Position> for (usize, usize) {
-    // simply for convenience
-    fn into(self) -> Position {
-        Position {
-            i: self.0,
-            j: self.1,
-            k: 0,
-        }
+impl From<(usize, usize)> for Position {
+    fn from((i, j): (usize, usize)) -> Self {
+        Self { i, j, k: 0 }
+    }
+}
+
+impl From<Position> for (usize, usize, usize) {
+    fn from(pos: Position) -> Self {
+        let (i, j, k) = pos.as_ijk();
+        (i, j, k)
     }
 }
 

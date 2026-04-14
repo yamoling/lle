@@ -19,7 +19,7 @@ class Gem:
         Whether the gem has been collected.
         """
     @property
-    def pos(self) -> tuple[builtins.int, builtins.int, builtins.int]:
+    def pos(self) -> builtins.tuple[int, int, int]:
         r"""
         The (i, j, k) position of the gem.
         """
@@ -60,7 +60,7 @@ class Laser:
         Whether the laser is enabled.
         """
     @property
-    def pos(self) -> tuple[builtins.int, builtins.int, builtins.int]:
+    def pos(self) -> builtins.tuple[int, int, int]:
         r"""
         The (i, j, k) position of the tile.
         """
@@ -110,7 +110,7 @@ class LaserSource:
         The unique id of the laser.
         """
     @property
-    def pos(self) -> tuple[builtins.int, builtins.int, builtins.int]:
+    def pos(self) -> builtins.tuple[int, int, int]:
         r"""
         The (i, j, k) position of the laser tile.
         """

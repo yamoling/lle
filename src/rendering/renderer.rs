@@ -1,7 +1,7 @@
 use image::{GenericImage, Rgb, RgbImage, RgbaImage};
 use itertools::izip;
 
-use super::{sprites, TileVisitor, BLACK, GRID_GREY};
+use super::{BLACK, GRID_GREY, TileVisitor, sprites};
 use crate::{
     core::World,
     tiles::{Direction, Gem, Laser, LaserSource},
@@ -15,11 +15,24 @@ pub struct VisitorData<'a> {
     frame: &'a mut RgbImage,
 }
 
+#[derive(Clone, Copy)]
+pub enum PanelFmt {
+    /// The panels are displayed in a grid format, with each panel representing a layer of the world. The panels are arranged in a single row, with the first panel representing the bottom layer and the last panel representing the top layer.
+    Grid(usize, usize),
+    /// The panels are displayed in a stacked format, with each panel representing a layer of the world. The panels are arranged on top of each other, with the first panel representing the bottom layer and the last panel representing the top layer.
+    VStack,
+    /// The panels are displayed in a horizontal format, with each panel representing a layer of the world. The panels are arranged in a single column, with the first panel representing the bottom layer and the last panel representing the top layer.
+    HStack,
+}
+
+///The Renderer struct is responsible for rendering the world as an image. It has a static frame which contains the floor, walls, laser sources, start and exit tiles. The dynamic elements such as lasers, gems and agents are rendered on top of the static frame in the update method.
+/// The addition of vector of RgbImage allows us to have a separate static frame for each layer of the world, give us the ability to render each layer independently and then diplay them in any ways that we want.
 #[derive(Clone)]
 pub struct Renderer {
-    static_frame: RgbImage,
+    static_frame: Vec<RgbImage>,
     pixel_width: u32,
     pixel_height: u32,
+    panel_fmt: PanelFmt,
 }
 
 impl Renderer {
@@ -27,23 +40,28 @@ impl Renderer {
         let pixel_width = core.width() as u32 * TILE_SIZE + 1;
         let pixel_height = core.height() as u32 * TILE_SIZE + 1;
         let mut renderer = Self {
-            static_frame: image::RgbImage::new(pixel_width, pixel_height),
+            static_frame: vec![image::RgbImage::new(pixel_width, pixel_height); core.layers()],
             pixel_width,
             pixel_height,
+            panel_fmt: PanelFmt::VStack,
         };
         renderer.static_rendering(core);
+        info!(target: LOG, "Initialized renderer with dimensions {}x{} and {} layers", pixel_width, pixel_height, core.layers());
         renderer
     }
 
     /// Draw the floor, walls, laser sources, start and exit tiles.
     fn static_rendering(&mut self, world: &World) {
         // Floor
-        self.static_frame.fill(BACKGROUND_GREY.0[0]);
+        self.static_frame.iter_mut().for_each(|frame| {
+            frame.fill(BACKGROUND_GREY.0[0]);
+        });
         // Walls
         for pos in world.walls() {
             let x = pos.x() as u32 * TILE_SIZE;
             let y = pos.y() as u32 * TILE_SIZE;
-            self.static_frame
+            let z = pos.z() as usize;
+            self.static_frame[z]
                 .copy_from(&(*sprites::WALL), x, y)
                 .unwrap();
         }
@@ -52,25 +70,35 @@ impl Renderer {
         for pos in world.exits_positions() {
             let x = pos.x() as u32 * TILE_SIZE;
             let y = pos.y() as u32 * TILE_SIZE;
-            draw_rectangle(&mut self.static_frame, x, y, TILE_SIZE, TILE_SIZE, BLACK, 3);
+            let z = pos.z() as usize;
+            draw_rectangle(
+                &mut self.static_frame[z],
+                x,
+                y,
+                TILE_SIZE,
+                TILE_SIZE,
+                BLACK,
+                3,
+            );
         }
 
         // Void
         for pos in world.void_positions() {
             let x = pos.x() as u32 * TILE_SIZE;
             let y = pos.y() as u32 * TILE_SIZE;
+            let z = pos.z() as usize;
             // copy the void image to the static one
-            add_transparent_image(&mut self.static_frame, &sprites::VOID, x, y);
+            add_transparent_image(&mut self.static_frame[z], &sprites::VOID, x, y);
         }
     }
 
     pub fn update(&self, world: &World) -> RgbImage {
-        let mut frame = self.static_frame.clone();
+        let mut frame_stack = self.static_frame.clone();
         for (pos, laser) in world.lasers() {
             let mut data = VisitorData {
                 x: pos.x() as u32 * TILE_SIZE,
                 y: pos.y() as u32 * TILE_SIZE,
-                frame: &mut frame,
+                frame: &mut frame_stack[pos.z() as usize],
             };
             self.visit_laser(laser, &mut data);
         }
@@ -78,33 +106,83 @@ impl Renderer {
             let mut data = VisitorData {
                 x: pos.x() as u32 * TILE_SIZE,
                 y: pos.y() as u32 * TILE_SIZE,
-                frame: &mut frame,
+                frame: &mut frame_stack[pos.z() as usize],
             };
             self.visit_gem(&gem, &mut data);
         }
         for (id, pos) in world.agents_positions().iter().enumerate() {
             let x = pos.x() as u32 * TILE_SIZE;
             let y = pos.y() as u32 * TILE_SIZE;
-            add_transparent_image(&mut frame, &sprites::AGENTS[id], x, y);
+            add_transparent_image(
+                &mut frame_stack[pos.z() as usize],
+                &sprites::AGENTS[id],
+                x,
+                y,
+            );
         }
         for (pos, source) in world.sources() {
             let mut data = VisitorData {
                 x: pos.x() as u32 * TILE_SIZE,
                 y: pos.y() as u32 * TILE_SIZE,
-                frame: &mut frame,
+                frame: &mut frame_stack[pos.z() as usize],
             };
             self.visit_laser_source(source, &mut data);
         }
-        draw_grid(&mut frame);
-        frame
+        frame_stack.iter_mut().for_each(|frame| {
+            draw_grid(frame);
+        });
+        return self.concate_single_image(frame_stack);
     }
 
+    fn concate_single_image(&self, frame_stack: Vec<RgbImage>) -> RgbImage {
+        let (resized_width, resized_height) = match self.panel_fmt {
+            PanelFmt::Grid(_, _) => todo!(),
+            PanelFmt::VStack => (
+                self.pixel_width,
+                self.pixel_height * frame_stack.len() as u32 + frame_stack.len() as u32 - 1,
+            ),
+            PanelFmt::HStack => (
+                self.pixel_width * frame_stack.len() as u32 + frame_stack.len() as u32 - 1,
+                self.pixel_height,
+            ),
+        };
+        let mut panel = RgbImage::new(resized_width, resized_height);
+        for (i, frame) in frame_stack.iter().enumerate() {
+            let (x_offset, y_offset) = match self.panel_fmt {
+                PanelFmt::Grid(_, _) => todo!(),
+                PanelFmt::VStack => (0, i as u32 * (self.pixel_height + 1)),
+                PanelFmt::HStack => (i as u32 * (self.pixel_width + 1), 0),
+            };
+            panel.copy_from(frame, x_offset, y_offset).unwrap();
+        }
+        panel
+    }
     pub fn pixel_width(&self) -> u32 {
-        self.pixel_width
+        self.pixel_width * self.stack_width() + self.stack_width() - 1 // stack_width - 1 is the spacing between panels
     }
 
     pub fn pixel_height(&self) -> u32 {
-        self.pixel_height
+        self.pixel_height * self.stack_height() + self.stack_height() - 1 // stack_height - 1 is the spacing between panels
+    }
+
+    fn stack_width(&self) -> u32 {
+        match self.panel_fmt {
+            PanelFmt::Grid(cols, _) => cols as u32,
+            PanelFmt::VStack => 1,
+            PanelFmt::HStack => self.static_frame.len() as u32,
+        }
+    }
+
+    fn stack_height(&self) -> u32 {
+        match self.panel_fmt {
+            PanelFmt::Grid(_, rows) => rows as u32,
+            PanelFmt::VStack => self.static_frame.len() as u32, // ask yannick
+            PanelFmt::HStack => 1,
+        }
+    }
+
+    pub fn set_panel_fmt(&mut self, fmt: PanelFmt) {
+        self.panel_fmt = fmt;
     }
 }
 
@@ -193,7 +271,7 @@ impl TileVisitor for Renderer {
 
 #[cfg(test)]
 mod test_renderer {
-    use crate::{rendering::TILE_SIZE, Renderer, World};
+    use crate::{Renderer, World, rendering::TILE_SIZE};
 
     #[test]
     fn pixel_dimensions() {

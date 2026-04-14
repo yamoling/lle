@@ -33,24 +33,24 @@ class World:
     ```
     """
     @property
-    def exit_pos(self) -> builtins.list[tuple[builtins.int, builtins.int, builtins.int]]:
+    def exit_pos(self) -> builtins.list[builtins.tuple[int, int, int]]:
         r"""
         The positions of the exits tiles.
         """
     @exit_pos.setter
-    def exit_pos(self, value: builtins.list[tuple[builtins.int, builtins.int, builtins.int]]) -> None: ...
+    def exit_pos(self, value: builtins.list[builtins.tuple[int, int, int]]) -> None: ...
     @property
-    def random_start_pos(self) -> builtins.list[builtins.list[tuple[builtins.int, builtins.int, builtins.int]]]:
+    def random_start_pos(self) -> builtins.list[builtins.list[builtins.tuple[int, int, int]]]:
         r"""
         The possible random start positions of each agent.
         """
     @property
-    def wall_pos(self) -> builtins.list[tuple[builtins.int, builtins.int, builtins.int]]:
+    def wall_pos(self) -> builtins.list[builtins.tuple[int, int, int]]:
         r"""
         The positions of the walls.
         """
     @property
-    def void_pos(self) -> builtins.list[tuple[builtins.int, builtins.int, builtins.int]]:
+    def void_pos(self) -> builtins.list[builtins.tuple[int, int, int]]:
         r"""
         The positions of the void tiles.
         """
@@ -102,7 +102,7 @@ class World:
         The number of gems collected by the agents so far since the last reset.
         """
     @property
-    def agents_positions(self) -> builtins.list[tuple[builtins.int, builtins.int, builtins.int]]:
+    def agents_positions(self) -> builtins.list[builtins.tuple[int, int, int]]:
         r"""
         The (i, j) position of each agent.
         """
@@ -122,7 +122,7 @@ class World:
         All the laser sources of the environment
         """
     @property
-    def start_pos(self) -> builtins.list[tuple[builtins.int, builtins.int, builtins.int]]:
+    def start_pos(self) -> builtins.list[builtins.tuple[int, int, int]]:
         r"""
         The start position of each agent for this reset.
         """
@@ -165,7 +165,7 @@ class World:
         Raises:
             `ValueError`: if the level is invalid.
         """
-    def set_agents_positions(self, agents_positions: typing.Sequence[tuple[builtins.int, builtins.int, builtins.int]]) -> builtins.list[WorldEvent]:
+    def set_agents_positions(self, agents_positions: typing.Sequence[builtins.tuple[int, int] | tuple[int, int, int]]) -> builtins.list[WorldEvent]:
         r"""
         Set the position of each agent.
         
@@ -176,7 +176,7 @@ class World:
             `InvalidWorldStateError`: if the number of positions is different from the number of agents.
             `IndexError`: if a position is out of bounds.
         """
-    def set_agent_position(self, agent_id: builtins.int, position: tuple[builtins.int, builtins.int, builtins.int]) -> builtins.list[WorldEvent]:
+    def set_agent_position(self, agent_id: builtins.int, position: builtins.tuple[int, int] | tuple[int, int, int]) -> builtins.list[WorldEvent]:
         r"""
         Set the position of a single agent.
         
@@ -187,14 +187,14 @@ class World:
            `IndexError`: if the position is out of bounds.
            `ValueError`: if the agent id does not exist.
         """
-    def gem_at(self, position: tuple[builtins.int, builtins.int, builtins.int]) -> tiles.Gem:
+    def gem_at(self, position: builtins.tuple[int, int] | tuple[int, int, int]) -> tiles.Gem:
         r"""
         Retrieve the gem at the given position.
         Raises:
           `PyIndexError`: if the position is out of bounds.
           `PyValueError`: if the tile at the given position is not a gem.
         """
-    def source_at(self, position: tuple[builtins.int, builtins.int, builtins.int]) -> tiles.LaserSource:
+    def source_at(self, position: builtins.tuple[int, int] | tuple[int, int, int]) -> tiles.LaserSource:
         r"""
         Retrieve the laser source at the given position.
         Raises:
@@ -349,12 +349,12 @@ class WorldState:
     POSITION_SIZE: builtins.int = 3
     AGENT_SIZE: builtins.int = 4
     @property
-    def agents_positions(self) -> builtins.list[tuple[builtins.int, builtins.int, builtins.int]]:
+    def agents_positions(self) -> builtins.list[builtins.tuple[int, int, int]]:
         r"""
         The position of each agent.
         """
     @agents_positions.setter
-    def agents_positions(self, value: builtins.list[tuple[builtins.int, builtins.int, builtins.int]]) -> None:
+    def agents_positions(self, value: builtins.list[builtins.tuple[int, int, int]]) -> None:
         r"""
         The position of each agent.
         """
@@ -378,15 +378,15 @@ class WorldState:
         r"""
         The status of each agent.
         """
-    def __new__(cls, agents_positions: typing.Sequence[tuple[builtins.int, builtins.int, builtins.int]], gems_collected: typing.Sequence[builtins.bool], agents_alive: typing.Optional[typing.Sequence[builtins.bool]] = None) -> WorldState: ...
-    def __init__(self, agents_positions: typing.Sequence[tuple[builtins.int, builtins.int, builtins.int]], gems_collected: typing.Sequence[builtins.bool], agents_alive: typing.Optional[typing.Sequence[builtins.bool]] = None) -> None: ...
+    def __new__(cls, agents_positions: typing.Sequence[builtins.tuple[int, int] | tuple[int, int, int]], gems_collected: typing.Sequence[builtins.bool], agents_alive: typing.Optional[typing.Sequence[builtins.bool]] = None) -> WorldState: ...
+    def __init__(self, agents_positions: typing.Sequence[builtins.tuple[int, int] | tuple[int, int, int]], gems_collected: typing.Sequence[builtins.bool], agents_alive: typing.Optional[typing.Sequence[builtins.bool]] = None) -> None: ...
     def as_array(self) -> numpy.typing.NDArray[numpy.float32]: ...
     @staticmethod
     def from_array(array: typing.Sequence[builtins.float], n_agents: builtins.int, n_gems: builtins.int) -> WorldState: ...
     def __deepcopy__(self, _memo: dict) -> WorldState: ...
-    def __getstate__(self) -> tuple[builtins.list[builtins.bool], builtins.list[tuple[builtins.int, builtins.int, builtins.int]], builtins.list[builtins.bool]]: ...
-    def __setstate__(self, state: tuple[typing.Sequence[builtins.bool], typing.Sequence[tuple[builtins.int, builtins.int, builtins.int]], typing.Sequence[builtins.bool]]) -> None: ...
-    def __getnewargs__(self) -> tuple[builtins.list[tuple[builtins.int, builtins.int, builtins.int]], builtins.list[builtins.bool], typing.Optional[builtins.list[builtins.bool]]]: ...
+    def __getstate__(self) -> tuple[builtins.list[builtins.bool], builtins.list[builtins.tuple[int, int, int]], builtins.list[builtins.bool]]: ...
+    def __setstate__(self, state: tuple[typing.Sequence[builtins.bool], typing.Sequence[builtins.tuple[int, int] | tuple[int, int, int]], typing.Sequence[builtins.bool]]) -> None: ...
+    def __getnewargs__(self) -> tuple[builtins.list[builtins.tuple[int, int, int]], builtins.list[builtins.bool], typing.Optional[builtins.list[builtins.bool]]]: ...
     def __repr__(self) -> builtins.str: ...
     def __hash__(self) -> builtins.int: ...
     def __richcmp__(self, other: WorldState, cmp: int) -> builtins.bool: ...

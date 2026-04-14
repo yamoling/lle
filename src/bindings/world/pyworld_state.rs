@@ -85,10 +85,10 @@ impl PyWorldState {
     fn as_array<'a>(&self, py: Python<'a>) -> Bound<'a, PyArray1<f32>> {
         let len: usize = self.agents_positions.len() * Self::AGENT_SIZE + self.gems_collected.len(); // 4 because position is represented by 3 values then alive status and finally the collected status of each gem
         let mut res = Vec::with_capacity(len);
-        for (i, j, k) in &self.agents_positions {
-            res.push(*i as f32);
-            res.push(*j as f32);
-            res.push(*k as f32);
+        for pos in &self.agents_positions {
+            res.push(pos.0 as f32);
+            res.push(pos.1 as f32);
+            res.push(pos.2 as f32);
         }
         for is_collected in &self.gems_collected {
             if *is_collected {
@@ -118,7 +118,7 @@ impl PyWorldState {
 
         let mut agents_positions = Vec::with_capacity(n_agents);
         for i in 0..n_agents {
-            agents_positions.push((
+            agents_positions.push(PyPosition(
                 array[i * Self::POSITION_SIZE] as usize,
                 array[i * Self::POSITION_SIZE + 1] as usize,
                 array[i * Self::POSITION_SIZE + 2] as usize,

@@ -25,6 +25,7 @@ fn make_world_submodule<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyModule>> 
     let world = PyModule::new(py, "world")?;
     world.add_class::<world::PyWorld>()?;
     world.add_class::<world::PyWorldState>()?;
+    world.add_class::<world::PyPosition>()?;
     world.add_class::<world::PyEventType>()?;
     world.add_class::<world::PyWorldEvent>()?;
     world.add_class::<world::PyAction>()?;

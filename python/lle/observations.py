@@ -239,7 +239,7 @@ class LayeredPadded(ObservationGenerator):
                 obs[self.GEM, i, j, k] = 1.0
         for i, (y, x, z) in enumerate(self._world.agents_positions):
             obs[self.A0 + i, y, x, z] = 1.0
-        return np.tile(obs, (self.n_agents, 1, 1, 1))
+        return np.tile(obs, (self.n_agents, 1, 1, 1, 1))
 
     @property
     def shape(self):
@@ -313,10 +313,10 @@ class PartialGenerator(ObservationGenerator):
     def encode_layer(self, layer: npt.NDArray[np.float32], origin: Position, positions: list[Position], fill_value: float = 1.0):
         if len(positions) == 0:
             return
-        for i, j, k in positions:
-            i, j, k = i - origin[0] + self._center, j - origin[1] + self._center, k - origin[2] + self._center
-            if 0 <= i < self.size and 0 <= j < self.size and 0 <= k < self.size:
-                layer[i, j, k] = fill_value
+        for i, j, _k in positions:
+            i, j = i - origin[0] + self._center, j - origin[1] + self._center
+            if 0 <= i < self.size and 0 <= j < self.size:
+                layer[i, j] = fill_value
 
     def observe(self) -> npt.NDArray[np.float32]:
         obs = np.zeros((self._world.n_agents, *self._shape), dtype=np.float32)
