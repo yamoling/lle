@@ -90,7 +90,7 @@ def test_state_default():
                         .  . .
                         .  . ."""
     ).build()
-    assert env.state_shape == (env.n_agents * 3 + env.world.n_gems,)
+    assert env.state_shape == (env.n_agents * 4 + env.world.n_gems,)
     env.reset()
     state = env.get_state()
     assert state.shape == env.state_shape

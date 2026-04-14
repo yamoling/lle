@@ -15,15 +15,15 @@ G  . . ."""
     world.reset()
     world.step([Action.SOUTH])
     obs0 = observer.observe()
-    assert all(obs0[:, 2] == 0.0)
+    assert all(obs0[:, 3] == 0.0) # Should be using constant or enum for gem index
 
     world.step([Action.SOUTH])
     obs1 = observer.observe()
-    assert all(obs1[:, 2] == 1.0)
+    assert all(obs1[:, 3] == 1.0)
 
     world.step([Action.NORTH])
     obs1 = observer.observe()
-    assert all(obs1[:, 2] == 1.0)
+    assert all(obs1[:, 3] == 1.0)
 
 
 def test_retrieve_normalized_world_state():
@@ -66,10 +66,10 @@ def test_observe_layered_change_exits():
     assert world.exit_pos[0] == (0, 1)
     assert len(world.exit_pos) == 1
 
-    world.exit_pos = [(0, 2), (0, 3)]
+    world.exit_pos = [(0, 2), (0, 3)] # this is working but hasnt impl a ways to suppress the warning about it
     world.reset()
     obs = observer.observe()
-
+    print(obs.shape)
     assert np.all(obs[:, observer.EXIT, 0, 2] == 1)
     assert np.all(obs[:, observer.EXIT, 0, 3] == 1)
 
@@ -124,20 +124,20 @@ def test_observe_layered_gems_walls():
     GEM_LAYER = VOID_LAYER + 1
     EXIT_LAYER = -1
 
-    for i, j in world.wall_pos:
-        assert np.all(layers[:, WALL_LAYER, i, j] == 1)
+    for i, j, k in world.wall_pos:
+        assert np.all(layers[:, WALL_LAYER, i, j, k] == 1)
     for gem in world.gems:
-        i, j = gem.pos
-        assert np.all(layers[:, GEM_LAYER, i, j] == 1)
-    for i, j in world.exit_pos:
-        assert np.all(layers[:, EXIT_LAYER, i, j] == 1)
+        i, j, k = gem.pos
+        assert np.all(layers[:, GEM_LAYER, i, j, k] == 1)
+    for i, j, k in world.exit_pos:
+        assert np.all(layers[:, EXIT_LAYER, i, j, k] == 1)
     for laser in world.lasers:
         if laser.is_on:
-            i, j = laser.pos
-            assert np.all(layers[:, LASER_0_LAYER + laser.agent_id, i, j] == 1)
+            i, j, k = laser.pos
+            assert np.all(layers[:, LASER_0_LAYER + laser.agent_id, i, j, k] == 1)
     for source in world.laser_sources:
-        (i, j) = source.pos
-        assert np.all(layers[:, LASER_0_LAYER + source.agent_id, i, j] == -1)
+        (i, j, k) = source.pos
+        assert np.all(layers[:, LASER_0_LAYER + source.agent_id, i, j, k] == -1)
     assert np.all(layers[:, VOID_LAYER] == 0)
 
 
@@ -155,9 +155,9 @@ def test_observe_layered_void():
     for i in range(world.height):
         for j in range(world.width):
             if (i, j) in positions:
-                assert np.all(layers[:, observer.VOID, i, j] == 1.0)
+                assert np.all(layers[:, observer.VOID, i, j, 0] == 1.0)
             else:
-                assert np.all(layers[:, observer.VOID, i, j] == 0.0)
+                assert np.all(layers[:, observer.VOID, i, j, 0] == 0.0)
 
 
 def test_observe_flattened():
@@ -171,12 +171,12 @@ def test_observe_flattened():
 """
     )
     observer = ObservationType.FLATTENED.get_observation_generator(world)
-    assert observer.shape == (5 * 5 * (world.n_agents * 2 + 4),)
+    assert observer.shape == (5 * 5* 1* (world.n_agents * 2 + 4),)
     world.reset()
     obs = observer.observe()
     assert obs.shape == (
         1,
-        (world.n_agents * 2 + 4) * 5 * 5,
+        (world.n_agents * 2 + 4) * 5 * 5 * 1 ,
     )
 
 
@@ -189,7 +189,7 @@ def test_world_initial_observation():
     observer = ObservationType.NORMALIZED_STATE.get_observation_generator(world)
     world.reset()
     obs0 = observer.observe()
-    expected = np.array([[0.0, 0.0, 1.0]])
+    expected = np.array([[0.0, 0.0, 0.0, 1.0]])
     assert np.array_equal(expected, obs0)
 
     world = World(
@@ -201,7 +201,7 @@ def test_world_initial_observation():
     observer = ObservationType.NORMALIZED_STATE.get_observation_generator(world)
     world.reset()
     obs0 = observer.observe()
-    expected = np.tile(np.array([0.0, 0.0, 1 / 3, 2 / 3, 1.0, 1.0]), (2, 1))
+    expected = np.tile(np.array([0.0, 0.0,0.0, 1 / 3, 2 / 3,0.0, 1.0, 1.0]), (2, 1))
     assert np.allclose(expected, obs0)
 
     world = World(
@@ -213,7 +213,7 @@ S0 X  .  .
     observer = ObservationType.NORMALIZED_STATE.get_observation_generator(world)
     world.reset()
     obs0 = observer.observe()
-    expected = np.tile(np.array([0.0, 0.0, 1 / 3, 1 / 2, 1.0, 1.0]), (2, 1))
+    expected = np.tile(np.array([0.0, 0.0,0.0,  1 / 3, 1 / 2,0.0, 1.0, 1.0]), (2, 1))
     assert np.allclose(expected, obs0)
 
     world = World(
@@ -225,7 +225,7 @@ S0 X  .  G
     observer = ObservationType.NORMALIZED_STATE.get_observation_generator(world)
     world.reset()
     obs0 = observer.observe()
-    expected = np.tile(np.array([0.0, 0.0, 1 / 3, 1 / 2, 0.0, 1.0, 1.0]), (2, 1))
+    expected = np.tile(np.array([0.0, 0.0,0.0,  1 / 3, 1 / 2, 0.0 ,0.0, 1.0, 1.0]), (2, 1))
     assert np.allclose(expected, obs0)
 
 

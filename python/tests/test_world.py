@@ -444,8 +444,8 @@ def test_laser_tile_state():
 
     world.step([Action.EAST])
     for laser in world.lasers:
-        match laser.pos:
-            case (0, 1):
+        match tuple(laser.pos):
+            case (0, 1, 0):
                 assert laser.is_on
             case _:
                 assert laser.is_off
@@ -475,7 +475,7 @@ def test_change_laser_colour():
     world.reset()
     assert len(world.lasers) == 8
     for laser in world.lasers:
-        i, _ = laser.pos
+        i, *_ = laser.pos
         if i == 0:
             assert laser.agent_id == 1
         else:
@@ -489,7 +489,7 @@ def test_change_laser_colour():
 
     # Check that all the laser tiles have changed their colour
     for laser in world.lasers:
-        i, _ = laser.pos
+        i, *_ = laser.pos
         if i == 1:
             assert laser.agent_id == NEW_COLOUR
     events = world.step([Action.SOUTH, Action.SOUTH])
@@ -580,7 +580,7 @@ def test_change_laser_colour_back():
     world.reset()
     assert world.source_at((1, 0)).agent_id == 0
     for laser in world.lasers:
-        i, j = laser.pos
+        i, *_ = laser.pos
         if i == 0:
             assert laser.agent_id == 1
         elif i == 1:
@@ -602,7 +602,9 @@ def test_subclass_world_state():
         def __new__(cls, _: int, agents_positions: list[Position], gems_collected: list[bool], agents_alive: list[bool]):
             return super().__new__(cls, agents_positions, gems_collected, agents_alive)
 
-    s1 = WS(4, [(0, 0)], [False], [True])
+    s1 = WS(4, [(0, 0)], [False], [True]) 
+    # note while the Position convert the tuple to a Position object via the PyExtract which dynamically match either 2-uple or 3-uple which allow current implementation to work,
+    # here we are passing it through the __new__ method which should still work but when defining this there was only the 3-uple format, thus show that 2-uple are considered wrong but implementation still use (I assume) the PyExtract . 
     s2 = WS(5, [(0, 0)], [False], [True])
     assert s1 == s2
 
@@ -635,14 +637,14 @@ def test_set_state_agent_dead():
 def test_state_from_to_array():
     s = WorldState([(0, 0)], [False])
     s_array = s.as_array()
-    expected = [0.0, 0.0, 0.0, 1.0]
+    expected = [0.0, 0.0,0.0, 0.0, 1.0]
     assert len(s_array) == len(expected)
     assert all(a == b for a, b in zip(s_array, expected))
     assert WorldState.from_array(expected, 1, 1) == s
 
     s = WorldState([(25, 17), (10, 30)], [True, False], agents_alive=[True, False])
     s_array = s.as_array()
-    expected = [25.0, 17.0, 10.0, 30.0, 1.0, 0.0, 1.0, 0.0]
+    expected = [25.0, 17.0,0.0, 10.0, 30.0,0.0, 1.0, 0.0, 1.0, 0.0]
     assert len(s_array) == len(expected)
     assert all(a == b for a, b in zip(s_array, expected))
     assert WorldState.from_array(expected, 2, 2) == s
