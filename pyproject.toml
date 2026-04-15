@@ -8,10 +8,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
   "Programming Language :: Rust",
 ]
-dependencies = [
-  "multi-agent-rlenv>=4.0.1",
-  "numpy>=2.0.0",
-]
+dependencies = ["multi-agent-rlenv>=4.0.1", "numpy>=2.0.0"]
 dynamic = ["version"]
 
 [[project.authors]]
@@ -39,3 +36,8 @@ python-source = "python"
 
 [tool.ruff]
 line-length = 140
+
+[tool.pytest.ini_options]
+log_file = "test.log"
+log_file_level = "DEBUG"
+log_file_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

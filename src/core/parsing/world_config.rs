@@ -1,9 +1,9 @@
-use std::{collections::HashSet, vec};
-
+use crate::log_debug;
 use crate::{
     Grid, Position, World,
     tiles::{Gem, Laser, Tile, Void},
 };
+use std::{collections::HashSet, vec};
 
 use crate::ParseError;
 
@@ -34,6 +34,21 @@ impl WorldConfig {
         walls_positions: Vec<Position>,
         source_configs: Vec<(Position, LaserConfig)>,
     ) -> Self {
+        log_debug!(
+            "creating WorldConfig with width={}, height={}, layers={}, {} gems, {} random start positions, {} voids, {} exits, {} walls, and {} laser sources",
+            width,
+            height,
+            layers,
+            gem_positions.len(),
+            random_start_positions
+                .iter()
+                .map(|starts| starts.len())
+                .sum::<usize>(),
+            void_positions.len(),
+            exit_positions.len(),
+            walls_positions.len(),
+            source_configs.len(),
+        );
         Self {
             width,
             height,

@@ -1,4 +1,4 @@
-use crate::Position;
+use crate::{Position, log_debug, log_warn};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::pyclass::CompareOp;
@@ -13,22 +13,28 @@ pub struct PyPosition(pub usize, pub usize, pub usize);
 
 impl FromPyObject<'_, '_> for PyPosition {
     type Error = PyErr;
-
     /// Convert a Python object in the form of a 2-tuple (i, j) or a 3-tuple (i, j, k) into a PyPosition.
     /// If a 2-tuple is provided, k will default to 0. If the object cannot be converted, a ValueError is raised.
     fn extract(obj: pyo3::Borrowed<'_, '_, PyAny>) -> Result<Self, Self::Error> {
         if let Ok(pos) = obj.cast::<PyPosition>() {
+            log_debug!("Extracting PyPosition from PyPosition object: {:?}", pos);
             let pos = pos.borrow();
             return Ok(PyPosition(pos.0, pos.1, pos.2));
         }
         // Try 3-tuple first
         if let Ok((i, j, k)) = obj.extract::<(usize, usize, usize)>() {
+            log_debug!("Extracting 3-tuple (i, j, k) = ({}, {}, {})", i, j, k);
             return Ok(PyPosition(i, j, k));
         }
         // Try 2-tuple, defaulting k=0
         if let Ok((i, j)) = obj.extract::<(usize, usize)>() {
+            log_debug!("Extracting 2-tuple (i, j) = ({}, {})", i, j);
             return Ok(PyPosition(i, j, 0));
         }
+        log_warn!(
+            "Failed to extract PyPosition from object of type {}",
+            obj.get_type().name()?
+        );
         Err(PyValueError::new_err(
             "Position must be a tuple of 2 or 3 non-negative integers",
         ))

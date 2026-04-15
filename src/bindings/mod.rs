@@ -1,11 +1,10 @@
+use crate::logger;
 use pyo3::prelude::*;
 use pyo3_stub_gen::define_stub_info_gatherer;
-
 mod pyagent;
 mod pyexceptions;
 mod tiles;
 mod world;
-
 pub use pyexceptions::{
     InvalidActionError, InvalidLevelError, InvalidWorldStateError, ParsingError,
 };
@@ -83,6 +82,8 @@ fn add_submodule<'py>(
 
 #[pymodule]
 fn lle(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    logger::init_pylogging();
+
     let tiles = make_tiles_submodule(py)?;
     let world = make_world_submodule(py)?;
     let exceptions = make_exceptions_submodule(py)?;

@@ -1,3 +1,4 @@
+use crate::log_debug;
 use crate::{bindings::PyPosition, core::WorldState};
 use numpy::PyArray1;
 use pyo3::{exceptions, prelude::*, pyclass::CompareOp, types::PyDict};
@@ -62,6 +63,10 @@ impl PyWorldState {
         agents_alive: Option<Vec<bool>>,
     ) -> Self {
         let agents_alive = agents_alive.unwrap_or_else(|| vec![true; agents_positions.len()]);
+        log_debug!(
+            "Creating new WorldState with {} agents",
+            agents_positions.len()
+        );
         Self {
             agents_positions,
             gems_collected,
@@ -76,6 +81,10 @@ impl PyWorldState {
         gems_collected: Vec<bool>,
         agents_alive: Option<Vec<bool>>,
     ) {
+        log_debug!(
+            "Initializing WorldState with {} agents",
+            agents_positions.len()
+        );
         let agents_alive = agents_alive.unwrap_or_else(|| vec![true; agents_positions.len()]);
         self.agents_positions = agents_positions;
         self.gems_collected = gems_collected;

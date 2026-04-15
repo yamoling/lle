@@ -4,6 +4,7 @@ use toml;
 use crate::{
     ParseError, Position,
     core::parsing::{WorldConfig, parse_v1},
+    log_debug,
 };
 
 use super::{AgentConfig, PositionsConfig, TomlLaserConfig};
@@ -32,17 +33,13 @@ pub struct TomlConfig {
     #[serde(default)]
     pub starts: Vec<PositionsConfig>,
 }
-
-fn default_layers() -> Option<usize> {
-    Some(1)
-}
-
 impl TomlConfig {
     fn complete_with_world_string(&mut self) -> Result<(), ParseError> {
         let world_str = match &self.world_string {
             Some(s) => s,
             None => return Ok(()),
         };
+        log_debug!("Completing TOML config with world string:\n{world_str}");
         let config = parse_v1(&world_str)?;
         if let Some(w) = self.width {
             if w != config.width() {

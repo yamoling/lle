@@ -19,6 +19,7 @@ use crate::bindings::{
     world::{PyAction, PyPosition, PyWorldEvent, PyWorldState},
 };
 use crate::{Action, AgentId, Renderer, Tile, World};
+use crate::{log_debug, log_info};
 
 // Implementation notes:
 // - The `PyWorld` struct is a wrapper around the `World` struct.
@@ -86,6 +87,12 @@ unsafe impl Sync for PyWorld {}
 impl From<World> for PyWorld {
     fn from(world: World) -> Self {
         let renderer = Renderer::new(&world);
+        log_info!(
+            "Creating new PyWorld with dimensions: {}x{}x{}",
+            world.height(),
+            world.width(),
+            world.layers()
+        );
         PyWorld {
             exit_pos: world
                 .exits_positions()
@@ -465,6 +472,11 @@ impl PyWorld {
         let dims = (dims.1 as usize, dims.0 as usize, 3);
         let img = self.renderer.update(&self.world.lock().unwrap());
         let buffer = img.into_raw();
+        log_debug!(
+            "Rendered world image with dimensions: {:?} which has {} pixels",
+            dims,
+            buffer.len()
+        );
         PyArray1::from_vec(py, buffer).reshape(dims).unwrap()
     }
 
