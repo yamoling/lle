@@ -359,21 +359,73 @@ fn parse_inconsistent_row_lengths() {
     ) {
         Ok(_) => panic!("Should not be able to parse worlds with inconsistent row lengths"),
         Err(e) => match e {
-            ParseError::Inconsistent2Dimensions {
-                actual_n_cols,
-                expected_n_cols,
-                row,
+            ParseError::Inconsistent3Dimensions {
+                actual_n_dims,
+                expected_n_dims,
+                layer,
                 ..
             } => {
-                assert_eq!(actual_n_cols, 2);
-                assert_eq!(expected_n_cols, 3);
-                assert_eq!(row, 1);
+                assert_eq!(actual_n_dims, (2, 1));
+                assert_eq!(expected_n_dims, (3, 1));
+                assert_eq!(layer, 0);
             }
             _ => panic!("Expected InconsistentDimensions, got {e:?}"),
         },
     }
 }
 
+#[test]
+fn parse_inconsistent_size_between_layers() {
+    match World::try_from(
+        "X S0 .
+         . . .
+         ;
+         . .
+         . .",
+    ) {
+        Ok(_) => panic!("Should not be able to parse worlds with inconsistent row lengths"),
+        Err(e) => match e {
+            ParseError::Inconsistent3Dimensions {
+                actual_n_dims,
+                expected_n_dims,
+                layer,
+                ..
+            } => {
+                assert_eq!(actual_n_dims, (2, 2));
+                assert_eq!(expected_n_dims, (3, 2));
+                assert_eq!(layer, 1);
+            }
+            _ => panic!("Expected InconsistentDimensions, got {e:?}"),
+        },
+    }
+}
+#[test]
+fn parse_inconsistent_size_between_layers2() {
+    match World::try_from(
+        "X S0 .
+         . . .
+         ;
+         . . .
+         . . .
+         . . .
+         ",
+    ) {
+        Ok(_) => panic!("Should not be able to parse worlds with inconsistent column lengths"),
+        Err(e) => match e {
+            ParseError::Inconsistent3Dimensions {
+                actual_n_dims,
+                expected_n_dims,
+                layer,
+                ..
+            } => {
+                assert_eq!(actual_n_dims, (3, 3));
+                assert_eq!(expected_n_dims, (2, 3));
+                assert_eq!(layer, 1);
+            }
+            _ => panic!("Expected InconsistentDimensions, got {e:?}"),
+        },
+    }
+}
 #[test]
 fn parse_inconsistent_start_exit_tiles() {
     match World::try_from("S1 S0 X") {

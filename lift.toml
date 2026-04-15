@@ -1,0 +1,34 @@
+width = 9
+height = 5
+exits = [{ j_min = 8, k = 0 }]
+gems = [{ i = 0, j = 2 }]
+world_string = """
+X . . . S1 . . . .
+. . . S0 .  . . . .
+. . . . .  . . . . 
+. . . . .  . . . .  
+. . . . .  . . . . 
+;
+. . . . .  . . . . 
+. . . . .  . . . . 
+. . . . .  . . . . 
+. . . . .  . . . .
+. . . . .  . . . X 
+;
+. . . . .  . . . . 
+. . . . .  . . . . 
+. . S3 . .  . . . . 
+. . . . .  . . . .
+. . . . .  . . . X 
+"""
+
+[[agents]]
+
+
+[[agents]]
+# Deduced from the string map that agent 1 has a start position at (0, 5).
+
+[[agents]]
+start_positions = [{ i = 0, j = 5 }, { i = 3, j = 5, k = 0 }]
+
+[[agents]]

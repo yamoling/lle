@@ -14,7 +14,6 @@ use super::{AgentConfig, PositionsConfig, TomlLaserConfig};
 pub struct TomlConfig {
     pub width: Option<usize>,
     pub height: Option<usize>,
-    #[serde(default = "default_layers")]
     pub layers: Option<usize>,
     pub n_agents: Option<usize>,
     pub world_string: Option<String>,
@@ -161,7 +160,7 @@ impl TryInto<WorldConfig> for TomlConfig {
         };
         let layer = match self.layers {
             Some(l) => l,
-            None => return Err(ParseError::EmptyWorld),
+            None => 1, // if layers is not specified, we assume there is only one layer
         };
         let starts_positions = compute_positions(&self.starts, width, height, layer)?;
         let walls_positions = compute_positions(&self.walls, width, height, layer)?;

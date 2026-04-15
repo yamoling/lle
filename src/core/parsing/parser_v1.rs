@@ -1,12 +1,12 @@
-use crate::{AgentId, Grid, Position};
-
 use super::{ParseError, laser_config::LaserConfig, world_config::WorldConfig};
+use crate::{AgentId, Grid, Position, log_warn};
+use crate::{log_debug, log_info};
 
 #[derive(Default)]
 pub struct ParsingData {
     pub width: Option<usize>,
     pub height: usize,
-    pub layers: Option<usize>,
+    pub layers: usize,
     pub gem_positions: Vec<Position>,
     pub start_positions: Vec<Vec<Position>>,
     pub void_positions: Vec<Position>,
@@ -61,46 +61,51 @@ impl ParsingData {
         self.laser_configs.len()
     }
 
+    fn increase_height(&mut self) {
+        self.height += 1;
+    }
+
     pub fn add_row(&mut self, n_cols: usize, line: &str) -> Result<(), ParseError> {
+        log_debug!("Adding row with {} columns: {}", n_cols, line);
         if let Some(w) = self.width {
             if w != n_cols {
-                return Err(ParseError::Inconsistent2Dimensions {
-                    row_str: line.to_string(),
-                    expected_n_cols: w,
-                    actual_n_cols: n_cols,
-                    row: self.height,
+                return Err(ParseError::Inconsistent3Dimensions {
+                    expected_n_dims: (w, self.height),
+                    actual_n_dims: (n_cols, self.height),
+                    layer: self.layers, // dont realy care about the layer number in the error message
                 });
             }
         } else {
             self.width = Some(n_cols);
         }
-        self.height += 1;
         Ok(())
     }
-    pub fn add_layer(&mut self, wh: (usize, usize)) -> Result<(), ParseError> {
+    pub fn add_layer(&mut self, hw: (usize, usize)) -> Result<(), ParseError> {
         // TODO refactor
-        match (self.width, self.height) {
-            (Some(w), h) => {
-                if wh != (w, h) {
+        log_debug!("Adding layer with dimensions: {}x{}", hw.0, hw.1);
+        match (self.height, self.width) {
+            (h, Some(w)) => {
+                if hw != (h, w) {
                     return Err(ParseError::Inconsistent3Dimensions {
-                        expected_n_dims: (w, h),
-                        actual_n_dims: wh,
-                        layer: self.layers.unwrap_or(1), // dont realy care about the layer number in the error message
+                        expected_n_dims: (h, w),
+                        actual_n_dims: hw,
+                        layer: self.layers, // dont realy care about the layer number in the error message
                     });
                 }
             }
-            (None, h) => {
-                if wh.1 != h {
-                    return Err(ParseError::Inconsistent3Dimensions {
-                        expected_n_dims: (wh.0, h),
-                        actual_n_dims: wh,
-                        layer: self.layers.unwrap_or(1),
-                    });
-                }
-                self.width = Some(wh.0);
+            _ => {
+                log_warn!("
+                Missing width or height for the previous layer, setting width to {} and height to {} based on the dimensions of the current layer
+                "
+                , hw.0, hw.1);
+                return Err(ParseError::Inconsistent3Dimensions {
+                    expected_n_dims: (self.height, self.width.unwrap()),
+                    actual_n_dims: hw,
+                    layer: self.layers,
+                });
             }
         }
-        self.layers = Some(self.layers.unwrap_or(1) + 1);
+        self.layers += 1;
         Ok(())
     }
 }
@@ -108,11 +113,12 @@ impl ParsingData {
 impl TryInto<WorldConfig> for ParsingData {
     type Error = ParseError;
     fn try_into(self) -> Result<WorldConfig, Self::Error> {
+        log_info!("begin converting ParsingData to WorldConfig");
         if self.height == 0 {
             return Err(ParseError::EmptyWorld);
         }
         let width = self.width.ok_or(ParseError::MissingWidth)?;
-        let layers = self.layers.unwrap_or(1); //? need to be consistent with the default value of layers in ParsingData
+        let layers = self.layers; //? need to be consistent with the default value of layers in ParsingData
         Ok(WorldConfig::new(
             width,
             self.height,
@@ -168,10 +174,15 @@ pub fn parse(world_str: &str) -> Result<WorldConfig, ParseError> {
             continue;
         }
         if line.starts_with(';') {
-            layer += 1;
+            log_debug!(
+                "Finished parsing layer {layer} with dimensions: {}x{}",
+                row,
+                n_cols
+            );
             assert!(n_cols > 0 && row > 0); // there should be at least one row in the previous layer
-            data.add_layer((n_cols, row))?;
+            data.add_layer((row, n_cols))?;
             row = 0;
+            layer += 1;
             continue;
         }
         let tokens = line.split_whitespace();
@@ -209,8 +220,18 @@ pub fn parse(world_str: &str) -> Result<WorldConfig, ParseError> {
             }
         }
         data.add_row(n_cols, line)?;
+        if layer == 0 {
+            data.increase_height();
+        }
         row += 1;
     }
+    data.add_layer((row, n_cols))?;
+    log_debug!(
+        "Finished parsing world with dimensions: {}x{}x{}",
+        data.height,
+        data.width.unwrap(),
+        data.layers // will be done downstream
+    );
     data.try_into()
 }
 
