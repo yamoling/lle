@@ -1,7 +1,9 @@
-from lle import LLE, Action, WorldState, ObservationType
 from copy import deepcopy
+
 import numpy as np
 import pytest
+from lle import LLE, Action, ObservationType, WorldState
+from marlenv import MultiDiscreteSpace
 
 
 def test_available_actions():
@@ -118,6 +120,7 @@ def test_action_meanings():
 .  . .
 .  . ."""
     ).build()
+    assert isinstance(env.action_space, MultiDiscreteSpace)
     for individual_space in env.action_space.spaces:
         assert individual_space.labels == [a.name for a in Action.variants()]
 

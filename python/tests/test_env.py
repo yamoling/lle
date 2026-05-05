@@ -271,7 +271,7 @@ def test_seed():
 
 
 def test_env_name():
-    for level in range(1, 7):
+    for level in (1, 2, 3, 4, 5, 6):
         env = LLE.level(level).build()
         assert env.name == f"LLE-lvl{level}"
 

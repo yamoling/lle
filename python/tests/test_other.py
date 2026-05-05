@@ -12,5 +12,5 @@ def test_from_str():
 
 
 def test_level():
-    for lvl in range(1, 7):
+    for lvl in (1, 2, 3, 4, 5, 6):
         lle.level(lvl).build()
