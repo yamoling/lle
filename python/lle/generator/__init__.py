@@ -103,6 +103,7 @@ def generate(*, kind, **kwargs) -> World:  # type: ignore[no-redef]
             )
         kwargs.setdefault("size", (13, 13))
         kwargs.setdefault("agents", 4)
+        kwargs.setdefault("lasers", 3)
         kwargs.setdefault("t_max", 21)
         return _Level6StyleGenerator(**kwargs).generate()
     raise ValueError(

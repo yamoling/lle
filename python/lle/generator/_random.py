@@ -9,10 +9,6 @@ from ._geometry import beam_tiles, points_out_immediately
 
 
 class _RandomGenerator(_BaseGenerator):
-    def __init__(self, *, validate_geometry: bool = True, **kwargs):
-        super().__init__(**kwargs)
-        self.validate_geometry = validate_geometry
-
     def _sample_unique_positions(self, k: int) -> list[tuple[int, int]]:
         all_pos = [(r, c) for r in range(self.rows) for c in range(self.cols)]
         return self._rng.sample(all_pos, k)
@@ -39,7 +35,7 @@ class _RandomGenerator(_BaseGenerator):
         layout = CandidateLayout(
             agents=agents, exits=exits, walls=walls, lasers=lasers
         )
-        if self.validate_geometry and not self._geometry_ok(layout):
+        if not self._geometry_ok(layout):
             raise _LayoutRetry()
         return layout
 

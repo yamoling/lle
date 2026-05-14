@@ -29,12 +29,10 @@ class _Level6StyleGenerator(_ConstructiveGenerator):
         (2, ((0, 0), (0, 1), (1, 0), (1, 1))),  # 2x2 block
     )
 
-    def __init__(self, *, lasers: int | None = None, **kwargs):
+    def __init__(self, *, lasers: int = 3, **kwargs):
         # Cooperation is intrinsic to level6_style; the strict-laser UNSAT
         # filter is always applied by the base class via cooperative=True.
         kwargs["cooperative"] = True
-        if lasers is None:
-            lasers = 3
         if lasers < 1:
             raise ValueError(
                 f"kind='level6_style' requires lasers >= 1; got {lasers}."

@@ -110,7 +110,7 @@ class _BaseGenerator(ABC):
         sat, _ = WorldSolver(world, T_MAX=t).solve()
         return bool(sat)
 
-    def _is_cooperative(self, world: World) -> bool:
+    def _strict_laser_unsat(self, world: World) -> bool:
         world.reset()
         sat, _ = WorldSolver(world, T_MAX=self.t_max, laser_mode=LaserMode.STRICT).solve()
         return not bool(sat)
@@ -118,7 +118,7 @@ class _BaseGenerator(ABC):
     def _accept_world(self, world: World) -> bool:
         if not self._is_satisfiable(world, self.t_max):
             return False
-        if self.cooperative and not self._is_cooperative(world):
+        if self.cooperative and not self._strict_laser_unsat(world):
             return False
         return True
 
