@@ -68,6 +68,23 @@ def _resolve_lasers(lasers: int | None, agents: int, cooperative: bool) -> int:
 
 
 def generate(*, kind, **kwargs) -> World:  # type: ignore[no-redef]
+    """
+    Build a solvable `World` on demand using a SAT-verified procedural generator.
+
+    `kind` selects the layout strategy: `"random"`, `"constructive"`, or
+    `"level6_style"`. See the per-kind `@overload` signatures for the
+    accepted parameters and defaults.
+
+    ```python
+    import lle
+    world = lle.generate(kind="random", size=(5, 5), agents=2, seed=0)
+    world = lle.generate(kind="level6_style", agents=4, lasers=3, seed=0)
+    ```
+
+    Raises `ValueError` if `kind` is unknown or arguments are invalid;
+    `TypeError` if `cooperative` is passed to `kind="level6_style"`;
+    `RuntimeError` if no valid world is found within `max_attempts`.
+    """
     if kind == "random":
         agents = kwargs.get("agents", 2)
         cooperative = kwargs.get("cooperative", False)

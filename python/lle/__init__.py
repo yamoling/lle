@@ -34,6 +34,64 @@ action = env.sample_action()
 env.step(action)
 ```
 
+## Procedural generation, solving, and cooperation analysis
+LLE ships an optional SAT-based generator and solver. They require the `[generator]` extra:
+```bash
+pip install laser-learning-environment[generator]
+```
+
+### Generating a world
+`lle.generate(kind=..., **kwargs)` builds a solvable `World` on demand. Three kinds are available:
+
+- `kind="random"` — random layout. Validates geometry (no laser pointing out of bounds, no exit on a beam tile) and SAT-verifies solvability.
+- `kind="constructive"` — lane-based layout that guarantees a constructive solution.
+- `kind="level6_style"` — LLE-Level-6-inspired clustered starts/exits. Always produces a cooperation-requiring world.
+
+Pass `cooperative=True` on `random` or `constructive` to require a same-colour laser blocking situation; `lasers` is then coerced into `[1, agents]`. `level6_style` is always cooperative — passing `cooperative=...` raises `TypeError`.
+
+```python
+import lle
+
+# Random 5x5 with 2 agents, no lasers.
+world = lle.generate(kind="random", size=(5, 5), agents=2, seed=0)
+
+# Cooperative 6x6 world (standard SAT solvable AND strict-laser UNSAT).
+coop = lle.generate(kind="random", size=(6, 6), agents=2, lasers=2,
+                    cooperative=True, seed=0)
+
+# Level-6-style 13x13 cooperative world.
+big = lle.generate(kind="level6_style", agents=4, lasers=3, t_max=21, seed=0)
+```
+
+### Solving a world
+`lle.solve(world, t_max=None)` returns a joint plan that brings every agent to an exit within `t_max` steps, or `None` if unsolvable. The plan is a list of length `t_max`; each entry is a tuple of `Action` (one per agent). Default `t_max = (width * height) // 2`.
+
+```python
+import lle
+from lle import World
+
+world = World("S0 . . X")
+plan = lle.solve(world, t_max=5)   # list[tuple[Action, ...]] of length 5
+assert plan is not None
+world.reset()
+for joint_action in plan:
+    world.step(list(joint_action))
+
+# Unsolvable: agent walled off from the exit.
+assert lle.solve(World("S0 @ X"), t_max=10) is None
+```
+
+### Cooperation check
+`lle.is_cooperative(world, t_max=None)` returns `True` iff the level is solvable under standard laser semantics **and** unsolvable under strict-laser semantics (where an agent of colour `c` may not block a laser of colour `c`). This is the same check used internally by `cooperative=True` generation.
+
+```python
+import lle
+from lle import World
+
+assert lle.is_cooperative(World.level(6)) is True          # canonical coop level
+assert lle.is_cooperative(World("S0 . X")) is False        # trivial single-agent
+```
+
 ## Creating custom maps
 You can create custom maps in two ways: using a plain string or a TOML file.
 
