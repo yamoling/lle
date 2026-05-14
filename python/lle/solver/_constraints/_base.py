@@ -86,19 +86,10 @@ class Constraint(ABC):
         self.world = ctx.world
         self.var = ctx.var
         self.T_MAX = ctx.T_MAX
-        self.profiler = None
-
-    def set_profiler(self, constraint_profiler):
-        self.profiler = constraint_profiler
 
     @abstractmethod
     def generate(self):
         return []
 
-    def _profile_method(self, method_name: str, method_func):
-        if self.profiler:
-            with self.profiler.profile_method(method_name) as method_profiler:
-                clauses = method_profiler.count_clauses(method_func())
-                return clauses
-        else:
-            return list(method_func())
+    def _profile_method(self, _method_name: str, method_func):
+        return list(method_func())
