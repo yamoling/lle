@@ -63,7 +63,7 @@ class _Level6StyleGenerator(_ConstructiveGenerator):
         h, w = shape
         return [(r + dr, c + dc) for dr in range(h) for dc in range(w)]
 
-    def _make_constructive_candidate_layout(self) -> CandidateLayout | None:
+    def _make_cooperative_candidate_layout(self) -> CandidateLayout | None:
         if self.agents < 1 or self.lasers < 1:
             return None
         cluster_h, cluster_w = self._cluster_shape()
