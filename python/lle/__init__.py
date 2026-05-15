@@ -193,7 +193,7 @@ from .observations import ObservationType
 from .types import AgentId, LaserId, Position
 from .world import Action, EventType, World, WorldEvent, WorldState
 from .solver import is_cooperative, solve
-from .generator import generate
+from .generator import generate, try_generate
 
 __version__: str
 from_file = LLE.from_file
@@ -224,4 +224,5 @@ __all__ = [
     "solve",
     "is_cooperative",
     "generate",
+    "try_generate",
 ]

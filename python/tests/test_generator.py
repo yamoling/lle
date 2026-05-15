@@ -18,7 +18,7 @@ def test_generate_random_is_solvable():
 
 
 def test_generate_random_cooperative_requires_cooperation():
-    world = lle.generate("random", width=6, height=6, n_agents=2, n_lasers=2, cooperative=True, seed=0, max_attempts=20_000)
+    world = lle.generate("random", width=6, height=6, n_agents=2, n_lasers=2, cooperative=True, seed=0)
     assert lle.is_cooperative(world)
 
 
@@ -33,7 +33,8 @@ def test_generate_constructive_cooperative():
 
 
 def test_generate_level6_style_always_cooperative():
-    world = lle.generate(kind="level6_style", width=13, height=13, n_agents=4, n_lasers=3, seed=0)
+    world = lle.generate(kind="level6_style", width=13, height=13, n_agents=4, n_lasers=3, seed=0, n=1, n_jobs=5)
+    assert world is not None
     assert lle.is_cooperative(world)
 
 
@@ -56,3 +57,25 @@ def test_generate_rejects_lasers_greater_than_agents():
 def test_generate_cooperative_requires_at_least_two_agents():
     with pytest.raises(ValueError):
         lle.generate(kind="random", width=5, height=5, n_agents=1, cooperative=True, seed=0)
+
+
+def test_try_generate_unlikely():
+    # IMPORTANT: this test can fail !
+    # TODO: find a way to make this deterministic
+    for _ in range(10):
+        world = lle.try_generate("random", max_attempts=1, height=20, width=20, n_agents=4, n_walls=199, t_max=1)
+        if world is None:
+            return
+    pytest.fail("This test is non-deterlinistic and can fail.")
+
+
+def test_generate_n():
+    worlds = lle.generate("random", n=10)
+    assert len(worlds) == 10
+
+    w0 = worlds[0]
+    for w in worlds:
+        assert w.height == w0.height
+        assert w.width == w0.width
+        assert w.n_agents == w0.n_agents
+        assert w.n_gems == w0.n_gems

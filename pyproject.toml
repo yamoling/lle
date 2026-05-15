@@ -19,7 +19,7 @@ name = "Yannick Molinghen"
 email = "yannick.molinghen@ulb.be"
 
 [project.optional-dependencies]
-generator = ["python-sat>=1.8"]
+generator = ["python-sat>=1.8", "tqdm>=4.67.3"]
 
 [dependency-groups]
 dev = [

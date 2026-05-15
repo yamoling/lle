@@ -28,22 +28,15 @@ class LaserMode(Enum):
 class WorldSolver:
     """SAT-based solver for LLE worlds; verifies solvability within T_MAX steps."""
 
-    def __init__(
-        self,
-        world: World,
-        T_MAX: int = 10,
-        *,
-        laser_mode: LaserMode = LaserMode.STANDARD,
-        movement_method: str = METHOD_LOCAL,
-    ):
+    def __init__(self, world: World, t_max: int = 10, *, laser_mode: LaserMode = LaserMode.STANDARD, movement_method: str = METHOD_LOCAL):
         self.world = world
-        self.T_MAX = T_MAX
+        self.t_max = t_max
         self.var = VariableFactory()
         self.model = SATModel()
         self.movement_method = movement_method
         self.laser_mode = laser_mode
 
-        self.ctx = ConstraintContext(world, self.var, T_MAX)
+        self.ctx = ConstraintContext(world, self.var, t_max)
         self.constraints: list[Constraint] = [
             InitializationConstraints(self.ctx),
             MovementConstraints(self.ctx, movement_method=movement_method),
@@ -73,7 +66,7 @@ class WorldSolver:
         return result, model
 
     def extract_plan(self, model) -> list[tuple[Action, ...]]:
-        positions: dict[int, dict[int, tuple[int, int]]] = {}
+        positions = dict[int, dict[int, tuple[int, int]]]()
         for lit in model:
             if lit <= 0:
                 continue
@@ -85,24 +78,16 @@ class WorldSolver:
 
         agent_colors = sorted(positions.keys())
         plan: list[tuple[Action, ...]] = []
-        for t in range(self.T_MAX):
+        for t in range(self.t_max):
             row: list[Action] = []
             for color in agent_colors:
-                x1, y1 = positions[color][t]
-                x2, y2 = positions[color][t + 1]
+                y1, x1 = positions[color][t]
+                y2, x2 = positions[color][t + 1]
                 dx, dy = x2 - x1, y2 - y1
-                if dx == 0 and dy == 0:
-                    a = Action.STAY
-                elif dx == -1 and dy == 0:
-                    a = Action.NORTH
-                elif dx == 1 and dy == 0:
-                    a = Action.SOUTH
-                elif dx == 0 and dy == -1:
-                    a = Action.WEST
-                elif dx == 0 and dy == 1:
-                    a = Action.EAST
-                else:
-                    raise ValueError(f"Invalid movement for agent {color} at t={t}->{t + 1}")
+                try:
+                    a = Action.from_delta(dx, dy)
+                except ValueError as e:
+                    raise ValueError(f"Invalid movement for agent {color} at t={t}->{t + 1}") from e
                 row.append(a)
             plan.append(tuple(row))
         return plan

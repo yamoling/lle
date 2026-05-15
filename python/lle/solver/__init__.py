@@ -35,7 +35,7 @@ def solve(world: World, t_max: int | None = None) -> list[tuple[Action, ...]] | 
     from .world_solver import WorldSolver  # local import for ImportError gate
 
     t = _default_t_max(world) if t_max is None else t_max
-    solver = WorldSolver(world, T_MAX=t)
+    solver = WorldSolver(world, t_max=t)
     sat, model = solver.solve()
     if not sat or model is None:
         return None
@@ -49,10 +49,10 @@ def is_cooperative(world: World, t_max: int | None = None) -> bool:
     from .world_solver import LaserMode, WorldSolver
 
     t = _default_t_max(world) if t_max is None else t_max
-    standard_sat, _ = WorldSolver(world, T_MAX=t, laser_mode=LaserMode.STANDARD).solve()
+    standard_sat, _ = WorldSolver(world, t_max=t, laser_mode=LaserMode.STANDARD).solve()
     if not standard_sat:
         return False
-    strict_sat, _ = WorldSolver(world, T_MAX=t, laser_mode=LaserMode.STRICT).solve()
+    strict_sat, _ = WorldSolver(world, t_max=t, laser_mode=LaserMode.STRICT).solve()
     return not bool(strict_sat)
 
 

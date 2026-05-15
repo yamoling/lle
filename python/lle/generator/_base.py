@@ -7,8 +7,12 @@ UNSAT). Subclasses implement `_make_candidate_layout`.
 
 from __future__ import annotations
 
+import multiprocessing as mp
 import random
+import sys
 from abc import ABC, abstractmethod
+
+from tqdm import tqdm
 
 from lle import World
 
@@ -69,9 +73,7 @@ class _BaseGenerator(ABC):
         total_needed = (2 * self.agents) + self.n_walls + self.n_lasers
         if total_needed > self.area:
             raise ValueError(f"layout requires {total_needed} unique cells, but grid has only {self.area}")
-
         self._rng = random.Random()
-        self.last_attempts = 0
 
     @abstractmethod
     def _make_candidate_layout(self) -> CandidateLayout: ...
@@ -90,12 +92,12 @@ class _BaseGenerator(ABC):
 
     def _is_satisfiable(self, world: World, t: int) -> bool:
         world.reset()
-        sat, _ = WorldSolver(world, T_MAX=t).solve()
+        sat, _ = WorldSolver(world, t_max=t).solve()
         return bool(sat)
 
     def _strict_laser_unsat(self, world: World) -> bool:
         world.reset()
-        sat, _ = WorldSolver(world, T_MAX=self.t_max, laser_mode=LaserMode.STRICT).solve()
+        sat, _ = WorldSolver(world, t_max=self.t_max, laser_mode=LaserMode.STRICT).solve()
         return not bool(sat)
 
     def _accept_world(self, world: World) -> bool:
@@ -105,29 +107,53 @@ class _BaseGenerator(ABC):
             return False
         return True
 
-    def generate(self, max_attempts: int = 10_000, seed: int | None = None) -> World:
+    def _try_generate(self, seed: int | None):
+        if seed is not None:
+            self._rng.seed(seed)
+        try:
+            layout = self._make_candidate_layout()
+        except _LayoutRetry:
+            return
+        if layout is None:
+            return
+        try:
+            world = self._build_world(layout)
+        except Exception:
+            return
+        try:
+            if self._accept_world(world):
+                return world
+        except Exception:
+            return
+
+    def generate(self, max_attempts: int | None, seed: int | None = None) -> World | None:
+        if max_attempts is None:
+            max_attempts = sys.maxsize
         if max_attempts < 1:
             raise ValueError(f"max_attempts must be >= 1. Got {max_attempts}")
         if seed is not None:
             self._rng.seed(seed)
-        self.last_attempts = 0
-        for attempt in range(1, max_attempts + 1):
-            self.last_attempts = attempt
-            try:
-                layout = self._make_candidate_layout()
-            except _LayoutRetry:
-                continue
-            if layout is None:
-                continue
-            try:
-                world = self._build_world(layout)
-            except Exception:
-                continue
-            try:
-                if self._accept_world(world):
-                    return world
-            except Exception:
-                continue
-        raise RuntimeError(
-            f"{type(self).__name__}: could not generate a valid world in {max_attempts} attempts (cooperative={self.cooperative})."
-        )
+        for _ in range(max_attempts):
+            maybe_world = self._try_generate(None)
+            if maybe_world is not None:
+                return maybe_world
+        return None
+
+    def generate_n(self, n: int, n_jobs: int, seed: int | None = None) -> list[World]:
+        """"""
+        if seed is not None:
+            self._rng.seed(seed)
+        if n_jobs < 1:
+            raise ValueError("Invalid argument in 'generate_n': n_jobs must be >=1")
+        worlds = list[World]()
+        with mp.Pool(n_jobs) as pool, tqdm(total=n) as pbar:
+            # Worker seeds are 0, 1, 2, ...
+            results = pool.imap_unordered(self._try_generate, range(sys.maxsize))
+            for result in results:
+                if result is not None:
+                    pbar.update(1)
+                    worlds.append(result)
+                    if len(worlds) >= n:
+                        pool.terminate()
+                        return worlds
+        return worlds
