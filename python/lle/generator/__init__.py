@@ -11,6 +11,7 @@ from typing import Literal, overload
 
 from lle import World
 
+from ..solver.cooperation_level import CooperationLevel
 from ._constructive import _ConstructiveGenerator
 from ._level6_style import _Level6StyleGenerator
 from ._random import _RandomGenerator
@@ -25,6 +26,7 @@ def generate(
     n_agents: int = 2,
     n_lasers: int | None = None,
     cooperative: bool = False,
+    profile: CooperationLevel | None = None,
     n_walls: int | Literal["auto"] = "auto",
     t_max: int | None = None,
     seed: int | None = None,
@@ -43,6 +45,7 @@ def try_generate(
     n_agents: int = 2,
     n_lasers: int | None = None,
     cooperative: bool = False,
+    profile: CooperationLevel | None = None,
     n_walls: int | Literal["auto"] = "auto",
     t_max: int | None = None,
     seed: int | None = None,
@@ -58,6 +61,7 @@ def generate(
     n_agents: int = 2,
     n_lasers: int | None = None,
     cooperative: bool = False,
+    profile: CooperationLevel | None = None,
     n_walls: int | Literal["auto"] = "auto",
     t_max: int | None = None,
     seed: int | None = None,
@@ -74,6 +78,7 @@ def generate(
     width: int = 13,
     n_agents: int = 4,
     n_lasers: int = 3,
+    profile: CooperationLevel | None = None,
     t_max: int = 21,
     n_walls: int | Literal["auto"] = "auto",
     seed: int | None = None,
@@ -90,6 +95,7 @@ def generate(
     width: int = 13,
     n_agents: int = 4,
     n_lasers: int = 3,
+    profile: CooperationLevel | None = None,
     t_max: int = 21,
     n_walls: int | Literal["auto"] = "auto",
     seed: int | None = None,
@@ -107,6 +113,7 @@ def try_generate(
     width: int = 13,
     n_agents: int = 4,
     n_lasers: int = 3,
+    profile: CooperationLevel | None = None,
     t_max: int = 21,
     n_walls: int | Literal["auto"] = "auto",
     seed: int | None = None,
@@ -133,6 +140,7 @@ def generate(
     n_agents: int | None = None,
     n_lasers: int | None = None,
     cooperative: bool | None = None,
+    profile: CooperationLevel | None = None,
     t_max: int | None = None,
     n_walls: int | Literal["auto"] = "auto",
     seed: int | None = None,
@@ -146,12 +154,14 @@ def generate(
     Raises:
         - `ValueError` if `kind` is unknown or arguments are invalid;
         - `ValueError` if `cooperative` is passed to `kind="level6_style"`;
+        - `ValueError` if `profile` is set but the generator is not cooperative.
 
 
     Parameters
     ----------
     - `kind`: the kind of generator to use. Refer to generator calsses in the `lle.generator` module for more information.
     - `cooperative`: whether the generated world must enforce coopeartion or not (i.e. an agent must block a laser for an other agent).
+    - `profile`: refine the cooperation requirement to a specific shape (e.g. `CooperationLevel.MUTUAL`, `CooperationLevel.CHAIN`). Only meaningful when the generator is cooperative; raises `ValueError` otherwise. When `None`, any cooperation profile is accepted.
     - `n_walls`: the number of walls to place. If `auto`, 10% of the area is filled with walls.
     - `t_max`: the maximal solution path length.
     - `n`: the number of worlds to generate.
@@ -163,6 +173,7 @@ def generate(
     import lle
     world = lle.generate("level6_style", n_agents=4, n_lasers=3)
     world = lle.generate("random", n=10, width=5, height=7, n_agents=2, seed=0)
+    coop = lle.generate("random", cooperative=True, profile=lle.CooperationLevel.MUTUAL, seed=0)
     ```
     """
     # Handle default argument by generator kind
@@ -209,6 +220,7 @@ def generate(
             n_agents=n_agents,
             n_lasers=n_lasers,
             cooperative=cooperative,
+            profile=profile,
             n_walls=n_walls,
             t_max=t_max,
         )
@@ -219,6 +231,7 @@ def generate(
             n_agents=n_agents,
             n_lasers=n_lasers,
             cooperative=cooperative,
+            profile=profile,
             n_walls=n_walls,
             t_max=t_max,
         )
@@ -228,6 +241,7 @@ def generate(
             width=width,
             n_agents=n_agents,
             n_lasers=n_lasers,
+            profile=profile,
             n_walls=n_walls,
             t_max=t_max,
         )

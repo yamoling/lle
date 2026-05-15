@@ -192,7 +192,7 @@ from .env import LLE
 from .observations import ObservationType
 from .types import AgentId, LaserId, Position
 from .world import Action, EventType, World, WorldEvent, WorldState
-from .solver import is_cooperative, solve
+from .solver import CooperationLevel, cooperation_level, is_cooperative, solve
 from .generator import generate, try_generate
 
 __version__: str
@@ -223,6 +223,8 @@ __all__ = [
     "level",
     "solve",
     "is_cooperative",
+    "cooperation_level",
+    "CooperationLevel",
     "generate",
     "try_generate",
 ]

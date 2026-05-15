@@ -1,4 +1,4 @@
-"""Public solver API: lle.solve and lle.is_cooperative.
+"""Public solver API: lle.solve, lle.is_cooperative, lle.cooperation_level.
 
 pysat is required at call time; absence raises ImportError pointing at the
 [generator] extra.
@@ -7,6 +7,8 @@ pysat is required at call time; absence raises ImportError pointing at the
 from __future__ import annotations
 
 from lle import Action, World
+
+from .cooperation_level import CooperationLevel
 
 _PYSAT_HINT = (
     "lle.solve / lle.is_cooperative require the 'generator' extra. Install with: pip install laser-learning-environment[generator]"
@@ -56,4 +58,18 @@ def is_cooperative(world: World, t_max: int | None = None) -> bool:
     return not bool(strict_sat)
 
 
-__all__ = ["solve", "is_cooperative"]
+def cooperation_level(world: World, t_max: int | None = None) -> CooperationLevel:
+    """Return the precise cooperation classification of ``world``.
+
+    See `CooperationLevel` for the meaning of each value. The result refines
+    `is_cooperative`: ``is_cooperative(world) == (cooperation_level(world)
+    in CooperationLevel.cooperative_subtypes())``.
+    """
+    _require_pysat()
+    from ._profile_analyzer import _classify
+
+    t = _default_t_max(world) if t_max is None else t_max
+    return _classify(world, t_max=t)
+
+
+__all__ = ["CooperationLevel", "cooperation_level", "is_cooperative", "solve"]

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from lle.tiles import Direction
 
+from ..solver.cooperation_level import CooperationLevel
 from ._candidates import CandidateLayout
 from ._constructive import _ConstructiveGenerator
 
@@ -39,6 +40,7 @@ class _Level6StyleGenerator(_ConstructiveGenerator):
         n_lasers: int = 3,
         n_walls: int | None = None,
         t_max: int | None = None,
+        profile: CooperationLevel | None = None,
     ):
         if n_lasers < 1:
             raise ValueError(f"kind='level6_style' requires lasers >= 1; got {n_lasers}.")
@@ -50,6 +52,7 @@ class _Level6StyleGenerator(_ConstructiveGenerator):
             cooperative=True,
             n_walls=n_walls,
             t_max=t_max,
+            profile=profile,
         )
 
     def _flush_offset(self, max_offset: int) -> int:

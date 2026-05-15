@@ -16,6 +16,7 @@ from tqdm import tqdm
 
 from lle import World
 
+from ..solver.cooperation_level import CooperationLevel
 from ..solver.world_solver import LaserMode, WorldSolver
 from ._candidates import CandidateLayout
 from ._world_builder import WorldBuilder
@@ -36,6 +37,7 @@ class _BaseGenerator(ABC):
         cooperative: bool = False,
         n_walls: int | None = None,
         t_max: int | None = None,
+        profile: CooperationLevel | None = None,
     ):
         if width < 1:
             raise ValueError(f"Grid width must be >= 1. Got {width}")
@@ -51,6 +53,14 @@ class _BaseGenerator(ABC):
         if cooperative and n_agents < 2:
             raise ValueError("cooperative=True requires agents >= 2 (no cooperation possible with a single agent).")
         self.cooperative = cooperative
+
+        if profile is not None:
+            if not cooperative:
+                raise ValueError("profile=... is only meaningful when cooperative=True.")
+            if profile not in CooperationLevel.cooperative_subtypes():
+                allowed = ", ".join(level.value for level in CooperationLevel.cooperative_subtypes())
+                raise ValueError(f"profile must be one of: {allowed}. Got {profile!r}.")
+        self.profile = profile
 
         if n_lasers < 0:
             raise ValueError(f"lasers must be >= 0. Got {n_lasers}")
@@ -101,6 +111,11 @@ class _BaseGenerator(ABC):
         return not bool(sat)
 
     def _accept_world(self, world: World) -> bool:
+        if self.profile is not None:
+            from ..solver._profile_analyzer import _classify
+
+            world.reset()
+            return _classify(world, t_max=self.t_max) is self.profile
         if not self._is_satisfiable(world, self.t_max):
             return False
         if self.cooperative and not self._strict_laser_unsat(world):
