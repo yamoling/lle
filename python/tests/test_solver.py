@@ -50,3 +50,80 @@ def test_is_cooperative_on_known_cooperative_level():
 def test_is_cooperative_on_trivial_single_agent_level():
     world = World("S0 . X")
     assert lle.is_cooperative(world) is False
+
+
+def test_simple_solvable():
+    world = World("""
+ . . . . X
+S0 . . . .
+S1 . . . .
+ . . . . X
+""")
+    path = lle.solve(world)
+    assert path is not None
+    assert not lle.is_cooperative(world)
+
+
+def test_standard_levels_solvable():
+    for level in (1, 2, 3, 4, 5, 6):
+        world = World.level(level)
+        path = lle.solve(world, 25)
+        assert path is not None
+        if level >= 3:
+            assert lle.is_cooperative(world)
+
+
+def test_simple_solvable_cooprative():
+    # All worlds are solvable in 10 steps at most
+    worlds = [
+        """
+ . . L1S . X
+S0 .  .  . .
+S1 .  .  . .
+ . .  .  . X""",
+        """
+.  . L0S . X
+S0 .  .  . .
+S1 .  .  . .
+.  .  .  . X""",
+        """
+.   .  L0S . X
+S0  .   .  . .
+S1  .   .  . .
+.  L1N  .  . X""",
+        """
+. L1S L0S .
+S0  .   .  X
+S1  .   .  X""",
+    ]
+    for ws in worlds:
+        world = World(ws)
+        path = lle.solve(world, 10)
+        assert path is not None
+        assert lle.is_cooperative(world)
+
+
+def test_not_solvable():
+    worlds = [
+        """
+ . L1S L0S .
+S0  .   .  X
+S1  .   .  X"""
+    ]
+    for ws in worlds:
+        world = World(ws)
+        assert lle.solve(world) is None
+
+
+def test_solvable_non_cooperative():
+    worlds = [
+        """
+.  X L0S . X
+S0 .  .  . .
+S1 .  .  . .
+.  X  .  . X
+""",
+    ]
+    for ws in worlds:
+        world = World(ws)
+        assert not lle.is_cooperative(world, 10)
