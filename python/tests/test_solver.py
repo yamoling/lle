@@ -100,19 +100,20 @@ S1  .   .  X""",
         world = World(ws)
         path = lle.solve(world, 10)
         assert path is not None
-        assert lle.is_cooperative(world)
+        assert lle.is_cooperative(world, 10)
 
 
 def test_not_solvable():
     worlds = [
         """
- . L1S L0S .
+ . L1S  .  .
 S0  .   .  X
-S1  .   .  X"""
+S1  .   .  X
+ .  .  L1N ."""
     ]
     for ws in worlds:
         world = World(ws)
-        assert lle.solve(world) is None
+        assert lle.solve(world, 10) is None
 
 
 def test_solvable_non_cooperative():
