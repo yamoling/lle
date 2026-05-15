@@ -18,6 +18,9 @@ dynamic = ["version"]
 name = "Yannick Molinghen"
 email = "yannick.molinghen@ulb.be"
 
+[project.optional-dependencies]
+generator = ["python-sat>=1.8"]
+
 [dependency-groups]
 dev = [
   "basedpyright>=1.39.3",
@@ -28,9 +31,6 @@ dev = [
   "pip>=24.2",
   "pytest>=9.0.0",
 ]
-
-[project.optional-dependencies]
-generator = ["python-sat>=1.8"]
 
 [build-system]
 requires = ["maturin>=1.7,<2.0"]

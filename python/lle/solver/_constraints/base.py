@@ -2,13 +2,7 @@ from abc import ABC, abstractmethod
 
 from lle import World
 
-from .._internal import (
-    all_positions as _all_positions,
-    get_neighbors as _get_neighbors,
-    is_within_bounds as _is_within_bounds,
-    agents_from_world,
-    laser_sources_from_world,
-)
+from .._internal import agents_from_world, all_positions, get_neighbors, is_within_bounds, laser_sources_from_world
 
 
 class ConstraintContext:
@@ -28,13 +22,13 @@ class ConstraintContext:
         self.agents = [(a, a.position) for a in _agents]
         self.lasers = [(src, src.position) for src in _lasers]
         self.exits = list(world.exit_pos)
-        self.all_positions = _all_positions(world)
+        self.all_positions = all_positions(world)
         self.valid_positions = [p for p in self.all_positions if p not in self.blocked]
 
         # Pre-compute neighbor map: pos -> [pos] + unblocked neighbors
         self.neighbor_map = {}
         for pos in self.valid_positions:
-            neighbors = [n for n in _get_neighbors(world, pos) if n not in self.blocked]
+            neighbors = [n for n in get_neighbors(world, pos) if n not in self.blocked]
             self.neighbor_map[pos] = [pos] + neighbors
 
         # Pre-compute variable IDs
@@ -71,7 +65,7 @@ class ConstraintContext:
             for x, y in self.all_positions:
                 nx = x + di
                 ny = y + dj
-                if not _is_within_bounds(world, (nx, ny)):
+                if not is_within_bounds(world, (nx, ny)):
                     continue
                 if (nx, ny) in self.laser_positions:
                     continue

@@ -3,13 +3,13 @@
 pysat is required at call time; absence raises ImportError pointing at the
 [generator] extra.
 """
+
 from __future__ import annotations
 
 from lle import Action, World
 
 _PYSAT_HINT = (
-    "lle.solve / lle.is_cooperative require the 'generator' extra. "
-    "Install with: pip install laser-learning-environment[generator]"
+    "lle.solve / lle.is_cooperative require the 'generator' extra. Install with: pip install laser-learning-environment[generator]"
 )
 
 
@@ -24,9 +24,7 @@ def _default_t_max(world: World) -> int:
     return (world.width * world.height) // 2
 
 
-def solve(
-    world: World, t_max: int | None = None
-) -> list[tuple[Action, ...]] | None:
+def solve(world: World, t_max: int | None = None) -> list[tuple[Action, ...]] | None:
     """Find a joint plan reaching all exits within `t_max` steps.
 
     Returns a list of length `t_max`, each entry a tuple of `Action`
@@ -34,7 +32,7 @@ def solve(
     Returns None if no plan exists within `t_max`.
     """
     _require_pysat()
-    from ._world_solver import WorldSolver  # local import for ImportError gate
+    from .world_solver import WorldSolver  # local import for ImportError gate
 
     t = _default_t_max(world) if t_max is None else t_max
     solver = WorldSolver(world, T_MAX=t)
@@ -48,7 +46,7 @@ def is_cooperative(world: World, t_max: int | None = None) -> bool:
     """True iff the world is solvable under standard semantics AND UNSAT
     under strict-laser semantics."""
     _require_pysat()
-    from ._world_solver import LaserMode, WorldSolver
+    from .world_solver import LaserMode, WorldSolver
 
     t = _default_t_max(world) if t_max is None else t_max
     standard_sat, _ = WorldSolver(world, T_MAX=t, laser_mode=LaserMode.STANDARD).solve()

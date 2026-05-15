@@ -1,23 +1,26 @@
 """Internal SAT-based world solver. Public access via lle.solve / lle.is_cooperative."""
+
 from __future__ import annotations
 
-from enum import StrEnum
+from enum import Enum
 
-from lle import Action, World
 from pysat.solvers import Minisat22
 
+from lle import Action, World
+
 from ._constraints import (
+    METHOD_LOCAL,
     ConstraintContext,
     InitializationConstraints,
     LaserConstraints,
-    METHOD_LOCAL,
     MovementConstraints,
     StrictLaserConstraints,
 )
+from ._constraints.base import Constraint
 from ._internal import SATModel, VariableFactory
 
 
-class LaserMode(StrEnum):
+class LaserMode(Enum):
     STANDARD = "standard"
     STRICT = "strict"
 
@@ -41,7 +44,7 @@ class WorldSolver:
         self.laser_mode = laser_mode
 
         self.ctx = ConstraintContext(world, self.var, T_MAX)
-        self.constraints = [
+        self.constraints: list[Constraint] = [
             InitializationConstraints(self.ctx),
             MovementConstraints(self.ctx, movement_method=movement_method),
             self._build_laser_constraint(),
@@ -99,9 +102,7 @@ class WorldSolver:
                 elif dx == 0 and dy == 1:
                     a = Action.EAST
                 else:
-                    raise ValueError(
-                        f"Invalid movement for agent {color} at t={t}->{t + 1}"
-                    )
+                    raise ValueError(f"Invalid movement for agent {color} at t={t}->{t + 1}")
                 row.append(a)
             plan.append(tuple(row))
         return plan

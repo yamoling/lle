@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from lle import World
 
-from ._types import Position
+from .types import Position
 
 
 def all_positions(world: World) -> list[Position]:

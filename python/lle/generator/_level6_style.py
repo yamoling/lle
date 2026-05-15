@@ -5,6 +5,7 @@ opposing sides of the grid (LLE Level 6 inspired).
 Cooperation is intrinsic to this kind: the strict-laser UNSAT check runs
 unconditionally (via cooperative=True forced in __init__).
 """
+
 from __future__ import annotations
 
 from lle.tiles import Direction
@@ -18,26 +19,38 @@ class _Level6StyleGenerator(_ConstructiveGenerator):
 
     _WALL_SHAPES = (
         # (weight, offsets-from-anchor)
-        (4, ((0, 0), (0, 1))),                  # bar-2 horizontal
-        (4, ((0, 0), (1, 0))),                  # bar-2 vertical
-        (1, ((0, 0), (0, 1), (0, 2))),          # bar-3 horizontal
-        (1, ((0, 0), (1, 0), (2, 0))),          # bar-3 vertical
-        (1, ((0, 0), (0, 1), (1, 0))),          # L
+        (4, ((0, 0), (0, 1))),  # bar-2 horizontal
+        (4, ((0, 0), (1, 0))),  # bar-2 vertical
+        (1, ((0, 0), (0, 1), (0, 2))),  # bar-3 horizontal
+        (1, ((0, 0), (1, 0), (2, 0))),  # bar-3 vertical
+        (1, ((0, 0), (0, 1), (1, 0))),  # L
         (1, ((0, 0), (0, 1), (1, 1))),
         (1, ((0, 0), (1, 0), (1, 1))),
         (1, ((0, 1), (1, 0), (1, 1))),
         (2, ((0, 0), (0, 1), (1, 0), (1, 1))),  # 2x2 block
     )
 
-    def __init__(self, *, lasers: int = 3, **kwargs):
-        # Cooperation is intrinsic to level6_style; the strict-laser UNSAT
-        # filter is always applied by the base class via cooperative=True.
-        kwargs["cooperative"] = True
-        if lasers < 1:
-            raise ValueError(
-                f"kind='level6_style' requires lasers >= 1; got {lasers}."
-            )
-        super().__init__(lasers=lasers, **kwargs)
+    def __init__(
+        self,
+        *,
+        width: int,
+        height: int,
+        n_agents: int = 2,
+        n_lasers: int = 3,
+        n_walls: int | None = None,
+        t_max: int | None = None,
+    ):
+        if n_lasers < 1:
+            raise ValueError(f"kind='level6_style' requires lasers >= 1; got {n_lasers}.")
+        super().__init__(
+            width=width,
+            height=height,
+            n_agents=n_agents,
+            n_lasers=n_lasers,
+            cooperative=True,
+            n_walls=n_walls,
+            t_max=t_max,
+        )
 
     def _flush_offset(self, max_offset: int) -> int:
         """0 (flush against the edge) most of the time, 1-cell margin sometimes."""
@@ -62,13 +75,13 @@ class _Level6StyleGenerator(_ConstructiveGenerator):
         return [(r + dr, c + dc) for dr in range(h) for dc in range(w)]
 
     def _make_cooperative_candidate_layout(self) -> CandidateLayout | None:
-        if self.agents < 1 or self.lasers < 1:
+        if self.agents < 1 or self.n_lasers < 1:
             return None
         cluster_h, cluster_w = self._cluster_shape()
 
         # Need enough room: start cluster + corridor (>= self.lasers cells) + exit cluster.
-        if self.rows < cluster_h * 2 + max(self.lasers, 2) or self.cols < cluster_w + 2:
-            if self.cols < cluster_w * 2 + max(self.lasers, 2) or self.rows < cluster_h + 2:
+        if self.rows < cluster_h * 2 + max(self.n_lasers, 2) or self.cols < cluster_w + 2:
+            if self.cols < cluster_w * 2 + max(self.n_lasers, 2) or self.rows < cluster_h + 2:
                 return None
 
         orientation = self._rng.choice(["vertical", "horizontal"])
@@ -116,10 +129,10 @@ class _Level6StyleGenerator(_ConstructiveGenerator):
             start_bottom = max(r for r, _ in agent_cells)
             exit_top = min(r for r, _ in exit_cells)
             corridor = list(range(start_bottom + 1, exit_top))
-            if len(corridor) < self.lasers:
+            if len(corridor) < self.n_lasers:
                 return None
             self._rng.shuffle(corridor)
-            chosen = sorted(corridor[: self.lasers])
+            chosen = sorted(corridor[: self.n_lasers])
             for i, r in enumerate(chosen):
                 if i % 2 == 0:
                     src = (r, 0)
@@ -135,10 +148,10 @@ class _Level6StyleGenerator(_ConstructiveGenerator):
             start_right = max(c for _, c in agent_cells)
             exit_left = min(c for _, c in exit_cells)
             corridor = list(range(start_right + 1, exit_left))
-            if len(corridor) < self.lasers:
+            if len(corridor) < self.n_lasers:
                 return None
             self._rng.shuffle(corridor)
-            chosen = sorted(corridor[: self.lasers])
+            chosen = sorted(corridor[: self.n_lasers])
             for i, c in enumerate(chosen):
                 if i % 2 == 0:
                     src = (0, c)
@@ -152,13 +165,8 @@ class _Level6StyleGenerator(_ConstructiveGenerator):
                 lasers.append((i, src, direction))
 
         # Place walls as connected mini-shapes (bars / L / 2x2), within budget.
-        free_cells = [
-            (r, c)
-            for r in range(self.rows)
-            for c in range(self.cols)
-            if (r, c) not in reserved
-        ]
-        walls = self._place_wall_shapes(free_cells, self.num_walls)
+        free_cells = [(r, c) for r in range(self.rows) for c in range(self.cols) if (r, c) not in reserved]
+        walls = self._place_wall_shapes(free_cells, self.n_walls)
 
         return CandidateLayout(
             agents=agent_cells,

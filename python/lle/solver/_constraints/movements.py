@@ -1,4 +1,4 @@
-from ._base import Constraint, ConstraintContext
+from .base import Constraint, ConstraintContext
 
 # Movement method constants
 METHOD_LOCAL = "local"
@@ -14,23 +14,15 @@ class MovementConstraints(Constraint):
         all_clauses = []
 
         if self.movement_method == METHOD_LOCAL:
-            all_clauses.extend(
-                self._profile_method("movement_rules", self._movement_rules_local)
-            )
+            all_clauses.extend(self._profile_method("movement_rules", self._movement_rules_local))
         elif self.movement_method == METHOD_GLOBAL:
-            all_clauses.extend(
-                self._profile_method("movement_rules", self._movement_rules_global)
-            )
-            all_clauses.extend(
-                self._profile_method("unique_position", self._unique_position)
-            )
+            all_clauses.extend(self._profile_method("movement_rules", self._movement_rules_global))
+            all_clauses.extend(self._profile_method("unique_position", self._unique_position))
         else:
             raise ValueError(f"Unknown movement method: {self.movement_method}")
 
         all_clauses.extend(self._profile_method("no_overlap", self._no_overlap))
-        all_clauses.extend(
-            self._profile_method("must_be_on_exit", self._must_be_on_exit)
-        )
+        all_clauses.extend(self._profile_method("must_be_on_exit", self._must_be_on_exit))
         all_clauses.extend(self._profile_method("stays_on_exit", self._stays_on_exit))
         return all_clauses
 
@@ -47,13 +39,9 @@ class MovementConstraints(Constraint):
                     n_pos = neighbor_map[x, y]
 
                     # Forward: if at (x,y,t), must be at some neighbor at t+1
-                    yield [-agent_var[c, x, y, t]] + [
-                        agent_var[c, nx, ny, t1] for nx, ny in n_pos
-                    ]
+                    yield [-agent_var[c, x, y, t]] + [agent_var[c, nx, ny, t1] for nx, ny in n_pos]
                     # Backward: if at (x,y,t+1), must have been at some neighbor at t
-                    yield [-agent_var[c, x, y, t1]] + [
-                        agent_var[c, nx, ny, t] for nx, ny in n_pos
-                    ]
+                    yield [-agent_var[c, x, y, t1]] + [agent_var[c, nx, ny, t] for nx, ny in n_pos]
                     # Inline uniqueness: pairwise exclusion on neighbors at t+1
                     n = len(n_pos)
                     for i in range(n):
@@ -74,9 +62,7 @@ class MovementConstraints(Constraint):
                 t1 = t + 1
                 for x, y in valid_positions:
                     n_pos = neighbor_map[x, y]
-                    yield [-agent_var[c, x, y, t]] + [
-                        agent_var[c, nx, ny, t1] for nx, ny in n_pos
-                    ]
+                    yield [-agent_var[c, x, y, t]] + [agent_var[c, nx, ny, t1] for nx, ny in n_pos]
 
     def _unique_position(self):
         agent_var = self.ctx.agent_var

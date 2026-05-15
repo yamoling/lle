@@ -4,6 +4,7 @@ Different kinds expose different parameter sets via typing.overload for
 static type checkers; the runtime dispatcher accepts the union of kwargs
 and delegates to the corresponding private generator class.
 """
+
 from __future__ import annotations
 
 from typing import Literal, overload
@@ -17,13 +18,14 @@ from ._random import _RandomGenerator
 
 @overload
 def generate(
+    kind: Literal["random", "constructive"],
     *,
-    kind: Literal["random"],
-    size: tuple[int, int] = (5, 5),
-    agents: int = 2,
-    lasers: int | None = None,
+    height: int = 5,
+    width: int = 5,
+    n_agents: int = 2,
+    n_lasers: int | None = None,
     cooperative: bool = False,
-    num_walls: int | None = None,
+    n_walls: int | None = None,
     t_max: int | None = None,
     seed: int | None = None,
     max_attempts: int = 10_000,
@@ -32,28 +34,14 @@ def generate(
 
 @overload
 def generate(
-    *,
-    kind: Literal["constructive"],
-    size: tuple[int, int] = (5, 5),
-    agents: int = 2,
-    lasers: int | None = None,
-    cooperative: bool = False,
-    num_walls: int | None = None,
-    t_max: int | None = None,
-    seed: int | None = None,
-    max_attempts: int = 10_000,
-) -> World: ...
-
-
-@overload
-def generate(
-    *,
     kind: Literal["level6_style"],
-    size: tuple[int, int] = (13, 13),
-    agents: int = 4,
-    lasers: int = 3,
+    *,
+    height: int = 12,
+    width: int = 13,
+    n_agents: int = 4,
+    n_lasers: int = 3,
     t_max: int = 21,
-    num_walls: int | None = None,
+    n_walls: int | None = None,
     seed: int | None = None,
     max_attempts: int = 10_000,
 ) -> World: ...
@@ -67,7 +55,23 @@ def _resolve_lasers(lasers: int | None, agents: int, cooperative: bool) -> int:
     return 0
 
 
-def generate(*, kind, **kwargs) -> World:  # type: ignore[no-redef]
+def _no_default_for(kind: str, arg_name: str):
+    return ValueError(f"No default value for parameter {arg_name} with kind={kind!r}")
+
+
+def generate(
+    kind: Literal["random", "constructive", "level6_style"] = "level6_style",
+    *,
+    height: int | None = None,
+    width: int | None = None,
+    n_agents: int | None = None,
+    n_lasers: int | None = None,
+    cooperative: bool | None = None,
+    t_max: int | None = None,
+    n_walls: int | None = None,
+    seed: int | None = None,
+    max_attempts: int = 10_000,
+) -> World:  # type: ignore[no-redef]
     """
     Build a solvable `World` on demand using a SAT-verified procedural generator.
 
@@ -85,30 +89,73 @@ def generate(*, kind, **kwargs) -> World:  # type: ignore[no-redef]
     `TypeError` if `cooperative` is passed to `kind="level6_style"`;
     `RuntimeError` if no valid world is found within `max_attempts`.
     """
-    if kind == "random":
-        agents = kwargs.get("agents", 2)
-        cooperative = kwargs.get("cooperative", False)
-        kwargs["lasers"] = _resolve_lasers(kwargs.get("lasers"), agents, cooperative)
-        return _RandomGenerator(**kwargs).generate()
-    if kind == "constructive":
-        agents = kwargs.get("agents", 2)
-        cooperative = kwargs.get("cooperative", False)
-        kwargs["lasers"] = _resolve_lasers(kwargs.get("lasers"), agents, cooperative)
-        return _ConstructiveGenerator(**kwargs).generate()
+    # Handle default argument by generator kind
+    if (width is None and height is not None) or (height is None and width is not None):
+        raise ValueError("Cannot infer the size of the grid: either provide `width` and `heights`, or none of them.")
+    if width is None or height is None:
+        if kind in ("random", "constructive"):
+            height, width = (5, 5)
+        elif kind == "level6_style":
+            height, width = (12, 13)
+        else:
+            raise _no_default_for(kind, "size")
+    # assert width is not None and height is not None
+    if n_agents is None:
+        if kind in ("random", "constructive"):
+            n_agents = 2
+        elif kind == "level6_style":
+            n_agents = 4
+        else:
+            raise _no_default_for(kind, "n_agents")
+    if cooperative is None:
+        if kind in ("random", "constructive"):
+            cooperative = False
+        elif kind == "level6_style":
+            cooperative = True
+        else:
+            raise _no_default_for(kind, "cooperative")
+    if n_lasers is None:
+        if kind == "level6_style":
+            n_lasers = 3
+        else:
+            n_lasers = _resolve_lasers(n_lasers, n_agents, cooperative)
     if kind == "level6_style":
-        if "cooperative" in kwargs:
-            raise TypeError(
-                "generate(kind='level6_style') does not accept 'cooperative' "
-                "(cooperation is intrinsic; omit the argument)."
-            )
-        kwargs.setdefault("size", (13, 13))
-        kwargs.setdefault("agents", 4)
-        kwargs.setdefault("lasers", 3)
-        kwargs.setdefault("t_max", 21)
-        return _Level6StyleGenerator(**kwargs).generate()
-    raise ValueError(
-        f"Unknown kind: {kind!r}. Expected 'random', 'constructive', or 'level6_style'."
-    )
+        if not cooperative:
+            raise ValueError("Levels in the style of level 6 must be cooperative.")
+        if t_max is None:
+            t_max = 21
+    if kind == "random":
+        generator = _RandomGenerator(
+            height=height,
+            width=width,
+            n_agents=n_agents,
+            n_lasers=n_lasers,
+            cooperative=cooperative,
+            n_walls=n_walls,
+            t_max=t_max,
+        )
+    elif kind == "constructive":
+        generator = _ConstructiveGenerator(
+            height=height,
+            width=width,
+            n_agents=n_agents,
+            n_lasers=n_lasers,
+            cooperative=cooperative,
+            n_walls=n_walls,
+            t_max=t_max,
+        )
+    elif kind == "level6_style":
+        generator = _Level6StyleGenerator(
+            height=height,
+            width=width,
+            n_agents=n_agents,
+            n_lasers=n_lasers,
+            n_walls=n_walls,
+            t_max=t_max,
+        )
+    else:
+        raise ValueError(f"Unknown kind: {kind!r}. Expected 'random', 'constructive', or 'level6_style'.")
+    return generator.generate(seed=seed, max_attempts=max_attempts)
 
 
 __all__ = ["generate"]

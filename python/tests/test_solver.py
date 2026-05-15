@@ -1,6 +1,3 @@
-"""Public solver API tests."""
-import pytest
-
 import lle
 from lle import Action, World
 

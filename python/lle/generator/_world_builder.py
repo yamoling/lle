@@ -39,16 +39,12 @@ class WorldBuilder:
     def __init__(self, width: int, height: int):
         self.width = width
         self.height = height
-        self._grid: list[list[str]] = [
-            ["." for _ in range(width)] for _ in range(height)
-        ]
+        self._grid: list[list[str]] = [["." for _ in range(width)] for _ in range(height)]
 
     def _check_bounds(self, pos: Position):
         r, c = pos
         if not (0 <= r < self.height and 0 <= c < self.width):
-            raise ValueError(
-                f"Position {pos} out of bounds ({self.height}x{self.width})"
-            )
+            raise ValueError(f"Position {pos} out of bounds ({self.height}x{self.width})")
 
     def _check_free(self, pos: Position):
         r, c = pos
@@ -79,9 +75,7 @@ class WorldBuilder:
         self._grid[pos[0]][pos[1]] = "G"
         return self
 
-    def add_laser(
-        self, agent_id: int, pos: Position, direction: Direction
-    ) -> "WorldBuilder":
+    def add_laser(self, agent_id: int, pos: Position, direction: Direction) -> "WorldBuilder":
         self._check_bounds(pos)
         self._check_free(pos)
         self._grid[pos[0]][pos[1]] = f"L{agent_id}{_dir_letter(direction)}"

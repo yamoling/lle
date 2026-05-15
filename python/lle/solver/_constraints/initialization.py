@@ -1,17 +1,11 @@
-from ._base import Constraint
+from .base import Constraint
 
 
 class InitializationConstraints(Constraint):
     def generate(self):
         all_clauses = []
-        all_clauses.extend(
-            self._profile_method(
-                "agents_initial_position", self._agents_initial_position
-            )
-        )
-        all_clauses.extend(
-            self._profile_method("lasers_initial_beam", self._lasers_initial_beam)
-        )
+        all_clauses.extend(self._profile_method("agents_initial_position", self._agents_initial_position))
+        all_clauses.extend(self._profile_method("lasers_initial_beam", self._lasers_initial_beam))
         return all_clauses
 
     def _agents_initial_position(self):

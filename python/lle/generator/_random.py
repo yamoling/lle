@@ -1,4 +1,5 @@
 """Random sampling generator (internal)."""
+
 from __future__ import annotations
 
 from lle.tiles import Direction
@@ -14,27 +15,21 @@ class _RandomGenerator(_BaseGenerator):
         return self._rng.sample(all_pos, k)
 
     def _random_direction(self) -> Direction:
-        return self._rng.choice(
-            [Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST]
-        )
+        return self._rng.choice([Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST])
 
     def _make_candidate_layout(self) -> CandidateLayout:
-        total = self.agents + self.agents + self.num_walls + self.lasers
+        total = self.agents + self.agents + self.n_walls + self.n_lasers
         chosen = self._sample_unique_positions(total)
         i = 0
         agents = chosen[i : i + self.agents]
         i += self.agents
         exits = chosen[i : i + self.agents]
         i += self.agents
-        walls = chosen[i : i + self.num_walls]
-        i += self.num_walls
-        laser_pos = chosen[i : i + self.lasers]
-        lasers = [
-            (k, pos, self._random_direction()) for k, pos in enumerate(laser_pos)
-        ]
-        layout = CandidateLayout(
-            agents=agents, exits=exits, walls=walls, lasers=lasers
-        )
+        walls = chosen[i : i + self.n_walls]
+        i += self.n_walls
+        laser_pos = chosen[i : i + self.n_lasers]
+        lasers = [(k, pos, self._random_direction()) for k, pos in enumerate(laser_pos)]
+        layout = CandidateLayout(agents=agents, exits=exits, walls=walls, lasers=lasers)
         if not self._geometry_ok(layout):
             raise _LayoutRetry()
         return layout
@@ -47,9 +42,7 @@ class _RandomGenerator(_BaseGenerator):
         for _owner, src, direction in layout.lasers:
             if points_out_immediately(src, direction, self.rows, self.cols):
                 return False
-            tiles = beam_tiles(
-                src, direction, wall_set, laser_set, self.rows, self.cols
-            )
+            tiles = beam_tiles(src, direction, wall_set, laser_set, self.rows, self.cols)
             if not tiles:
                 return False
             all_beam.update(tiles)

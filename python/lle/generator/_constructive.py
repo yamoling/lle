@@ -1,4 +1,5 @@
 """Constructive generator: reserves one lane per agent for a constructive solvability proof."""
+
 from __future__ import annotations
 
 from lle.tiles import Direction
@@ -33,7 +34,7 @@ class _ConstructiveGenerator(_RandomGenerator):
         because agent 0 cannot stay inside its own beam)."""
         if self.agents < 2 or self.rows < self.agents + 1 or self.cols < 4:
             return None
-        if self.lasers < 1:
+        if self.n_lasers < 1:
             return None
 
         lane_rows = list(range(1, self.agents + 1))
@@ -50,16 +51,9 @@ class _ConstructiveGenerator(_RandomGenerator):
         reserved.add(structural_source)
 
         structural_laser = (0, structural_source, Direction.SOUTH)
-        lasers = [structural_laser]
-
-        free_cells = [
-            (row, col)
-            for row in range(self.rows)
-            for col in range(self.cols)
-            if (row, col) not in reserved
-        ]
-
-        extras_needed = self.lasers - len(lasers)
+        lasers: list[tuple[int, tuple[int, int], Direction]] = [structural_laser]
+        free_cells = [(row, col) for row in range(self.rows) for col in range(self.cols) if (row, col) not in reserved]
+        extras_needed = self.n_lasers - len(lasers)
         if extras_needed > 0:
             extras = self._place_extra_lasers_outside(
                 reserved=reserved,
@@ -74,13 +68,11 @@ class _ConstructiveGenerator(_RandomGenerator):
         used_laser_positions = {pos for _, pos, _ in lasers}
         walls = [cell for cell in free_cells if cell not in used_laser_positions]
 
-        if self.num_walls > len(walls):
+        if self.n_walls > len(walls):
             return None
-        walls = walls[: self.num_walls]
+        walls = walls[: self.n_walls]
 
-        return CandidateLayout(
-            agents=agents, exits=exits, walls=walls, lasers=lasers
-        )
+        return CandidateLayout(agents=agents, exits=exits, walls=walls, lasers=lasers)
 
     def _place_extra_lasers_outside(
         self,
@@ -102,9 +94,7 @@ class _ConstructiveGenerator(_RandomGenerator):
             ]:
                 if points_out_immediately(pos, direction, self.rows, self.cols):
                     continue
-                tiles = beam_tiles(
-                    pos, direction, set(), used_sources, self.rows, self.cols
-                )
+                tiles = beam_tiles(pos, direction, set(), used_sources, self.rows, self.cols)
                 if not tiles:
                     continue
                 if any(tile in reserved for tile in tiles):
@@ -135,7 +125,7 @@ class _ConstructiveGenerator(_RandomGenerator):
             return None
         orientations.sort(key=lambda item: item[1], reverse=True)
         for orientation, free_cells in orientations:
-            if free_cells < self.num_walls + self.lasers:
+            if free_cells < self.n_walls + self.n_lasers:
                 continue
             layout = self._build_lane_layout(orientation)
             if layout is not None:
@@ -154,17 +144,12 @@ class _ConstructiveGenerator(_RandomGenerator):
             exits = [(self.rows - 1, col) for col in lane_ids]
             reserved = {(row, col) for col in lane_ids for row in range(self.rows)}
 
-        free_positions = [
-            (row, col)
-            for row in range(self.rows)
-            for col in range(self.cols)
-            if (row, col) not in reserved
-        ]
-        if len(free_positions) < self.num_walls + self.lasers:
+        free_positions = [(row, col) for row in range(self.rows) for col in range(self.cols) if (row, col) not in reserved]
+        if len(free_positions) < self.n_walls + self.n_lasers:
             return None
         self._rng.shuffle(free_positions)
-        walls = free_positions[: self.num_walls]
-        laser_pool = free_positions[self.num_walls :]
+        walls = free_positions[: self.n_walls]
+        laser_pool = free_positions[self.n_walls :]
 
         lasers = self._place_safe_lasers(
             reserved=reserved,
@@ -173,9 +158,7 @@ class _ConstructiveGenerator(_RandomGenerator):
         )
         if lasers is None:
             return None
-        return CandidateLayout(
-            agents=agents, exits=exits, walls=walls, lasers=lasers
-        )
+        return CandidateLayout(agents=agents, exits=exits, walls=walls, lasers=lasers)
 
     def _place_safe_lasers(self, reserved, wall_positions, candidate_positions):
         walls = set(wall_positions)
@@ -191,9 +174,7 @@ class _ConstructiveGenerator(_RandomGenerator):
             ):
                 if points_out_immediately(pos, direction, self.rows, self.cols):
                     continue
-                tiles = beam_tiles(
-                    pos, direction, walls, used_sources, self.rows, self.cols
-                )
+                tiles = beam_tiles(pos, direction, walls, used_sources, self.rows, self.cols)
                 if not tiles:
                     continue
                 if any(tile in reserved for tile in tiles):
@@ -201,7 +182,7 @@ class _ConstructiveGenerator(_RandomGenerator):
                 candidates.append((pos, direction, tiles))
         self._rng.shuffle(candidates)
         for pos, direction, tiles in candidates:
-            if len(lasers) >= self.lasers:
+            if len(lasers) >= self.n_lasers:
                 break
             if pos in used_sources:
                 continue
@@ -211,6 +192,6 @@ class _ConstructiveGenerator(_RandomGenerator):
                 continue
             lasers.append((len(lasers), pos, direction))
             used_sources.add(pos)
-        if len(lasers) != self.lasers:
+        if len(lasers) != self.n_lasers:
             return None
         return lasers
