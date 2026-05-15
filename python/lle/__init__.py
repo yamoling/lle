@@ -92,6 +92,26 @@ assert lle.is_cooperative(World.level(6)) is True          # canonical coop leve
 assert lle.is_cooperative(World("S0 . X")) is False        # trivial single-agent
 ```
 
+### Precise cooperation classification
+`lle.cooperation_level(world, t_max=None)` refines the binary `is_cooperative` check into a `CooperationLevel` enum (`UNSOLVABLE`, `INDEPENDENT`, `COOPERATIVE`, `ASYMMETRIC`, `MUTUAL`, `CHAIN`, `DISTRIBUTED`, `FULLY_COUPLED`). See `CooperationLevel`'s docstring for the structural meaning of each member.
+
+```python
+import lle
+from lle import CooperationLevel, World
+
+level = lle.cooperation_level(World.level(6))
+assert level in CooperationLevel.cooperative_subtypes()
+```
+
+The same vocabulary is available on the generators via the optional `profile=` parameter (only meaningful when `cooperative=True`): the generator keeps sampling until the produced world classifies as the requested level.
+
+```python
+world = lle.generate(kind="constructive", n_agents=2, n_lasers=1,
+                     cooperative=True, profile=CooperationLevel.ASYMMETRIC,
+                     seed=0)
+assert lle.cooperation_level(world) is CooperationLevel.ASYMMETRIC
+```
+
 ## Creating custom maps
 You can create custom maps in two ways: using a plain string or a TOML file.
 
