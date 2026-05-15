@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import IntEnum
+from typing import Literal
 
 import numpy as np
 import numpy.typing as npt
@@ -8,6 +9,19 @@ import numpy.typing as npt
 from lle.world import World, WorldState
 
 from .types import AgentId, Position
+
+ObservationTypeLiteral = Literal[
+    "layered",
+    "flattened",
+    "partial3x3",
+    "partial5x5",
+    "partial7x7",
+    "state",
+    "image",
+    "perspective",
+    "normalized-state",
+    "state-normalized",
+]
 
 
 class ObservationType(IntEnum):
@@ -36,8 +50,27 @@ class ObservationType(IntEnum):
     AGENT0_PERSPECTIVE_LAYERED = 12
 
     @staticmethod
-    def from_str(s: str) -> "ObservationType":
+    def from_str(s: ObservationTypeLiteral | str) -> "ObservationType":
         """Convert a string to an ObservationType"""
+        match s:
+            case "layered":
+                return ObservationType.LAYERED
+            case "flattened":
+                return ObservationType.FLATTENED
+            case "partial3x3":
+                return ObservationType.PARTIAL_3x3
+            case "partial5x5":
+                return ObservationType.PARTIAL_5x5
+            case "partial7x7":
+                return ObservationType.PARTIAL_7x7
+            case "state":
+                return ObservationType.STATE
+            case "state-normalized":
+                return ObservationType.NORMALIZED_STATE
+            case "image":
+                return ObservationType.RGB_IMAGE
+            case "perspective":
+                return ObservationType.AGENT0_PERSPECTIVE_LAYERED
         s = s.upper()
         for enum in ObservationType:
             if enum.name == s:
