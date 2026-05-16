@@ -27,93 +27,151 @@ class _ConstructiveGenerator(_RandomGenerator):
             return super()._make_candidate_layout()
         return layout
 
+    # Number of independent lane samples tried before falling back to the
+    # parent's random layout in the cooperative path.
+    _LANE_SAMPLE_ATTEMPTS: int = 8
+
     def _make_cooperative_candidate_layout(self) -> CandidateLayout | None:
-        """Place a structural same-colour laser across all agent lanes so
-        cooperation is required by construction (standard SAT solvable
-        because agent 0 can briefly block its own beam; strict-laser UNSAT
-        because agent 0 cannot stay inside its own beam)."""
-        if self.agents < 2 or self.rows < self.agents + 1 or self.cols < 4:
+        """Random non-contiguous lanes + random rotation + ``n_lasers``
+        distinct-colour structural lasers, each perpendicular to the lane
+        band so its beam crosses every lane.
+
+        With ``n_lasers >= 2`` each laser's beam can only be safely
+        truncated by the unique agent of its colour, so cooperation
+        involves ``n_lasers`` helpers acting on their own beams in turn
+        (mutual / distributed profile) instead of a single helper on one
+        structural beam (asymmetric profile).
+        """
+        if self.agents < 2 or self.n_lasers < 1:
             return None
-        if self.n_lasers < 1:
+        feasible: list[str] = []
+        # Need at least one non-lane axis slot for a structural laser and
+        # perp axis >= 3 so the laser perp coord can land in the interior
+        # (avoiding agent/exit columns).
+        if self.rows >= self.agents + 1 and self.cols >= 3:
+            feasible.append("horizontal")
+        if self.cols >= self.agents + 1 and self.rows >= 3:
+            feasible.append("vertical")
+        if not feasible:
+            return None
+        # Pick orientation uniformly per call so both rotations occur
+        # across attempts (rather than greedily preferring one whenever it
+        # succeeds).
+        orientation = self._rng.choice(feasible)
+        for _ in range(self._LANE_SAMPLE_ATTEMPTS):
+            layout = self._build_cooperative_lane_layout(orientation)
+            if layout is not None:
+                return layout
+        # Fall back to the other orientation if the chosen one repeatedly
+        # fails (e.g., lane sample kept landing at both grid edges).
+        for other in feasible:
+            if other == orientation:
+                continue
+            for _ in range(self._LANE_SAMPLE_ATTEMPTS):
+                layout = self._build_cooperative_lane_layout(other)
+                if layout is not None:
+                    return layout
+        return None
+
+    def _build_cooperative_lane_layout(self, orientation: str) -> CandidateLayout | None:
+        """One attempt: random non-contiguous lanes + random rotation +
+        ``n_lasers`` distinct-colour structural lasers, each crossing the
+        whole lane band. Distinct perpendicular columns guarantee the
+        parallel beams are on disjoint cells. The full unblocked beam
+        path of every laser is reserved so walls cannot clip it. Returns
+        ``None`` if the lane sample leaves no axis slot on either side of
+        the band, or if there are not enough free cells for ``n_walls``.
+        """
+        if orientation == "horizontal":
+            lane_axis_size, perp_axis_size = self.rows, self.cols
+        else:
+            lane_axis_size, perp_axis_size = self.cols, self.rows
+
+        lane_ids = sorted(self._rng.sample(range(lane_axis_size), self.agents))
+        lane_set = set(lane_ids)
+        non_lane = [i for i in range(lane_axis_size) if i not in lane_set]
+        if not non_lane:
             return None
 
-        lane_rows = list(range(1, self.agents + 1))
-        beam_col = self._rng.randint(1, self.cols - 2)
+        min_lane, max_lane = lane_ids[0], lane_ids[-1]
+        before_band = [i for i in non_lane if i < min_lane]
+        after_band = [i for i in non_lane if i > max_lane]
+        axis_dir_options: list[tuple[int, Direction]] = []
+        if orientation == "horizontal":
+            axis_dir_options.extend((r, Direction.SOUTH) for r in before_band)
+            axis_dir_options.extend((r, Direction.NORTH) for r in after_band)
+        else:
+            axis_dir_options.extend((c, Direction.EAST) for c in before_band)
+            axis_dir_options.extend((c, Direction.WEST) for c in after_band)
+        if not axis_dir_options:
+            return None
 
-        agents = [(row, 0) for row in lane_rows]
-        exits = [(row, self.cols - 1) for row in lane_rows]
+        valid_perps = list(range(1, perp_axis_size - 1))
+        if len(valid_perps) < self.n_lasers:
+            return None
+        chosen_perps = self._rng.sample(valid_perps, self.n_lasers)
 
-        reserved = set(agents) | set(exits)
-        for row in lane_rows:
-            for col in range(self.cols):
-                reserved.add((row, col))
-        structural_source = (0, beam_col)
-        reserved.add(structural_source)
+        # One distinct-colour structural laser per perpendicular column.
+        laser_placements: list[tuple[int, tuple[int, int], Direction]] = []
+        for colour, laser_perp in enumerate(chosen_perps):
+            laser_axis, direction = self._rng.choice(axis_dir_options)
+            if orientation == "horizontal":
+                source = (laser_axis, laser_perp)
+            else:
+                source = (laser_perp, laser_axis)
+            laser_placements.append((colour, source, direction))
 
-        structural_laser = (0, structural_source, Direction.SOUTH)
-        lasers: list[tuple[int, tuple[int, int], Direction]] = [structural_laser]
-        free_cells = [(row, col) for row in range(self.rows) for col in range(self.cols) if (row, col) not in reserved]
-        extras_needed = self.n_lasers - len(lasers)
-        if extras_needed > 0:
-            extras = self._place_extra_lasers_outside(
-                reserved=reserved,
-                candidate_positions=list(free_cells),
-                existing_sources={structural_source},
-                count=extras_needed,
+        # Random rotation: flip agent / exit edges so all 4 rotations
+        # (agents on left / right / top / bottom) are equally likely.
+        flip = self._rng.random() < 0.5
+        if orientation == "horizontal":
+            agent_col = self.cols - 1 if flip else 0
+            exit_col = 0 if flip else self.cols - 1
+            agents = [(row, agent_col) for row in lane_ids]
+            exits = [(row, exit_col) for row in lane_ids]
+            reserved = {(row, col) for row in lane_ids for col in range(self.cols)}
+        else:
+            agent_row = self.rows - 1 if flip else 0
+            exit_row = 0 if flip else self.rows - 1
+            agents = [(agent_row, col) for col in lane_ids]
+            exits = [(exit_row, col) for col in lane_ids]
+            reserved = {(row, col) for col in lane_ids for row in range(self.rows)}
+        reserved.update(agents)
+        reserved.update(exits)
+
+        # Reserve each laser's source cell and full unblocked beam path
+        # so walls cannot clip the beam between non-adjacent lanes.
+        for _colour, source, direction in laser_placements:
+            reserved.add(source)
+            path = beam_tiles(
+                source,
+                direction,
+                walls=set(),
+                lasers=set(),
+                rows=self.rows,
+                cols=self.cols,
             )
-            if extras is None or len(extras) < extras_needed:
-                return None
-            lasers.extend(extras)
+            reserved.update(path)
 
-        used_laser_positions = {pos for _, pos, _ in lasers}
-        walls = [cell for cell in free_cells if cell not in used_laser_positions]
-
-        if self.n_walls > len(walls):
+        free_positions = [
+            (row, col)
+            for row in range(self.rows)
+            for col in range(self.cols)
+            if (row, col) not in reserved
+        ]
+        if len(free_positions) < self.n_walls:
             return None
-        walls = walls[: self.n_walls]
+        # Shuffle so the wall set is a random subset of the free cells,
+        # not the first ``n_walls`` in row-major order.
+        self._rng.shuffle(free_positions)
+        walls = free_positions[: self.n_walls]
 
-        return CandidateLayout(agents=agents, exits=exits, walls=walls, lasers=lasers)
-
-    def _place_extra_lasers_outside(
-        self,
-        reserved: set[tuple[int, int]],
-        candidate_positions: list[tuple[int, int]],
-        existing_sources: set[tuple[int, int]],
-        count: int,
-    ) -> list[tuple[int, tuple[int, int], Direction]] | None:
-        used_sources = set(existing_sources)
-        placed: list[tuple[int, tuple[int, int], Direction]] = []
-
-        candidates = []
-        for pos in candidate_positions:
-            for direction in [
-                Direction.NORTH,
-                Direction.SOUTH,
-                Direction.EAST,
-                Direction.WEST,
-            ]:
-                if points_out_immediately(pos, direction, self.rows, self.cols):
-                    continue
-                tiles = beam_tiles(pos, direction, set(), used_sources, self.rows, self.cols)
-                if not tiles:
-                    continue
-                if any(tile in reserved for tile in tiles):
-                    continue
-                candidates.append((pos, direction, tiles))
-
-        self._rng.shuffle(candidates)
-
-        for pos, direction, tiles in candidates:
-            if len(placed) >= count:
-                break
-            if pos in used_sources:
-                continue
-            if any(existing in tiles for existing in used_sources):
-                continue
-            placed.append((1 + len(placed), pos, direction))
-            used_sources.add(pos)
-
-        return placed
+        return CandidateLayout(
+            agents=agents,
+            exits=exits,
+            walls=walls,
+            lasers=laser_placements,
+        )
 
     def _make_constructive_candidate_layout(self) -> CandidateLayout | None:
         orientations = []
