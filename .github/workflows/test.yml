@@ -21,13 +21,14 @@ jobs:
           - x86_64
           - aarch64
         python-version:
-          - '3.11'
-          - '3.12'
-          - '3.13'
-          - '3.14'
+          - "3.10"
+          - "3.11"
+          - "3.12"
+          - "3.13"
+          - "3.14"
         exclude:
           - os: windows-latest
-            target: 'aarch64'
+            target: "aarch64"
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -46,6 +47,6 @@ jobs:
           uv-version: 0.10.2
       - name: Pytest
         run: |
-          uv sync
+          uv sync --extra generator
           uv run maturin dev
           uv run pytest

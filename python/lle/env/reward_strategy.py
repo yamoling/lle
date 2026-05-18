@@ -1,17 +1,17 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Iterable
 from functools import cached_property
+from typing import Iterable
 
 import numpy as np
 import numpy.typing as npt
-from marlenv.models import DiscreteSpace
+from marlenv.models import ContinuousSpace
 
 from lle import tiles
 from lle.types import Position
 
+from ..world import EventType, World, WorldEvent
 from .utils import get_lasers_of
-from ..world import World, WorldEvent, EventType
 
 REWARD_GEM = 1.0
 REWARD_EXIT = 1.0
@@ -21,16 +21,11 @@ REWARD_DEATH = -1.0
 
 @dataclass
 class RewardStrategy(ABC):
-    objectives: list[str]
     n_agents: int
-    reward_space: DiscreteSpace
-    n_arrived: int
-    n_deads: int
+    objectives: list[str]
 
-    def __init__(self, n_agents: int, objectives: list[str]):
-        self.objectives = objectives
-        self.reward_space = DiscreteSpace(len(objectives), objectives)
-        self.n_agents = n_agents
+    def __post_init__(self):
+        self.reward_space = ContinuousSpace.from_shape(len(self.objectives))
         self.n_arrived = 0
         self.n_deads = 0
 

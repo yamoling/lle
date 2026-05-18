@@ -192,7 +192,7 @@ class World:
          `PyValueError`: if the tile at the given position is not a laser source.
         """
     def seed(self, seed_value: builtins.int) -> None: ...
-    def step(self, action: Action | list[Action]) -> builtins.list[WorldEvent]:
+    def step(self, action: Action | typing.Sequence[Action]) -> builtins.list[WorldEvent]:
         r"""
         Simultaneously perform an action for each agent in the world.
         Performing a step generates events (see `WorldEvent`) to give information about the consequences of the joint action.
@@ -411,6 +411,8 @@ class Action(enum.Enum):
         The number of actions
         """
     def __new__(cls, value: builtins.int) -> Action: ...
+    @staticmethod
+    def from_delta(dx: builtins.int, dy: builtins.int) -> Action: ...
     def __hash__(self) -> builtins.int: ...
     def __repr__(self) -> builtins.str: ...
     def opposite(self) -> Action:

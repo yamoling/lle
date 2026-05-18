@@ -1,41 +1,76 @@
-import cv2
 from abc import ABC, abstractmethod
-from enum import IntEnum
+from dataclasses import dataclass
+from enum import Enum
+from typing import Literal
+
 import numpy as np
 import numpy.typing as npt
+
 from lle.world import World, WorldState
+
 from .types import AgentId, Position
-from dataclasses import dataclass
+
+ObservationTypeLiteral = Literal[
+    "layered",
+    "flattened",
+    "partial3x3",
+    "partial5x5",
+    "partial7x7",
+    "state",
+    "image",
+    "perspective",
+    "normalized-state",
+    "state-normalized",
+]
 
 
-class ObservationType(IntEnum):
+class ObservationType(Enum):
     """The different observation types for the World"""
 
-    NORMALIZED_STATE = 0
-    STATE = 1
+    NORMALIZED_STATE = "normalized-state"
+    STATE = "state"
     """The state of the world (agents positions, gems collected, agents_alive) as a numpy array"""
-    RGB_IMAGE = 2
+    RGB_IMAGE = "rgb_image"
     """The RGB image of the world"""
-    LAYERED = 3
+    LAYERED = "layered"
     """
     Layered observations of the map (walls, lasers, ...) as shown below. Only 2 agents are shown for the sake of clarity.
 
     ![Layered representation of the world](../../docs/layers.png)
     """
-    FLATTENED = 4
+    FLATTENED = "flattened"
     """Same as `ObservationType.LAYERED` but flattened to 1D"""
-    PARTIAL_3x3 = 5
-    PARTIAL_5x5 = 6
-    PARTIAL_7x7 = 7
-    LAYERED_PADDED = 8
-    LAYERED_PADDED_1AGENT = 9
-    LAYERED_PADDED_2AGENTS = 10
-    LAYERED_PADDED_3AGENTS = 11
-    AGENT0_PERSPECTIVE_LAYERED = 12
+    PARTIAL_3x3 = "partial3x3"
+    PARTIAL_5x5 = "partial5x5"
+    PARTIAL_7x7 = "partial7x7"
+    LAYERED_PADDED = "layered-padded"
+    LAYERED_PADDED_1AGENT = "layered-padded-1"
+    LAYERED_PADDED_2AGENTS = "layered-padded-2"
+    LAYERED_PADDED_3AGENTS = "layered-padded-3"
+    AGENT0_PERSPECTIVE_LAYERED = "layered-perspective"
 
     @staticmethod
-    def from_str(s: str) -> "ObservationType":
+    def from_str(s: ObservationTypeLiteral | str) -> "ObservationType":
         """Convert a string to an ObservationType"""
+        match s:
+            case "layered":
+                return ObservationType.LAYERED
+            case "flattened":
+                return ObservationType.FLATTENED
+            case "partial3x3":
+                return ObservationType.PARTIAL_3x3
+            case "partial5x5":
+                return ObservationType.PARTIAL_5x5
+            case "partial7x7":
+                return ObservationType.PARTIAL_7x7
+            case "state":
+                return ObservationType.STATE
+            case "state-normalized":
+                return ObservationType.NORMALIZED_STATE
+            case "image":
+                return ObservationType.RGB_IMAGE
+            case "perspective":
+                return ObservationType.AGENT0_PERSPECTIVE_LAYERED
         s = s.upper()
         for enum in ObservationType:
             if enum.name == s:
@@ -134,7 +169,8 @@ class StateGenerator(ObservationGenerator):
 
     @property
     def shape(self):
-        return (self._world.n_agents * 2 + self.n_gems,)
+        """Each agent has three dimensions (x, y, is_alive) + number of gems"""
+        return (self._world.n_agents * 3 + self.n_gems,)
 
     @property
     def unit_size(self) -> int:
@@ -142,10 +178,12 @@ class StateGenerator(ObservationGenerator):
 
 
 class RGBImage(ObservationGenerator):
+    def __init__(self, world: World):
+        super().__init__(world)
+        self._shape = tuple(world.get_image().shape)
+
     def observe(self):
         obs = self._world.get_image()
-        obs = cv2.resize(obs, (120, 160))
-        obs = obs.transpose(2, 1, 0)
         return np.tile(obs, (self._world.n_agents, 1, 1, 1)).astype(np.float32)
 
     @property
@@ -154,7 +192,7 @@ class RGBImage(ObservationGenerator):
 
     @property
     def shape(self):
-        return (3, 160, 120)
+        return self._shape
 
 
 @dataclass

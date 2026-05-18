@@ -2,16 +2,15 @@
 name = "laser-learning-environment"
 description = "Laser Learning Environment (LLE) for Multi-Agent Reinforcement Learning"
 readme = "readme.md"
-requires-python = ">=3.12,<4"
+requires-python = ">=3.10,<4"
 classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
   "Programming Language :: Rust",
 ]
 dependencies = [
-  "multi-agent-rlenv>=4.0.0",
+  "multi-agent-rlenv>=4.3.0",
   "numpy>=2.0.0",
-  "opencv-python>=4.0.0",
 ]
 dynamic = ["version"]
 
@@ -19,18 +18,26 @@ dynamic = ["version"]
 name = "Yannick Molinghen"
 email = "yannick.molinghen@ulb.be"
 
+[project.optional-dependencies]
+generator = ["python-sat>=1.8", "tqdm>=4.67.3"]
+
 [dependency-groups]
 dev = [
-    "maturin>=1.7.0",
-    "orjson>=3.11.7",
-    "pdoc>=16.0.0",
-    "pip>=24.2",
-    "pytest>=9.0.0",
+  "basedpyright>=1.39.3",
+  "maturin>=1.7.0",
+  "opencv-python>=4.13.0.92",
+  "orjson>=3.11.7",
+  "pdoc>=16.0.0",
+  "pip>=24.2",
+  "pytest>=9.0.0",
 ]
 
 [build-system]
 requires = ["maturin>=1.7,<2.0"]
 build-backend = "maturin"
+
+[tool.basedpyright]
+typeCheckingMode = "standard"
 
 [tool.maturin]
 features = ["pyo3/extension-module"]

@@ -1,7 +1,6 @@
 import numpy as np
-
-from lle import World, Action, ObservationType, LLE
-from lle.observations import PartialGenerator, Layered, AgentZeroPerspective
+from lle import LLE, Action, ObservationType, World
+from lle.observations import AgentZeroPerspective, Layered, PartialGenerator
 
 
 def test_observation_gem_collected():
@@ -12,6 +11,7 @@ S0 X . .
 G  . . ."""
     )
     observer = ObservationType.STATE.get_observation_generator(world)
+    assert observer.shape == (4,)
     world.reset()
     world.step([Action.SOUTH])
     obs0 = observer.observe()
@@ -260,7 +260,7 @@ def test_partial_3x3():
 def test_partial_7x7():
     world = World(
         """
-S0 S1 S2 S3 X X X X                  
+S0 S1 S2 S3 X X X X
 """
     )
     world.reset()
@@ -365,7 +365,7 @@ def _perform_tests_extras_one_agent(env: LLE):
 def test_subgoal_extras_one_laser():
     env = (
         LLE.from_str("""
-                       S0  X 
+                       S0  X
                        .  L0W""")
         .add_extras("laser_subgoal")
         .build()
@@ -378,7 +378,7 @@ def test_subgoal_extras_one_laser():
 def test_pbrs_subgoals_extras_one_laser():
     env = (
         LLE.from_str("""
-                       S0  X 
+                       S0  X
                        .  L0W""")
         .pbrs(with_extras=True)
         .build()
@@ -457,3 +457,15 @@ def test_layered_observation_laser_source_agent_id_above_n_agents():
     laser_1_layer = data[0, generator.LASER_0 + 1]
     assert laser_1_layer[0, 1] == -1
     assert laser_1_layer[0, 2] == 1
+
+
+def test_all_shapes():
+    for level in range(1, 7):
+        world = World.level(level)
+        for variant in ObservationType:
+            observer = variant.get_observation_generator(world)
+            obs = observer.observe()
+            for agent_num in range(world.n_agents):
+                assert obs[agent_num].shape == observer.shape, (
+                    f"{variant.name} shape is not consistent: announced {observer.shape} but returned {obs[agent_num].shape}"
+                )

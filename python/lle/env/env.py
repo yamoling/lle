@@ -2,11 +2,11 @@ import random
 from dataclasses import dataclass
 from enum import IntEnum
 from functools import cached_property
-from typing import Literal, Optional, Sequence
+from typing import Literal, Optional
 
 import numpy as np
 import numpy.typing as npt
-from marlenv.models import DiscreteSpace, MARLEnv, MultiDiscreteSpace, Observation, State, Step
+from marlenv.models import DiscreteMARLEnv, DiscreteSpace, Observation, State, Step
 
 from ..observations import ObservationType, StateGenerator
 from ..world import Action, World, WorldState
@@ -31,17 +31,18 @@ class DeathStrategy(IntEnum):
 
 
 @dataclass
-class LLE(MARLEnv[MultiDiscreteSpace]):
+class LLE(DiscreteMARLEnv):
     """
     Laser Learning Environment (LLE).
 
     The preferred way to to instanciate an environment is via `level`, `from_file` or `from_str` methods that return a `Builder`:
     ```python
+    import lle
     env = (
-        LLE.level(5)         # alternatively: LLE.from_file(...) or LLE.from_str(...)
+        lle.level(5)         # alternatively: LLE.from_file(...) or LLE.from_str(...)
         .obs_type("layered") # Set the observation type
         .randomize_lasers()  # Randomize the laser colours on reset
-        .build()             # Retrieve the LLE instance
+        .build()             # Build and retrieve the environment
     )
     ```
     """
@@ -57,13 +58,13 @@ class LLE(MARLEnv[MultiDiscreteSpace]):
     def __init__(
         self,
         world: World,
-        reward_strategy: Optional[RewardStrategy] = None,
+        reward_strategy: RewardStrategy | None = None,
         obs_type: ObservationType = ObservationType.LAYERED,
         state_type: ObservationType = ObservationType.STATE,
-        name: Optional[str] = None,
+        name: str | None = None,
         death_strategy: Literal["respawn", "end"] = "end",
         walkable_lasers: bool = True,
-        extras_generator: Optional[ExtraGenerator] = None,
+        extras_generator: ExtraGenerator | None = None,
         randomize_lasers: bool = False,
     ):
         self._world = world
@@ -86,8 +87,7 @@ class LLE(MARLEnv[MultiDiscreteSpace]):
             extras_shape=(self.extras_generator.size,),
             extras_meanings=self.extras_generator.meanings,
         )
-        if name is not None:
-            self.name = name
+        self._name = name
 
         match death_strategy:
             case "end":
@@ -101,6 +101,12 @@ class LLE(MARLEnv[MultiDiscreteSpace]):
         self.randomize_lasers = randomize_lasers
         self.n_agents = world.n_agents
         self.done = False
+
+    @property
+    def name(self):
+        if self._name is not None:
+            return self._name
+        return super().name
 
     @cached_property
     def width(self) -> int:
@@ -141,9 +147,10 @@ class LLE(MARLEnv[MultiDiscreteSpace]):
                 available_actions[agent, action.value] = True
         return available_actions
 
-    def step(self, action: np.ndarray | Sequence[int]):
+    def step(self, action):
         if self.done:
             raise ValueError("Cannot step in a done environment")
+        action = np.array(action)
         agents_actions = [Action(a) for a in action]
         events = self.world.step(agents_actions)
         # Beware to compute the reward before checking if the episode is done !
@@ -158,7 +165,9 @@ class LLE(MARLEnv[MultiDiscreteSpace]):
             info={"gems_collected": self.world.gems_collected, "exit_rate": self.n_arrived / self.n_agents},
         )
 
-    def reset(self):
+    def reset(self, *, seed: Optional[int] = None):
+        if seed is not None:
+            self.seed(seed)
         self.world.reset()
         self.reward_strategy.reset()
         self.extras_generator.reset()
@@ -203,8 +212,8 @@ class LLE(MARLEnv[MultiDiscreteSpace]):
         return Builder(World.from_file(path)).name(f"LLE-{os.path.basename(path)}")
 
     @staticmethod
-    def level(level: int):
-        """Load a level from the levels folder"""
+    def level(level: Literal[1, 2, 3, 4, 5, 6]):
+        """Load a predefined level between 1 and 6."""
         from .builder import Builder
 
         return Builder(World.level(level)).name(f"LLE-lvl{level}")

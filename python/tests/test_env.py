@@ -1,8 +1,9 @@
-import tempfile
 import os
-from lle import LLE, Action, WorldState
-from lle.env.reward_strategy import REWARD_DEATH, REWARD_GEM, REWARD_EXIT, REWARD_DONE, MultiObjective
+import tempfile
+
 import numpy as np
+from lle import LLE, Action, WorldState
+from lle.env.reward_strategy import REWARD_DEATH, REWARD_DONE, REWARD_EXIT, REWARD_GEM, MultiObjective
 
 
 def test_void_reward():
@@ -150,7 +151,7 @@ exits = [{ j_min = 9 }]
 start_positions = [{ }] # random spawn
 
 [[agents]]
-start_positions = [{ }]        
+start_positions = [{ }]
 
 [[agents]]
 start_positions = [{ }]
@@ -270,7 +271,7 @@ def test_seed():
 
 
 def test_env_name():
-    for level in range(1, 7):
+    for level in (1, 2, 3, 4, 5, 6):
         env = LLE.level(level).build()
         assert env.name == f"LLE-lvl{level}"
 
@@ -360,3 +361,26 @@ def test_randomized_lasers():
         if all(all(ce) for ce in colour_encountered):
             return
     assert False, "The two colours were never encountered for some lasers"
+
+
+def test_env_pool():
+    from lle import make_pool
+
+    N_AGENTS = 4
+    env = make_pool(
+        5,
+        width=5,
+        height=5,
+        n_lasers=1,
+        n_agents=N_AGENTS,
+        obs_type="layered",
+        state_type="flattened",
+        cooperation=("at-least", "cooperative"),
+    )
+    assert env.n_agents == N_AGENTS
+    o, s = env.reset()
+    assert o.shape == env.observation_shape
+    assert all(len(d.shape) == 3 for d in o.data)
+    assert o.extras_shape == env.extras_shape
+    assert s.shape == env.state_shape
+    assert s.extras_shape == env.state_extra_shape
