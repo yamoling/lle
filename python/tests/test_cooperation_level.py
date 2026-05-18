@@ -2,20 +2,22 @@
 
 from __future__ import annotations
 
-import pytest
+from typing import get_args
 
 import lle
+import pytest
 from lle import CooperationLevel, World
-
+from lle.solver import CooperationLevelStr
 
 # ---------------------------------------------------------------------------
 # Enum invariants
 # ---------------------------------------------------------------------------
 
+
 def test_cooperation_level_is_str_compatible():
     assert CooperationLevel.COOPERATIVE == "cooperative"
-    assert CooperationLevel.FULLY_COUPLED == "fully_coupled"
-    assert "asymmetric" == CooperationLevel.ASYMMETRIC
+    assert CooperationLevel.FULLY_COUPLED == "fully-coupled"
+    assert CooperationLevel.ASYMMETRIC == "asymmetric"
 
 
 def test_cooperation_level_round_trips_through_string():
@@ -25,17 +27,120 @@ def test_cooperation_level_round_trips_through_string():
 
 def test_cooperative_subtypes_excludes_unsolvable_and_independent():
     subtypes = CooperationLevel.cooperative_subtypes()
-    assert CooperationLevel.UNSOLVABLE not in subtypes
     assert CooperationLevel.INDEPENDENT not in subtypes
-    assert set(subtypes) == set(CooperationLevel) - {
-        CooperationLevel.UNSOLVABLE,
-        CooperationLevel.INDEPENDENT,
-    }
+
+
+def test_is_at_least_reflexive():
+    for level in CooperationLevel:
+        assert level.is_at_least(level)
+
+
+def test_is_at_least_matches_definition_order_for_all_pairs():
+    levels = list(CooperationLevel)
+    for i, left in enumerate(levels):
+        for j, right in enumerate(levels):
+            assert left.is_at_least(right) == (i >= j)
+            # Also accept the string form of the other level.
+            assert left.is_at_least(right.value) == (i >= j)
+
+
+def test_typing_cooperation_level_str():
+    # Every variant of CooperationLevelStr matches one CooperationLevel
+    for s in get_args(CooperationLevelStr):
+        assert any(s == c for c in CooperationLevel)
+    # Every CooperationLevel is a valid CooperationLevelStr
+    for c in CooperationLevel:
+        assert c in get_args(CooperationLevelStr)
+
+
+def test_is_at_least_cooperative():
+    for other in CooperationLevel:
+        if other.is_cooperative:
+            assert other.is_at_least(CooperationLevel.COOPERATIVE)
+
+
+@pytest.mark.parametrize(
+    "tested, expected_false, expected_true",
+    [
+        (
+            CooperationLevel.INDEPENDENT,
+            [
+                CooperationLevel.COOPERATIVE,
+                CooperationLevel.ASYMMETRIC,
+                CooperationLevel.CHAIN,
+                CooperationLevel.DISTRIBUTED,
+                CooperationLevel.MUTUAL,
+                CooperationLevel.FULLY_COUPLED,
+            ],
+            [],
+        ),
+        (
+            CooperationLevel.COOPERATIVE,
+            [
+                CooperationLevel.ASYMMETRIC,
+                CooperationLevel.CHAIN,
+                CooperationLevel.DISTRIBUTED,
+                CooperationLevel.MUTUAL,
+                CooperationLevel.FULLY_COUPLED,
+            ],
+            [CooperationLevel.INDEPENDENT],
+        ),
+        (
+            CooperationLevel.ASYMMETRIC,
+            [CooperationLevel.CHAIN, CooperationLevel.DISTRIBUTED, CooperationLevel.MUTUAL, CooperationLevel.FULLY_COUPLED],
+            [CooperationLevel.INDEPENDENT, CooperationLevel.COOPERATIVE],
+        ),
+        (
+            CooperationLevel.CHAIN,
+            [CooperationLevel.DISTRIBUTED, CooperationLevel.MUTUAL, CooperationLevel.FULLY_COUPLED],
+            [CooperationLevel.INDEPENDENT, CooperationLevel.COOPERATIVE, CooperationLevel.ASYMMETRIC],
+        ),
+        (
+            CooperationLevel.DISTRIBUTED,
+            [CooperationLevel.MUTUAL, CooperationLevel.FULLY_COUPLED],
+            [CooperationLevel.INDEPENDENT, CooperationLevel.COOPERATIVE, CooperationLevel.ASYMMETRIC, CooperationLevel.CHAIN],
+        ),
+        (
+            CooperationLevel.MUTUAL,
+            [CooperationLevel.FULLY_COUPLED],
+            [
+                CooperationLevel.INDEPENDENT,
+                CooperationLevel.COOPERATIVE,
+                CooperationLevel.ASYMMETRIC,
+                CooperationLevel.CHAIN,
+                CooperationLevel.DISTRIBUTED,
+            ],
+        ),
+        (
+            CooperationLevel.FULLY_COUPLED,
+            [],
+            [
+                CooperationLevel.INDEPENDENT,
+                CooperationLevel.COOPERATIVE,
+                CooperationLevel.ASYMMETRIC,
+                CooperationLevel.CHAIN,
+                CooperationLevel.DISTRIBUTED,
+                CooperationLevel.MUTUAL,
+            ],
+        ),
+    ],
+)
+def test_is_at_least(tested: CooperationLevel, expected_false: list[CooperationLevel], expected_true: list[CooperationLevel]):
+    for other in expected_false:
+        assert not tested.is_at_least(other), f"{tested} should not be at least {other}"
+    for other in expected_true:
+        assert tested.is_at_least(other), f"{tested} should be at least {other}"
+
+
+def test_is_at_least_rejects_unknown_string():
+    with pytest.raises(ValueError):
+        CooperationLevel.INDEPENDENT.is_at_least("not-a-real-level")  # type: ignore
 
 
 # ---------------------------------------------------------------------------
 # Public function against canonical LLE levels
 # ---------------------------------------------------------------------------
+
 
 def test_cooperation_level_returns_enum_member():
     world = World.level(1)
@@ -58,45 +163,23 @@ def test_cooperation_level_independent_on_lle_levels_1_and_2(level_idx):
 
 def test_cooperation_level_refines_is_cooperative():
     """is_cooperative(w) <=> cooperation_level(w) is in cooperative_subtypes()."""
-    for level_idx in (1, 2, 3, 4, 6):
+    T_MAX = [10] * 4 + [21, 21]
+    for level_idx, t_max in zip((1, 2, 3, 4, 6), T_MAX):
         world = World.level(level_idx)
-        is_coop = lle.is_cooperative(world, t_max=25)
-        precise = lle.cooperation_level(world, t_max=25)
+        is_coop = lle.is_cooperative(world, t_max=t_max)
+        precise = lle.cooperation_level(world, t_max=t_max)
+        assert precise is not None
         assert is_coop == (precise in CooperationLevel.cooperative_subtypes())
+        assert is_coop == precise.is_cooperative
 
 
 def test_cooperation_level_unsolvable_for_walled_off_agent():
-    assert lle.cooperation_level(World("S0 @ X"), t_max=10) is CooperationLevel.UNSOLVABLE
+    assert lle.cooperation_level(World("S0 @ X"), t_max=10) is None
 
 
 # ---------------------------------------------------------------------------
 # Generator profile parameter
 # ---------------------------------------------------------------------------
-
-def test_generator_profile_requires_cooperative():
-    with pytest.raises(ValueError, match="only meaningful when cooperative=True"):
-        lle.generate(
-            kind="random",
-            width=5,
-            height=5,
-            n_agents=2,
-            cooperative=False,
-            profile=CooperationLevel.MUTUAL,
-            seed=0,
-        )
-
-
-def test_generator_rejects_non_cooperative_subtype_profile():
-    with pytest.raises(ValueError, match="profile must be one of"):
-        lle.generate(
-            kind="random",
-            width=5,
-            height=5,
-            n_agents=2,
-            cooperative=True,
-            profile=CooperationLevel.INDEPENDENT,
-            seed=0,
-        )
 
 
 def test_generator_produces_world_matching_requested_profile():
@@ -110,11 +193,9 @@ def test_generator_produces_world_matching_requested_profile():
         height=6,
         n_agents=2,
         n_lasers=1,
-        cooperative=True,
-        profile=CooperationLevel.ASYMMETRIC,
+        cooperation=CooperationLevel.ASYMMETRIC,
         t_max=15,
         seed=0,
-        max_attempts=50,
     )
     assert world is not None
     assert lle.cooperation_level(world, t_max=15) is CooperationLevel.ASYMMETRIC

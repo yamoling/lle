@@ -11,15 +11,17 @@ import multiprocessing as mp
 import random
 import sys
 from abc import ABC, abstractmethod
+from typing import Literal
 
 from tqdm import tqdm
 
-from lle import World
-
 from ..solver.cooperation_level import CooperationLevel
 from ..solver.world_solver import LaserMode, WorldSolver
+from ..world import World
 from ._candidates import CandidateLayout
 from ._world_builder import WorldBuilder
+
+CooperationSpec = tuple[Literal["exactly", "at-least"], CooperationLevel]
 
 
 class _LayoutRetry(Exception):
@@ -34,10 +36,9 @@ class _BaseGenerator(ABC):
         height: int,
         n_agents: int = 2,
         n_lasers: int = 0,
-        cooperative: bool = False,
+        cooperation: CooperationSpec | None = None,
         n_walls: int | None = None,
         t_max: int | None = None,
-        profile: CooperationLevel | None = None,
     ):
         if width < 1:
             raise ValueError(f"Grid width must be >= 1. Got {width}")
@@ -49,27 +50,23 @@ class _BaseGenerator(ABC):
         if n_agents < 1:
             raise ValueError(f"agents must be >= 1. Got {n_agents}")
         self.agents = n_agents
-
-        if cooperative and n_agents < 2:
-            raise ValueError("cooperative=True requires agents >= 2 (no cooperation possible with a single agent).")
-        self.cooperative = cooperative
-
-        if profile is not None:
-            if not cooperative:
-                raise ValueError("profile=... is only meaningful when cooperative=True.")
-            if profile not in CooperationLevel.cooperative_subtypes():
-                allowed = ", ".join(level.value for level in CooperationLevel.cooperative_subtypes())
-                raise ValueError(f"profile must be one of: {allowed}. Got {profile!r}.")
-        self.profile = profile
+        self.coop_constraint = None
+        if cooperation is not None:
+            constraint, level = cooperation
+            if level.is_cooperative:
+                if n_agents < 2:
+                    raise ValueError("Can not generate a cooperative level with less than two agents.")
+                if not (1 <= n_lasers <= n_agents):
+                    raise ValueError(
+                        f"Cooperation constraint {constraint!r} {level!r} requires lasers in [1, agents]; got lasers={n_lasers}, agents={n_agents}."
+                    )
+            self.coop_constraint = constraint, level
 
         if n_lasers < 0:
             raise ValueError(f"lasers must be >= 0. Got {n_lasers}")
-        if cooperative and not (1 <= n_lasers <= n_agents):
-            raise ValueError(f"cooperative=True requires lasers in [1, agents]; got lasers={n_lasers}, agents={n_agents}.")
         if n_lasers > n_agents:
             raise ValueError(f"lasers must be <= agents (one laser source per colour). Got lasers={n_lasers}, agents={n_agents}.")
         self.n_lasers = n_lasers
-
         self.n_walls = (self.area // 10) if n_walls is None else n_walls
         if self.n_walls < 0:
             raise ValueError(f"num_walls must be >= 0. Got {self.n_walls}")
@@ -111,14 +108,18 @@ class _BaseGenerator(ABC):
         return not bool(sat)
 
     def _accept_world(self, world: World) -> bool:
-        if self.profile is not None:
+        if self.coop_constraint is not None:
             from ..solver._profile_analyzer import _classify
 
+            constraint, required_level = self.coop_constraint
             world.reset()
-            return _classify(world, t_max=self.t_max) is self.profile
+            actual_level = _classify(world, t_max=self.t_max)
+            if actual_level is None:
+                return False
+            if constraint == "at-least":
+                return actual_level.is_at_least(required_level)
+            return actual_level is required_level
         if not self._is_satisfiable(world, self.t_max):
-            return False
-        if self.cooperative and not self._strict_laser_unsat(world):
             return False
         return True
 
@@ -172,3 +173,10 @@ class _BaseGenerator(ABC):
                         pool.terminate()
                         return worlds
         return worlds
+
+    @property
+    def cooperative(self):
+        if self.coop_constraint is None:
+            return False
+        _, level = self.coop_constraint
+        return level.is_cooperative

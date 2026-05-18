@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from enum import IntEnum
+from enum import Enum
 from typing import Literal
 
 import numpy as np
@@ -24,30 +24,30 @@ ObservationTypeLiteral = Literal[
 ]
 
 
-class ObservationType(IntEnum):
+class ObservationType(Enum):
     """The different observation types for the World"""
 
-    NORMALIZED_STATE = 0
-    STATE = 1
+    NORMALIZED_STATE = "normalized-state"
+    STATE = "state"
     """The state of the world (agents positions, gems collected, agents_alive) as a numpy array"""
-    RGB_IMAGE = 2
+    RGB_IMAGE = "rgb_image"
     """The RGB image of the world"""
-    LAYERED = 3
+    LAYERED = "layered"
     """
     Layered observations of the map (walls, lasers, ...) as shown below. Only 2 agents are shown for the sake of clarity.
 
     ![Layered representation of the world](../../docs/layers.png)
     """
-    FLATTENED = 4
+    FLATTENED = "flattened"
     """Same as `ObservationType.LAYERED` but flattened to 1D"""
-    PARTIAL_3x3 = 5
-    PARTIAL_5x5 = 6
-    PARTIAL_7x7 = 7
-    LAYERED_PADDED = 8
-    LAYERED_PADDED_1AGENT = 9
-    LAYERED_PADDED_2AGENTS = 10
-    LAYERED_PADDED_3AGENTS = 11
-    AGENT0_PERSPECTIVE_LAYERED = 12
+    PARTIAL_3x3 = "partial3x3"
+    PARTIAL_5x5 = "partial5x5"
+    PARTIAL_7x7 = "partial7x7"
+    LAYERED_PADDED = "layered-padded"
+    LAYERED_PADDED_1AGENT = "layered-padded-1"
+    LAYERED_PADDED_2AGENTS = "layered-padded-2"
+    LAYERED_PADDED_3AGENTS = "layered-padded-3"
+    AGENT0_PERSPECTIVE_LAYERED = "layered-perspective"
 
     @staticmethod
     def from_str(s: ObservationTypeLiteral | str) -> "ObservationType":

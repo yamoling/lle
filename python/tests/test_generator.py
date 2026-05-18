@@ -1,8 +1,11 @@
 """Public generator API tests."""
 
+from multiprocessing import cpu_count
+
 import lle
 import pytest
-from lle import World
+from lle import CooperationLevel, World
+from lle.generator._args import _GenerateArgs
 
 
 def test_generate_random_returns_world():
@@ -18,7 +21,7 @@ def test_generate_random_is_solvable():
 
 
 def test_generate_random_cooperative_requires_cooperation():
-    world = lle.generate("random", width=6, height=6, n_agents=2, n_lasers=2, cooperative=True, seed=0)
+    world = lle.generate("random", width=6, height=6, n_agents=2, n_lasers=2, cooperation=True, seed=0)
     assert lle.is_cooperative(world)
 
 
@@ -28,14 +31,25 @@ def test_generate_constructive_returns_world():
 
 
 def test_generate_constructive_cooperative():
-    world = lle.generate("constructive", width=7, height=7, n_agents=2, n_lasers=2, cooperative=True, seed=0)
+    world = lle.generate("constructive", width=7, height=7, n_agents=2, n_lasers=2, cooperation=True, seed=0)
     assert lle.is_cooperative(world)
 
 
 def test_generate_level6_style_always_cooperative():
-    world = lle.generate(kind="level6_style", width=13, height=13, n_agents=4, n_lasers=3, seed=0, n=1, n_jobs=5)
+    world = lle.generate(
+        kind="level6_style",
+        width=5,
+        height=5,
+        n_agents=4,
+        n_lasers=3,
+        seed=0,
+        n=1,
+        n_jobs=5,
+        cooperation=("at-least", "cooperative"),
+        t_max=15,
+    )
     assert world is not None
-    assert lle.is_cooperative(world)
+    assert lle.is_cooperative(world, t_max=15)
 
 
 def test_generate_level6_style_rejects_cooperative_kwarg():
@@ -56,17 +70,7 @@ def test_generate_rejects_lasers_greater_than_agents():
 
 def test_generate_cooperative_requires_at_least_two_agents():
     with pytest.raises(ValueError):
-        lle.generate(kind="random", width=5, height=5, n_agents=1, cooperative=True, seed=0)
-
-
-def test_try_generate_unlikely():
-    # IMPORTANT: this test can fail !
-    # TODO: find a way to make this deterministic
-    for _ in range(10):
-        world = lle.try_generate("random", max_attempts=1, height=20, width=20, n_agents=4, n_walls=199, t_max=1)
-        if world is None:
-            return
-    pytest.fail("This test is non-deterlinistic and can fail.")
+        lle.generate(kind="random", width=5, height=5, n_agents=1, cooperation=True, seed=0)
 
 
 def test_generate_n():
@@ -79,3 +83,52 @@ def test_generate_n():
         assert w.width == w0.width
         assert w.n_agents == w0.n_agents
         assert w.n_gems == w0.n_gems
+
+
+def test_lvl6_defaults():
+    args = _GenerateArgs("level6_style").resolve()
+    assert args.height == 12
+    assert args.width == 13
+    assert args.n_agents == 4
+    assert args.n_lasers == 3
+    assert args.cooperation == ("exactly", CooperationLevel.MUTUAL)
+    assert args.t_max == 21
+    assert args.n_walls == (12 * 13) // 10
+
+
+def test_random_defaults():
+    args = _GenerateArgs("random").resolve()
+    assert args.height == 5
+    assert args.width == 5
+    assert args.n_agents == 2
+    assert args.n_lasers == 0
+    assert args.cooperation is None
+    assert args.n_jobs == 1
+
+
+def test_n_jobs():
+    args = _GenerateArgs("random").resolve(10)
+    assert args.n_jobs == cpu_count() - 1
+
+    args = _GenerateArgs("random", n_jobs="auto").resolve(10)
+    assert args.n_jobs == cpu_count() - 1
+
+    args = _GenerateArgs("random", n_jobs="auto").resolve(1)
+    assert args.n_jobs == 1
+
+    args = _GenerateArgs("random", n_jobs=5).resolve(10)
+    assert args.n_jobs == 5
+
+
+def test_default_cooperative():
+    args = _GenerateArgs("random", cooperation=True).resolve()
+    assert args.cooperation == ("at-least", CooperationLevel.COOPERATIVE)
+
+    args = _GenerateArgs("constructive", cooperation=True).resolve()
+    assert args.cooperation == ("at-least", CooperationLevel.COOPERATIVE)
+
+    args = _GenerateArgs("random", cooperation=False).resolve()
+    assert args.cooperation == ("exactly", CooperationLevel.INDEPENDENT)
+
+    args = _GenerateArgs("constructive", cooperation=False).resolve()
+    assert args.cooperation == ("exactly", CooperationLevel.INDEPENDENT)

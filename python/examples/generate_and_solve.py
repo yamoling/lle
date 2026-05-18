@@ -19,7 +19,7 @@ if __name__ == "__main__":
         world.step(joint_action)  # replays straight on the World
 
     # Other kinds:
-    lle.generate(kind="random", width=5, height=15, n_agents=2, cooperative=True)
+    lle.generate(kind="random", width=5, height=15, n_agents=2, cooperation=True)
     lle.generate(kind="constructive", width=7, height=7, n_agents=2, n_lasers=2)
 
     # 4. Inspect the *precise* cooperation shape with `cooperation_level`.
@@ -27,8 +27,11 @@ if __name__ == "__main__":
     #    the structural meaning of each (UNSOLVABLE, INDEPENDENT, COOPERATIVE,
     #    ASYMMETRIC, MUTUAL, CHAIN, DISTRIBUTED, FULLY_COUPLED).
     level = lle.cooperation_level(world, t_max=21)
-    print(f"level6_style world is classified as: {level.value}")
-    assert level in CooperationLevel.cooperative_subtypes()
+    if level is not None:
+        print("level6_style world is not solvable")
+    else:
+        print(f"level6_style world is classified as: {level}")
+        assert level in CooperationLevel.cooperative_subtypes()
 
     # 5. Ask the generator for a *specific* cooperation shape via `profile`.
     #    Only valid when `cooperative=True`. The generator keeps sampling until
@@ -39,8 +42,7 @@ if __name__ == "__main__":
         height=6,
         n_agents=2,
         n_lasers=1,
-        cooperative=True,
-        profile=CooperationLevel.ASYMMETRIC,
+        cooperation=("at-least", "asymmetric"),
         t_max=15,
         seed=0,
     )

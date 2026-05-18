@@ -9,12 +9,17 @@ from __future__ import annotations
 
 from typing import Literal, overload
 
-from lle import World
-
-from ..solver.cooperation_level import CooperationLevel
+from ..solver.cooperation_level import CooperationLevel, CooperationLevelStr
+from ..world import World
+from ._args import _GenerateArgs
+from ._base import CooperationSpec
 from ._constructive import _ConstructiveGenerator
 from ._level6_style import _Level6StyleGenerator
 from ._random import _RandomGenerator
+
+LooseCooperationSpec = (
+    CooperationSpec | CooperationLevel | CooperationLevelStr | tuple[Literal["exactly", "at-least"], CooperationLevelStr] | bool
+)
 
 
 @overload
@@ -24,11 +29,10 @@ def generate(
     height: int = 5,
     width: int = 5,
     n_agents: int = 2,
-    n_lasers: int | None = None,
-    cooperative: bool = False,
-    profile: CooperationLevel | None = None,
+    n_lasers: int | Literal["auto"] = "auto",
+    cooperation: LooseCooperationSpec | None = None,
     n_walls: int | Literal["auto"] = "auto",
-    t_max: int | None = None,
+    t_max: int | Literal["auto"] = "auto",
     seed: int | None = None,
     n: Literal[1] = 1,
     n_jobs: int | Literal["auto"] = 1,
@@ -43,11 +47,10 @@ def try_generate(
     height: int = 5,
     width: int = 5,
     n_agents: int = 2,
-    n_lasers: int | None = None,
-    cooperative: bool = False,
-    profile: CooperationLevel | None = None,
+    n_lasers: int | Literal["auto"] = "auto",
+    cooperation: LooseCooperationSpec | None = None,
     n_walls: int | Literal["auto"] = "auto",
-    t_max: int | None = None,
+    t_max: int | Literal["auto"] = "auto",
     seed: int | None = None,
 ) -> World | None: ...
 
@@ -59,11 +62,10 @@ def generate(
     height: int = 5,
     width: int = 5,
     n_agents: int = 2,
-    n_lasers: int | None = None,
-    cooperative: bool = False,
-    profile: CooperationLevel | None = None,
+    n_lasers: int | Literal["auto"] = "auto",
+    cooperation: LooseCooperationSpec | None = None,
     n_walls: int | Literal["auto"] = "auto",
-    t_max: int | None = None,
+    t_max: int | Literal["auto"] = "auto",
     seed: int | None = None,
     n: int,
     n_jobs: int | Literal["auto"] = "auto",
@@ -78,7 +80,7 @@ def generate(
     width: int = 13,
     n_agents: int = 4,
     n_lasers: int = 3,
-    profile: CooperationLevel | None = None,
+    cooperation: LooseCooperationSpec | None = ("exactly", "mutual"),
     t_max: int = 21,
     n_walls: int | Literal["auto"] = "auto",
     seed: int | None = None,
@@ -95,7 +97,7 @@ def generate(
     width: int = 13,
     n_agents: int = 4,
     n_lasers: int = 3,
-    profile: CooperationLevel | None = None,
+    cooperation: LooseCooperationSpec | None = ("exactly", "mutual"),
     t_max: int = 21,
     n_walls: int | Literal["auto"] = "auto",
     seed: int | None = None,
@@ -108,12 +110,12 @@ def generate(
 def try_generate(
     kind: Literal["level6_style"],
     *,
-    max_attempts: int,
+    max_attempts: int = 10_000,
     height: int = 12,
     width: int = 13,
     n_agents: int = 4,
     n_lasers: int = 3,
-    profile: CooperationLevel | None = None,
+    cooperation: LooseCooperationSpec | None = ("exactly", "mutual"),
     t_max: int = 21,
     n_walls: int | Literal["auto"] = "auto",
     seed: int | None = None,
@@ -138,14 +140,13 @@ def generate(
     height: int | None = None,
     width: int | None = None,
     n_agents: int | None = None,
-    n_lasers: int | None = None,
-    cooperative: bool | None = None,
-    profile: CooperationLevel | None = None,
-    t_max: int | None = None,
+    n_lasers: int | Literal["auto"] = "auto",
+    cooperation: LooseCooperationSpec | None = None,
+    t_max: int | Literal["auto"] = "auto",
     n_walls: int | Literal["auto"] = "auto",
     seed: int | None = None,
     max_attempts: int | None = None,
-    n_jobs: int | Literal["auto"] | None = None,
+    n_jobs: int | Literal["auto"] = "auto",
     n: int = 1,
 ):
     """
@@ -154,121 +155,88 @@ def generate(
     Raises:
         - `ValueError` if `kind` is unknown or arguments are invalid;
         - `ValueError` if `cooperative` is passed to `kind="level6_style"`;
-        - `ValueError` if `profile` is set but the generator is not cooperative.
 
-
-    Parameters
+    Parameters:
     ----------
     - `kind`: the kind of generator to use. Refer to generator calsses in the `lle.generator` module for more information.
-    - `cooperative`: whether the generated world must enforce coopeartion or not (i.e. an agent must block a laser for an other agent).
-    - `profile`: refine the cooperation requirement to a specific shape (e.g. `CooperationLevel.MUTUAL`, `CooperationLevel.CHAIN`). Only meaningful when the generator is cooperative; raises `ValueError` otherwise. When `None`, any cooperation profile is accepted.
-    - `n_walls`: the number of walls to place. If `auto`, 10% of the area is filled with walls.
-    - `t_max`: the maximal solution path length.
+    - `cooperation`: The required level of cooperation. Can be specified as:
+        - a boolean: `True` for any cooperative level, `False` for no cooperation;
+        - a `CooperationLevel` or a `CooperationLevelStr` (e.g. `CooperationLevel.MUTUAL` or `"mutual"` for exactly mutual);
+        - a tuple `(constraint, level)` where `constraint` is either `"exactly"` or `"at-least"` and `level` is a `CooperationLevel` or a `CooperationLevelStr`.
+    - `n_walls`: the number of walls to place. If `"auto"`, 10% of the grid is filled with walls.
+    - `t_max`: the maximal solution path length. If `"auto"`, defaults to `width * height // 2`.
     - `n`: the number of worlds to generate.
     - `n_jobs`: the number of parallel jobs to run. If `auto`, spawns `n_cpus - 1` jobs.
 
-    Example:
-    -------
+    Examples:
+    --------
     ```python
     import lle
     world = lle.generate("level6_style", n_agents=4, n_lasers=3)
     world = lle.generate("random", n=10, width=5, height=7, n_agents=2, seed=0)
-    coop = lle.generate("random", cooperative=True, profile=lle.CooperationLevel.MUTUAL, seed=0)
+    world = lle.generate("random", cooperation=("at-least", "mutual"), seed=0)
+    world = lle.generate("random", cooperation=CooperationLevel.FULLY_COUPLED, seed=0)
     ```
     """
-    # Handle default argument by generator kind
-    if (width is None and height is not None) or (height is None and width is not None):
-        raise ValueError("Cannot infer the size of the grid: either provide `width` and `heights`, or none of them.")
-    if width is None or height is None:
-        if kind in ("random", "constructive"):
-            height, width = (5, 5)
-        elif kind == "level6_style":
-            height, width = (12, 13)
-        else:
-            raise _no_default_for(kind, "size")
-    # assert width is not None and height is not None
-    if n_agents is None:
-        if kind in ("random", "constructive"):
-            n_agents = 2
-        elif kind == "level6_style":
-            n_agents = 4
-        else:
-            raise _no_default_for(kind, "n_agents")
-    if cooperative is None:
-        if kind in ("random", "constructive"):
-            cooperative = False
-        elif kind == "level6_style":
-            cooperative = True
-        else:
-            raise _no_default_for(kind, "cooperative")
-    if n_lasers is None:
-        if kind == "level6_style":
-            n_lasers = 3
-        else:
-            n_lasers = _resolve_lasers(n_lasers, n_agents, cooperative)
-    if kind == "level6_style":
-        if not cooperative:
-            raise ValueError("Levels in the style of level 6 must be cooperative.")
-        if t_max is None:
-            t_max = 21
-    if n_walls == "auto":
-        n_walls = width * height // 10
+    args = _GenerateArgs(
+        kind=kind,
+        height=height,
+        width=width,
+        n_agents=n_agents,
+        n_lasers=n_lasers,
+        cooperation=cooperation,
+        t_max=t_max,
+        n_walls=n_walls,
+        max_attempts=max_attempts,
+        n_jobs=n_jobs,
+    ).resolve(n)
     if kind == "random":
         generator = _RandomGenerator(
-            height=height,
-            width=width,
-            n_agents=n_agents,
-            n_lasers=n_lasers,
-            cooperative=cooperative,
-            profile=profile,
-            n_walls=n_walls,
-            t_max=t_max,
+            height=args.height,
+            width=args.width,
+            n_agents=args.n_agents,
+            n_lasers=args.n_lasers,
+            cooperation=args.cooperation,
+            n_walls=args.n_walls,
+            t_max=args.t_max,
         )
     elif kind == "constructive":
         generator = _ConstructiveGenerator(
-            height=height,
-            width=width,
-            n_agents=n_agents,
-            n_lasers=n_lasers,
-            cooperative=cooperative,
-            profile=profile,
-            n_walls=n_walls,
-            t_max=t_max,
+            height=args.height,
+            width=args.width,
+            n_agents=args.n_agents,
+            n_lasers=args.n_lasers,
+            cooperation=args.cooperation,
+            n_walls=args.n_walls,
+            t_max=args.t_max,
         )
     elif kind == "level6_style":
         generator = _Level6StyleGenerator(
-            height=height,
-            width=width,
-            n_agents=n_agents,
-            n_lasers=n_lasers,
-            profile=profile,
-            n_walls=n_walls,
-            t_max=t_max,
+            height=args.height,
+            width=args.width,
+            n_agents=args.n_agents,
+            n_lasers=args.n_lasers,
+            n_walls=args.n_walls,
+            t_max=args.t_max,
+            cooperation=args.cooperation,
         )
     else:
         raise ValueError(f"Unknown kind: {kind!r}. Expected 'random', 'constructive', or 'level6_style'.")
-    # According to the @overloads,
-    #   - if n == 1, default value is 1
-    #   - if n > 1, default value if "auto"
-    if n_jobs is None:
-        if n > 1:
-            n_jobs = "auto"
-        else:
-            n_jobs = 1
-    if n_jobs == "auto":
-        from multiprocessing import cpu_count
-
-        n_jobs = cpu_count() - 1
-    if n_jobs > 1:
-        worlds = generator.generate_n(n, n_jobs, seed)
+    if args.n_jobs > 1:
+        worlds = generator.generate_n(n, args.n_jobs, seed)
         if n == 1:
             return worlds[0]
         return worlds
     return generator.generate(seed=seed, max_attempts=max_attempts)
 
 
-def try_generate(*args, **kwargs) -> World | None:
-    """See `lle.generate`."""
+def try_generate(*args, max_attempts: int = 10_000, **kwargs):
+    """
+    Try to generate one or multiple worlds within `max_attempts` attempts. When generating one environemnt,
+    returns `None` if `max_attempts` attempts have been tried. If generating `n`>1 environments, returns the
+    list of generated environments so far.
+    See `lle.generate`."""
+    kwargs["max_attempts"] = max_attempts
     return generate(*args, **kwargs)
 
 

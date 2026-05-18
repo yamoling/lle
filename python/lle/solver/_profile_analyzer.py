@@ -27,12 +27,12 @@ class _HelperEvent:
     time: int
 
 
-def _classify(world: World, t_max: int) -> CooperationLevel:
-    """Return the precise CooperationLevel for ``world`` within ``t_max`` steps."""
+def _classify(world: World, t_max: int) -> CooperationLevel | None:
+    """Return the precise CooperationLevel for ``world`` within ``t_max`` steps, or None if the level is not solvable."""
     standard = WorldSolver(world, t_max=t_max, laser_mode=LaserMode.STANDARD)
     sat, model = standard.solve()
     if not sat or model is None:
-        return CooperationLevel.UNSOLVABLE
+        return None
 
     strict_sat, _ = WorldSolver(world, t_max=t_max, laser_mode=LaserMode.STRICT).solve()
     cooperation_required = not bool(strict_sat)
@@ -58,6 +58,7 @@ def _classify(world: World, t_max: int) -> CooperationLevel:
 # SAT model -> agent positions per timestep
 # ---------------------------------------------------------------------------
 
+
 def _positions_by_time(solver: WorldSolver, model) -> dict[int, dict[int, tuple[int, int]]]:
     positions: dict[int, dict[int, tuple[int, int]]] = defaultdict(dict)
     for lit in model:
@@ -74,6 +75,7 @@ def _positions_by_time(solver: WorldSolver, model) -> dict[int, dict[int, tuple[
 # ---------------------------------------------------------------------------
 # Helper-event extraction (own-colour beam shielding)
 # ---------------------------------------------------------------------------
+
 
 def _extract_helper_events(
     world: World,
@@ -124,6 +126,7 @@ def _raw_beam_paths(world: World) -> dict[int, list[tuple[tuple[int, int], list[
 # ---------------------------------------------------------------------------
 # Pure graph metrics over the dependency-edge set
 # ---------------------------------------------------------------------------
+
 
 def _mutual_pairs(edges: set[tuple[int, int]]) -> set[tuple[int, int]]:
     result: set[tuple[int, int]] = set()
@@ -217,6 +220,7 @@ def _longest_chain_length(edges: set[tuple[int, int]], num_agents: int) -> int:
 # ---------------------------------------------------------------------------
 # Classification rule (cooperative branch)
 # ---------------------------------------------------------------------------
+
 
 def _classify_profile(
     *,

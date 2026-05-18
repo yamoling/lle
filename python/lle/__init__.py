@@ -208,12 +208,12 @@ from .lle import __version__, agent, exceptions, tiles, world  # noqa # prevent 
 
 
 from .agent import Agent
-from .env import LLE
+from .env import LLE, make_pool
 from .observations import ObservationType
 from .types import AgentId, LaserId, Position
 from .world import Action, EventType, World, WorldEvent, WorldState
 from .solver import CooperationLevel, cooperation_level, is_cooperative, solve
-from .generator import generate, try_generate
+from .generator import generate
 
 __version__: str
 from_file = LLE.from_file
@@ -246,5 +246,5 @@ __all__ = [
     "cooperation_level",
     "CooperationLevel",
     "generate",
-    "try_generate",
+    "make_pool",
 ]

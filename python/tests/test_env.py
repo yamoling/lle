@@ -367,7 +367,16 @@ def test_env_pool():
     from lle import make_pool
 
     N_AGENTS = 4
-    env = make_pool(5, width=5, height=5, n_lasers=1, n_agents=N_AGENTS, obs_type="layered", state_type="flattened")
+    env = make_pool(
+        5,
+        width=5,
+        height=5,
+        n_lasers=1,
+        n_agents=N_AGENTS,
+        obs_type="layered",
+        state_type="flattened",
+        cooperation=("at-least", "cooperative"),
+    )
     assert env.n_agents == N_AGENTS
     o, s = env.reset()
     assert o.shape == env.observation_shape

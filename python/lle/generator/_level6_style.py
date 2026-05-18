@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from lle.tiles import Direction
 
-from ..solver.cooperation_level import CooperationLevel
+from ._base import CooperationSpec
 from ._candidates import CandidateLayout
 from ._constructive import _ConstructiveGenerator
 
@@ -40,7 +40,7 @@ class _Level6StyleGenerator(_ConstructiveGenerator):
         n_lasers: int = 3,
         n_walls: int | None = None,
         t_max: int | None = None,
-        profile: CooperationLevel | None = None,
+        cooperation: CooperationSpec | None = None,
     ):
         if n_lasers < 1:
             raise ValueError(f"kind='level6_style' requires lasers >= 1; got {n_lasers}.")
@@ -49,10 +49,9 @@ class _Level6StyleGenerator(_ConstructiveGenerator):
             height=height,
             n_agents=n_agents,
             n_lasers=n_lasers,
-            cooperative=True,
             n_walls=n_walls,
             t_max=t_max,
-            profile=profile,
+            cooperation=cooperation,
         )
 
     def _flush_offset(self, max_offset: int) -> int:
@@ -87,7 +86,7 @@ class _Level6StyleGenerator(_ConstructiveGenerator):
             if self.cols < cluster_w * 2 + max(self.n_lasers, 2) or self.rows < cluster_h + 2:
                 return None
 
-        orientation = self._rng.choice(["vertical", "horizontal"])
+        orientation = self._rng.choice(("vertical", "horizontal"))
 
         if orientation == "vertical":
             third = max(cluster_h, self.rows // 3)
@@ -178,11 +177,7 @@ class _Level6StyleGenerator(_ConstructiveGenerator):
             lasers=lasers,
         )
 
-    def _place_wall_shapes(
-        self,
-        free_cells: list[tuple[int, int]],
-        budget: int,
-    ) -> list[tuple[int, int]]:
+    def _place_wall_shapes(self, free_cells: list[tuple[int, int]], budget: int) -> list[tuple[int, int]]:
         """Place walls as connected mini-shapes (bars / L / 2x2), within budget."""
         free_set = set(free_cells)
         anchors = list(free_cells)

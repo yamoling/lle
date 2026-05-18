@@ -2,8 +2,9 @@ from typing import Literal
 
 from marlenv.wrappers import EnvPool
 
-from lle.generator import generate
+from lle.generator import LooseCooperationSpec, generate
 from lle.observations import ObservationType, ObservationTypeLiteral
+from lle.solver.cooperation_level import CooperationLevel
 
 from .env import LLE
 from .reward_strategy import SingleObjective
@@ -14,6 +15,7 @@ def make_pool(
     *,
     obs_type: ObservationTypeLiteral = "layered",
     state_type: ObservationTypeLiteral = "state",
+    cooperation: LooseCooperationSpec | None = ("at-least", CooperationLevel.COOPERATIVE),
     height: int = 12,
     width: int = 13,
     n_agents: int = 4,
@@ -32,6 +34,7 @@ def make_pool(
         width=width,
         n_agents=n_agents,
         n_lasers=n_lasers,
+        cooperation=cooperation,
         t_max=t_max,
         n_walls=n_walls,
         seed=seed,

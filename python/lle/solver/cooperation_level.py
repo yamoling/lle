@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Literal
 
-CooperationLevelStr = Literal["unsolvable", "independent", "cooperative", "asymmetric", "mutual", "chain", "distributed", "fully-coupled"]
+CooperationLevelStr = Literal["independent", "cooperative", "asymmetric", "mutual", "chain", "distributed", "fully-coupled"]
 
 
 class CooperationLevel(str, Enum):
@@ -43,13 +43,13 @@ class CooperationLevel(str, Enum):
       no other subtype applies).
     """
 
-    UNSOLVABLE = "unsolvable"
+    # UNSOLVABLE = "unsolvable"
     INDEPENDENT = "independent"
     COOPERATIVE = "cooperative"
     ASYMMETRIC = "asymmetric"
-    MUTUAL = "mutual"
     CHAIN = "chain"
     DISTRIBUTED = "distributed"
+    MUTUAL = "mutual"
     FULLY_COUPLED = "fully-coupled"
 
     @classmethod
@@ -66,11 +66,11 @@ class CooperationLevel(str, Enum):
 
     def is_at_least(self, other: CooperationLevel | CooperationLevelStr):
         """Whether `self` is at least as cooperative as `other`."""
-        if isinstance(other, str):
-            other = CooperationLevel(other)
         # First just check for equality
         if self == other:
             return True
+        if not isinstance(other, CooperationLevel):
+            other = CooperationLevel(other)
         # Then, if the self is at a higher index than other, it is at least as cooperative than other.
         levels = list(e for e in CooperationLevel)
         self_idx = levels.index(self)
