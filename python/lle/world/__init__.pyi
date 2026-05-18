@@ -38,7 +38,7 @@ class World:
         The positions of the exits tiles.
         """
     @exit_pos.setter
-    def exit_pos(self, value: builtins.list[tuple[builtins.int, builtins.int]]) -> None: ...
+    def exit_pos(self, value: typing.Sequence[tuple[builtins.int, builtins.int]]) -> None: ...
     @property
     def random_start_pos(self) -> builtins.list[builtins.list[tuple[builtins.int, builtins.int]]]:
         r"""
@@ -126,7 +126,6 @@ class World:
         r"""
         The number of different laser colours in the world.
         """
-    def __new__(cls, map_str: builtins.str) -> World: ...
     def __init__(self, map_str: builtins.str) -> None:
         r"""
         Constructs a World from a string.
@@ -342,7 +341,7 @@ class WorldState:
         The position of each agent.
         """
     @agents_positions.setter
-    def agents_positions(self, value: builtins.list[tuple[builtins.int, builtins.int]]) -> None:
+    def agents_positions(self, value: typing.Sequence[tuple[builtins.int, builtins.int]]) -> None:
         r"""
         The position of each agent.
         """
@@ -352,7 +351,7 @@ class WorldState:
         The collection status of each gem.
         """
     @gems_collected.setter
-    def gems_collected(self, value: builtins.list[builtins.bool]) -> None:
+    def gems_collected(self, value: typing.Sequence[builtins.bool]) -> None:
         r"""
         The collection status of each gem.
         """
@@ -362,7 +361,7 @@ class WorldState:
         The status of each agent.
         """
     @agents_alive.setter
-    def agents_alive(self, value: builtins.list[builtins.bool]) -> None:
+    def agents_alive(self, value: typing.Sequence[builtins.bool]) -> None:
         r"""
         The status of each agent.
         """

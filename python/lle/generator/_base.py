@@ -85,7 +85,7 @@ class _BaseGenerator(ABC):
     @abstractmethod
     def _make_candidate_layout(self) -> CandidateLayout: ...
 
-    def _build_world(self, layout: CandidateLayout) -> World:
+    def _build_world(self, layout: CandidateLayout):
         b = WorldBuilder(self.cols, self.rows)
         for agent_id, pos in enumerate(layout.agents):
             b.add_agent(agent_id, pos)
@@ -109,11 +109,11 @@ class _BaseGenerator(ABC):
 
     def _accept_world(self, world: World) -> bool:
         if self.coop_constraint is not None:
-            from ..solver._profile_analyzer import _classify
+            from ..solver._profile_analyzer import classify
 
             constraint, required_level = self.coop_constraint
             world.reset()
-            actual_level = _classify(world, t_max=self.t_max)
+            actual_level = classify(world, t_max=self.t_max)
             if actual_level is None:
                 return False
             if constraint == "at-least":
@@ -142,13 +142,13 @@ class _BaseGenerator(ABC):
         except Exception:
             return
 
-    def generate(self, max_attempts: int | None, seed: int | None = None) -> World | None:
+    def generate(self, max_attempts: int | None, seed: int | None = None):
+        if seed is not None:
+            self._rng.seed(seed)
         if max_attempts is None:
             max_attempts = sys.maxsize
         if max_attempts < 1:
             raise ValueError(f"max_attempts must be >= 1. Got {max_attempts}")
-        if seed is not None:
-            self._rng.seed(seed)
         for _ in range(max_attempts):
             maybe_world = self._try_generate(None)
             if maybe_world is not None:
@@ -156,7 +156,6 @@ class _BaseGenerator(ABC):
         return None
 
     def generate_n(self, n: int, n_jobs: int, seed: int | None = None) -> list[World]:
-        """"""
         if seed is not None:
             self._rng.seed(seed)
         if n_jobs < 1:

@@ -6,7 +6,7 @@ pysat is required at call time; absence raises ImportError pointing at the
 
 from __future__ import annotations
 
-from ..world import Action, World
+from ..world import World
 from .cooperation_level import CooperationLevel, CooperationLevelStr
 
 _PYSAT_HINT = (
@@ -25,7 +25,7 @@ def _default_t_max(world: World) -> int:
     return (world.width * world.height) // 2
 
 
-def solve(world: World, t_max: int | None = None) -> list[tuple[Action, ...]] | None:
+def solve(world: World, t_max: int | None = None):
     """Find a joint plan reaching all exits within `t_max` steps.
 
     Returns a list of length `t_max`, each entry a tuple of `Action`
@@ -43,7 +43,7 @@ def solve(world: World, t_max: int | None = None) -> list[tuple[Action, ...]] | 
     return solver.extract_plan(model)
 
 
-def is_cooperative(world: World, t_max: int | None = None) -> bool:
+def is_cooperative(world: World, t_max: int | None = None):
     """True iff the world is solvable under standard semantics AND UNSAT
     under strict-laser semantics."""
     _require_pysat()
@@ -65,10 +65,10 @@ def cooperation_level(world: World, t_max: int | None = None):
     in CooperationLevel.cooperative_subtypes())``.
     """
     _require_pysat()
-    from ._profile_analyzer import _classify
+    from ._profile_analyzer import classify
 
     t = _default_t_max(world) if t_max is None else t_max
-    return _classify(world, t_max=t)
+    return classify(world, t_max=t)
 
 
 __all__ = [

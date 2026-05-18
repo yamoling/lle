@@ -8,8 +8,7 @@ to get a real lle.World. The LLE string format is an internal detail.
 from __future__ import annotations
 
 from lle.tiles import Direction
-
-from ..world import World
+from lle.world import World
 
 Position = tuple[int, int]
 
@@ -82,7 +81,7 @@ class WorldBuilder:
         self._grid[pos[0]][pos[1]] = f"L{agent_id}{_dir_letter(direction)}"
         return self
 
-    def build(self) -> World:
+    def build(self):
         """Serialize the grid and construct a real lle.World."""
         world_str = "\n".join(" ".join(row) for row in self._grid)
         world = World(world_str)
