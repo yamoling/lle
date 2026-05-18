@@ -361,3 +361,17 @@ def test_randomized_lasers():
         if all(all(ce) for ce in colour_encountered):
             return
     assert False, "The two colours were never encountered for some lasers"
+
+
+def test_env_pool():
+    from lle import make_pool
+
+    N_AGENTS = 4
+    env = make_pool(5, width=5, height=5, n_lasers=1, n_agents=N_AGENTS, obs_type="layered", state_type="flattened")
+    assert env.n_agents == N_AGENTS
+    o, s = env.reset()
+    assert o.shape == env.observation_shape
+    assert all(len(d.shape) == 3 for d in o.data)
+    assert o.extras_shape == env.extras_shape
+    assert s.shape == env.state_shape
+    assert s.extras_shape == env.state_extra_shape

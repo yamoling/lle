@@ -21,16 +21,11 @@ REWARD_DEATH = -1.0
 
 @dataclass
 class RewardStrategy(ABC):
-    objectives: list[str]
     n_agents: int
-    reward_space: ContinuousSpace
-    n_arrived: int
-    n_deads: int
+    objectives: list[str]
 
-    def __init__(self, n_agents: int, objectives: list[str]):
-        self.objectives = objectives
-        self.reward_space = ContinuousSpace.from_shape(len(objectives))
-        self.n_agents = n_agents
+    def __post_init__(self):
+        self.reward_space = ContinuousSpace.from_shape(len(self.objectives))
         self.n_arrived = 0
         self.n_deads = 0
 

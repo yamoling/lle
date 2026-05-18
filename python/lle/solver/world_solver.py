@@ -6,8 +6,7 @@ from enum import Enum
 
 from pysat.solvers import Minisat22
 
-from lle import Action, World
-
+from ..world import Action, World
 from ._constraints import (
     METHOD_LOCAL,
     ConstraintContext,

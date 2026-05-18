@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from lle import World
+from lle.world import World
 
 from .._internal import agents_from_world, all_positions, get_neighbors, is_within_bounds, laser_sources_from_world
 

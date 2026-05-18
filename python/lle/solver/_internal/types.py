@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from lle import World
+from lle.world import World
 
 Position = tuple[int, int]
 

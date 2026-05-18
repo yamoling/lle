@@ -65,12 +65,13 @@ S1 . . . .
 
 
 def test_standard_levels_solvable():
-    for level in (1, 2, 3, 4, 5, 6):
+    T_MAX = [10, 10, 10, 10, 21, 21]
+    for level, t_max in zip((1, 2, 3, 4, 5, 6), T_MAX):
         world = World.level(level)
-        path = lle.solve(world, 25)
+        path = lle.solve(world, t_max)
         assert path is not None
         if level >= 3:
-            assert lle.is_cooperative(world)
+            assert lle.is_cooperative(world, t_max)
 
 
 def test_simple_solvable_cooprative():

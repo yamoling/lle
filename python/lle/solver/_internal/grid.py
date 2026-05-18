@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from lle import World
+from lle.world import World
 
 from .types import Position
 

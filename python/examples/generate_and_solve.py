@@ -16,7 +16,7 @@ if __name__ == "__main__":
         exit()
     world.reset()
     for joint_action in plan:  # list[tuple[Action, ...]]
-        world.step(list(joint_action))  # replays straight on the World
+        world.step(joint_action)  # replays straight on the World
 
     # Other kinds:
     lle.generate(kind="random", width=5, height=15, n_agents=2, cooperative=True)
