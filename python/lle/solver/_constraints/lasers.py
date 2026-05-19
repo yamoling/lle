@@ -3,11 +3,11 @@ from .base import Constraint
 
 class LaserConstraints(Constraint):
     def generate(self):
-        all_clauses = []
-        all_clauses.extend(self._profile_method("no_step_on_active_laser", self._no_step_on_active_laser))
-        all_clauses.extend(self._profile_method("beam_propagation", self._beam_propagation))
-        all_clauses.extend(self._profile_method("link_beam_and_laser", self._link_beam_and_laser))
-        return all_clauses
+        return [
+            *self._no_step_on_active_laser(),
+            *self._beam_propagation(),
+            *self._link_beam_and_laser(),
+        ]
 
     def _no_step_on_active_laser(self):
         agent_var = self.ctx.agent_var
@@ -19,7 +19,7 @@ class LaserConstraints(Constraint):
                 c1, c2 = agent.color, laser.color
                 if c1 == c2:
                     continue
-                for t in range(self.T_MAX + 1):
+                for t in range(self.t_max + 1):
                     for x, y in all_positions:
                         yield [-agent_var[c1, x, y, t], -laser_var[c2, x, y, t]]
 
@@ -34,7 +34,7 @@ class LaserConstraints(Constraint):
             entries = propagation_map[c, d]
 
             for x, y, nx, ny, is_wall in entries:
-                for t in range(self.T_MAX + 1):
+                for t in range(self.t_max + 1):
                     if is_wall:
                         yield [-beam_var[c, d, nx, ny, t]]
                     else:
@@ -54,7 +54,7 @@ class LaserConstraints(Constraint):
             c = laser.color
             d = laser.direction
             for x, y in all_positions:
-                for t in range(self.T_MAX + 1):
+                for t in range(self.t_max + 1):
                     bv = beam_var[c, d, x, y, t]
                     lv = laser_var[c, x, y, t]
                     yield [-bv, lv]
@@ -82,7 +82,7 @@ class StrictLaserConstraints(LaserConstraints):
             entries = propagation_map[c, d]
 
             for x, y, nx, ny, is_wall in entries:
-                for t in range(self.T_MAX + 1):
+                for t in range(self.t_max + 1):
                     if is_wall:
                         yield [-beam_var[c, d, nx, ny, t]]
                     else:

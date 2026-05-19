@@ -14,16 +14,16 @@ class MovementConstraints(Constraint):
         all_clauses = []
 
         if self.movement_method == METHOD_LOCAL:
-            all_clauses.extend(self._profile_method("movement_rules", self._movement_rules_local))
+            all_clauses.extend(self._movement_rules_local())
         elif self.movement_method == METHOD_GLOBAL:
-            all_clauses.extend(self._profile_method("movement_rules", self._movement_rules_global))
-            all_clauses.extend(self._profile_method("unique_position", self._unique_position))
+            all_clauses.extend(self._movement_rules_global())
+            all_clauses.extend(self._unique_position())
         else:
             raise ValueError(f"Unknown movement method: {self.movement_method}")
 
-        all_clauses.extend(self._profile_method("no_overlap", self._no_overlap))
-        all_clauses.extend(self._profile_method("must_be_on_exit", self._must_be_on_exit))
-        all_clauses.extend(self._profile_method("stays_on_exit", self._stays_on_exit))
+        all_clauses.extend(self._no_overlap())
+        all_clauses.extend(self._must_be_on_exit())
+        all_clauses.extend(self._stays_on_exit())
         return all_clauses
 
     def _movement_rules_local(self):
@@ -33,7 +33,7 @@ class MovementConstraints(Constraint):
 
         for agent, _ in self.ctx.agents:
             c = agent.color
-            for t in range(self.T_MAX):
+            for t in range(self.t_max):
                 t1 = t + 1
                 for x, y in valid_positions:
                     n_pos = neighbor_map[x, y]
@@ -58,7 +58,7 @@ class MovementConstraints(Constraint):
 
         for agent, _ in self.ctx.agents:
             c = agent.color
-            for t in range(self.T_MAX):
+            for t in range(self.t_max):
                 t1 = t + 1
                 for x, y in valid_positions:
                     n_pos = neighbor_map[x, y]
@@ -71,7 +71,7 @@ class MovementConstraints(Constraint):
 
         for agent, _ in self.ctx.agents:
             c = agent.color
-            for t in range(1, self.T_MAX + 1):
+            for t in range(1, self.t_max + 1):
                 for i in range(n):
                     x1, y1 = all_positions[i]
                     v1 = -agent_var[c, x1, y1, t]
@@ -89,7 +89,7 @@ class MovementConstraints(Constraint):
             c1 = agents[i][0].color
             for j in range(i + 1, n_agents):
                 c2 = agents[j][0].color
-                for t in range(self.T_MAX + 1):
+                for t in range(self.t_max + 1):
                     t1 = t + 1
                     for x, y in all_positions:
                         v1_t = agent_var[c1, x, y, t]
@@ -100,7 +100,7 @@ class MovementConstraints(Constraint):
 
     def _must_be_on_exit(self):
         agent_var = self.ctx.agent_var
-        T = self.T_MAX
+        T = self.t_max
 
         for x, y in self.ctx.exits:
             yield [agent_var[agent.color, x, y, T] for agent, _ in self.ctx.agents]
@@ -110,7 +110,7 @@ class MovementConstraints(Constraint):
 
         for agent, _ in self.ctx.agents:
             c = agent.color
-            for t in range(self.T_MAX):
+            for t in range(self.t_max):
                 t1 = t + 1
                 for x, y in self.ctx.exits:
                     yield [-agent_var[c, x, y, t], agent_var[c, x, y, t1]]

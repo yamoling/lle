@@ -3,10 +3,7 @@ from .base import Constraint
 
 class InitializationConstraints(Constraint):
     def generate(self):
-        all_clauses = []
-        all_clauses.extend(self._profile_method("agents_initial_position", self._agents_initial_position))
-        all_clauses.extend(self._profile_method("lasers_initial_beam", self._lasers_initial_beam))
-        return all_clauses
+        return [*self._agents_initial_position(), *self._lasers_initial_beam()]
 
     def _agents_initial_position(self):
         agent_var = self.ctx.agent_var
@@ -23,5 +20,5 @@ class InitializationConstraints(Constraint):
         for laser, (x, y) in self.ctx.lasers:
             c = laser.color
             d = laser.direction
-            for t in range(self.T_MAX + 1):
+            for t in range(self.t_max + 1):
                 yield [beam_var[c, d, x, y, t]]

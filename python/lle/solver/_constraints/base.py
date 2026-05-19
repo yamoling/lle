@@ -2,16 +2,24 @@ from abc import ABC, abstractmethod
 
 from lle.world import World
 
-from .._internal import agents_from_world, all_positions, get_neighbors, is_within_bounds, laser_sources_from_world
+from .._internal import (
+    Position,
+    VariableFactory,
+    agents_from_world,
+    all_positions,
+    get_neighbors,
+    is_within_bounds,
+    laser_sources_from_world,
+)
 
 
 class ConstraintContext:
     """Pre-computed data shared across all constraint classes. Built once."""
 
-    def __init__(self, world: World, var_factory, T_MAX):
+    def __init__(self, world: World, var_factory: VariableFactory, t_max: int):
         self.world = world
         self.var = var_factory
-        self.T_MAX = T_MAX
+        self.t_max = t_max
 
         # Pre-compute sets
         self.walls = frozenset(world.wall_pos)
@@ -26,31 +34,31 @@ class ConstraintContext:
         self.valid_positions = [p for p in self.all_positions if p not in self.blocked]
 
         # Pre-compute neighbor map: pos -> [pos] + unblocked neighbors
-        self.neighbor_map = {}
+        self.neighbor_map = dict[Position, list[Position]]()
         for pos in self.valid_positions:
             neighbors = [n for n in get_neighbors(world, pos) if n not in self.blocked]
             self.neighbor_map[pos] = [pos] + neighbors
 
         # Pre-compute variable IDs
-        self.agent_var = {}
+        self.agent_var = dict[tuple[int, int, int, int], int]()
         for agent, _ in self.agents:
             c = agent.color
-            for t in range(T_MAX + 2):
+            for t in range(t_max + 2):
                 for x, y in self.all_positions:
                     self.agent_var[c, x, y, t] = var_factory.agent(c, x, y, t)
 
-        self.laser_var = {}
+        self.laser_var = dict[tuple[int, int, int, int], int]()
         for laser, _ in self.lasers:
             c = laser.color
-            for t in range(T_MAX + 1):
+            for t in range(t_max + 1):
                 for x, y in self.all_positions:
                     self.laser_var[c, x, y, t] = var_factory.laser(c, x, y, t)
 
-        self.beam_var = {}
+        self.beam_var = dict[tuple[int, tuple[int, int], int, int, int], int]()
         for laser, _ in self.lasers:
             c = laser.color
             d = laser.direction
-            for t in range(T_MAX + 1):
+            for t in range(t_max + 1):
                 for x, y in self.all_positions:
                     self.beam_var[c, d, x, y, t] = var_factory.beam(c, d, x, y, t)
 
@@ -79,7 +87,7 @@ class Constraint(ABC):
         self.ctx = ctx
         self.world = ctx.world
         self.var = ctx.var
-        self.T_MAX = ctx.T_MAX
+        self.t_max = ctx.t_max
 
     @abstractmethod
     def generate(self):
