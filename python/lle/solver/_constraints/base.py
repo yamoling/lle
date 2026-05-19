@@ -43,6 +43,8 @@ class ConstraintContext:
         self._exit_distance = self.compute_exit_distance(world.exit_pos, self.valid_positions, t_max, self.neighbours)
         # A index i, the set of positions from which, at time step `i`, an exit can still be reached.
         self._exit_reachable = [{pos for pos, dist in self._exit_distance.items() if dist <= remaining} for remaining in range(t_max + 1)]
+        # Positions where staying for one extra timestep is still compatible with reaching an exit.
+        self._stay_allowed = [{pos for pos, dist in self._exit_distance.items() if dist < (t_max - t)} for t in range(t_max)]
         # Pre-compute variable IDs
         self.agent_var, self.beam_paths, self.beam_var = self.initialize_variables()
 
@@ -163,3 +165,7 @@ class Constraint(ABC):
 
     def reachable_positions(self, t: int, *agents: int):
         return self.ctx.reachable_positions(t, *agents)
+
+    def can_stay(self, t: int, pos: Position):
+        """Check if staying in the same position for one more timestep is still compatible with reaching an exit."""
+        return pos in self.ctx._stay_allowed[t]
