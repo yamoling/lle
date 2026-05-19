@@ -57,7 +57,7 @@ class ConstraintContext:
             self._reachable_positions[c] = reachable
 
         self._exit_distance: dict[Position, int] = {pos: t_max + 1 for pos in self.valid_positions}
-        queue = deque()
+        queue = deque[Position]()
         for exit_pos in self.exits:
             if exit_pos in self._exit_distance:
                 self._exit_distance[exit_pos] = 0
@@ -65,12 +65,12 @@ class ConstraintContext:
         while queue:
             pos = queue.popleft()
             dist = self._exit_distance[pos]
-            for nxt in get_neighbors(world, pos):
-                if nxt in self.blocked or nxt not in self._exit_distance:
+            for neighbour in get_neighbors(world, pos):
+                if neighbour in self.blocked or neighbour not in self._exit_distance:
                     continue
-                if self._exit_distance[nxt] > dist + 1:
-                    self._exit_distance[nxt] = dist + 1
-                    queue.append(nxt)
+                if self._exit_distance[neighbour] > dist + 1:
+                    self._exit_distance[neighbour] = dist + 1
+                    queue.append(neighbour)
 
         self._exit_reachable: list[set[Position]] = [set() for _ in range(t_max + 1)]
         for pos, dist in self._exit_distance.items():
