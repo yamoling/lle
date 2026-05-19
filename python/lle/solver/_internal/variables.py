@@ -2,6 +2,8 @@ from pysat.formula import IDPool
 
 
 class VariableFactory:
+    """Variable factory for SAT encodings used by the solver."""
+
     def __init__(self):
         self.pool = IDPool(start_from=1)
 

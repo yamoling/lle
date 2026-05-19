@@ -1,4 +1,8 @@
-"""Public CooperationLevel enum used by lle.cooperation_level and the cooperative generators."""
+"""Cooperation-level classification used by the solver and generator APIs.
+
+`CooperationLevel` captures how much laser blocking a world requires, from
+independent worlds to fully coupled ones.
+"""
 
 from __future__ import annotations
 

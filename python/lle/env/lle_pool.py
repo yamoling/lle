@@ -24,8 +24,10 @@ def make_pool(
     n_walls: int | Literal["auto"] = "auto",
     seed: int | None = None,
 ):
-    """
-    Create a pool of `size` LLE environments dynamically generated according to the given parameters.
+    """Create an environment pool backed by freshly generated worlds.
+
+    The helper samples `size` worlds with the Level-6-style generator and wraps
+    them in a `marlenv` `EnvPool`.
     """
     worlds = generate(
         "level6_style",

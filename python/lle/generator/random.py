@@ -1,5 +1,3 @@
-"""Random sampling generator (internal)."""
-
 from __future__ import annotations
 
 from lle.tiles import Direction
@@ -9,7 +7,13 @@ from ._candidates import CandidateLayout
 from ._geometry import beam_tiles, points_out_immediately
 
 
-class _RandomGenerator(_BaseGenerator):
+class RandomGenerator(_BaseGenerator):
+    """Random sampling generator used by `lle.generate(kind="random")`.
+
+    It samples positions, checks the laser geometry, and relies on the SAT solver
+    as a final validity check.
+    """
+
     def _sample_unique_positions(self, k: int) -> list[tuple[int, int]]:
         all_pos = [(r, c) for r in range(self.rows) for c in range(self.cols)]
         return self._rng.sample(all_pos, k)

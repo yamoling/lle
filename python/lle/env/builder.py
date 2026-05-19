@@ -10,6 +10,12 @@ from .reward_strategy import MultiObjective, PotentialShapedLLE, SingleObjective
 
 
 class Builder:
+    """Configure and build an `LLE` environment from a `World`.
+
+    Start from `lle.level(...)`, `lle.from_str(...)`, or `lle.from_file(...)`
+    and chain builder methods before calling `build()`.
+    """
+
     def __init__(self, world: World):
         self._world = world
         self._obs_type = ObservationType.LAYERED

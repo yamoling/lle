@@ -1,3 +1,9 @@
+"""High-level multi-agent environment built on top of `World`.
+
+`LLE` packages a world, an observation generator, a state generator, a reward
+strategy, and optional extras into the `marlenv` interface.
+"""
+
 import random
 from dataclasses import dataclass
 from enum import IntEnum
@@ -32,10 +38,14 @@ class DeathStrategy(IntEnum):
 
 @dataclass
 class LLE(DiscreteMARLEnv):
-    """
-    Laser Learning Environment (LLE).
+    """A `marlenv` environment backed by a `World`.
 
-    The preferred way to to instanciate an environment is via `level`, `from_file` or `from_str` methods that return a `Builder`:
+    Build it with `lle.level(...)`, `lle.from_str(...)`, or
+    `lle.from_file(...)`, then adjust the configuration with `Builder`
+    methods before calling `build()`.
+
+    Example
+    -------
     ```python
     import lle
     env = (
@@ -44,6 +54,7 @@ class LLE(DiscreteMARLEnv):
         .randomize_lasers()  # Randomize the laser colours on reset
         .build()             # Build and retrieve the environment
     )
+    observation, state = env.reset()
     ```
     """
 

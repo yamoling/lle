@@ -1,5 +1,3 @@
-"""CandidateLayout: the shape sampled by generators before world-building."""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -9,7 +7,11 @@ from lle.tiles import Direction
 
 @dataclass(frozen=True)
 class CandidateLayout:
-    """Immutable layout snapshot sampled by a generator before world construction."""
+    """ "Candidate layouts sampled by generators before world construction.
+
+    A `CandidateLayout` stores the raw positions chosen by a generator before the
+    layout is turned into a `World`.
+    """
 
     agents: list[tuple[int, int]]
     exits: list[tuple[int, int]]

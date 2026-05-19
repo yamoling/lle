@@ -1,8 +1,17 @@
-"""Public generator API: lle.generate.
+"""Procedural world generation helpers.
 
-Different kinds expose different parameter sets via typing.overload for
-static type checkers; the runtime dispatcher accepts the union of kwargs
-and delegates to the corresponding private generator class.
+Use `generate` to build a solvable `World` on demand. The module exposes
+three generator families:
+
+- `random`: samples arbitrary layouts and validates them with the SAT solver.
+- `constructive`: builds a layout with an explicit constructive solution.
+- `level6_style`: builds a Level-6-inspired cooperative layout. It defaults to an exactly mutual cooperative configuration.
+
+The `cooperation` argument accepts either a boolean, a `CooperationLevel`, a
+string such as `"mutual"`, or a tuple like `("at-least", "cooperative")`.
+See `CooperationLevel` for the ordering used by the solver. Use
+`cooperation=True` when you want any cooperative world rather than a specific
+profile.
 """
 
 from __future__ import annotations
@@ -13,9 +22,9 @@ from ..solver.cooperation_level import CooperationLevel, CooperationLevelStr
 from ..world import World
 from ._args import _GenerateArgs
 from ._base import CooperationSpec
-from ._constructive import _ConstructiveGenerator
-from ._level6_style import _Level6StyleGenerator
-from ._random import _RandomGenerator
+from .constructive import ConstructiveGenerator
+from .level6_style import Level6StyleGenerator
+from .random import RandomGenerator
 
 LooseCooperationSpec = (
     CooperationSpec | CooperationLevel | CooperationLevelStr | tuple[Literal["exactly", "at-least"], CooperationLevelStr] | bool
@@ -149,34 +158,18 @@ def generate(
     n_jobs: int | Literal["auto"] = "auto",
     n: int = 1,
 ):
-    """
-    Build a solvable `World` on demand using a SAT-verified procedural generator.
+    """Build one or more worlds using a SAT-verified procedural generator.
 
-    Raises:
-        - `ValueError` if `kind` is unknown or arguments are invalid;
-        - `ValueError` if `cooperative` is passed to `kind="level6_style"`;
+    Use `kind="random"` for unconstrained sampling, `kind="constructive"` for
+    lane-based layouts, and `kind="level6_style"` for a cooperative layout
+    inspired by the canonical Level 6.
 
-    Parameters:
-    ----------
-    - `kind`: the kind of generator to use. Refer to generator calsses in the `lle.generator` module for more information.
-    - `cooperation`: The required level of cooperation. Can be specified as:
-        - a boolean: `True` for any cooperative level, `False` for no cooperation;
-        - a `CooperationLevel` or a `CooperationLevelStr` (e.g. `CooperationLevel.MUTUAL` or `"mutual"` for exactly mutual);
-        - a tuple `(constraint, level)` where `constraint` is either `"exactly"` or `"at-least"` and `level` is a `CooperationLevel` or a `CooperationLevelStr`.
-    - `n_walls`: the number of walls to place. If `"auto"`, 10% of the grid is filled with walls.
-    - `t_max`: the maximal solution path length. If `"auto"`, defaults to `width * height // 2`.
-    - `n`: the number of worlds to generate.
-    - `n_jobs`: the number of parallel jobs to run. If `auto`, spawns `n_cpus - 1` jobs.
+    `cooperation` lets you require a specific cooperation profile. For
+    `kind="level6_style"`, the generator always produces a cooperative world,
+    so passing `cooperation=None` keeps the default profile.
 
-    Examples:
-    --------
-    ```python
-    import lle
-    world = lle.generate("level6_style", n_agents=4, n_lasers=3)
-    world = lle.generate("random", n=10, width=5, height=7, n_agents=2, seed=0)
-    world = lle.generate("random", cooperation=("at-least", "mutual"), seed=0)
-    world = lle.generate("random", cooperation=CooperationLevel.FULLY_COUPLED, seed=0)
-    ```
+    Raises `ValueError` when the requested configuration is impossible or when
+    you pass an unsupported `kind`.
     """
     args = _GenerateArgs(
         kind=kind,
@@ -191,7 +184,7 @@ def generate(
         n_jobs=n_jobs,
     ).resolve(n)
     if kind == "random":
-        generator = _RandomGenerator(
+        generator = RandomGenerator(
             height=args.height,
             width=args.width,
             n_agents=args.n_agents,
@@ -201,7 +194,7 @@ def generate(
             t_max=args.t_max,
         )
     elif kind == "constructive":
-        generator = _ConstructiveGenerator(
+        generator = ConstructiveGenerator(
             height=args.height,
             width=args.width,
             n_agents=args.n_agents,
@@ -211,7 +204,7 @@ def generate(
             t_max=args.t_max,
         )
     elif kind == "level6_style":
-        generator = _Level6StyleGenerator(
+        generator = Level6StyleGenerator(
             height=args.height,
             width=args.width,
             n_agents=args.n_agents,
@@ -231,13 +224,10 @@ def generate(
 
 
 def try_generate(*args, max_attempts: int = 10_000, **kwargs):
+    """Try to generate a world without raising when sampling fails.
+
+    When `n == 1`, return `None` if the generator exhausts `max_attempts`.
+    When `n > 1`, return the worlds collected so far.
     """
-    Try to generate one or multiple worlds within `max_attempts` attempts. When generating one environemnt,
-    returns `None` if `max_attempts` attempts have been tried. If generating `n`>1 environments, returns the
-    list of generated environments so far.
-    See `lle.generate`."""
     kwargs["max_attempts"] = max_attempts
     return generate(*args, **kwargs)
-
-
-__all__ = ["generate", "try_generate"]
