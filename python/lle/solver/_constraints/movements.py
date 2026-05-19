@@ -1,3 +1,5 @@
+from pysat.card import CardEnc
+
 from .base import Constraint, ConstraintContext
 
 # Movement method constants
@@ -13,18 +15,26 @@ class MovementConstraints(Constraint):
     def generate(self):
         all_clauses = []
 
+        # Exactly one position per agent and timestep.
+        # (Replaces the previous backward/uniqueness clauses with a smaller cardinality encoding)
+        all_clauses.extend(self._exactly_one_position())
         if self.movement_method == METHOD_LOCAL:
             all_clauses.extend(self._movement_rules_local())
         elif self.movement_method == METHOD_GLOBAL:
             all_clauses.extend(self._movement_rules_global())
-            all_clauses.extend(self._unique_position())
         else:
             raise ValueError(f"Unknown movement method: {self.movement_method}")
-
         all_clauses.extend(self._no_overlap())
-        all_clauses.extend(self._must_be_on_exit())
         all_clauses.extend(self._stays_on_exit())
         return all_clauses
+
+    def _exactly_one_position(self):
+        agent_var = self.ctx.agent_var
+        for agent, _ in self.ctx.agents:
+            for t in range(self.t_max + 1):
+                lits = [agent_var[agent.color, x, y, t] for x, y in self.reachable_positions_for_agent(t, agent.color)]
+                for clause in CardEnc.atmost(lits, bound=1, vpool=self.var.pool).clauses:
+                    yield clause
 
     def _movement_rules_local(self):
         agent_var = self.ctx.agent_var
@@ -36,22 +46,11 @@ class MovementConstraints(Constraint):
                 t1 = t + 1
                 # Forward: if at (x,y,t), must be at some neighbor at t+1.
                 for x, y in self.reachable_positions_for_agent(t, c):
-                    n_pos = [(x, y) for x, y in neighbor_map[x, y] if (c, x, y, t1) in agent_var]
+                    n_pos = [(nx, ny) for nx, ny in neighbor_map[x, y] if (c, nx, ny, t1) in agent_var]
+                    if not n_pos:
+                        yield []
+                        continue
                     yield [-agent_var[c, x, y, t], *[agent_var[c, nx, ny, t1] for nx, ny in n_pos]]
-                    # Inline uniqueness: pairwise exclusion on neighbors at t+1,
-                    # i.e. there can only be one neighbor at t+1 if at (x,y,t)
-                    n = len(n_pos)
-                    for i in range(n):
-                        x1, y1 = n_pos[i]
-                        v1 = -agent_var[c, x1, y1, t1]
-                        for j in range(i + 1, n):
-                            x2, y2 = n_pos[j]
-                            yield [v1, -agent_var[c, x2, y2, t1]]
-
-                # Backward: if at (x,y,t+1), must have been at some neighbor at t.
-                for x, y in self.reachable_positions_for_agent(t1, c):
-                    prev = [(x, y) for (x, y) in neighbor_map[x, y] if (c, x, y, t) in agent_var]
-                    yield [-agent_var[c, x, y, t1]] + [agent_var[c, nx, ny, t] for nx, ny in prev]
 
     def _movement_rules_global(self):
         agent_var = self.ctx.agent_var
@@ -71,26 +70,6 @@ class MovementConstraints(Constraint):
                         yield []
                         continue
                     yield [-src] + [agent_var[c, nx, ny, t1] for nx, ny in n_pos]
-
-    def _unique_position(self):
-        agent_var = self.ctx.agent_var
-        all_positions = self.ctx.all_positions
-        n = len(all_positions)
-
-        for agent, _ in self.ctx.agents:
-            c = agent.color
-            for t in range(1, self.t_max + 1):
-                for i in range(n):
-                    x1, y1 = all_positions[i]
-                    v1 = agent_var.get((c, x1, y1, t))
-                    if v1 is None:
-                        continue
-                    for j in range(i + 1, n):
-                        x2, y2 = all_positions[j]
-                        v2 = agent_var.get((c, x2, y2, t))
-                        if v2 is None:
-                            continue
-                        yield [-v1, -v2]
 
     def _no_overlap(self):
         """
@@ -130,14 +109,8 @@ class MovementConstraints(Constraint):
                         if v1_t is not None and v2_t1 is not None:
                             yield [-v1_t, -v2_t1]
 
-    def _no_swapping_conflict(self):
-        """Kept for compatibility; the core no-overlap rule already covers these cases."""
-        return []
-
     def _must_be_on_exit(self):
-        agent_var = self.ctx.agent_var
-        for x, y in self.ctx.exits:
-            yield [agent_var[agent.color, x, y, self.t_max] for agent, _ in self.ctx.agents if (agent.color, x, y, self.t_max) in agent_var]
+        return []
 
     def _stays_on_exit(self):
         agent_var = self.ctx.agent_var

@@ -152,8 +152,8 @@ class Constraint(ABC):
         self.t_max = ctx.t_max
 
     @abstractmethod
-    def generate(self):
-        return []
+    def generate(self) -> list:
+        """Generate the clauses"""
 
     def _profile_method(self, _method_name: str, method_func):
         return list(method_func())
