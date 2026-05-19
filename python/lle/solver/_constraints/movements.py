@@ -45,12 +45,17 @@ class MovementConstraints(Constraint):
             for t in range(self.t_max):
                 t1 = t + 1
                 # Forward: if at (x,y,t), must be at some neighbor at t+1.
-                for x, y in self.reachable_positions_for_agent(t, c):
-                    n_pos = [(nx, ny) for nx, ny in neighbor_map[x, y] if (c, nx, ny, t1) in agent_var]
+                for pos in self.reachable_positions_for_agent(t, c):
+                    # Only consider to STAY if it's still possible to reach an exit from there at t+1
+                    n_pos = [
+                        new_pos
+                        for new_pos in neighbor_map[pos]
+                        if (c, new_pos[0], new_pos[1], t1) in agent_var and (new_pos != pos or self.can_stay(t, pos))
+                    ]
                     if not n_pos:
                         yield []
                         continue
-                    yield [-agent_var[c, x, y, t], *[agent_var[c, nx, ny, t1] for nx, ny in n_pos]]
+                    yield [-agent_var[c, pos[0], pos[1], t], *[agent_var[c, nx, ny, t1] for nx, ny in n_pos]]
 
     def _movement_rules_global(self):
         agent_var = self.ctx.agent_var
@@ -65,7 +70,11 @@ class MovementConstraints(Constraint):
                     src = agent_var.get((c, x, y, t))
                     if src is None:
                         continue
-                    n_pos = [pos for pos in neighbor_map[x, y] if (c, pos[0], pos[1], t1) in agent_var]
+                    n_pos = [
+                        pos
+                        for pos in neighbor_map[x, y]
+                        if (c, pos[0], pos[1], t1) in agent_var and (pos != (x, y) or self.can_stay(t, (x, y)))
+                    ]
                     if not n_pos:
                         yield []
                         continue
