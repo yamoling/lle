@@ -120,13 +120,18 @@ class ConstraintContext:
                 for x, y in self.beam_paths[c, d]:
                     self.beam_var[c, d, x, y, t] = var_factory.beam(c, d, x, y, t)
 
-    def reachable_positions(self, t: int, *agents: int) -> set[Position]:
-        """Return positions that are reachable by `agent_num` exactly at time `t`."""
+    def reachable_positions_for_agent(self, t: int, agent_num: int) -> set[Position]:
         if t < 0 or t > self.t_max:
             return set()
-        reachable = self._reachable_positions[agents[0]][t]
+        return self._reachable_positions[agent_num][t].intersection(self._exit_reachable[self.t_max - t])
+
+    def reachable_positions(self, t: int, *agents: int) -> set[Position]:
+        """Return positions that are reachable by the given agents exactly at time `t`."""
+        if t < 0 or t > self.t_max or not agents:
+            return set()
+        reachable = self.reachable_positions_for_agent(t, agents[0])
         for agent_num in agents[1:]:
-            reachable = reachable.intersection(self._reachable_positions[agent_num][t])
+            reachable = reachable.intersection(self.reachable_positions_for_agent(t, agent_num))
         return reachable
 
 
@@ -143,6 +148,9 @@ class Constraint(ABC):
 
     def _profile_method(self, _method_name: str, method_func):
         return list(method_func())
+
+    def reachable_positions_for_agent(self, t: int, agent_num: int):
+        return self.ctx.reachable_positions_for_agent(t, agent_num)
 
     def reachable_positions(self, t: int, *agents: int):
         return self.ctx.reachable_positions(t, *agents)

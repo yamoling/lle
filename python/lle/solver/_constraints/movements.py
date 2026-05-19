@@ -100,31 +100,33 @@ class MovementConstraints(Constraint):
         """
         agent_var = self.ctx.agent_var
         agents = self.ctx.agents
-        all_positions = self.ctx.all_positions
         n_agents = len(agents)
 
         for i in range(n_agents):
             c1 = agents[i][0].color
             for j in range(i + 1, n_agents):
                 c2 = agents[j][0].color
-                # Same-time collisions are relevant for all modeled timesteps.
+
+                # Same-time collisions only matter on cells reachable by both agents.
                 for t in range(self.t_max + 1):
-                    for x, y in all_positions:
+                    for x, y in self.reachable_positions(t, c1, c2):
                         v1_t = agent_var.get((c1, x, y, t))
                         v2_t = agent_var.get((c2, x, y, t))
                         if v1_t is not None and v2_t is not None:
                             yield [-v1_t, -v2_t]
 
-                # Cross-time collisions only matter for actual transitions.
+                # Cross-time collisions only matter on cells reachable by the two agents
+                # at the relevant timesteps.
                 for t in range(self.t_max):
                     t1 = t + 1
-                    for x, y in all_positions:
-                        v1_t = agent_var.get((c1, x, y, t))
-                        v2_t = agent_var.get((c2, x, y, t))
+                    for x, y in self.reachable_positions_for_agent(t1, c1).intersection(self.reachable_positions_for_agent(t, c2)):
                         v1_t1 = agent_var.get((c1, x, y, t1))
-                        v2_t1 = agent_var.get((c2, x, y, t1))
+                        v2_t = agent_var.get((c2, x, y, t))
                         if v1_t1 is not None and v2_t is not None:
                             yield [-v1_t1, -v2_t]
+                    for x, y in self.reachable_positions_for_agent(t, c1).intersection(self.reachable_positions_for_agent(t1, c2)):
+                        v1_t = agent_var.get((c1, x, y, t))
+                        v2_t1 = agent_var.get((c2, x, y, t1))
                         if v1_t is not None and v2_t1 is not None:
                             yield [-v1_t, -v2_t1]
 
