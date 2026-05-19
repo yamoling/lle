@@ -63,8 +63,14 @@ class MovementConstraints(Constraint):
             for t in range(self.t_max):
                 t1 = t + 1
                 for x, y in valid_positions:
-                    n_pos = neighbor_map[x, y]
-                    yield [-agent_var[c, x, y, t]] + [agent_var[c, nx, ny, t1] for nx, ny in n_pos]
+                    src = agent_var.get((c, x, y, t))
+                    if src is None:
+                        continue
+                    n_pos = [pos for pos in neighbor_map[x, y] if (c, pos[0], pos[1], t1) in agent_var]
+                    if not n_pos:
+                        yield []
+                        continue
+                    yield [-src] + [agent_var[c, nx, ny, t1] for nx, ny in n_pos]
 
     def _unique_position(self):
         agent_var = self.ctx.agent_var
@@ -76,10 +82,15 @@ class MovementConstraints(Constraint):
             for t in range(1, self.t_max + 1):
                 for i in range(n):
                     x1, y1 = all_positions[i]
-                    v1 = -agent_var[c, x1, y1, t]
+                    v1 = agent_var.get((c, x1, y1, t))
+                    if v1 is None:
+                        continue
                     for j in range(i + 1, n):
                         x2, y2 = all_positions[j]
-                        yield [v1, -agent_var[c, x2, y2, t]]
+                        v2 = agent_var.get((c, x2, y2, t))
+                        if v2 is None:
+                            continue
+                        yield [-v1, -v2]
 
     def _no_overlap(self):
         """
@@ -96,13 +107,20 @@ class MovementConstraints(Constraint):
             c1 = agents[i][0].color
             for j in range(i + 1, n_agents):
                 c2 = agents[j][0].color
+                # Same-time collisions are relevant for all modeled timesteps.
                 for t in range(self.t_max + 1):
-                    t1 = t + 1
                     for x, y in all_positions:
                         v1_t = agent_var.get((c1, x, y, t))
                         v2_t = agent_var.get((c2, x, y, t))
                         if v1_t is not None and v2_t is not None:
                             yield [-v1_t, -v2_t]
+
+                # Cross-time collisions only matter for actual transitions.
+                for t in range(self.t_max):
+                    t1 = t + 1
+                    for x, y in all_positions:
+                        v1_t = agent_var.get((c1, x, y, t))
+                        v2_t = agent_var.get((c2, x, y, t))
                         v1_t1 = agent_var.get((c1, x, y, t1))
                         v2_t1 = agent_var.get((c2, x, y, t1))
                         if v1_t1 is not None and v2_t is not None:

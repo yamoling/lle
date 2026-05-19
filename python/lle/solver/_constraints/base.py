@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from collections import deque
 
 from lle.world import World
 
@@ -41,12 +42,13 @@ class ConstraintContext:
 
         # Pre-compute time-reachable positions for each agent.
         # We only generate variables for locations that can actually be reached
-        # from the initial position by following legal moves on the grid.
+        # from the initial position by following legal moves on the grid and
+        # still reach an exit within the remaining horizon.
         self._reachable_positions: dict[int, list[set[Position]]] = {}
         for agent, _ in self.agents:
             c = agent.color
             reachable: list[set[Position]] = [{agent.position}]
-            for _t in range(t_max + 1):
+            for _t in range(t_max):
                 frontier = reachable[-1]
                 nxt: set[Position] = set()
                 for pos in frontier:
@@ -54,47 +56,69 @@ class ConstraintContext:
                 reachable.append(nxt)
             self._reachable_positions[c] = reachable
 
+        self._exit_distance: dict[Position, int] = {pos: t_max + 1 for pos in self.valid_positions}
+        queue = deque()
+        for exit_pos in self.exits:
+            if exit_pos in self._exit_distance:
+                self._exit_distance[exit_pos] = 0
+                queue.append(exit_pos)
+        while queue:
+            pos = queue.popleft()
+            dist = self._exit_distance[pos]
+            for nxt in get_neighbors(world, pos):
+                if nxt in self.blocked or nxt not in self._exit_distance:
+                    continue
+                if self._exit_distance[nxt] > dist + 1:
+                    self._exit_distance[nxt] = dist + 1
+                    queue.append(nxt)
+
+        self._exit_reachable: list[set[Position]] = [set() for _ in range(t_max + 1)]
+        for pos, dist in self._exit_distance.items():
+            if dist > t_max:
+                continue
+            for remaining in range(dist, t_max + 1):
+                self._exit_reachable[remaining].add(pos)
+
         # Pre-compute variable IDs
         self.agent_var = dict[tuple[int, int, int, int], int]()
         for agent, _ in self.agents:
             c = agent.color
-            for t in range(t_max + 2):
+            for t in range(t_max + 1):
                 for x, y in self.reachable_positions(t, agent.color):
                     self.agent_var[c, x, y, t] = var_factory.agent(c, x, y, t)
 
-        self.laser_var = dict[tuple[int, int, int, int], int]()
+        # Pre-compute beam rays per laser.
+        # Each laser has a single straight path until the first wall, boundary,
+        # or laser source tile. Beam and laser occupancy variables are only
+        # generated on that path.
+        self.beam_paths: dict[tuple[int, tuple[int, int]], list[Position]] = {}
         for laser, _ in self.lasers:
-            c = laser.color
-            for t in range(t_max + 1):
-                for x, y in self.all_positions:
-                    self.laser_var[c, x, y, t] = var_factory.laser(c, x, y, t)
+            key = (laser.color, laser.direction)
+            di, dj = laser.direction
+            x, y = laser.position
+            path: list[Position] = [(x, y)]
+            while True:
+                nx = x + di
+                ny = y + dj
+                if not is_within_bounds(world, (nx, ny)):
+                    break
+                if (nx, ny) in self.walls or (nx, ny) in self.laser_positions:
+                    break
+                path.append((nx, ny))
+                x, y = nx, ny
+            self.beam_paths[key] = path
+
+        # `laser_var` used to mirror beam occupancy, but the encoding now uses
+        # the beam occupancy directly. Keep the attribute for compatibility.
+        self.laser_var = {}
 
         self.beam_var = dict[tuple[int, tuple[int, int], int, int, int], int]()
         for laser, _ in self.lasers:
             c = laser.color
             d = laser.direction
             for t in range(t_max + 1):
-                for x, y in self.all_positions:
+                for x, y in self.beam_paths[c, d]:
                     self.beam_var[c, d, x, y, t] = var_factory.beam(c, d, x, y, t)
-
-        # Pre-compute beam propagation map per laser.
-        # Beams never propagate into a laser source tile, which prevents a
-        # boundary-facing source from generating a backward beam into the grid.
-        self.beam_propagation_map = {}
-        for laser, _ in self.lasers:
-            key = (laser.color, laser.direction)
-            entries = []
-            di, dj = laser.direction  # already a (di, dj) tuple
-            for x, y in self.all_positions:
-                nx = x + di
-                ny = y + dj
-                if not is_within_bounds(world, (nx, ny)):
-                    continue
-                if (nx, ny) in self.laser_positions:
-                    continue
-                is_blocker = (nx, ny) in self.walls
-                entries.append((x, y, nx, ny, is_blocker))
-            self.beam_propagation_map[key] = entries
 
     def reachable_positions(self, t: int, *agents: int) -> set[Position]:
         """Return positions that are reachable by `agent_num` exactly at time `t`."""

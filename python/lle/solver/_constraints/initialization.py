@@ -8,7 +8,11 @@ class InitializationConstraints(Constraint):
     def _agents_initial_position(self):
         agent_var = self.ctx.agent_var
         for agent, (x, y) in self.ctx.agents:
-            yield [agent_var[agent.color, x, y, 0]]
+            start = agent_var.get((agent.color, x, y, 0))
+            if start is None:
+                yield []
+            else:
+                yield [start]
 
     def _lasers_initial_beam(self):
         beam_var = self.ctx.beam_var
