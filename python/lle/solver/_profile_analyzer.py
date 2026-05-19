@@ -1,0 +1,256 @@
+"""Internal profile analyzer: classify cooperation structure from SAT models.
+
+Reuses the standard WorldSolver / strict-laser WorldSolver. Helper events
+are reconstructed from the standard SAT model by replaying agent positions
+against raw beam paths. No `SELECTIVE_STRICT` mode is needed because
+`classify` only depends on dependency edges + graph metrics, not on
+per-color necessary-helper information.
+"""
+
+from __future__ import annotations
+
+from collections import defaultdict
+from dataclasses import dataclass
+
+from ..world import World
+from ._internal.grid import is_within_bounds
+from ._internal.types import laser_sources_from_world
+from .cooperation_level import CooperationLevel
+from .world_solver import LaserMode, WorldSolver
+
+
+@dataclass(frozen=True)
+class _HelperEvent:
+    helper: int
+    beneficiary: int
+    time: int
+
+
+def classify(world: World, t_max: int) -> CooperationLevel | None:
+    """Return the precise CooperationLevel for ``world`` within ``t_max`` steps, or None if the level is not solvable."""
+    # 1) Check that the world is solvable within t_max steps
+    standard = WorldSolver(world, t_max=t_max, laser_mode=LaserMode.STANDARD)
+    sat, model = standard.solve()
+    if not sat or model is None:
+        return None
+    # 2) Check if the provided path is already independent
+    positions_by_time = _positions_by_time(standard, model)
+    helper_events = _extract_helper_events(world, positions_by_time)
+    dependency_edges = {(e.helper, e.beneficiary) for e in helper_events}
+    if len(dependency_edges) == 0:
+        return CooperationLevel.INDEPENDENT
+    # 3) Check that no other path exists in t_max steps when laser-blocking is disabled.
+    # If the world is solvable without blocking any laser, then it is independent.
+    strict_sat, _ = WorldSolver(world, t_max=t_max, laser_mode=LaserMode.STRICT).solve()
+    cooperation_required = not bool(strict_sat)
+    if not cooperation_required:
+        return CooperationLevel.INDEPENDENT
+    # 4) Finally, profile the initial proposed solution
+    num_agents = world.n_agents
+    return classify_profile(
+        dependency_edges=dependency_edges,
+        mutual_pairs=_mutual_pairs(dependency_edges),
+        largest_scc_size=_largest_scc_size(dependency_edges, num_agents),
+        longest_chain_length=_longest_chain_length(dependency_edges, num_agents),
+        num_agents=num_agents,
+    )
+
+
+# ---------------------------------------------------------------------------
+# SAT model -> agent positions per timestep
+# ---------------------------------------------------------------------------
+
+
+def _positions_by_time(solver: WorldSolver, model) -> dict[int, dict[int, tuple[int, int]]]:
+    positions: dict[int, dict[int, tuple[int, int]]] = defaultdict(dict)
+    for lit in model:
+        if lit <= 0:
+            continue
+        obj = solver.var.pool.obj(abs(lit))
+        if not obj or obj[0] != "agent":
+            continue
+        _, color, position, t = obj
+        positions[t][color] = position
+    return positions
+
+
+# ---------------------------------------------------------------------------
+# Helper-event extraction (own-colour beam shielding)
+# ---------------------------------------------------------------------------
+
+
+def _extract_helper_events(world: World, positions_by_time: dict[int, dict[int, tuple[int, int]]]) -> set[_HelperEvent]:
+    events: set[_HelperEvent] = set()
+    beam_paths = _raw_beam_paths(world)
+
+    for t, positions in positions_by_time.items():
+        for helper, helper_pos in positions.items():
+            for _src_pos, path in beam_paths.get(helper, []):
+                if helper_pos not in path:
+                    continue
+                helper_index = path.index(helper_pos)
+                downstream = set(path[helper_index + 1 :])
+                if not downstream:
+                    continue
+                for beneficiary, beneficiary_pos in positions.items():
+                    if beneficiary == helper:
+                        continue
+                    if beneficiary_pos in downstream:
+                        events.add(_HelperEvent(helper=helper, beneficiary=beneficiary, time=t))
+    return events
+
+
+def _raw_beam_paths(world: World) -> dict[int, list[tuple[tuple[int, int], list[tuple[int, int]]]]]:
+    paths: dict[int, list[tuple[tuple[int, int], list[tuple[int, int]]]]] = defaultdict(list)
+    wall_positions = frozenset(world.wall_pos)
+    sources = laser_sources_from_world(world)
+    source_positions = {src.position for src in sources}
+
+    for laser in sources:
+        di, dj = laser.direction
+        x, y = laser.position
+        x += di
+        y += dj
+        path: list[tuple[int, int]] = []
+        while is_within_bounds(world, (x, y)):
+            if (x, y) in wall_positions or (x, y) in source_positions:
+                break
+            path.append((x, y))
+            x += di
+            y += dj
+        paths[laser.color].append((laser.position, path))
+    return paths
+
+
+# ---------------------------------------------------------------------------
+# Pure graph metrics over the dependency-edge set
+# ---------------------------------------------------------------------------
+
+
+def _mutual_pairs(edges: set[tuple[int, int]]) -> set[tuple[int, int]]:
+    result: set[tuple[int, int]] = set()
+    for src, dst in edges:
+        if (dst, src) in edges and src < dst:
+            result.add((src, dst))
+    return result
+
+
+def _largest_scc_size(edges: set[tuple[int, int]], num_agents: int) -> int:
+    if num_agents == 0:
+        return 0
+    adjacency: dict[int, set[int]] = {i: set() for i in range(num_agents)}
+    reverse: dict[int, set[int]] = {i: set() for i in range(num_agents)}
+    for src, dst in edges:
+        adjacency[src].add(dst)
+        reverse[dst].add(src)
+
+    visited: set[int] = set()
+    order: list[int] = []
+
+    def dfs(node: int) -> None:
+        stack = [(node, iter(adjacency[node]))]
+        visited.add(node)
+        while stack:
+            current, it = stack[-1]
+            for nxt in it:
+                if nxt not in visited:
+                    visited.add(nxt)
+                    stack.append((nxt, iter(adjacency[nxt])))
+                    break
+            else:
+                order.append(current)
+                stack.pop()
+
+    for node in range(num_agents):
+        if node not in visited:
+            dfs(node)
+
+    visited.clear()
+    largest = 1
+
+    def reverse_dfs(start: int) -> int:
+        size = 0
+        stack = [start]
+        visited.add(start)
+        while stack:
+            node = stack.pop()
+            size += 1
+            for nxt in reverse[node]:
+                if nxt not in visited:
+                    visited.add(nxt)
+                    stack.append(nxt)
+        return size
+
+    for node in reversed(order):
+        if node in visited:
+            continue
+        largest = max(largest, reverse_dfs(node))
+    return largest
+
+
+def _longest_chain_length(edges: set[tuple[int, int]], num_agents: int) -> int:
+    adjacency: dict[int, set[int]] = {i: set() for i in range(num_agents)}
+    indegree: dict[int, int] = {i: 0 for i in range(num_agents)}
+    for src, dst in edges:
+        if dst not in adjacency[src]:
+            adjacency[src].add(dst)
+            indegree[dst] += 1
+
+    queue = [node for node in range(num_agents) if indegree[node] == 0]
+    topo: list[int] = []
+    while queue:
+        node = queue.pop()
+        topo.append(node)
+        for nxt in adjacency[node]:
+            indegree[nxt] -= 1
+            if indegree[nxt] == 0:
+                queue.append(nxt)
+
+    if len(topo) != num_agents:
+        return 0
+
+    dist: dict[int, int] = {i: 0 for i in range(num_agents)}
+    for node in topo:
+        for nxt in adjacency[node]:
+            dist[nxt] = max(dist[nxt], dist[node] + 1)
+    return max(dist.values(), default=0)
+
+
+# ---------------------------------------------------------------------------
+# Classification rule (cooperative branch)
+# ---------------------------------------------------------------------------
+
+
+def classify_profile(
+    *,
+    dependency_edges: set[tuple[int, int]],
+    mutual_pairs: set[tuple[int, int]],
+    largest_scc_size: int,
+    longest_chain_length: int,
+    num_agents: int,
+) -> CooperationLevel:
+    if largest_scc_size == num_agents and num_agents > 1:
+        return CooperationLevel.FULLY_COUPLED
+    if mutual_pairs:
+        return CooperationLevel.MUTUAL
+    indegree: dict[int, int] = defaultdict(int)
+    outdegree: dict[int, int] = defaultdict(int)
+    nodes: set[int] = set()
+    for src, dst in dependency_edges:
+        indegree[dst] += 1
+        outdegree[src] += 1
+        nodes.add(src)
+        nodes.add(dst)
+    if any(count >= 2 for count in indegree.values()):
+        return CooperationLevel.DISTRIBUTED
+    if (
+        dependency_edges
+        and longest_chain_length >= 2
+        and all(indegree[n] <= 1 for n in nodes)
+        and all(outdegree[n] <= 1 for n in nodes)
+        and longest_chain_length >= max(1, len(nodes) - 1)
+    ):
+        return CooperationLevel.CHAIN
+    if dependency_edges:
+        return CooperationLevel.ASYMMETRIC
+    return CooperationLevel.COOPERATIVE
