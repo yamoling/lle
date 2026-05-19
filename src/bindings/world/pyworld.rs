@@ -110,6 +110,7 @@ impl From<World> for PyWorld {
 #[pymethods]
 impl PyWorld {
     #[new]
+    #[gen_stub(skip)]
     pub fn new(map_str: String) -> PyResult<Self> {
         match World::try_from(map_str) {
             Ok(world) => Ok(PyWorld::from(world)),

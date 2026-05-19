@@ -3,7 +3,7 @@
 Reuses the standard WorldSolver / strict-laser WorldSolver. Helper events
 are reconstructed from the standard SAT model by replaying agent positions
 against raw beam paths. No `SELECTIVE_STRICT` mode is needed because
-`_classify` only depends on dependency edges + graph metrics, not on
+`classify` only depends on dependency edges + graph metrics, not on
 per-color necessary-helper information.
 """
 
@@ -12,8 +12,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
 
-from lle import World
-
+from ..world import World
 from ._internal.grid import is_within_bounds
 from ._internal.types import laser_sources_from_world
 from .cooperation_level import CooperationLevel
@@ -27,25 +26,28 @@ class _HelperEvent:
     time: int
 
 
-def _classify(world: World, t_max: int) -> CooperationLevel | None:
+def classify(world: World, t_max: int) -> CooperationLevel | None:
     """Return the precise CooperationLevel for ``world`` within ``t_max`` steps, or None if the level is not solvable."""
+    # 1) Check that the world is solvable within t_max steps
     standard = WorldSolver(world, t_max=t_max, laser_mode=LaserMode.STANDARD)
     sat, model = standard.solve()
     if not sat or model is None:
         return None
-
-    strict_sat, _ = WorldSolver(world, t_max=t_max, laser_mode=LaserMode.STRICT).solve()
-    cooperation_required = not bool(strict_sat)
-
-    if not cooperation_required:
-        return CooperationLevel.INDEPENDENT
-
+    # 2) Check if the provided path is already independent
     positions_by_time = _positions_by_time(standard, model)
     helper_events = _extract_helper_events(world, positions_by_time)
     dependency_edges = {(e.helper, e.beneficiary) for e in helper_events}
-    num_agents = len(world.start_pos)
-
-    return _classify_profile(
+    if len(dependency_edges) == 0:
+        return CooperationLevel.INDEPENDENT
+    # 3) Check that no other path exists in t_max steps when laser-blocking is disabled.
+    # If the world is solvable without blocking any laser, then it is independent.
+    strict_sat, _ = WorldSolver(world, t_max=t_max, laser_mode=LaserMode.STRICT).solve()
+    cooperation_required = not bool(strict_sat)
+    if not cooperation_required:
+        return CooperationLevel.INDEPENDENT
+    # 4) Finally, profile the initial proposed solution
+    num_agents = world.n_agents
+    return classify_profile(
         dependency_edges=dependency_edges,
         mutual_pairs=_mutual_pairs(dependency_edges),
         largest_scc_size=_largest_scc_size(dependency_edges, num_agents),
@@ -77,10 +79,7 @@ def _positions_by_time(solver: WorldSolver, model) -> dict[int, dict[int, tuple[
 # ---------------------------------------------------------------------------
 
 
-def _extract_helper_events(
-    world: World,
-    positions_by_time: dict[int, dict[int, tuple[int, int]]],
-) -> set[_HelperEvent]:
+def _extract_helper_events(world: World, positions_by_time: dict[int, dict[int, tuple[int, int]]]) -> set[_HelperEvent]:
     events: set[_HelperEvent] = set()
     beam_paths = _raw_beam_paths(world)
 
@@ -222,7 +221,7 @@ def _longest_chain_length(edges: set[tuple[int, int]], num_agents: int) -> int:
 # ---------------------------------------------------------------------------
 
 
-def _classify_profile(
+def classify_profile(
     *,
     dependency_edges: set[tuple[int, int]],
     mutual_pairs: set[tuple[int, int]],
