@@ -39,12 +39,27 @@ class ConstraintContext:
             neighbors = [n for n in get_neighbors(world, pos) if n not in self.blocked]
             self.neighbor_map[pos] = [pos] + neighbors
 
+        # Pre-compute time-reachable positions for each agent.
+        # We only generate variables for locations that can actually be reached
+        # from the initial position by following legal moves on the grid.
+        self._reachable_positions: dict[int, list[set[Position]]] = {}
+        for agent, _ in self.agents:
+            c = agent.color
+            reachable: list[set[Position]] = [{agent.position}]
+            for _t in range(t_max + 1):
+                frontier = reachable[-1]
+                nxt: set[Position] = set()
+                for pos in frontier:
+                    nxt.update(self.neighbor_map[pos])
+                reachable.append(nxt)
+            self._reachable_positions[c] = reachable
+
         # Pre-compute variable IDs
         self.agent_var = dict[tuple[int, int, int, int], int]()
         for agent, _ in self.agents:
             c = agent.color
             for t in range(t_max + 2):
-                for x, y in self.all_positions:
+                for x, y in self.reachable_positions(t, agent.color):
                     self.agent_var[c, x, y, t] = var_factory.agent(c, x, y, t)
 
         self.laser_var = dict[tuple[int, int, int, int], int]()
@@ -81,6 +96,15 @@ class ConstraintContext:
                 entries.append((x, y, nx, ny, is_blocker))
             self.beam_propagation_map[key] = entries
 
+    def reachable_positions(self, t: int, *agents: int) -> set[Position]:
+        """Return positions that are reachable by `agent_num` exactly at time `t`."""
+        if t < 0 or t > self.t_max:
+            return set()
+        reachable = self._reachable_positions[agents[0]][t]
+        for agent_num in agents[1:]:
+            reachable = reachable.intersection(self._reachable_positions[agent_num][t])
+        return reachable
+
 
 class Constraint(ABC):
     def __init__(self, ctx: ConstraintContext):
@@ -95,3 +119,6 @@ class Constraint(ABC):
 
     def _profile_method(self, _method_name: str, method_func):
         return list(method_func())
+
+    def reachable_positions(self, t: int, *agents: int):
+        return self.ctx.reachable_positions(t, *agents)
