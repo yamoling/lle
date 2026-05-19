@@ -1,5 +1,6 @@
 import lle
 from lle import Action, World
+from lle.solver.world_solver import WorldSolver
 
 
 def _default_t_max(world: World) -> int:
@@ -29,6 +30,20 @@ def test_solve_default_t_max():
     assert len(plan) == _default_t_max(world)
 
 
+def test_solver_prunes_beam_variables_to_actual_laser_path():
+    world = World.level(3)
+    solver = WorldSolver(world, t_max=10)
+    assert len(solver.ctx.lasers) == 1
+
+    laser, _ = solver.ctx.lasers[0]
+    path = solver.ctx.beam_paths[(laser.color, laser.direction)]
+    beam_keys = [key for key in solver.ctx.beam_var if key[:2] == (laser.color, laser.direction)]
+
+    assert beam_keys
+    assert {key[2:4] for key in beam_keys} == set(path)
+    assert len(beam_keys) == len(path) * (solver.t_max + 1)
+
+
 def test_solve_plan_is_executable():
     world = World("S0 . . X")
     plan = lle.solve(world, t_max=4)
@@ -41,6 +56,29 @@ def test_solve_plan_is_executable():
     #  we just check no exception was raised and the loop completed.)
 
 
+def test_solve_path_is_executable():
+    world = World("""
+. . L1S . X
+S0 .  .  . .
+S1 .  .  . .
+. .  .  . X
+""")
+    plan = lle.solve(world, t_max=10)
+    assert plan is not None
+    world.reset()
+    for joint in plan:
+        world.step(list(joint))
+
+
+def test_solve_level_6_world_is_executable():
+    world = World.level(6)
+    plan = lle.solve(world, t_max=21)
+    assert plan is not None
+    world.reset()
+    for joint in plan:
+        world.step(list(joint))
+
+
 def test_is_cooperative_on_known_cooperative_level():
     # LLE Level 6 is canonically cooperative.
     world = World.level(6)
@@ -49,7 +87,7 @@ def test_is_cooperative_on_known_cooperative_level():
 
 def test_is_cooperative_on_trivial_single_agent_level():
     world = World("S0 . X")
-    assert lle.is_cooperative(world) is False
+    assert not lle.is_cooperative(world, t_max=3)
 
 
 def test_simple_solvable():

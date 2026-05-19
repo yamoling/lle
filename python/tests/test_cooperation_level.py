@@ -151,9 +151,20 @@ def test_cooperation_level_independent_for_trivial_world():
     assert lle.cooperation_level(World("S0 . X"), t_max=5) is CooperationLevel.INDEPENDENT
 
 
-def test_cooperation_level_classifies_level_6_as_cooperative_subtype():
-    level = lle.cooperation_level(World.level(6))
-    assert level in CooperationLevel.cooperative_subtypes()
+def test_cooperation_level_classifies_level_3_as_asymmetric():
+    assert lle.cooperation_level(World.level(3), t_max=10) is CooperationLevel.ASYMMETRIC
+
+
+def test_cooperation_level_classifies_level_4_as_fully_coupled():
+    assert lle.cooperation_level(World.level(4), t_max=10) is CooperationLevel.FULLY_COUPLED
+
+
+def test_cooperation_level_classifies_level_5_as_asymmetric():
+    assert lle.cooperation_level(World.level(5), t_max=21) is CooperationLevel.ASYMMETRIC
+
+
+def test_cooperation_level_classifies_level_6_as_mutual():
+    assert lle.cooperation_level(World.level(6), t_max=21) is CooperationLevel.MUTUAL
 
 
 @pytest.mark.parametrize("level_idx", [1, 2])
