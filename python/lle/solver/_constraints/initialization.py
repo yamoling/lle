@@ -10,7 +10,9 @@ class InitializationConstraints(Constraint):
         for agent, (x, y) in self.ctx.agents:
             start = agent_var.get((agent.color, x, y, 0))
             if start is None:
+                # The formula is not satisfiable, stop here.
                 yield []
+                return
             else:
                 yield [start]
 

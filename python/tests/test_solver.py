@@ -87,7 +87,7 @@ def test_is_cooperative_on_known_cooperative_level():
 
 def test_is_cooperative_on_trivial_single_agent_level():
     world = World("S0 . X")
-    assert lle.is_cooperative(world) is False
+    assert not lle.is_cooperative(world, t_max=3)
 
 
 def test_simple_solvable():

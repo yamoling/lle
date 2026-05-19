@@ -28,14 +28,14 @@ class MovementConstraints(Constraint):
 
     def _movement_rules_local(self):
         agent_var = self.ctx.agent_var
-        neighbor_map = self.ctx.neighbor_map
+        neighbor_map = self.ctx.neighbours
 
         for agent, _ in self.ctx.agents:
             c = agent.color
             for t in range(self.t_max):
                 t1 = t + 1
                 # Forward: if at (x,y,t), must be at some neighbor at t+1.
-                for x, y in self.reachable_positions(t, c):
+                for x, y in self.reachable_positions_for_agent(t, c):
                     n_pos = [(x, y) for x, y in neighbor_map[x, y] if (c, x, y, t1) in agent_var]
                     yield [-agent_var[c, x, y, t], *[agent_var[c, nx, ny, t1] for nx, ny in n_pos]]
                     # Inline uniqueness: pairwise exclusion on neighbors at t+1,
@@ -49,13 +49,13 @@ class MovementConstraints(Constraint):
                             yield [v1, -agent_var[c, x2, y2, t1]]
 
                 # Backward: if at (x,y,t+1), must have been at some neighbor at t.
-                for x, y in self.reachable_positions(t1, c):
+                for x, y in self.reachable_positions_for_agent(t1, c):
                     prev = [(x, y) for (x, y) in neighbor_map[x, y] if (c, x, y, t) in agent_var]
                     yield [-agent_var[c, x, y, t1]] + [agent_var[c, nx, ny, t] for nx, ny in prev]
 
     def _movement_rules_global(self):
         agent_var = self.ctx.agent_var
-        neighbor_map = self.ctx.neighbor_map
+        neighbor_map = self.ctx.neighbours
         valid_positions = self.ctx.valid_positions
 
         for agent, _ in self.ctx.agents:
