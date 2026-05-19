@@ -1,8 +1,8 @@
-"""Private base class for all internal generators.
+"""Shared machinery for internal world generators.
 
-Adds a `cooperative` flag (off by default) that gates a post-filter using
-is_cooperative-equivalent logic (standard SAT solvable and strict-laser
-UNSAT). Subclasses implement `_make_candidate_layout`.
+Generators sample candidate layouts, build a `World`, and optionally filter
+it by solvability or cooperation profile. Subclasses only have to implement
+`_make_candidate_layout`.
 """
 
 from __future__ import annotations
@@ -109,7 +109,7 @@ class _BaseGenerator(ABC):
 
     def _accept_world(self, world: World) -> bool:
         if self.coop_constraint is not None:
-            from ..solver._profile_analyzer import classify
+            from ..solver.profile_analyzer import classify
 
             constraint, required_level = self.coop_constraint
             world.reset()

@@ -1,15 +1,13 @@
-"""Constructive generator: reserves one lane per agent for a constructive solvability proof."""
-
 from __future__ import annotations
 
 from lle.tiles import Direction
 
 from ._candidates import CandidateLayout
 from ._geometry import beam_tiles, points_out_immediately
-from ._random import _RandomGenerator
+from .random import RandomGenerator
 
 
-class _ConstructiveGenerator(_RandomGenerator):
+class ConstructiveGenerator(RandomGenerator):
     """
     Reserves one disjoint lane per agent so a joint solution exists by
     construction, then places walls and lasers only outside those lanes.
@@ -153,12 +151,7 @@ class _ConstructiveGenerator(_RandomGenerator):
             )
             reserved.update(path)
 
-        free_positions = [
-            (row, col)
-            for row in range(self.rows)
-            for col in range(self.cols)
-            if (row, col) not in reserved
-        ]
+        free_positions = [(row, col) for row in range(self.rows) for col in range(self.cols) if (row, col) not in reserved]
         if len(free_positions) < self.n_walls:
             return None
         # Shuffle so the wall set is a random subset of the free cells,

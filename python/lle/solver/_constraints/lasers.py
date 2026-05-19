@@ -2,6 +2,8 @@ from .base import Constraint
 
 
 class LaserConstraints(Constraint):
+    """SAT constraints that model laser propagation and blocking."""
+
     def generate(self):
         return [
             *self._no_step_on_active_laser(),

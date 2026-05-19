@@ -8,6 +8,8 @@ METHOD_GLOBAL = "global"
 
 
 class MovementConstraints(Constraint):
+    """SAT constraints for agent movement and collisions."""
+
     def __init__(self, ctx: ConstraintContext, movement_method=METHOD_LOCAL):
         super().__init__(ctx)
         self.movement_method = movement_method
