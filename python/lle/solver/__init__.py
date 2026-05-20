@@ -16,16 +16,19 @@ from typing import Literal
 from ..world import World
 from .cooperation_level import CooperationLevel, CooperationLevelStr
 
-_PYSAT_HINT = (
-    "lle.solve / lle.is_cooperative require the 'generator' extra. Install with: pip install laser-learning-environment[generator]"
-)
-
 
 def _require_pysat() -> None:
     try:
-        import pysat.solvers  # noqa: F401
+        import pysat.solvers  # pyright: ignore[reportMissingImports] # noqa: F401
     except ImportError as exc:
-        raise ImportError(_PYSAT_HINT) from exc
+        import inspect
+
+        current_frame = inspect.currentframe()
+        caller_frame = inspect.getouterframes(current_frame, 2)
+        caller_name = caller_frame[1].function
+        error_message = f"""The {caller_name!r} function requires the 'pysat' package which is not installed.
+To use {caller_name!r}, install lle with: pip install laser-learning-environment[generator]"""
+        raise ImportError(error_message) from exc
 
 
 def _default_t_max(world: World) -> int:

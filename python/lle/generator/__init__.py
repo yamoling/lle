@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from typing import Literal, overload
 
+from ..solver import _require_pysat
 from ..solver.cooperation_level import CooperationLevel, CooperationLevelStr
 from ..world import World
 from ._args import _GenerateArgs
@@ -43,7 +44,6 @@ def generate(
     n_walls: int | Literal["auto"] = "auto",
     t_max: int | Literal["auto"] = "auto",
     seed: int | None = None,
-    n: Literal[1] = 1,
     n_jobs: int | Literal["auto"] = 1,
 ) -> World: ...
 
@@ -68,6 +68,7 @@ def try_generate(
 def generate(
     kind: Literal["random", "constructive"],
     *,
+    n: int,
     height: int = 5,
     width: int = 5,
     n_agents: int = 2,
@@ -76,7 +77,6 @@ def generate(
     n_walls: int | Literal["auto"] = "auto",
     t_max: int | Literal["auto"] = "auto",
     seed: int | None = None,
-    n: int,
     n_jobs: int | Literal["auto"] = "auto",
 ) -> list[World]: ...
 
@@ -93,7 +93,6 @@ def generate(
     t_max: int = 21,
     n_walls: int | Literal["auto"] = "auto",
     seed: int | None = None,
-    n: Literal[1] = 1,
     n_jobs: int | Literal["auto"] = 1,
 ) -> World: ...
 
@@ -102,6 +101,7 @@ def generate(
 def generate(
     kind: Literal["level6_style"] = "level6_style",
     *,
+    n: int,
     height: int = 12,
     width: int = 13,
     n_agents: int = 4,
@@ -110,7 +110,6 @@ def generate(
     t_max: int = 21,
     n_walls: int | Literal["auto"] = "auto",
     seed: int | None = None,
-    n: int,
     n_jobs: int | Literal["auto"] = "auto",
 ) -> list[World]: ...
 
@@ -146,6 +145,7 @@ def _no_default_for(kind: str, arg_name: str):
 def generate(
     kind: Literal["random", "constructive", "level6_style"] = "level6_style",
     *,
+    n: int = 1,
     height: int | None = None,
     width: int | None = None,
     n_agents: int | None = None,
@@ -156,7 +156,6 @@ def generate(
     seed: int | None = None,
     max_attempts: int | None = None,
     n_jobs: int | Literal["auto"] = "auto",
-    n: int = 1,
 ):
     """Build one or more worlds using a SAT-verified procedural generator.
 
@@ -171,6 +170,7 @@ def generate(
     Raises `ValueError` when the requested configuration is impossible or when
     you pass an unsupported `kind`.
     """
+    _require_pysat()
     args = _GenerateArgs(
         kind=kind,
         height=height,

@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from enum import Enum
 
-from pysat.solvers import Minisat22
-
 from ..world import Action, World
 from ._constraints import (
     METHOD_LOCAL,
@@ -60,6 +58,8 @@ class WorldSolver:
         self._model_built = True
 
     def solve(self):
+        from pysat.solvers import Minisat22  # pyright: ignore[reportMissingImports]
+
         self.build_model()
         with Minisat22(bootstrap_with=self.model.cnf.clauses) as solver:
             result = solver.solve()
