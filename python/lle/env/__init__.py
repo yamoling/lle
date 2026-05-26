@@ -1,7 +1,15 @@
-from .reward_strategy import RewardStrategy, SingleObjective, MultiObjective
-from .extras_generators import ExtraGenerator, NoExtras, LaserSubgoal
-from .env import LLE
+"""High-level environment builder and MARL integration helpers.
+
+The `LLE` environment wraps a `World` and exposes the interface expected by
+`marlenv`. Use `Builder` to configure observations, rewards, extras, and death
+handling before calling `build()`.
+"""
+
 from .builder import Builder
+from .env import LLE
+from .extras_generators import ExtraGenerator, LaserSubgoal, NoExtras
+from .lle_pool import make_pool
+from .reward_strategy import MultiObjective, RewardStrategy, SingleObjective
 
 __all__ = [
     "LLE",
@@ -12,4 +20,5 @@ __all__ = [
     "ExtraGenerator",
     "NoExtras",
     "LaserSubgoal",
+    "make_pool",
 ]

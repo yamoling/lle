@@ -38,7 +38,7 @@ class World:
         The positions of the exits tiles.
         """
     @exit_pos.setter
-    def exit_pos(self, value: builtins.list[tuple[builtins.int, builtins.int]]) -> None: ...
+    def exit_pos(self, value: typing.Sequence[tuple[builtins.int, builtins.int]]) -> None: ...
     @property
     def random_start_pos(self) -> builtins.list[builtins.list[tuple[builtins.int, builtins.int]]]:
         r"""
@@ -126,7 +126,6 @@ class World:
         r"""
         The number of different laser colours in the world.
         """
-    def __new__(cls, map_str: builtins.str) -> World: ...
     def __init__(self, map_str: builtins.str) -> None:
         r"""
         Constructs a World from a string.
@@ -192,7 +191,7 @@ class World:
          `PyValueError`: if the tile at the given position is not a laser source.
         """
     def seed(self, seed_value: builtins.int) -> None: ...
-    def step(self, action: Action | list[Action]) -> builtins.list[WorldEvent]:
+    def step(self, action: Action | typing.Sequence[Action]) -> builtins.list[WorldEvent]:
         r"""
         Simultaneously perform an action for each agent in the world.
         Performing a step generates events (see `WorldEvent`) to give information about the consequences of the joint action.
@@ -342,7 +341,7 @@ class WorldState:
         The position of each agent.
         """
     @agents_positions.setter
-    def agents_positions(self, value: builtins.list[tuple[builtins.int, builtins.int]]) -> None:
+    def agents_positions(self, value: typing.Sequence[tuple[builtins.int, builtins.int]]) -> None:
         r"""
         The position of each agent.
         """
@@ -352,7 +351,7 @@ class WorldState:
         The collection status of each gem.
         """
     @gems_collected.setter
-    def gems_collected(self, value: builtins.list[builtins.bool]) -> None:
+    def gems_collected(self, value: typing.Sequence[builtins.bool]) -> None:
         r"""
         The collection status of each gem.
         """
@@ -362,7 +361,7 @@ class WorldState:
         The status of each agent.
         """
     @agents_alive.setter
-    def agents_alive(self, value: builtins.list[builtins.bool]) -> None:
+    def agents_alive(self, value: typing.Sequence[builtins.bool]) -> None:
         r"""
         The status of each agent.
         """
@@ -411,6 +410,12 @@ class Action(enum.Enum):
         The number of actions
         """
     def __new__(cls, value: builtins.int) -> Action: ...
+    @staticmethod
+    def from_delta(di: builtins.int, dj: builtins.int) -> Action:
+        r"""
+        Construct an `Action` from a coordinate delta.
+        Raises a `ValueError` if the delta does not correspond to a valid action.
+        """
     def __hash__(self) -> builtins.int: ...
     def __repr__(self) -> builtins.str: ...
     def opposite(self) -> Action:

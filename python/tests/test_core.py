@@ -226,7 +226,7 @@ def test_builder_obs_type_string():
     env2 = LLE.level(1).obs_type(ObservationType.STATE).build()
     assert env.has_same_inouts(env2)
 
-    env = LLE.level(1).obs_type("image").build()
+    env = LLE.level(1).obs_type("rgb-image").build()
     env2 = LLE.level(1).obs_type(ObservationType.RGB_IMAGE).build()
     assert env.has_same_inouts(env2)
 

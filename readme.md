@@ -1,9 +1,11 @@
 # Laser Learning Environment (LLE)
 Documentation: [https://yamoling.github.io/lle/](https://yamoling.github.io/lle/)
 
-LLE is a fast Multi-Agent Reinforcement Learning environment written in Rust which has proven to be a difficult exploration benchmark so far. The agents start in the start tiles, must collect the gems and finish the game by reaching the exit tiles. There are five actions: North, South, East, West and Stay. 
+LLE is a fast multi-agent reinforcement learning environment written in Rust.
+Agents start on start tiles, collect gems, and finish by reaching exit tiles.
+The available actions are North, South, East, West, and Stay.
 
-When an agent enters a laser of its own colour, it blocks it. Otherwise, it dies and the game ends.
+When an agent enters a laser of its own colour, it blocks that beam. Otherwise, it dies and the game ends.
 
 ![LLE](docs/lvl6-annotated.png)
 
@@ -16,9 +18,10 @@ pip install git+https://github.com/yamoling/lle # latest push on master
 ```
 
 ## Usage
-LLE can be used at two levels of abstraction: as an `MARLEnv` for cooperative multi-agent reinforcement learning or as a `World` for many other purposes.
+LLE can be used at two levels of abstraction: as an `MARLEnv` for cooperative multi-agent reinforcement learning or as a `World` for fine-grained control.
+
 ### For cooperative multi-agent reinforcement learning
-The `LLE` class inherits from the `MARLEnv` class in the [marlenv](https://github.com/yamoling/multi-agent-rlenv) framework. Here is an example with the following map: ![LLE](docs/3x1.png)
+The `LLE` class wraps a `World` and implements the `MARLEnv` interface from the [marlenv](https://github.com/yamoling/multi-agent-rlenv) framework. Here is an example with the following map: ![LLE](docs/3x1.png)
 
 
 ```python
@@ -51,14 +54,37 @@ events = world.step([Action.EAST])
 assert events[0].event_type == EventType.AGENT_EXIT
 ```
 
-You can also access and force the state of the world
+You can also access and force the state of the world:
 ```python
 state = world.get_state()
 ...
 events = world.set_state(state)
 ```
 
-You can query the world on the tiles with `world.start_pos`, `world.exit_pos`, `world.gem_pos`, ...
+You can query the world through properties such as `world.start_pos`,
+`world.exit_pos`, `world.gems`, `world.lasers`, and `world.agents`.
+
+### Generation and solving
+
+The optional `generator` extra adds SAT-based generation and analysis helpers.
+The `level6_style` generator defaults to an exactly mutual cooperative configuration, and `cooperation=True` asks for any cooperative world:
+
+```bash
+pip install laser-learning-environment[generator]
+```
+
+```python
+import lle
+from lle import CooperationLevel, World
+
+world = lle.generate(kind="random", height=5, width=5, n_agents=2, seed=0)
+plan = lle.solve(world, t_max=5)
+assert plan is not None
+assert lle.is_cooperative(World.level(6)) is True
+
+coop = lle.generate(kind="random", height=6, width=6, n_agents=2, n_lasers=2, cooperation=True, seed=0)
+assert lle.cooperation_level(coop) in CooperationLevel.cooperative_subtypes()
+```
 
 
 

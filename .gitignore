@@ -79,6 +79,7 @@ Cargo.lock
 poetry.lock
 uv.lock
 
-# Do not exclude the 'env' python module 
+# Do not exclude the 'env' python module
 !python/lle/env
 python/main.py
+.zed

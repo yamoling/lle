@@ -5,9 +5,8 @@ from typing import Optional, Sequence
 import numpy as np
 import numpy.typing as npt
 
-from ..world import World
 from .. import tiles
-
+from ..world import World
 from .utils import get_lasers_of
 
 

@@ -110,6 +110,7 @@ impl From<World> for PyWorld {
 #[pymethods]
 impl PyWorld {
     #[new]
+    #[gen_stub(skip)]
     pub fn new(map_str: String) -> PyResult<Self> {
         match World::try_from(map_str) {
             Ok(world) => Ok(PyWorld::from(world)),
@@ -366,7 +367,9 @@ impl PyWorld {
     pub fn step(
         &mut self,
         py: Python,
-        #[gen_stub(override_type(type_repr = "Action | list[Action]"))] action: Py<PyAny>,
+        #[gen_stub(override_type(type_repr = "Action | typing.Sequence[Action]"))] action: Py<
+            PyAny,
+        >,
     ) -> PyResult<Vec<PyWorldEvent>> {
         // Check if action is a list or a single action
         let actions: Vec<PyAction> = if let Ok(actions) = action.extract::<Vec<PyAction>>(py) {
