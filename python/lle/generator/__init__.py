@@ -157,18 +157,33 @@ def generate(
     max_attempts: int | None = None,
     n_jobs: int | Literal["auto"] = "auto",
 ):
-    """Build one or more worlds using a SAT-verified procedural generator.
+    """
+    Build a solvable `World` on demand using a SAT-verified procedural generator.
 
-    Use `kind="random"` for unconstrained sampling, `kind="constructive"` for
-    lane-based layouts, and `kind="level6_style"` for a cooperative layout
-    inspired by the canonical Level 6.
+    Raises:
+        - `ValueError` if arguments are invalid;
 
-    `cooperation` lets you require a specific cooperation profile. For
-    `kind="level6_style"`, the generator always produces a cooperative world,
-    so passing `cooperation=None` keeps the default profile.
+    Parameters:
+    ----------
+    - `kind`: the kind of generator to use. Refer to generator calsses in the `lle.generator` module for more information.
+    - `cooperation`: The required level of cooperation. Can be specified as:
+        - a boolean: `True` for any cooperative level, `False` for no cooperation;
+        - a `CooperationLevel` or a `CooperationLevelStr` (e.g. `CooperationLevel.MUTUAL` or `"mutual"` for exactly mutual);
+        - a tuple `(constraint, level)` where `constraint` is either `"exactly"` or `"at-least"` and `level` is a `CooperationLevel` or a `CooperationLevelStr`.
+    - `n_walls`: the number of walls to place. If `"auto"`, 10% of the grid is filled with walls.
+    - `t_max`: the maximal solution path length. If `"auto"`, defaults to `width * height // 2`.
+    - `n`: the number of worlds to generate.
+    - `n_jobs`: the number jobs to run in parallel. When `auto`, spawns `n_cpus - 1` jobs if `n` > 1 or spawns 1 job is `n` = 1.
 
-    Raises `ValueError` when the requested configuration is impossible or when
-    you pass an unsupported `kind`.
+    Examples:
+    --------
+    ```python
+    import lle
+    world = lle.generate("level6_style", n_agents=4, n_lasers=3)
+    world = lle.generate("random", n=10, width=5, height=7, n_agents=2, seed=0)
+    world = lle.generate("random", cooperation=("at-least", "mutual"))
+    world = lle.generate("random", cooperation=CooperationLevel.FULLY_COUPLED, seed=0)
+    ```
     """
     _require_pysat()
     args = _GenerateArgs(

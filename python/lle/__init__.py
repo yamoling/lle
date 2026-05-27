@@ -150,12 +150,18 @@ from .lle import __version__, agent, exceptions, tiles, world  # noqa # prevent 
 
 
 from .agent import Agent
-from .env import LLE, make_pool
+from .env import LLE
 from .observations import ObservationType
 from .types import AgentId, LaserId, Position
 from .world import Action, EventType, World, WorldEvent, WorldState
-from .solver import CooperationLevel, cooperation_level, is_cooperative, solve
-from .generator import generate
+
+# Optional imports
+try:
+    from .env import make_pool
+    from .generator import generate
+    from .solver import CooperationLevel, cooperation_level, is_cooperative, solve
+except ImportError:
+    pass
 
 __version__: str
 from_file = LLE.from_file
