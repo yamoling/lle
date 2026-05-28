@@ -1,5 +1,3 @@
-from pysat.card import CardEnc
-
 from .base import Constraint, ConstraintContext
 
 # Movement method constants
@@ -31,6 +29,8 @@ class MovementConstraints(Constraint):
         return all_clauses
 
     def _exactly_one_position(self):
+        from pysat.card import CardEnc  # pyright: ignore[reportMissingImports]
+
         agent_var = self.ctx.agent_var
         for agent, _ in self.ctx.agents:
             for t in range(self.t_max + 1):

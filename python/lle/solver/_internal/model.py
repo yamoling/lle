@@ -1,8 +1,7 @@
-from pysat.formula import CNF
-
-
 class SATModel:
     def __init__(self):
+        from pysat.formula import CNF  # pyright: ignore[reportMissingImports]
+
         self.cnf = CNF()
 
     def add_clause(self, clause):

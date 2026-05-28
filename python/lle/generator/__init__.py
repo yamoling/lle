@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from typing import Literal, overload
 
+from ..solver import _require_pysat
 from ..solver.cooperation_level import CooperationLevel, CooperationLevelStr
 from ..world import World
 from ._args import _GenerateArgs
@@ -43,7 +44,6 @@ def generate(
     n_walls: int | Literal["auto"] = "auto",
     t_max: int | Literal["auto"] = "auto",
     seed: int | None = None,
-    n: Literal[1] = 1,
     n_jobs: int | Literal["auto"] = 1,
 ) -> World: ...
 
@@ -68,6 +68,7 @@ def try_generate(
 def generate(
     kind: Literal["random", "constructive"],
     *,
+    n: int,
     height: int = 5,
     width: int = 5,
     n_agents: int = 2,
@@ -76,7 +77,6 @@ def generate(
     n_walls: int | Literal["auto"] = "auto",
     t_max: int | Literal["auto"] = "auto",
     seed: int | None = None,
-    n: int,
     n_jobs: int | Literal["auto"] = "auto",
 ) -> list[World]: ...
 
@@ -93,7 +93,6 @@ def generate(
     t_max: int = 21,
     n_walls: int | Literal["auto"] = "auto",
     seed: int | None = None,
-    n: Literal[1] = 1,
     n_jobs: int | Literal["auto"] = 1,
 ) -> World: ...
 
@@ -102,6 +101,7 @@ def generate(
 def generate(
     kind: Literal["level6_style"] = "level6_style",
     *,
+    n: int,
     height: int = 12,
     width: int = 13,
     n_agents: int = 4,
@@ -110,7 +110,6 @@ def generate(
     t_max: int = 21,
     n_walls: int | Literal["auto"] = "auto",
     seed: int | None = None,
-    n: int,
     n_jobs: int | Literal["auto"] = "auto",
 ) -> list[World]: ...
 
@@ -146,6 +145,7 @@ def _no_default_for(kind: str, arg_name: str):
 def generate(
     kind: Literal["random", "constructive", "level6_style"] = "level6_style",
     *,
+    n: int = 1,
     height: int | None = None,
     width: int | None = None,
     n_agents: int | None = None,
@@ -156,21 +156,36 @@ def generate(
     seed: int | None = None,
     max_attempts: int | None = None,
     n_jobs: int | Literal["auto"] = "auto",
-    n: int = 1,
 ):
-    """Build one or more worlds using a SAT-verified procedural generator.
-
-    Use `kind="random"` for unconstrained sampling, `kind="constructive"` for
-    lane-based layouts, and `kind="level6_style"` for a cooperative layout
-    inspired by the canonical Level 6.
-
-    `cooperation` lets you require a specific cooperation profile. For
-    `kind="level6_style"`, the generator always produces a cooperative world,
-    so passing `cooperation=None` keeps the default profile.
-
-    Raises `ValueError` when the requested configuration is impossible or when
-    you pass an unsupported `kind`.
     """
+    Build a solvable `World` on demand using a SAT-verified procedural generator.
+
+    Raises:
+        - `ValueError` if arguments are invalid;
+
+    Parameters:
+    ----------
+    - `kind`: the kind of generator to use. Refer to generator calsses in the `lle.generator` module for more information.
+    - `cooperation`: The required level of cooperation. Can be specified as:
+        - a boolean: `True` for any cooperative level, `False` for no cooperation;
+        - a `CooperationLevel` or a `CooperationLevelStr` (e.g. `CooperationLevel.MUTUAL` or `"mutual"` for exactly mutual);
+        - a tuple `(constraint, level)` where `constraint` is either `"exactly"` or `"at-least"` and `level` is a `CooperationLevel` or a `CooperationLevelStr`.
+    - `n_walls`: the number of walls to place. If `"auto"`, 10% of the grid is filled with walls.
+    - `t_max`: the maximal solution path length. If `"auto"`, defaults to `width * height // 2`.
+    - `n`: the number of worlds to generate.
+    - `n_jobs`: the number jobs to run in parallel. When `auto`, spawns `n_cpus - 1` jobs if `n` > 1 or spawns 1 job is `n` = 1.
+
+    Examples:
+    --------
+    ```python
+    import lle
+    world = lle.generate("level6_style", n_agents=4, n_lasers=3)
+    world = lle.generate("random", n=10, width=5, height=7, n_agents=2, seed=0)
+    world = lle.generate("random", cooperation=("at-least", "mutual"))
+    world = lle.generate("random", cooperation=CooperationLevel.FULLY_COUPLED, seed=0)
+    ```
+    """
+    _require_pysat()
     args = _GenerateArgs(
         kind=kind,
         height=height,
