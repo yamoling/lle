@@ -1,7 +1,6 @@
 use image::{GenericImage, Rgb, RgbImage, RgbaImage};
-use itertools::izip;
 
-use super::{sprites, TileVisitor, BLACK, GRID_GREY};
+use super::{BLACK, GRID_GREY, TileVisitor, sprites};
 use crate::{
     core::World,
     tiles::{Direction, Gem, Laser, LaserSource},
@@ -74,13 +73,13 @@ impl Renderer {
             };
             self.visit_laser(laser, &mut data);
         }
-        for (pos, gem) in izip!(world.gems_positions(), world.gems()) {
+        for (pos, gem) in world.gems() {
             let mut data = VisitorData {
                 x: pos.x() as u32 * TILE_SIZE,
                 y: pos.y() as u32 * TILE_SIZE,
                 frame: &mut frame,
             };
-            self.visit_gem(&gem, &mut data);
+            self.visit_gem(gem, &mut data);
         }
         for (id, pos) in world.agents_positions().iter().enumerate() {
             let x = pos.x() as u32 * TILE_SIZE;
@@ -193,7 +192,7 @@ impl TileVisitor for Renderer {
 
 #[cfg(test)]
 mod test_renderer {
-    use crate::{rendering::TILE_SIZE, Renderer, World};
+    use crate::{Renderer, World, rendering::TILE_SIZE};
 
     #[test]
     fn pixel_dimensions() {

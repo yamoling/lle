@@ -1,6 +1,7 @@
 use pyo3::prelude::*;
 use pyo3_stub_gen::define_stub_info_gatherer;
 
+mod observations;
 mod pyagent;
 mod pyexceptions;
 mod tiles;
@@ -29,6 +30,14 @@ fn make_world_submodule<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyModule>> 
     world.add_class::<world::PyWorldEvent>()?;
     world.add_class::<world::PyAction>()?;
     Ok(world)
+}
+
+fn make_observations_submodule<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyModule>> {
+    let observations = PyModule::new(py, "rust_observations")?;
+    observations.add_class::<observations::PyLayered>()?;
+    observations.add_class::<observations::PyStateGenerator>()?;
+    observations.add_class::<observations::PyPartialGenerator>()?;
+    Ok(observations)
 }
 
 fn make_exceptions_submodule<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyModule>> {
@@ -85,10 +94,12 @@ fn lle(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     let tiles = make_tiles_submodule(py)?;
     let world = make_world_submodule(py)?;
     let exceptions = make_exceptions_submodule(py)?;
+    let observations = make_observations_submodule(py)?;
 
     add_submodule(py, m, tiles)?;
     add_submodule(py, m, world)?;
     add_submodule(py, m, exceptions)?;
+    add_submodule(py, m, observations)?;
 
     let agent = PyModule::new(py, "agent")?;
     agent.add_class::<pyagent::PyAgent>()?;

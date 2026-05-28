@@ -18,6 +18,10 @@ name = "lle"
 path = "src/lib.rs"
 
 [[bin]]
+name = "benchmark"
+path = "benchmarks/benchmark.rs"
+
+[[bin]]
 name = "stub-gen"
 path = "src/stub_gen.rs"
 
@@ -25,6 +29,7 @@ path = "src/stub_gen.rs"
 image = "0.25.5"
 itertools = "0.14.0"
 lazy_static = "1.5.0"
+ndarray = "0.17.2"
 numpy = "0.28.0"
 pyo3 = { version = "0.28.0", features = ["generate-import-lib"] }
 pyo3-stub-gen = "0.22.0"

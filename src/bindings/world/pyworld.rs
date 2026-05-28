@@ -3,7 +3,6 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use itertools::izip;
 use numpy::{PyArray1, PyArray3, PyArrayMethods};
 use pyo3::{
     exceptions::{PyIndexError, PyTypeError, PyValueError},
@@ -275,7 +274,8 @@ impl PyWorld {
     fn gems(&self) -> Vec<PyGem> {
         let arc_world = self.world.clone();
         let world = self.world.lock().unwrap();
-        izip!(world.gems_positions(), world.gems())
+        world
+            .gems()
             .into_iter()
             .map(|(pos, gem)| PyGem::new(gem, pos.into(), arc_world.clone()))
             .collect()
@@ -557,6 +557,12 @@ impl PyWorld {
                 }),
         );
         res
+    }
+}
+
+impl PyWorld {
+    pub(crate) fn internal_world(&self) -> Arc<Mutex<World>> {
+        self.world.clone()
     }
 }
 

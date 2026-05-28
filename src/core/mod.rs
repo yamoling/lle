@@ -1,5 +1,6 @@
 mod errors;
 mod levels;
+pub mod observations;
 pub mod parsing;
 pub mod tiles;
 mod world;

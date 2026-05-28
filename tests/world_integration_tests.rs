@@ -223,7 +223,7 @@ fn test_force_wrong_state_check_laser_not_blocked() {
         panic!("Expected InvalidAgentPosition, got {:?}", res);
     }
     assert!(w.lasers().iter().all(|(_, l)| l.is_on()));
-    assert!(w.gems().iter().all(|g| !g.is_collected()));
+    assert!(w.gems().iter().all(|g| !g.1.is_collected()));
 }
 
 #[test]
@@ -281,7 +281,7 @@ fn test_dead_agent_does_not_block_the_laser() {
         "
         S0 .   G  X
         .  .  L2W X
-        .  S1  .  X 
+        .  S1  .  X
         . L1N  .  S2",
     )
     .unwrap();
@@ -335,7 +335,7 @@ fn change_laser_id() {
         "
         S0 .   G  X
         .  .  L0W .
-        .  S1  .  X 
+        .  S1  .  X
         .  .   .  .",
     )
     .unwrap();
@@ -365,7 +365,7 @@ fn disable_laser_source() {
         "
         S0 .   G  X
         .  .  L0W .
-        .  S1  .  X 
+        .  S1  .  X
         .  .   .  .",
     )
     .unwrap();
@@ -412,7 +412,7 @@ fn test_laser_id() {
         "
         S0 .   G  X
         .  .  L0W .
-        .  S1  .  X 
+        .  S1  .  X
         .  .  L0W  .",
     )
     .unwrap();

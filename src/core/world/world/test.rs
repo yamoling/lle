@@ -98,8 +98,8 @@ fn test_laser_blocked_by_wall() {
     let mut w = World::try_from(
         "
         . L0S .
-        .  .  . 
-        X  @  S0 
+        .  .  .
+        X  @  S0
         .  .  .",
     )
     .unwrap();
@@ -463,7 +463,7 @@ fn test_force_state() {
     w.set_state(&s).unwrap();
     assert_eq!(w.agents_positions()[0], (1, 2));
     let gem = w.gems()[0];
-    assert!(gem.is_collected());
+    assert!(gem.1.is_collected());
 }
 
 #[test]
@@ -480,7 +480,7 @@ fn test_force_end_state() {
     w.set_state(&s).unwrap();
     assert_eq!(w.agents_positions()[0], (1, 0));
     let gem = w.gems()[0];
-    assert!(gem.is_collected());
+    assert!(gem.1.is_collected());
 }
 
 #[test]
@@ -507,10 +507,10 @@ fn test_force_state_agent_dies() {
 fn test_no_exits() {
     let toml_content = r#"
 world_string = """
-. . S0 . S1 . . . . S2 
-. . .  . .  . . . . S3 
-. . .  . .  . . . . . 
-. . .  . .  . . . . . 
+. . S0 . S1 . . . . S2
+. . .  . .  . . . . S3
+. . .  . .  . . . . .
+. . .  . .  . . . . .
 """
 "#;
     match World::try_from(toml_content) {

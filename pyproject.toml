@@ -11,6 +11,7 @@ classifiers = [
 dependencies = [
   "multi-agent-rlenv>=4.3.0",
   "numpy>=2.0.0",
+  "pyinstrument>=5.1.2",
 ]
 dynamic = ["version"]
 

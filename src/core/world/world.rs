@@ -129,13 +129,13 @@ impl World {
         self.gems_positions.clone()
     }
 
-    pub fn gems(&self) -> Vec<&Gem> {
+    pub fn gems(&self) -> Vec<(Position, &Gem)> {
         // Important: gems can be wrapped into lasers !
         self.gems_positions
             .iter()
             .map(|pos| match &self.grid[pos.i][pos.j] {
-                Tile::Gem(gem) => gem,
-                Tile::Laser(laser) => laser.gem().unwrap(),
+                Tile::Gem(gem) => (pos.clone(), gem),
+                Tile::Laser(laser) => (pos.clone(), laser.gem().unwrap()),
                 _ => unreachable!(),
             })
             .collect()
@@ -474,8 +474,12 @@ impl World {
     pub fn get_state(&self) -> WorldState {
         WorldState {
             agents_positions: self.agents_positions.clone(),
-            gems_collected: self.gems().iter().map(|gem| gem.is_collected()).collect(),
-            agents_alive: self.agents.iter().map(|agent| agent.is_alive()).collect(),
+            gems_collected: self
+                .gems()
+                .iter()
+                .map(|(_, gem)| gem.is_collected())
+                .collect(),
+            agents_alive: self.agents.iter().map(|a| a.is_alive()).collect(),
         }
     }
 

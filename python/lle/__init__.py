@@ -146,7 +146,7 @@ The environment has been presented at [EWRL 2023](https://openreview.net/pdf?id=
 ```
 """
 
-from .lle import __version__, agent, exceptions, tiles, world  # noqa # prevent import reordering
+from .lle import __version__, agent, exceptions, rust_observations, tiles, world  # noqa # prevent import reordering
 
 
 from .agent import Agent

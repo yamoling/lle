@@ -11,9 +11,9 @@ rely on the SAT solver backend.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, Sequence
 
-from ..world import World
+from ..world import Action, World
 from .cooperation_level import CooperationLevel, CooperationLevelStr
 
 
@@ -78,6 +78,11 @@ def cooperation_level(world: World, t_max: int | Literal["auto"] = "auto"):
 
     t = _default_t_max(world) if t_max == "auto" else t_max
     return classify(world, t_max=t)
+
+
+def characterize_trajectory(world: World, trajectory: Sequence[Sequence[Action]] | Sequence[Sequence[int]]):
+    position_by_time = {}
+    raise NotImplementedError()
 
 
 __all__ = [

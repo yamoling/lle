@@ -14,9 +14,10 @@ from typing import Literal
 import numpy as np
 import numpy.typing as npt
 
-from lle.world import World, WorldState
-
-from .types import AgentId, Position
+from .rust_observations import Layered as RustLayered
+from .rust_observations import PartialGenerator as RustPartialGenerator
+from .rust_observations import StateGenerator as RustStateGenerator
+from .world import World, WorldState
 
 ObservationTypeLiteral = Literal[
     "layered",
@@ -138,15 +139,15 @@ class StateGenerator(ObservationGenerator):
         super().__init__(world)
         self.n_gems = world.n_gems
         self.n_agents = world.n_agents
+        self.normalize = normalize
+        self._rust_generator = RustStateGenerator(world, normalize)
         if normalize:
             self.dimensions = np.array([world.height, world.width] * world.n_agents)
         else:
             self.dimensions = np.array([1.0, 1.0] * world.n_agents)
 
     def observe(self):
-        state = self._world.get_state().as_array()
-        state[: self._world.n_agents * 2] = state[: self._world.n_agents * 2] / self.dimensions
-        return np.tile(state, reps=(self._world.n_agents, 1))
+        return self._rust_generator.observe(self._world)
 
     def to_world_state(self, data):
         data[: self._world.n_agents * 2] = data[: self._world.n_agents * 2] * self.dimensions
@@ -193,6 +194,7 @@ class LayeredPadded(ObservationGenerator):
         self.width = world.width
         self.height = world.height
         self.n_agents = world.n_agents + padding_size
+        self._rust_generator = RustLayered(world, padding_size)
         if len(world.laser_sources) > 0:
             self.highest_laser_agent_id = max(source.agent_id for source in world.laser_sources)
         else:
@@ -205,19 +207,6 @@ class LayeredPadded(ObservationGenerator):
         self.EXIT = self.GEM + 1
         self._shape = (self.EXIT + 1, world.height, world.width)
         self.ordered_gem_pos = sorted(gem.pos for gem in world.gems)
-
-        self.static_obs = self._setup()
-
-    def _setup(self):
-        """Initialise static layers such as walls, voids, gems, and exits."""
-        obs = np.zeros(self._shape, dtype=np.float32)
-        for i, j in self._world.wall_pos:
-            obs[self.WALL, i, j] = 1.0
-
-        for i, j in self._world.void_pos:
-            obs[self.VOID, i, j] = 1.0
-
-        return obs
 
     def to_world_state(self, data: npt.NDArray[np.float32]) -> WorldState:
         """Reconstruct a world state from a layered observation.
@@ -232,23 +221,7 @@ class LayeredPadded(ObservationGenerator):
         return WorldState(agents_positions, gems_collected)
 
     def observe(self):
-        obs = np.copy(self.static_obs)
-        for i, j in self._world.exit_pos:
-            obs[self.EXIT, i, j] = 1.0
-        for source in self._world.laser_sources:
-            i, j = source.pos
-            obs[self.LASER_0 + source.agent_id, i, j] = -1.0
-        for laser in self._world.lasers:
-            i, j = laser.pos
-            if laser.is_on:
-                obs[self.LASER_0 + laser.agent_id, i, j] = 1.0
-        for gem in self._world.gems:
-            i, j = gem.pos
-            if not gem.is_collected:
-                obs[self.GEM, i, j] = 1.0
-        for i, (y, x) in enumerate(self._world.agents_positions):
-            obs[self.A0 + i, y, x] = 1.0
-        return np.tile(obs, (self.n_agents, 1, 1, 1))
+        return self._rust_generator.observe(self._world)
 
     @property
     def shape(self):
@@ -303,6 +276,7 @@ class PartialGenerator(ObservationGenerator):
         super().__init__(world)
         assert square_size % 2 == 1, "Can only use odd numbers for the square size"
         self.size = square_size
+        self._rust_generator = RustPartialGenerator(world, square_size)
         # Each agent, each laser, walls, gems, exits
         self._shape = (world.n_agents + world.n_agents + 3, self.size, self.size)
         self._center = self.size // 2
@@ -319,43 +293,8 @@ class PartialGenerator(ObservationGenerator):
     def obs_type(self) -> ObservationType:
         return ObservationType.PARTIAL_3x3
 
-    def encode_layer(self, layer: npt.NDArray[np.float32], origin: Position, positions: list[Position], fill_value: float = 1.0):
-        if len(positions) == 0:
-            return
-        for i, j in positions:
-            i, j = i - origin[0] + self._center, j - origin[1] + self._center
-            if 0 <= i < self.size and 0 <= j < self.size:
-                layer[i, j] = fill_value
-
     def observe(self) -> npt.NDArray[np.float32]:
-        obs = np.zeros((self._world.n_agents, *self._shape), dtype=np.float32)
-        for a, agent_pos in enumerate(self._world.agents_positions):
-            # Agents positions
-            for a2, other_pos in enumerate(self._world.agents_positions):
-                self.encode_layer(obs[a, a2], agent_pos, [other_pos])
-            # Gems
-            self.encode_layer(obs[a, self.GEM], agent_pos, [gem.pos for gem in self._world.gems if not gem.is_collected])
-            # Exits
-            self.encode_layer(obs[a, self.EXIT], agent_pos, [exit_pos for exit_pos in self._world.exit_pos])
-            # Walls
-            self.encode_layer(obs[a, self.WALL], agent_pos, [wall_pos for wall_pos in self._world.wall_pos])
-            # Lasers
-            laser_positions = self._get_lasers_positions()
-            for agent_id, positions in laser_positions.items():
-                self.encode_layer(obs[a, self.LASER_0 + agent_id], agent_pos, positions)
-            # Laser sources
-            for source in self._world.laser_sources:
-                self.encode_layer(obs[a, self.LASER_0 + source.agent_id], agent_pos, [source.pos], fill_value=-1.0)
-        return obs
-
-    def _get_lasers_positions(self) -> dict[AgentId, list[Position]]:
-        laser_positions = dict[AgentId, list[Position]]()
-        for laser in self._world.lasers:
-            if laser.is_on:
-                lasers = laser_positions.get(laser.agent_id, [])
-                lasers.append(laser.pos)
-                laser_positions[laser.agent_id] = lasers
-        return laser_positions
+        return self._rust_generator.observe(self._world)
 
 
 class AgentZeroPerspective(Layered):
