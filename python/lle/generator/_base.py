@@ -161,16 +161,21 @@ class _BaseGenerator(ABC):
         if n_jobs < 1:
             raise ValueError("Invalid argument in 'generate_n': n_jobs must be >=1")
         worlds = list[World]()
-        with mp.Pool(n_jobs) as pool, tqdm(total=n) as pbar:
-            # Worker seeds are 0, 1, 2, ...
-            results = pool.imap_unordered(self._try_generate, range(sys.maxsize))
-            for result in results:
-                if result is not None:
-                    pbar.update(1)
-                    worlds.append(result)
-                    if len(worlds) >= n:
-                        pool.terminate()
-                        return worlds
+        try:
+            with mp.Pool(n_jobs) as pool, tqdm(total=n) as pbar:
+                # Worker seeds are 0, 1, 2, ...
+                results = pool.imap_unordered(self._try_generate, range(sys.maxsize))
+                for result in results:
+                    if result is not None:
+                        pbar.update(1)
+                        worlds.append(result)
+                        if len(worlds) >= n:
+                            pool.terminate()
+                            return worlds
+        except ConnectionResetError as e:
+            raise RuntimeError(
+                "Error in the processing pool. Do you have an \"if __name__ == '__main__':\" guard around the entry of the main script?"
+            ) from e
         return worlds
 
     @property
