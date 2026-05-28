@@ -159,7 +159,7 @@ from .world import Action, EventType, World, WorldEvent, WorldState
 try:
     from .env import make_pool
     from .generator import generate
-    from .solver import CooperationLevel, cooperation_level, is_cooperative, solve
+    from .solver import CooperationLevel, CooperationLevelStr, cooperation_level, is_cooperative, solve
 except ImportError:
     pass
 
@@ -195,4 +195,5 @@ __all__ = [
     "CooperationLevel",
     "generate",
     "make_pool",
+    "CooperationLevelStr",
 ]
