@@ -79,7 +79,7 @@ def test_generate_cooperative_requires_at_least_two_agents():
 
 
 def test_generate_n():
-    worlds = lle.generate("random", n=10)
+    worlds = list(lle.generate("random", n=10))
     assert len(worlds) == 10
 
     w0 = worlds[0]

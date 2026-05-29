@@ -16,7 +16,7 @@ profile.
 
 from __future__ import annotations
 
-from typing import Literal, overload
+from typing import Any, Generator, Literal, overload
 
 from ..solver import _require_pysat
 from ..solver.cooperation_level import CooperationLevel, CooperationLevelStr
@@ -84,7 +84,7 @@ def generate(
     seed: int | None = None,
     n_jobs: int | Literal["auto"] = "auto",
     quiet: bool = False,
-) -> list[World]: ...
+) -> Generator[World, Any, None]: ...
 
 
 @overload
@@ -139,7 +139,7 @@ def generate(
     seed: int | None = None,
     n_jobs: int | Literal["auto"] = "auto",
     quiet: bool = False,
-) -> list[World]: ...
+) -> Generator[World, Any, None]: ...
 
 
 def generate(
@@ -180,10 +180,10 @@ def generate(
     --------
         - When `max_attempts` is not provided (default):
             - A single `World` if `n=1`;
-            - A list of `n` `World` if `n` > 1.
+            - A Generator of `n` `World` if `n` > 1.
         - When `max_attempts` is set:
             - A `World | None` for `n` = 1;
-            - A list of at most `n` worlds `World`s for `n` > 1.
+            - A Generator of at most `n` worlds `World`s for `n` > 1.
 
     Raises:
     -------
@@ -249,6 +249,6 @@ def generate(
     if args.n_jobs > 1:
         worlds = generator.generate_n(n, args.n_jobs, seed, args.max_attempts, quiet=quiet)
         if n == 1:
-            return worlds[0]
+            return next(worlds)
         return worlds
     return generator.generate(seed=seed, max_attempts=max_attempts)

@@ -76,14 +76,6 @@ class CooperationLevel(str, Enum):
             return True
         if other == CooperationLevel.INDEPENDENT:
             return True
-        match self:
-            case CooperationLevel.FULLY_COUPLED:
-                return other == CooperationLevel.CHAIN
-            case CooperationLevel.ASYMMETRIC:
-                # Equality and Independent cases are already tested above
-                return False
-            case CooperationLevel.MUTUAL:
-                pass
         # Then, if the self is at a higher index than other, it is at least as cooperative than other.
         levels = list(e for e in CooperationLevel)
         self_idx = levels.index(self)
