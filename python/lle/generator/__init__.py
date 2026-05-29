@@ -36,6 +36,8 @@ LooseCooperationSpec = (
 def generate(
     kind: Literal["level6_style"] = "level6_style",
     *,
+    n: Literal[1] = 1,
+    max_attempts: Literal[None] = None,
     height: int = 12,
     width: int = 13,
     n_agents: int = 4,
@@ -53,7 +55,7 @@ def generate(
     kind: Literal["level6_style"],
     *,
     max_attempts: int,
-    n: int = 1,
+    n: Literal[1] = 1,
     height: int = 12,
     width: int = 13,
     n_agents: int = 4,
@@ -68,7 +70,7 @@ def generate(
 
 @overload
 def generate(
-    kind: Literal["level6_style"] = "level6_style",
+    kind: Literal["level6_style"],
     *,
     n: int,
     max_attempts: int | None = None,
@@ -89,6 +91,8 @@ def generate(
 def generate(
     kind: Literal["random", "constructive"],
     *,
+    n: Literal[1] = 1,
+    max_attempts: Literal[None] = None,
     height: int = 5,
     width: int = 5,
     n_agents: int = 2,
@@ -106,6 +110,7 @@ def generate(
     kind: Literal["random", "constructive"],
     *,
     max_attempts: int,
+    n: Literal[1] = 1,
     height: int = 5,
     width: int = 5,
     n_agents: int = 2,
@@ -158,8 +163,9 @@ def generate(
 
     Parameters:
     ----------
-    - `kind`: the kind of generator to use. Refer to generator calsses in the `lle.generator` module for more information.
+    - `kind`: the kind of generator to use. Refer to generator classes in the `lle.generator` module for more information.
     - `cooperation`: The required level of cooperation. Can be specified as:
+        - `None`: any cooperation level is accepted, including non-cooperative maps;
         - a boolean: `True` for any cooperative level, `False` for no cooperation;
         - a `CooperationLevel` or a `CooperationLevelStr` (e.g. `CooperationLevel.MUTUAL` or `"mutual"` for exactly mutual);
         - a tuple `(constraint, level)` where `constraint` is either `"exactly"` or `"at-least"` and `level` is a `CooperationLevel` or a `CooperationLevelStr`.
