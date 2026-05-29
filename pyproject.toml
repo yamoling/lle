@@ -11,15 +11,14 @@ classifiers = [
 dependencies = [
   "multi-agent-rlenv>=4.3.0",
   "numpy>=2.0.0",
+  "python-sat>=1.8",
+  "tqdm>=4.67.3"
 ]
 dynamic = ["version"]
 
 [[project.authors]]
 name = "Yannick Molinghen"
 email = "yannick.molinghen@ulb.be"
-
-[project.optional-dependencies]
-generator = ["python-sat>=1.8", "tqdm>=4.67.3"]
 
 [dependency-groups]
 dev = [

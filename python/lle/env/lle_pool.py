@@ -1,6 +1,6 @@
 from typing import Literal
 
-from marlenv.wrappers import EnvPool
+from marlenv.catalog import EnvPool
 
 from lle.generator import LooseCooperationSpec, generate
 from lle.observations import ObservationType, ObservationTypeLiteral
