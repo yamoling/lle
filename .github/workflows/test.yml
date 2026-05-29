@@ -38,15 +38,12 @@ jobs:
       - name: Rust tests
         run: cargo test
       - name: Install Python
-        uses: actions/setup-python@v5
+        uses: astral-sh/setup-uv@v8.0.0
         with:
+          version: 0.10.2
           python-version: ${{ matrix.python-version }}
-      - name: Install UV
-        uses: yezz123/setup-uv@v4
-        with:
-          uv-version: 0.10.2
       - name: Pytest
         run: |
-          uv sync --extra generator
+          uv sync
           uv run maturin dev
           uv run pytest
