@@ -81,6 +81,7 @@ def generate(
     n_walls: int | Literal["auto"] = "auto",
     seed: int | None = None,
     n_jobs: int | Literal["auto"] = "auto",
+    quiet: bool = False,
 ) -> list[World]: ...
 
 
@@ -132,6 +133,7 @@ def generate(
     t_max: int | Literal["auto"] = "auto",
     seed: int | None = None,
     n_jobs: int | Literal["auto"] = "auto",
+    quiet: bool = False,
 ) -> list[World]: ...
 
 
@@ -149,6 +151,7 @@ def generate(
     seed: int | None = None,
     max_attempts: int | None = None,
     n_jobs: int | Literal["auto"] = "auto",
+    quiet: bool = False,
 ):
     """
     Build a solvable `World` on demand using a SAT-verified procedural generator.
@@ -165,6 +168,7 @@ def generate(
     - `max_attempts`: the maximum number of attempts to generate valid worlds before stopping. If `None`, there is no limit.
     - `n`: the number of worlds to generate
     - `n_jobs`: the number jobs to run in parallel. When `auto`, spawns `n_cpus - 1` jobs if `n` > 1 or spawns 1 job is `n` = 1.
+    - `quiet`: whether to remove the progress bar when `n` > 1.
 
     Returns:
     --------
@@ -237,7 +241,7 @@ def generate(
     else:
         raise ValueError(f"Unknown kind: {kind!r}. Expected 'random', 'constructive', or 'level6_style'.")
     if args.n_jobs > 1:
-        worlds = generator.generate_n(n, args.n_jobs, seed, args.max_attempts)
+        worlds = generator.generate_n(n, args.n_jobs, seed, args.max_attempts, quiet=quiet)
         if n == 1:
             return worlds[0]
         return worlds
