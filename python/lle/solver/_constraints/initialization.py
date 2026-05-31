@@ -18,8 +18,9 @@ class InitializationConstraints(Constraint):
 
     def _lasers_initial_beam(self):
         beam_var = self.ctx.beam_var
-        for laser, (x, y) in self.ctx.lasers:
+        for laser, source in self.ctx.lasers:
             c = laser.color
             d = laser.direction
+            x, y = source
             for t in range(self.t_max + 1):
-                yield [beam_var[c, d, x, y, t]]
+                yield [beam_var[c, d, source, x, y, t]]

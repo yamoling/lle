@@ -11,10 +11,10 @@ class LaserConstraints(Constraint):
     def _no_step_on_active_laser(self):
         agent_var = self.ctx.agent_var
         beam_var = self.ctx.beam_var
-        for laser, _ in self.ctx.lasers:
+        for laser, source in self.ctx.lasers:
             c2 = laser.color
             d = laser.direction
-            path = self.ctx.beam_paths[c2, d]
+            path = self.ctx.beam_paths[c2, d, source]
             for agent, _ in self.ctx.agents:
                 c1 = agent.color
                 if c1 == c2:
@@ -22,20 +22,20 @@ class LaserConstraints(Constraint):
                 for t in range(self.t_max + 1):
                     for x, y in path:
                         if (c1, x, y, t) in agent_var:
-                            yield [-agent_var[c1, x, y, t], -beam_var[c2, d, x, y, t]]
+                            yield [-agent_var[c1, x, y, t], -beam_var[c2, d, source, x, y, t]]
 
     def _beam_propagation(self):
         agent_var = self.ctx.agent_var
         beam_var = self.ctx.beam_var
 
-        for laser, _ in self.ctx.lasers:
+        for laser, source in self.ctx.lasers:
             c = laser.color
             d = laser.direction
-            path = self.ctx.beam_paths[c, d]
+            path = self.ctx.beam_paths[c, d, source]
             for (x, y), (nx, ny) in zip(path, path[1:]):
                 for t in range(self.t_max + 1):
-                    bv_src = beam_var[c, d, x, y, t]
-                    bv_dst = beam_var[c, d, nx, ny, t]
+                    bv_src = beam_var[c, d, source, x, y, t]
+                    bv_dst = beam_var[c, d, source, nx, ny, t]
                     # The beam must propagate forward.
                     # If a same-color agent can occupy the destination cell, it may block the beam there.
                     av_dst = agent_var.get((c, nx, ny, t), None)
@@ -62,14 +62,14 @@ class StrictLaserConstraints(LaserConstraints):
 
         beam_var = self.ctx.beam_var
 
-        for laser, _ in self.ctx.lasers:
+        for laser, source in self.ctx.lasers:
             c = laser.color
             d = laser.direction
-            path = self.ctx.beam_paths[c, d]
+            path = self.ctx.beam_paths[c, d, source]
 
             for (x, y), (nx, ny) in zip(path, path[1:]):
                 for t in range(self.t_max + 1):
-                    bv_src = beam_var[c, d, x, y, t]
-                    bv_dst = beam_var[c, d, nx, ny, t]
+                    bv_src = beam_var[c, d, source, x, y, t]
+                    bv_dst = beam_var[c, d, source, nx, ny, t]
                     yield [-bv_src, bv_dst]
                     yield [bv_src, -bv_dst]

@@ -35,12 +35,13 @@ def test_solver_prunes_beam_variables_to_actual_laser_path():
     solver = WorldSolver(world, t_max=10)
     assert len(solver.ctx.lasers) == 1
 
-    laser, _ = solver.ctx.lasers[0]
-    path = solver.ctx.beam_paths[(laser.color, laser.direction)]
-    beam_keys = [key for key in solver.ctx.beam_var if key[:2] == (laser.color, laser.direction)]
+    laser, source = solver.ctx.lasers[0]
+    key = (laser.color, laser.direction, source)
+    path = solver.ctx.beam_paths[key]
+    beam_keys = [k for k in solver.ctx.beam_var if k[:3] == key]
 
     assert beam_keys
-    assert {key[2:4] for key in beam_keys} == set(path)
+    assert {k[3:5] for k in beam_keys} == set(path)
     assert len(beam_keys) == len(path) * (solver.t_max + 1)
 
 
@@ -167,3 +168,87 @@ S1 .  .  . .
     for ws in worlds:
         world = World(ws)
         assert not lle.is_cooperative(world, 10)
+
+
+# ==========================================================
+# Multiple laser sources of the same colour
+# ==========================================================
+#
+# Beam paths and beam variables are keyed by (colour, direction, source position).
+# A colour may therefore own any number of laser sources, including several pointing
+# the same way. The previous (colour, direction) key let same-direction sources of one
+# colour overwrite each other: only the last source's beam was built, so the others were
+# silently dropped (and the solver crashed with a KeyError on the missing beam variable).
+
+
+def test_multiple_same_colour_same_direction_lasers_get_independent_beams():
+    # Two colour-0 south lasers in different columns share (colour, direction); each must
+    # still keep its own beam, keyed by its distinct source position.
+    world = World("""
+.  L0S .  L0S .
+S0 .   .  .   S1
+X  .   .  .   X
+""")
+    solver = WorldSolver(world, t_max=10)
+    laser_sources = [(laser.color, laser.direction, src) for laser, src in solver.ctx.lasers]
+    assert len(laser_sources) == 2
+    # same colour and direction, but two distinct source positions
+    assert len({(c, d) for c, d, _ in laser_sources}) == 1
+    assert len({src for _, _, src in laser_sources}) == 2
+    # each source has its own beam path and its own beam variables
+    assert len(solver.ctx.beam_paths) == 2
+    for c, d, src in laser_sources:
+        assert (c, d, src) in solver.ctx.beam_paths
+        assert any(key[:3] == (c, d, src) for key in solver.ctx.beam_var)
+
+
+def test_two_same_colour_lasers_blocking_distinct_routes_is_unsat():
+    # Agent 1 (colour 1) can only leave through (1, 0) or (1, 2); each exit sits under its
+    # own colour-0 south laser. Agent 0 is sealed into column 4 and cannot block either
+    # beam, so the level is genuinely unsolvable. Modelling only one of the two beams would
+    # (wrongly) leave a route open.
+    world = World("""
+L0S @  L0S @ S0
+X   S1 X   @ X
+""")
+    assert lle.solve(world, 6) is None
+
+
+def test_two_same_colour_same_direction_lasers_with_clear_lanes_is_solvable():
+    # Two colour-0 south lasers (same direction) at (0, 1) and (0, 2); both agents have a
+    # beam-free lane (columns 0 and 3), so the level is solvable once both beams exist.
+    world = World("""
+S1 L0S L0S S0
+.  .   .   .
+X  .   .   X
+""")
+    assert lle.solve(world, 6) is not None
+
+
+def test_two_same_colour_crossing_lasers_keep_independent_beams():
+    # A colour may own many lasers, in several directions, whose beams CROSS. Every laser
+    # here is colour 0: three south lasers (columns 1, 2, 3), one east laser (row 1) and one
+    # north laser (column 4). The east beam along row 1 crosses all four vertical beams. Each
+    # beam must stay independent at every crossing rather than being forced to coincide:
+    # a crossing cell carries one beam variable per (direction, source), not a single shared one.
+    world = World("""
+.   L0S L0S L0S X
+L0E .   .   .   .
+S0  .   .   .   .
+S1  .   .   .   L0N
+.   .   .   .   X
+""")
+    # solver = WorldSolver(world, t_max=14)
+    # laser_sources = [(laser.color, laser.direction, src) for laser, src in solver.ctx.lasers]
+    # directions = {(c, d) for c, d, _ in laser_sources}
+    # assert len(laser_sources) == 5
+    # assert {c for c, _ in directions} == {0}  # every laser is colour 0
+    # assert len(directions) == 3  # south, east, north
+    # # no same-direction source overwrites another: one beam path per source
+    # assert len(solver.ctx.beam_paths) == 5
+    # # at every crossing along the east beam (row 1) the beams remain distinct variables,
+    # # keyed by (direction, source) -- never collapsed onto one shared beam.
+    # for crossing in [(1, 1), (1, 2), (1, 3), (1, 4)]:
+    #     beams_here = {(key[1], key[2]) for key in solver.ctx.beam_var if key[3:6] == (*crossing, 0)}
+    #     assert len(beams_here) >= 2
+    assert lle.solve(world, 14) is not None

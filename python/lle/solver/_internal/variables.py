@@ -11,8 +11,8 @@ class VariableFactory:
     def laser(self, color: int, x: int, y: int, t: int):
         return self.pool.id(("laser", color, (x, y), t))
 
-    def beam(self, color: int, direction: tuple[int, int], x: int, y: int, t: int):
-        return self.pool.id(("beam", color, direction, (x, y), t))
+    def beam(self, color: int, direction: tuple[int, int], source: tuple[int, int], x: int, y: int, t: int):
+        return self.pool.id(("beam", color, direction, source, (x, y), t))
 
     def name(self, lit: int):
         return self.pool.obj(abs(lit))

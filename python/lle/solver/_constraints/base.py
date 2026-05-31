@@ -65,8 +65,12 @@ class ConstraintContext:
 
     def initialize_variables(self):
         agent_var = dict[tuple[int, int, int, int], int]()
-        beam_paths = dict[tuple[int, tuple[int, int]], list[Position]]()
-        beam_var = dict[tuple[int, tuple[int, int], int, int, int], int]()
+        # Beam paths and variables are keyed by (colour, direction, source position).
+        # Including the source position lets a colour have any number of laser sources,
+        # even several sharing the same direction: each source keeps its own beam instead
+        # of overwriting the others under a shared (colour, direction) key.
+        beam_paths = dict[tuple[int, tuple[int, int], Position], list[Position]]()
+        beam_var = dict[tuple[int, tuple[int, int], Position, int, int, int], int]()
 
         for agent, _ in self.agents:
             for t in range(self.t_max + 1):
@@ -77,8 +81,8 @@ class ConstraintContext:
         # Each laser has a single straight path until the first wall, boundary,
         # or laser source tile. Beam and laser occupancy variables are only
         # generated on that path.
-        for laser, _ in self.lasers:
-            key = (laser.color, laser.direction)
+        for laser, source in self.lasers:
+            key = (laser.color, laser.direction, source)
             di, dj = laser.direction
             x, y = laser.position
             path: list[Position] = [(x, y)]
@@ -93,12 +97,12 @@ class ConstraintContext:
                 x, y = nx, ny
             beam_paths[key] = path
 
-        for laser, _ in self.lasers:
+        for laser, source in self.lasers:
             c = laser.color
             d = laser.direction
             for t in range(self.t_max + 1):
-                for x, y in beam_paths[c, d]:
-                    beam_var[c, d, x, y, t] = self.var.beam(c, d, x, y, t)
+                for x, y in beam_paths[c, d, source]:
+                    beam_var[c, d, source, x, y, t] = self.var.beam(c, d, source, x, y, t)
         return agent_var, beam_paths, beam_var
 
     @staticmethod
