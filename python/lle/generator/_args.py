@@ -32,6 +32,7 @@ class _GenerateArgs:
     n_lasers: int | Literal["auto"] = "auto"
     cooperation: LooseCooperationSpec | None = None
     t_max: int | Literal["auto"] = "auto"
+    t_min: int | Literal["auto"] = "auto"
     n_walls: int | Literal["auto"] = "auto"
     max_attempts: int | None = None
     n_jobs: int | Literal["auto"] = "auto"
@@ -86,6 +87,12 @@ class _GenerateArgs:
                 return width * height // 2
         return self.t_max
 
+    def _resolve_t_min(self) -> int:
+        # "auto" means no lower bound on the solution length.
+        if self.t_min == "auto":
+            return 0
+        return self.t_min
+
     def _resolve_n_walls(self, width: int, height: int):
         if self.n_walls == "auto":
             return width * height // 10
@@ -106,6 +113,7 @@ class _GenerateArgs:
         if self.kind == "level6_style" and not is_cooperative:
             raise ValueError("Levels in the style of level 6 must be cooperative.")
         t_max = self._resolve_t_max(width, height)
+        t_min = self._resolve_t_min()
         n_lasers = _resolve_lasers(self.n_lasers, n_agents, is_cooperative)
         n_walls = self._resolve_n_walls(width, height)
         n_jobs = self._resolve_n_jobs(n)
@@ -117,6 +125,7 @@ class _GenerateArgs:
             n_lasers=n_lasers,
             cooperation=cooperation,
             t_max=t_max,
+            t_min=t_min,
             n_walls=n_walls,
             max_attempts=self.max_attempts,
             n_jobs=n_jobs,
@@ -132,6 +141,7 @@ class _SanitizedArgs:
     n_lasers: int
     cooperation: CooperationSpec | None
     t_max: int
+    t_min: int
     n_walls: int
     max_attempts: int | None
     n_jobs: int

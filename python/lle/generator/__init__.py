@@ -33,6 +33,7 @@ def generate(
     cooperation: LooseCooperationSpec | None = None,
     n_walls: int | Literal["auto"] = "auto",
     t_max: int | Literal["auto"] = "auto",
+    t_min: int | Literal["auto"] = "auto",
     seed: int | None = None,
     n: Literal[1] = 1,
     n_jobs: int | Literal["auto"] = 1,
@@ -51,6 +52,7 @@ def try_generate(
     cooperation: LooseCooperationSpec | None = None,
     n_walls: int | Literal["auto"] = "auto",
     t_max: int | Literal["auto"] = "auto",
+    t_min: int | Literal["auto"] = "auto",
     seed: int | None = None,
 ) -> World | None: ...
 
@@ -66,6 +68,7 @@ def generate(
     cooperation: LooseCooperationSpec | None = None,
     n_walls: int | Literal["auto"] = "auto",
     t_max: int | Literal["auto"] = "auto",
+    t_min: int | Literal["auto"] = "auto",
     seed: int | None = None,
     n: int,
     n_jobs: int | Literal["auto"] = "auto",
@@ -82,6 +85,7 @@ def generate(
     n_lasers: int = 3,
     cooperation: LooseCooperationSpec | None = ("exactly", "mutual"),
     t_max: int = 21,
+    t_min: int | Literal["auto"] = "auto",
     n_walls: int | Literal["auto"] = "auto",
     seed: int | None = None,
     n: Literal[1] = 1,
@@ -99,6 +103,7 @@ def generate(
     n_lasers: int = 3,
     cooperation: LooseCooperationSpec | None = ("exactly", "mutual"),
     t_max: int = 21,
+    t_min: int | Literal["auto"] = "auto",
     n_walls: int | Literal["auto"] = "auto",
     seed: int | None = None,
     n: int,
@@ -117,6 +122,7 @@ def try_generate(
     n_lasers: int = 3,
     cooperation: LooseCooperationSpec | None = ("exactly", "mutual"),
     t_max: int = 21,
+    t_min: int | Literal["auto"] = "auto",
     n_walls: int | Literal["auto"] = "auto",
     seed: int | None = None,
 ) -> World | None: ...
@@ -143,6 +149,7 @@ def generate(
     n_lasers: int | Literal["auto"] = "auto",
     cooperation: LooseCooperationSpec | None = None,
     t_max: int | Literal["auto"] = "auto",
+    t_min: int | Literal["auto"] = "auto",
     n_walls: int | Literal["auto"] = "auto",
     seed: int | None = None,
     max_attempts: int | None = None,
@@ -165,6 +172,9 @@ def generate(
         - a tuple `(constraint, level)` where `constraint` is either `"exactly"` or `"at-least"` and `level` is a `CooperationLevel` or a `CooperationLevelStr`.
     - `n_walls`: the number of walls to place. If `"auto"`, 10% of the grid is filled with walls.
     - `t_max`: the maximal solution path length. If `"auto"`, defaults to `width * height // 2`.
+    - `t_min`: a guaranteed lower bound on the solution length. The generator only accepts
+      levels that are *not* solvable in fewer than `t_min` steps (and still solvable within
+      `t_max`). If `"auto"`, defaults to `0` (no lower bound). Must satisfy `0 <= t_min <= t_max`.
     - `n`: the number of worlds to generate.
     - `n_jobs`: the number of parallel jobs to run. If `auto`, spawns `n_cpus - 1` jobs.
 
@@ -186,6 +196,7 @@ def generate(
         n_lasers=n_lasers,
         cooperation=cooperation,
         t_max=t_max,
+        t_min=t_min,
         n_walls=n_walls,
         max_attempts=max_attempts,
         n_jobs=n_jobs,
@@ -199,6 +210,7 @@ def generate(
             cooperation=args.cooperation,
             n_walls=args.n_walls,
             t_max=args.t_max,
+            t_min=args.t_min,
         )
     elif kind == "constructive":
         generator = _ConstructiveGenerator(
@@ -209,6 +221,7 @@ def generate(
             cooperation=args.cooperation,
             n_walls=args.n_walls,
             t_max=args.t_max,
+            t_min=args.t_min,
         )
     elif kind == "level6_style":
         generator = _Level6StyleGenerator(
@@ -218,6 +231,7 @@ def generate(
             n_lasers=args.n_lasers,
             n_walls=args.n_walls,
             t_max=args.t_max,
+            t_min=args.t_min,
             cooperation=args.cooperation,
         )
     else:

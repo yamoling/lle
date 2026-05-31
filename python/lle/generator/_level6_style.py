@@ -40,6 +40,7 @@ class _Level6StyleGenerator(_ConstructiveGenerator):
         n_lasers: int = 3,
         n_walls: int | None = None,
         t_max: int | None = None,
+        t_min: int | None = None,
         cooperation: CooperationSpec | None = None,
     ):
         if n_lasers < 1:
@@ -51,6 +52,7 @@ class _Level6StyleGenerator(_ConstructiveGenerator):
             n_lasers=n_lasers,
             n_walls=n_walls,
             t_max=t_max,
+            t_min=t_min,
             cooperation=cooperation,
         )
 

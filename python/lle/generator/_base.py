@@ -39,6 +39,7 @@ class _BaseGenerator(ABC):
         cooperation: CooperationSpec | None = None,
         n_walls: int | None = None,
         t_max: int | None = None,
+        t_min: int | None = None,
     ):
         if width < 1:
             raise ValueError(f"Grid width must be >= 1. Got {width}")
@@ -77,6 +78,16 @@ class _BaseGenerator(ABC):
         if self.t_max < 0:
             raise ValueError(f"t_max must be >= 0. Got {self.t_max}")
 
+        # t_min is the guaranteed lower bound on the solution length: a generated level is
+        # rejected unless it is *unsolvable* in fewer than t_min steps. 0 means no lower
+        # bound (the default). It cannot exceed t_max, otherwise no level could be both
+        # solvable within t_max and unsolvable below t_min.
+        self.t_min = 0 if t_min is None else t_min
+        if self.t_min < 0:
+            raise ValueError(f"t_min must be >= 0. Got {self.t_min}")
+        if self.t_min > self.t_max:
+            raise ValueError(f"t_min must be <= t_max. Got t_min={self.t_min}, t_max={self.t_max}")
+
         total_needed = (2 * self.agents) + self.n_walls + self.n_lasers
         if total_needed > self.area:
             raise ValueError(f"layout requires {total_needed} unique cells, but grid has only {self.area}")
@@ -108,6 +119,8 @@ class _BaseGenerator(ABC):
         return not bool(sat)
 
     def _accept_world(self, world: World) -> bool:
+        # The level must be solvable within t_max (and meet the cooperation requirement,
+        # if any). classify() returning a level already implies standard solvability.
         if self.coop_constraint is not None:
             from ..solver._profile_analyzer import classify
 
@@ -117,9 +130,14 @@ class _BaseGenerator(ABC):
             if actual_level is None:
                 return False
             if constraint == "at-least":
-                return actual_level.is_at_least(required_level)
-            return actual_level is required_level
-        if not self._is_satisfiable(world, self.t_max):
+                if not actual_level.is_at_least(required_level):
+                    return False
+            elif actual_level is not required_level:
+                return False
+        elif not self._is_satisfiable(world, self.t_max):
+            return False
+        # The level must NOT be solvable in fewer than t_min steps.
+        if self.t_min > 0 and self._is_satisfiable(world, self.t_min - 1):
             return False
         return True
 
