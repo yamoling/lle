@@ -1,3 +1,9 @@
+"""Base classes and shared context for SAT constraints.
+
+Constraint classes use a shared context to avoid recomputing the same world
+metadata, reachability sets, and SAT variable IDs.
+"""
+
 from abc import ABC, abstractmethod
 from collections import deque
 from typing import Collection

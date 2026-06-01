@@ -1,3 +1,11 @@
+"""Observation types and observation generators for `LLE`.
+
+This module defines the public observation presets accepted by the Python API
+and the internal generators that turn a `World` into arrays or images.
+Use `ObservationType.from_str(...)` when you accept user input, and use
+`get_observation_generator(...)` to build the concrete generator for a world.
+"""
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
@@ -17,21 +25,24 @@ ObservationTypeLiteral = Literal[
     "partial5x5",
     "partial7x7",
     "state",
-    "image",
+    "rgb-image",
     "perspective",
     "normalized-state",
-    "state-normalized",
+    "layered-padded-1",
+    "layered-padded-2",
+    "layered-padded-3",
+    "layered-padded",
 ]
 
 
-class ObservationType(Enum):
-    """The different observation types for the World"""
+class ObservationType(str, Enum):
+    """Public observation presets supported by the environment."""
 
     NORMALIZED_STATE = "normalized-state"
     STATE = "state"
-    """The state of the world (agents positions, gems collected, agents_alive) as a numpy array"""
-    RGB_IMAGE = "rgb_image"
-    """The RGB image of the world"""
+    """The state of the world (agents' positions, alive status, gems collections) as a flat vector."""
+    RGB_IMAGE = "rgb-image"
+    """The rendered world as an RGB image."""
     LAYERED = "layered"
     """
     Layered observations of the map (walls, lasers, ...) as shown below. Only 2 agents are shown for the sake of clarity.
@@ -39,7 +50,7 @@ class ObservationType(Enum):
     ![Layered representation of the world](../../docs/layers.png)
     """
     FLATTENED = "flattened"
-    """Same as `ObservationType.LAYERED` but flattened to 1D"""
+    """The layered representation flattened to one dimension."""
     PARTIAL_3x3 = "partial3x3"
     PARTIAL_5x5 = "partial5x5"
     PARTIAL_7x7 = "partial7x7"
@@ -47,38 +58,13 @@ class ObservationType(Enum):
     LAYERED_PADDED_1AGENT = "layered-padded-1"
     LAYERED_PADDED_2AGENTS = "layered-padded-2"
     LAYERED_PADDED_3AGENTS = "layered-padded-3"
-    AGENT0_PERSPECTIVE_LAYERED = "layered-perspective"
+    AGENT0_PERSPECTIVE_LAYERED = "perspective"
 
     @staticmethod
     def from_str(s: ObservationTypeLiteral | str) -> "ObservationType":
-        """Convert a string to an ObservationType"""
-        match s:
-            case "layered":
-                return ObservationType.LAYERED
-            case "flattened":
-                return ObservationType.FLATTENED
-            case "partial3x3":
-                return ObservationType.PARTIAL_3x3
-            case "partial5x5":
-                return ObservationType.PARTIAL_5x5
-            case "partial7x7":
-                return ObservationType.PARTIAL_7x7
-            case "state":
-                return ObservationType.STATE
-            case "state-normalized":
-                return ObservationType.NORMALIZED_STATE
-            case "image":
-                return ObservationType.RGB_IMAGE
-            case "perspective":
-                return ObservationType.AGENT0_PERSPECTIVE_LAYERED
-        s = s.upper()
-        for enum in ObservationType:
-            if enum.name == s:
-                return enum
-        raise ValueError(f"'{s}' does not match any enum name from ObservationType")
+        return ObservationType(s)
 
     def get_observation_generator(self, world: World, padding_size: int = 0) -> "ObservationGenerator":
-        """Get the observation generator for the observation type"""
         match self:
             case ObservationType.NORMALIZED_STATE:
                 return StateGenerator(world, normalize=True)
@@ -112,35 +98,38 @@ class ObservationType(Enum):
 
 @dataclass
 class ObservationGenerator(ABC):
+    """Base class for world-to-observation converters."""
+
     def __init__(self, world: World):
         super().__init__()
         self._world = world
 
     @abstractmethod
     def observe(self) -> npt.NDArray[np.float32]:
-        """Observe the world and return an observation for each agent."""
+        """Return the observation for every agent."""
 
     def get_state(self) -> npt.NDArray[np.float32]:
         return self.observe()[0]
 
     def to_world_state(self, data: npt.NDArray[np.float32]) -> WorldState:
-        """
-        Convert the observation data to a WorldState object.
+        """Convert observation data back into a `WorldState`.
+
+        Generators that cannot reconstruct a world state should override this method.
         """
         raise NotImplementedError(f"This method is not implemented for {self.__class__.__name__}")
 
     @property
     @abstractmethod
     def obs_type(self) -> ObservationType:
-        """The observation type linked to the observation generator"""
+        """The observation preset represented by this generator."""
 
     @property
     @abstractmethod
     def shape(self) -> tuple[int, ...]:
-        """The observation shape of each individual agent."""
+        """The shape of a single-agent observation."""
 
     def set_world(self, new_world: World):
-        """Change the world to observe"""
+        """Point the generator at another world."""
         self._world = new_world
 
 
@@ -169,7 +158,7 @@ class StateGenerator(ObservationGenerator):
 
     @property
     def shape(self):
-        """Each agent has three dimensions (x, y, is_alive) + number of gems"""
+        """Each agent sees its position, alive flag, and gem status."""
         return (self._world.n_agents * 3 + self.n_gems,)
 
     @property
@@ -197,39 +186,17 @@ class RGBImage(ObservationGenerator):
 
 @dataclass
 class LayeredPadded(ObservationGenerator):
-    """
-    Layered observation of the map (walls, lasers, ...).
-
-    The padding size allows a fixed-size representation for different numbers of agents
-
-    Example with 4 agents:
-        - Layer 0:  1 at agent 0 location
-        - Layer 1:  1 at agent 1 location
-        - Layer 2:  1 at agent 2 location
-        - Layer 3:  1 at agent 3 location
-        - Layer 4:  1 at wall locations
-        - Layer 5: -1 at laser 0 sources and 1 at laser 0 beams
-        - Layer 6: -1 at laser 1 sources and 1 at laser 1 beams
-        - Layer 7: -1 at laser 2 sources and 1 at laser 2 beams
-        - Layer 8: -1 at laser 3 sources and 1 at laser 3 beams
-        - Layer 9: 1 at the void locations
-        - Layer 10:  1 at gem locations
-        - Layer 11: 1 at end tile locations
-    """
+    """Layered observations with an optional agent padding budget."""
 
     def __init__(self, world: World, padding_size: int):
         super().__init__(world)
         self.width = world.width
         self.height = world.height
         self.n_agents = world.n_agents + padding_size
-        if len(world.laser_sources) > 0:
-            self.highest_laser_agent_id = max(source.agent_id for source in world.laser_sources)
-        else:
-            self.highest_laser_agent_id = 0
         self.A0 = 0
-        self.WALL = self.A0 + self.n_agents
-        self.LASER_0 = self.WALL + 1
-        self.VOID = self.LASER_0 + self.highest_laser_agent_id + 1
+        self.LASER_0 = self.A0 + self.n_agents
+        self.WALL = self.LASER_0 + self.n_agents
+        self.VOID = self.WALL + 1
         self.GEM = self.VOID + 1
         self.EXIT = self.GEM + 1
         self._shape = (self.EXIT + 1, world.height, world.width)
@@ -238,7 +205,7 @@ class LayeredPadded(ObservationGenerator):
         self.static_obs = self._setup()
 
     def _setup(self):
-        """Initial setup with static data (walls, gems, exits)"""
+        """Initialise static layers such as walls, voids, gems, and exits."""
         obs = np.zeros(self._shape, dtype=np.float32)
         for i, j in self._world.wall_pos:
             obs[self.WALL, i, j] = 1.0
@@ -249,13 +216,13 @@ class LayeredPadded(ObservationGenerator):
         return obs
 
     def to_world_state(self, data: npt.NDArray[np.float32]) -> WorldState:
-        """
-        Assumes that the agents are alive.
+        """Reconstruct a world state from a layered observation.
+
+        This assumes that all agents are alive.
         """
         _, i, j = np.nonzero(data[self.A0 : self.A0 + self.n_agents])
         agents_positions = [(int(i[n]), int(j[n])) for n in range(self.n_agents)]
         gems_collected = []
-        # We need the gem positions to be ordered because they are initially stored in a hashmap
         for i, j in self.ordered_gem_pos:
             gems_collected.append(bool(data[self.GEM, i, j] == 0.0))
         return WorldState(agents_positions, gems_collected)

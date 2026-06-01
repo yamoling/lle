@@ -1,4 +1,8 @@
-"""Public CooperationLevel enum used by lle.cooperation_level and the cooperative generators."""
+"""Cooperation-level classification used by the solver and generator APIs.
+
+`CooperationLevel` captures how much laser blocking a world requires, from
+independent worlds to fully coupled ones.
+"""
 
 from __future__ import annotations
 
@@ -66,11 +70,12 @@ class CooperationLevel(str, Enum):
 
     def is_at_least(self, other: CooperationLevel | CooperationLevelStr):
         """Whether `self` is at least as cooperative as `other`."""
-        # First just check for equality
-        if self == other:
-            return True
         if not isinstance(other, CooperationLevel):
             other = CooperationLevel(other)
+        if self == other:
+            return True
+        if other == CooperationLevel.INDEPENDENT:
+            return True
         # Then, if the self is at a higher index than other, it is at least as cooperative than other.
         levels = list(e for e in CooperationLevel)
         self_idx = levels.index(self)

@@ -1,10 +1,7 @@
-"""Internal profile analyzer: classify cooperation structure from SAT models.
+"""Classify cooperation structure from SAT models.
 
-Reuses the standard WorldSolver / strict-laser WorldSolver. Helper events
-are reconstructed from the standard SAT model by replaying agent positions
-against raw beam paths. No `SELECTIVE_STRICT` mode is needed because
-`classify` only depends on dependency edges + graph metrics, not on
-per-color necessary-helper information.
+The analyzer reuses the standard and strict solvers, then reconstructs helper
+relationships from the SAT model and the beam geometry.
 """
 
 from __future__ import annotations

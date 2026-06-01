@@ -2,6 +2,8 @@ from .base import Constraint
 
 
 class InitializationConstraints(Constraint):
+    """Initial SAT constraints for agent and laser state."""
+
     def generate(self):
         return [*self._agents_initial_position(), *self._lasers_initial_beam()]
 

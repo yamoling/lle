@@ -1,21 +1,31 @@
-"""Public generator API: lle.generate.
+"""Procedural world generation helpers.
 
-Different kinds expose different parameter sets via typing.overload for
-static type checkers; the runtime dispatcher accepts the union of kwargs
-and delegates to the corresponding private generator class.
+Use `generate` to build a solvable `World` on demand. The module exposes
+three generator families:
+
+- `random`: samples arbitrary layouts and validates them with the SAT solver.
+- `constructive`: builds a layout with an explicit constructive solution.
+- `level6_style`: builds a Level-6-inspired cooperative layout. It defaults to an exactly mutual cooperative configuration.
+
+The `cooperation` argument accepts either a boolean, a `CooperationLevel`, a
+string such as `"mutual"`, or a tuple like `("at-least", "cooperative")`.
+See `CooperationLevel` for the ordering used by the solver. Use
+`cooperation=True` when you want any cooperative world rather than a specific
+profile.
 """
 
 from __future__ import annotations
 
-from typing import Literal, overload
+from typing import Any, Generator, Literal, overload
 
+from ..solver import _require_pysat
 from ..solver.cooperation_level import CooperationLevel, CooperationLevelStr
 from ..world import World
 from ._args import _GenerateArgs
 from ._base import CooperationSpec
-from ._constructive import _ConstructiveGenerator
-from ._level6_style import _Level6StyleGenerator
-from ._random import _RandomGenerator
+from .constructive import ConstructiveGenerator
+from .level6_style import Level6StyleGenerator
+from .random import RandomGenerator
 
 LooseCooperationSpec = (
     CooperationSpec | CooperationLevel | CooperationLevelStr | tuple[Literal["exactly", "at-least"], CooperationLevelStr] | bool
@@ -24,159 +34,172 @@ LooseCooperationSpec = (
 
 @overload
 def generate(
-    kind: Literal["random", "constructive"],
-    *,
-    height: int = 5,
-    width: int = 5,
-    n_agents: int = 2,
-    n_lasers: int | Literal["auto"] = "auto",
-    cooperation: LooseCooperationSpec | None = None,
-    n_walls: int | Literal["auto"] = "auto",
-    t_max: int | Literal["auto"] = "auto",
-    t_min: int | Literal["auto"] = "auto",
-    seed: int | None = None,
-    n: Literal[1] = 1,
-    n_jobs: int | Literal["auto"] = 1,
-) -> World: ...
-
-
-@overload
-def try_generate(
-    kind: Literal["random", "constructive"],
-    *,
-    max_attempts: int = 10_000,
-    height: int = 5,
-    width: int = 5,
-    n_agents: int = 2,
-    n_lasers: int | Literal["auto"] = "auto",
-    cooperation: LooseCooperationSpec | None = None,
-    n_walls: int | Literal["auto"] = "auto",
-    t_max: int | Literal["auto"] = "auto",
-    t_min: int | Literal["auto"] = "auto",
-    seed: int | None = None,
-) -> World | None: ...
-
-
-@overload
-def generate(
-    kind: Literal["random", "constructive"],
-    *,
-    height: int = 5,
-    width: int = 5,
-    n_agents: int = 2,
-    n_lasers: int | Literal["auto"] = "auto",
-    cooperation: LooseCooperationSpec | None = None,
-    n_walls: int | Literal["auto"] = "auto",
-    t_max: int | Literal["auto"] = "auto",
-    t_min: int | Literal["auto"] = "auto",
-    seed: int | None = None,
-    n: int,
-    n_jobs: int | Literal["auto"] = "auto",
-) -> list[World]: ...
-
-
-@overload
-def generate(
     kind: Literal["level6_style"] = "level6_style",
     *,
+    n: Literal[1] = 1,
+    max_attempts: Literal[None] = None,
     height: int = 12,
     width: int = 13,
     n_agents: int = 4,
     n_lasers: int = 3,
     cooperation: LooseCooperationSpec | None = ("exactly", "mutual"),
+    t_min: int = 0,
     t_max: int = 21,
-    t_min: int | Literal["auto"] = "auto",
     n_walls: int | Literal["auto"] = "auto",
     seed: int | None = None,
-    n: Literal[1] = 1,
     n_jobs: int | Literal["auto"] = 1,
 ) -> World: ...
 
 
 @overload
 def generate(
-    kind: Literal["level6_style"] = "level6_style",
-    *,
-    height: int = 12,
-    width: int = 13,
-    n_agents: int = 4,
-    n_lasers: int = 3,
-    cooperation: LooseCooperationSpec | None = ("exactly", "mutual"),
-    t_max: int = 21,
-    t_min: int | Literal["auto"] = "auto",
-    n_walls: int | Literal["auto"] = "auto",
-    seed: int | None = None,
-    n: int,
-    n_jobs: int | Literal["auto"] = "auto",
-) -> list[World]: ...
-
-
-@overload
-def try_generate(
     kind: Literal["level6_style"],
     *,
-    max_attempts: int = 10_000,
+    max_attempts: int,
+    n: Literal[1] = 1,
     height: int = 12,
     width: int = 13,
     n_agents: int = 4,
     n_lasers: int = 3,
     cooperation: LooseCooperationSpec | None = ("exactly", "mutual"),
+    t_min: int = 0,
     t_max: int = 21,
-    t_min: int | Literal["auto"] = "auto",
     n_walls: int | Literal["auto"] = "auto",
     seed: int | None = None,
+    n_jobs: int | Literal["auto"] = "auto",
 ) -> World | None: ...
 
 
-def _resolve_lasers(lasers: int | None, agents: int, cooperative: bool) -> int:
-    if lasers is not None:
-        return lasers
-    if cooperative:
-        return max(1, agents - 1)
-    return 0
+@overload
+def generate(
+    kind: Literal["level6_style"],
+    *,
+    n: int,
+    max_attempts: int | None = None,
+    height: int = 12,
+    width: int = 13,
+    n_agents: int = 4,
+    n_lasers: int = 3,
+    cooperation: LooseCooperationSpec | None = ("exactly", "mutual"),
+    t_min: int = 0,
+    t_max: int = 21,
+    n_walls: int | Literal["auto"] = "auto",
+    seed: int | None = None,
+    n_jobs: int | Literal["auto"] = "auto",
+    quiet: bool = False,
+) -> Generator[World, Any, None]: ...
 
 
-def _no_default_for(kind: str, arg_name: str):
-    return ValueError(f"No default value for parameter {arg_name} with kind={kind!r}")
+@overload
+def generate(
+    kind: Literal["random", "constructive"],
+    *,
+    n: Literal[1] = 1,
+    max_attempts: Literal[None] = None,
+    height: int = 5,
+    width: int = 5,
+    n_agents: int = 2,
+    n_lasers: int | Literal["auto"] = "auto",
+    cooperation: LooseCooperationSpec | None = None,
+    n_walls: int | Literal["auto"] = "auto",
+    t_min: int = 0,
+    t_max: int | Literal["auto"] = "auto",
+    seed: int | None = None,
+    n_jobs: int | Literal["auto"] = 1,
+) -> World: ...
+
+
+@overload
+def generate(
+    kind: Literal["random", "constructive"],
+    *,
+    max_attempts: int,
+    n: Literal[1] = 1,
+    height: int = 5,
+    width: int = 5,
+    n_agents: int = 2,
+    n_lasers: int | Literal["auto"] = "auto",
+    cooperation: LooseCooperationSpec | None = None,
+    n_walls: int | Literal["auto"] = "auto",
+    t_min: int = 0,
+    t_max: int | Literal["auto"] = "auto",
+    seed: int | None = None,
+    n_jobs: int | Literal["auto"] = 1,
+) -> World | None: ...
+
+
+@overload
+def generate(
+    kind: Literal["random", "constructive"],
+    *,
+    n: int,
+    max_attempts: int | None = None,
+    height: int = 5,
+    width: int = 5,
+    n_agents: int = 2,
+    n_lasers: int | Literal["auto"] = "auto",
+    cooperation: LooseCooperationSpec | None = None,
+    n_walls: int | Literal["auto"] = "auto",
+    t_min: int = 0,
+    t_max: int | Literal["auto"] = "auto",
+    seed: int | None = None,
+    n_jobs: int | Literal["auto"] = "auto",
+    quiet: bool = False,
+) -> Generator[World, Any, None]: ...
 
 
 def generate(
     kind: Literal["random", "constructive", "level6_style"] = "level6_style",
     *,
+    n: int = 1,
     height: int | None = None,
     width: int | None = None,
     n_agents: int | None = None,
     n_lasers: int | Literal["auto"] = "auto",
     cooperation: LooseCooperationSpec | None = None,
+    t_min: int = 0,
     t_max: int | Literal["auto"] = "auto",
-    t_min: int | Literal["auto"] = "auto",
     n_walls: int | Literal["auto"] = "auto",
     seed: int | None = None,
     max_attempts: int | None = None,
     n_jobs: int | Literal["auto"] = "auto",
-    n: int = 1,
+    quiet: bool = False,
 ):
     """
     Build a solvable `World` on demand using a SAT-verified procedural generator.
 
-    Raises:
-        - `ValueError` if `kind` is unknown or arguments are invalid;
-        - `ValueError` if `cooperative` is passed to `kind="level6_style"`;
-
     Parameters:
     ----------
-    - `kind`: the kind of generator to use. Refer to generator calsses in the `lle.generator` module for more information.
+    - `kind`: the kind of generator to use. Refer to generator classes in the `lle.generator` module for more information.
     - `cooperation`: The required level of cooperation. Can be specified as:
+        - `None`: any cooperation level is accepted, including non-cooperative maps;
         - a boolean: `True` for any cooperative level, `False` for no cooperation;
         - a `CooperationLevel` or a `CooperationLevelStr` (e.g. `CooperationLevel.MUTUAL` or `"mutual"` for exactly mutual);
         - a tuple `(constraint, level)` where `constraint` is either `"exactly"` or `"at-least"` and `level` is a `CooperationLevel` or a `CooperationLevelStr`.
     - `n_walls`: the number of walls to place. If `"auto"`, 10% of the grid is filled with walls.
-    - `t_max`: the maximal solution path length. If `"auto"`, defaults to `width * height // 2`.
     - `t_min`: a guaranteed lower bound on the solution length. The generator only accepts
       levels that are *not* solvable in fewer than `t_min` steps (and still solvable within
       `t_max`). If `"auto"`, defaults to `0` (no lower bound). Must satisfy `0 <= t_min <= t_max`.
+    - `t_max`: the maximal solution path length. If `"auto"`, defaults to `width * height // 2`.
     - `n`: the number of worlds to generate.
-    - `n_jobs`: the number of parallel jobs to run. If `auto`, spawns `n_cpus - 1` jobs.
+    - `max_attempts`: the maximum number of attempts to generate valid worlds before stopping. If `None`, there is no limit.
+    - `n`: the number of worlds to generate
+    - `n_jobs`: the number jobs to run in parallel. When `auto`, spawns `n_cpus - 1` jobs if `n` > 1 or spawns 1 job is `n` = 1.
+    - `quiet`: whether to remove the progress bar when `n` > 1.
+
+    Returns:
+    --------
+        - When `max_attempts` is not provided (default):
+            - A single `World` if `n=1`;
+            - A Generator of `n` `World` if `n` > 1.
+        - When `max_attempts` is set:
+            - A `World | None` for `n` = 1;
+            - A Generator of at most `n` worlds `World`s for `n` > 1.
+
+    Raises:
+    -------
+        - `ValueError` if arguments are invalid;
+        - `ValueError` if there is no default argument value for the given combination.
 
     Examples:
     --------
@@ -184,10 +207,12 @@ def generate(
     import lle
     world = lle.generate("level6_style", n_agents=4, n_lasers=3)
     world = lle.generate("random", n=10, width=5, height=7, n_agents=2, seed=0)
-    world = lle.generate("random", cooperation=("at-least", "mutual"), seed=0)
+    world = lle.generate("random", cooperation=("at-least", "mutual"))
     world = lle.generate("random", cooperation=CooperationLevel.FULLY_COUPLED, seed=0)
+    world_or_none = lle.genrate("random", max_attempts=10, cooperation="mutual")
     ```
     """
+    _require_pysat()
     args = _GenerateArgs(
         kind=kind,
         height=height,
@@ -202,7 +227,7 @@ def generate(
         n_jobs=n_jobs,
     ).resolve(n)
     if kind == "random":
-        generator = _RandomGenerator(
+        generator = RandomGenerator(
             height=args.height,
             width=args.width,
             n_agents=args.n_agents,
@@ -213,7 +238,7 @@ def generate(
             t_min=args.t_min,
         )
     elif kind == "constructive":
-        generator = _ConstructiveGenerator(
+        generator = ConstructiveGenerator(
             height=args.height,
             width=args.width,
             n_agents=args.n_agents,
@@ -224,7 +249,7 @@ def generate(
             t_min=args.t_min,
         )
     elif kind == "level6_style":
-        generator = _Level6StyleGenerator(
+        generator = Level6StyleGenerator(
             height=args.height,
             width=args.width,
             n_agents=args.n_agents,
@@ -237,21 +262,8 @@ def generate(
     else:
         raise ValueError(f"Unknown kind: {kind!r}. Expected 'random', 'constructive', or 'level6_style'.")
     if args.n_jobs > 1:
-        worlds = generator.generate_n(n, args.n_jobs, seed)
+        worlds = generator.generate_n(n, args.n_jobs, seed, args.max_attempts, quiet=quiet)
         if n == 1:
-            return worlds[0]
+            return next(worlds)
         return worlds
     return generator.generate(seed=seed, max_attempts=max_attempts)
-
-
-def try_generate(*args, max_attempts: int = 10_000, **kwargs):
-    """
-    Try to generate one or multiple worlds within `max_attempts` attempts. When generating one environemnt,
-    returns `None` if `max_attempts` attempts have been tried. If generating `n`>1 environments, returns the
-    list of generated environments so far.
-    See `lle.generate`."""
-    kwargs["max_attempts"] = max_attempts
-    return generate(*args, **kwargs)
-
-
-__all__ = ["generate", "try_generate"]

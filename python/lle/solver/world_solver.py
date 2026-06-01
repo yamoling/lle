@@ -1,10 +1,6 @@
-"""Internal SAT-based world solver. Public access via lle.solve / lle.is_cooperative."""
-
 from __future__ import annotations
 
 from enum import Enum
-
-from pysat.solvers import Minisat22
 
 from ..world import Action, World
 from ._constraints import (
@@ -25,7 +21,11 @@ class LaserMode(Enum):
 
 
 class WorldSolver:
-    """SAT-based solver for LLE worlds; verifies solvability within T_MAX steps."""
+    """SAT-based solver for `World` objects.
+
+    Public code should call `lle.solve`, `lle.is_cooperative`, or
+    `lle.cooperation_level` instead of instantiating this class directly.
+    """
 
     def __init__(self, world: World, t_max: int = 10, *, laser_mode: LaserMode = LaserMode.STANDARD, movement_method: str = METHOD_LOCAL):
         self.world = world
@@ -58,6 +58,8 @@ class WorldSolver:
         self._model_built = True
 
     def solve(self):
+        from pysat.solvers import Minisat22  # pyright: ignore[reportMissingImports]
+
         self.build_model()
         with Minisat22(bootstrap_with=self.model.cnf.clauses) as solver:
             result = solver.solve()

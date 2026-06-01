@@ -281,7 +281,7 @@ fn test_dead_agent_does_not_block_the_laser() {
         "
         S0 .   G  X
         .  .  L2W X
-        .  S1  .  X 
+        .  S1  .  X
         . L1N  .  S2",
     )
     .unwrap();
@@ -335,7 +335,7 @@ fn change_laser_id() {
         "
         S0 .   G  X
         .  .  L0W .
-        .  S1  .  X 
+        .  S1  .  X
         .  .   .  .",
     )
     .unwrap();
@@ -365,7 +365,7 @@ fn disable_laser_source() {
         "
         S0 .   G  X
         .  .  L0W .
-        .  S1  .  X 
+        .  S1  .  X
         .  .   .  .",
     )
     .unwrap();
@@ -412,7 +412,7 @@ fn test_laser_id() {
         "
         S0 .   G  X
         .  .  L0W .
-        .  S1  .  X 
+        .  S1  .  X
         .  .  L0W  .",
     )
     .unwrap();
@@ -559,4 +559,25 @@ fn test_world_state_dead_agents() {
     w.reset();
     w.set_state(&state).unwrap();
     assert!(!w.agents()[0].is_alive());
+}
+
+#[test]
+fn test_blocked_laser_on_spawn() {
+    let mut w = World::try_from(
+        "
+    . L1S .  X .  .
+    . S1  .  . .  .
+    . S0  .  @ . L0W
+    .  .  .  . .  .
+    @  . L2N . .  X
+    .  .  .  @ .  . ",
+    )
+    .unwrap();
+    let actions = [Action::East, Action::East];
+    w.reset();
+    // Kill the agent by being unprotected
+    w.step(&actions).unwrap();
+    // New episode should not panic when stepping
+    w.reset();
+    w.step(&actions).unwrap();
 }

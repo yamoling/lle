@@ -1,9 +1,9 @@
-from threading import Thread
-import pytest
 from copy import deepcopy
+from threading import Thread
 
-from lle import Position, World, WorldState, Action, EventType
-from lle.exceptions import ParsingError, InvalidActionError, InvalidWorldStateError
+import pytest
+from lle import Action, EventType, Position, World, WorldState
+from lle.exceptions import InvalidActionError, InvalidWorldStateError, ParsingError
 
 
 def test_world_tiles():
@@ -183,8 +183,8 @@ S0 X  .  .
 def test_walk_into_laser_source():
     world = World(
         """
-        @ L0S @ 
-        .  .  . 
+        @ L0S @
+        .  .  .
         X  .  S0
         .  .  ."""
     )
@@ -668,11 +668,11 @@ height = 5
 exits = [{ j_min = 9 }]
 gems = [{ i = 0, j = 2 }]
 world_string = """
-X . . . S1 . . . . . 
-. . . . .  . . . . . 
-. . . . .  . . . . . 
-. . . . .  . . . . . 
-. . . . .  . . . . . 
+X . . . S1 . . . . .
+. . . . .  . . . . .
+. . . . .  . . . . .
+. . . . .  . . . . .
+. . . . .  . . . . .
 """
 
 [[agents]]
@@ -768,10 +768,10 @@ def test_set_exit_positions():
 def test_laser_sources_in_wall_pos():
     world = World(
         """
-        S0 . . X 
+        S0 . . X
        L0E . . X
         S1 . . X
-       L1E . . X 
+       L1E . . X
 """
     )
     for source in world.laser_sources:
@@ -811,3 +811,26 @@ def test_n_laser_colours_same_colours():
         """
     )
     assert world.n_laser_colours == 1
+
+
+def test_reset_in_blocked_laser():
+    w = World("""
+    . .  .  @ .  .  .  . .  .  . . .
+    . .  .  . @  X  .  . .  @  . . .
+    . .  .  . . L1S .  X .  .  @ . @
+    . .  .  . .  .  .  . .  .  . . .
+    . S3  . . . S1  .  . .  .  . @ .
+    . .  .  @ . S0  .  @ . L0W . . .
+    @ .  .  @ .  .  .  . .  .  . . .
+    . .  .  . .  .  .  . .  .  . X .
+    . .  .  . @  . L2N . .  .  . . .
+    . .  S2 . .  .  .  . .  .  . . X
+    . .  .  @ .  .  @  . .  @  . . .
+    . .  .  . .  .  .  @ .  .  . . .""")
+    w.reset()
+    actions = [Action.EAST, Action.EAST, Action.NORTH, Action.SOUTH]
+    w.step(actions)
+
+    w.reset()
+    # This should not panic !
+    w.step(actions)

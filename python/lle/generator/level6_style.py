@@ -1,21 +1,19 @@
-"""
-Constructive cooperative generator with clustered starts and exits on
-opposing sides of the grid (LLE Level 6 inspired).
-
-Cooperation is intrinsic to this kind: the strict-laser UNSAT check runs
-unconditionally (via cooperative=True forced in __init__).
-"""
-
 from __future__ import annotations
 
 from lle.tiles import Direction
 
 from ._base import CooperationSpec
 from ._candidates import CandidateLayout
-from ._constructive import _ConstructiveGenerator
+from .constructive import ConstructiveGenerator
 
 
-class _Level6StyleGenerator(_ConstructiveGenerator):
+class Level6StyleGenerator(ConstructiveGenerator):
+    """Level-6-inspired cooperative generator.
+
+    This generator clusters starts and exits on opposite sides of the grid and
+    keeps sampling until it finds a cooperative world.
+    """
+
     _FLUSH_PROB = 0.75
 
     _WALL_SHAPES = (

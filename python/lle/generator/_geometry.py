@@ -1,4 +1,8 @@
-"""Pure grid-geometry helpers used by generators."""
+"""Pure grid-geometry helpers used by generators.
+
+These helpers stay independent from the solver so generator code can reuse
+basic grid logic without importing the SAT machinery.
+"""
 
 from __future__ import annotations
 

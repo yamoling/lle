@@ -382,6 +382,10 @@ impl World {
                 tile.reset();
             }
         }
+        // Reset (dead=false) the agents such that they can block lasers on spacwn
+        for agent in &mut self.agents {
+            agent.reset();
+        }
         self.start_positions = sample_different(&mut self.rng, &self.random_start_positions);
         self.agents_positions = self.start_positions.clone();
         for (pos, agent) in izip!(&self.agents_positions, &self.agents) {
@@ -391,9 +395,6 @@ impl World {
         }
         for (pos, agent) in izip!(&self.agents_positions, &mut self.agents) {
             self.grid[pos.i][pos.j].enter(agent);
-        }
-        for agent in &mut self.agents {
-            agent.reset();
         }
         self.available_actions = self.compute_available_actions();
     }

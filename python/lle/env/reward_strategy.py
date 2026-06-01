@@ -1,3 +1,9 @@
+"""Reward strategies for the `LLE` environment.
+
+The environment can expose a single scalar reward, a multi-objective reward
+vector, or a potential-based shaping wrapper around either strategy.
+"""
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import cached_property
@@ -44,6 +50,8 @@ class RewardStrategy(ABC):
 
 @dataclass
 class SingleObjective(RewardStrategy):
+    """Return one scalar reward combining gems, exits, and deaths."""
+
     def __init__(self, n_agents: int):
         super().__init__(n_agents, ["reward"])
 
@@ -69,6 +77,8 @@ class SingleObjective(RewardStrategy):
 
 @dataclass
 class MultiObjective(RewardStrategy):
+    """Return a reward vector with separate gem, exit, death, and done terms."""
+
     RW_GEM_IDX = 0
     RW_EXIT_IDX = 1
     RW_DEATH_IDX = 2
@@ -101,10 +111,11 @@ class MultiObjective(RewardStrategy):
 
 @dataclass
 class PotentialShapedLLE(RewardStrategy):
-    """
-    Potential shaping for the Laser Learning Environment (LLE).
+    """Wrap another strategy with potential-based reward shaping.
 
-    https://people.eecs.berkeley.edu/~pabbeel/cs287-fa09/readings/NgHaradaRussell-shaping-ICML1999.pdf
+    The shaping term rewards agents for moving closer to the chosen laser
+    subgoals. This follows potential-based shaping as described by
+    Ng, Harada, and Russell.
     """
 
     gamma: float

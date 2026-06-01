@@ -1,8 +1,9 @@
-from pysat.formula import IDPool
-
-
 class VariableFactory:
+    """Variable factory for SAT encodings used by the solver."""
+
     def __init__(self):
+        from pysat.formula import IDPool  # pyright: ignore[reportMissingImports]
+
         self.pool = IDPool(start_from=1)
 
     def agent(self, color: int, x: int, y: int, t: int):
