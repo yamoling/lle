@@ -1,7 +1,8 @@
 """World solving and cooperation analysis helpers.
 
-Use `solve` to search for a joint plan, `is_cooperative` to test whether a
-level requires laser blocking, and `cooperation_level` to obtain the more
+Use `solve` to search for a shortest joint plan, `solve_sat` to search for a
+fixed-horizon plan of length exactly `t_max`, `is_cooperative` to test whether
+a level requires laser blocking, and `cooperation_level` to obtain the more
 precise structural classification. See `CooperationLevel` for the full
 classification vocabulary.
 
@@ -36,7 +37,7 @@ def _default_t_max(world: World) -> int:
 
 
 def solve(world: World, t_max: int | Literal["auto"] = "auto"):
-    """Find a joint of length `t_max` plan that brings every agent to an exit.
+    """Find the shortest joint plan of length at most `t_max`.
 
     Returns `None` if no plan exists within the time bound.
     """
@@ -45,7 +46,23 @@ def solve(world: World, t_max: int | Literal["auto"] = "auto"):
 
     t = _default_t_max(world) if t_max == "auto" else t_max
     solver = WorldSolver(world, t_max=t)
-    sat, model = solver.solve()
+    sat, model = solver.solve_shortest()
+    if not sat or model is None:
+        return None
+    return solver.extract_plan(model)
+
+
+def solve_sat(world: World, t_max: int | Literal["auto"] = "auto"):
+    """Find a plan of length exactly `t_max` using the classic SAT solver.
+
+    Returns `None` if no plan exists within the fixed horizon.
+    """
+    _require_pysat()
+    from .world_solver import WorldSolver  # local import for ImportError gate
+
+    t = _default_t_max(world) if t_max == "auto" else t_max
+    solver = WorldSolver(world, t_max=t)
+    sat, model = solver.solve_sat()
     if not sat or model is None:
         return None
     return solver.extract_plan(model)
@@ -94,5 +111,6 @@ __all__ = [
     "cooperation_level_trajectory",
     "is_cooperative",
     "solve",
+    "solve_sat",
     "CooperationLevelStr",
 ]

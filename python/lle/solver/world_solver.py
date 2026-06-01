@@ -58,7 +58,7 @@ class WorldSolver:
         self._model_built = True
 
     def solve(self):
-        from pysat.solvers import Minisat22  # pyright: ignore[reportMissingImports]
+        from pysat.solvers import Minisat22
 
         self.build_model()
         with Minisat22(bootstrap_with=self.model.cnf.clauses) as solver:
@@ -66,20 +66,89 @@ class WorldSolver:
             model = solver.get_model() if result else None
         return result, model
 
-    def extract_plan(self, model) -> list[tuple[Action, ...]]:
+    def solve_sat(self):
+        """Alias for the default satisfiability solve.
+
+        This keeps the original fixed-horizon SAT behavior available even when
+        `solve_shortest` is used for optimization.
+        """
+
+        return self.solve()
+
+    def solve_shortest(self):
+        """Find the shortest plan within the current `t_max` horizon.
+
+        The hard constraints are shared with the SAT solve. The only extra
+        encoding is a small MaxSAT objective that rewards earlier completion.
+        """
+        from pysat.examples.rc2 import RC2
+        from pysat.formula import WCNF
+
+        self.build_model()
+        wcnf = WCNF()
+        for clause in self.model.cnf.clauses:
+            wcnf.append(clause)
+        self._extend_with_shortest_objective(wcnf)
+        with RC2(wcnf) as solver:
+            model = solver.compute()
+        return model is not None, model
+
+    def _extend_with_shortest_objective(self, wcnf):
+        """Add the completion variables and the shortest-path objective."""
+        agent_var = self.ctx.agent_var
+        exit_positions = tuple(self.ctx.exits)
+        agent_colors = [agent.color for agent, _ in self.ctx.agents]
+
+        # Require that a solution actually reaches the exits by `t_max`.
+        done_vars = []
+        for t in range(self.t_max + 1):
+            done_t = self.var.done(t)
+            done_vars.append(done_t)
+            at_exit_vars = []
+            for color in agent_colors:
+                at_exit = self.var.agent_at_exit(color, t)
+                at_exit_vars.append(at_exit)
+                exit_lits = [agent_var[color, x, y, t] for x, y in exit_positions if (color, x, y, t) in agent_var]
+                if not exit_lits:
+                    # No exit position is available for this agent at this time,
+                    # so this branch cannot witness a valid solution.
+                    wcnf.append([-at_exit])
+                else:
+                    # at_exit -> some exit position
+                    wcnf.append([-at_exit, *exit_lits])
+                    # any exit position -> at_exit
+                    for exit_lit in exit_lits:
+                        wcnf.append([-exit_lit, at_exit])
+                # done_t -> this agent is at an exit
+                wcnf.append([-done_t, at_exit])
+            if at_exit_vars:
+                # all agents at an exit -> done_t
+                wcnf.append([*[-lit for lit in at_exit_vars], done_t])
+            # Prefer the earliest done_t to be true.
+            wcnf.append([done_t], weight=1)
+        # Some completion time must be reached.
+        wcnf.append(done_vars)
+
+    def extract_plan(self, model, horizon: int | None = None) -> list[tuple[Action, ...]]:
         positions = dict[int, dict[int, tuple[int, int]]]()
+        done_times: list[int] = []
         for lit in model:
             if lit <= 0:
                 continue
             obj = self.var.pool.obj(abs(lit))
-            if not obj or obj[0] != "agent":
+            if not obj:
                 continue
-            _, color, (x, y), t = obj
-            positions.setdefault(color, {})[t] = (x, y)
-
+            if obj[0] == "agent":
+                _, color, (x, y), t = obj
+                positions.setdefault(color, {})[t] = (x, y)
+            elif obj[0] == "done":
+                _, t = obj
+                done_times.append(t)
         agent_colors = sorted(positions.keys())
+        if horizon is None:
+            horizon = min(done_times) if done_times else self.t_max
         plan: list[tuple[Action, ...]] = []
-        for t in range(self.t_max):
+        for t in range(horizon):
             row: list[Action] = []
             for color in agent_colors:
                 y1, x1 = positions[color][t]

@@ -47,7 +47,6 @@ class CooperationLevel(str, Enum):
       no other subtype applies).
     """
 
-    # UNSOLVABLE = "unsolvable"
     INDEPENDENT = "independent"
     COOPERATIVE = "cooperative"
     ASYMMETRIC = "asymmetric"

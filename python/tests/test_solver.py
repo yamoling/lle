@@ -7,13 +7,20 @@ def _default_t_max(world: World) -> int:
     return (world.width * world.height) // 2
 
 
-def test_solve_simple_world_returns_plan_with_t_max_length():
+def test_solve_simple_world_returns_shortest_plan():
     world = World("S0 . . X")
     plan = lle.solve(world, t_max=5)
     assert plan is not None
-    assert len(plan) == 5
+    assert len(plan) == 3
     assert all(isinstance(row, tuple) for row in plan)
     assert all(isinstance(a, Action) for row in plan for a in row)
+
+
+def test_solve_sat_keeps_fixed_horizon_behavior():
+    world = World("S0 . . X")
+    plan = lle.solve_sat(world, t_max=5)
+    assert plan is not None
+    assert len(plan) == 5
 
 
 def test_solve_unsolvable_returns_none():

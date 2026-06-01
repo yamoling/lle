@@ -9,6 +9,12 @@ class VariableFactory:
     def agent(self, color: int, x: int, y: int, t: int):
         return self.pool.id(("agent", color, (x, y), t))
 
+    def agent_at_exit(self, color: int, t: int):
+        return self.pool.id(("agent_at_exit", color, t))
+
+    def done(self, t: int):
+        return self.pool.id(("done", t))
+
     def laser(self, color: int, x: int, y: int, t: int):
         return self.pool.id(("laser", color, (x, y), t))
 
