@@ -11,9 +11,9 @@ rely on the SAT solver backend.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, Sequence
 
-from ..world import World
+from ..world import Action, World
 from .cooperation_level import CooperationLevel, CooperationLevelStr
 
 
@@ -77,12 +77,21 @@ def cooperation_level(world: World, t_max: int | Literal["auto"] = "auto"):
     from .profile_analyzer import classify
 
     t = _default_t_max(world) if t_max == "auto" else t_max
-    return classify(world, t_max=t)
+    return classify(world, t)
+
+
+def cooperation_level_trajectory(world: World, trajectory: Sequence[tuple[Action, ...]]):
+    """Return the cooperation classification induced by an explicit trajectory."""
+    _require_pysat()
+    from .profile_analyzer import classify
+
+    return classify(world, trajectory)
 
 
 __all__ = [
     "CooperationLevel",
     "cooperation_level",
+    "cooperation_level_trajectory",
     "is_cooperative",
     "solve",
     "CooperationLevelStr",

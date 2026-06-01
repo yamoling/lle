@@ -167,6 +167,14 @@ def test_cooperation_level_classifies_level_6_as_mutual():
     assert lle.cooperation_level(World.level(6), t_max=21) is CooperationLevel.MUTUAL
 
 
+def test_cooperation_level_trajectory_classifies_an_explicit_plan():
+    world = World.level(3)
+    plan = lle.solve(world, t_max=10)
+    assert plan is not None
+
+    assert lle.cooperation_level_trajectory(world, plan) is CooperationLevel.ASYMMETRIC
+
+
 @pytest.mark.parametrize("level_idx", [1, 2])
 def test_cooperation_level_independent_on_lle_levels_1_and_2(level_idx):
     assert lle.cooperation_level(World.level(level_idx), t_max=10) is CooperationLevel.INDEPENDENT

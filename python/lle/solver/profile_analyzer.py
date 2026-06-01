@@ -8,10 +8,11 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
+from typing import Sequence, overload
 
-from ..world import World
+from ..world import Action, World
 from ._internal.grid import is_within_bounds
-from ._internal.types import laser_sources_from_world
+from ._internal.types import Position, laser_sources_from_world
 from .cooperation_level import CooperationLevel
 from .world_solver import LaserMode, WorldSolver
 
@@ -23,7 +24,23 @@ class _HelperEvent:
     time: int
 
 
-def classify(world: World, t_max: int) -> CooperationLevel | None:
+@overload
+def classify(world: World, t_max: int, /) -> CooperationLevel | None: ...
+
+
+@overload
+def classify(world: World, trajectory: Sequence[tuple[Action, ...]], /) -> CooperationLevel | None: ...
+
+
+def classify(world: World, t_max_or_trajectory: int | Sequence[tuple[Action, ...]]):
+    match t_max_or_trajectory:
+        case int(t_max):
+            return _classify_from_scratch(world, t_max)
+        case trajectory:
+            return _classify_trajectory(world, trajectory)
+
+
+def _classify_from_scratch(world: World, t_max: int) -> CooperationLevel | None:
     """Return the precise CooperationLevel for ``world`` within ``t_max`` steps, or None if the level is not solvable."""
     # 1) Check that the world is solvable within t_max steps
     standard = WorldSolver(world, t_max=t_max, laser_mode=LaserMode.STANDARD)
@@ -53,12 +70,38 @@ def classify(world: World, t_max: int) -> CooperationLevel | None:
     )
 
 
+def _classify_trajectory(world: World, trajectory: Sequence[Action | Sequence[Action]]) -> CooperationLevel:
+    """Return the cooperation profile induced by a concrete action trajectory.
+
+    Unlike :func:`classify`, this does not search for an alternative SAT plan.
+    It only analyses the provided trajectory and therefore can characterize any
+    executable sequence of joint actions for the given world.
+    """
+    world.reset()
+    positions_by_time = _positions_by_time_from_trajectory(world, trajectory)
+    helper_events = _extract_helper_events(world, positions_by_time)
+    dependency_edges = {(e.helper, e.beneficiary) for e in helper_events}
+    if len(dependency_edges) == 0:
+        return CooperationLevel.INDEPENDENT
+    return classify_profile(
+        dependency_edges=dependency_edges,
+        mutual_pairs=_mutual_pairs(dependency_edges),
+        largest_scc_size=_largest_scc_size(dependency_edges, world.n_agents),
+        longest_chain_length=_longest_chain_length(dependency_edges, world.n_agents),
+        num_agents=world.n_agents,
+    )
+
+
 # ---------------------------------------------------------------------------
 # SAT model -> agent positions per timestep
 # ---------------------------------------------------------------------------
 
 
-def _positions_by_time(solver: WorldSolver, model) -> dict[int, dict[int, tuple[int, int]]]:
+def _dictpos2list(d: dict[int, Position]):
+    return [d[i] for i in range(len(d))]
+
+
+def _positions_by_time(solver: WorldSolver, model) -> list[list[Position]]:
     positions: dict[int, dict[int, tuple[int, int]]] = defaultdict(dict)
     for lit in model:
         if lit <= 0:
@@ -68,6 +111,15 @@ def _positions_by_time(solver: WorldSolver, model) -> dict[int, dict[int, tuple[
             continue
         _, color, position, t = obj
         positions[t][color] = position
+    return [[positions[t][i] for i in range(len(positions[t]))] for t in range(len(positions))]
+
+
+def _positions_by_time_from_trajectory(world: World, trajectory: Sequence[Action | Sequence[Action]]):
+    world.reset()
+    positions = [world.agents_positions]
+    for joint_action in trajectory:
+        world.step(joint_action)
+        positions.append(world.agents_positions)
     return positions
 
 
@@ -76,12 +128,12 @@ def _positions_by_time(solver: WorldSolver, model) -> dict[int, dict[int, tuple[
 # ---------------------------------------------------------------------------
 
 
-def _extract_helper_events(world: World, positions_by_time: dict[int, dict[int, tuple[int, int]]]) -> set[_HelperEvent]:
+def _extract_helper_events(world: World, positions_by_time: list[list[Position]]) -> set[_HelperEvent]:
     events: set[_HelperEvent] = set()
     beam_paths = _raw_beam_paths(world)
 
-    for t, positions in positions_by_time.items():
-        for helper, helper_pos in positions.items():
+    for t, positions in enumerate(positions_by_time):
+        for helper, helper_pos in enumerate(positions):
             for _src_pos, path in beam_paths.get(helper, []):
                 if helper_pos not in path:
                     continue
@@ -89,7 +141,7 @@ def _extract_helper_events(world: World, positions_by_time: dict[int, dict[int, 
                 downstream = set(path[helper_index + 1 :])
                 if not downstream:
                     continue
-                for beneficiary, beneficiary_pos in positions.items():
+                for beneficiary, beneficiary_pos in enumerate(positions):
                     if beneficiary == helper:
                         continue
                     if beneficiary_pos in downstream:

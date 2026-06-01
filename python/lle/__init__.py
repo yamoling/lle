@@ -153,7 +153,7 @@ from .agent import Agent
 from .env import LLE, make_pool
 from .generator import generate
 from .observations import ObservationType
-from .solver import CooperationLevel, CooperationLevelStr, cooperation_level, is_cooperative, solve
+from .solver import CooperationLevel, CooperationLevelStr, cooperation_level, cooperation_level_trajectory, is_cooperative, solve
 from .types import AgentId, LaserId, Position
 from .world import Action, EventType, World, WorldEvent, WorldState
 
@@ -186,6 +186,7 @@ __all__ = [
     "solve",
     "is_cooperative",
     "cooperation_level",
+    "cooperation_level_trajectory",
     "CooperationLevel",
     "generate",
     "make_pool",

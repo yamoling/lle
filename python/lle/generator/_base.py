@@ -126,7 +126,7 @@ class _BaseGenerator(ABC):
 
             constraint, required_level = self.coop_constraint
             world.reset()
-            actual_level = classify(world, t_max=self.t_max)
+            actual_level = classify(world, self.t_max)
             if actual_level is None:
                 return False
             if constraint == "at-least":

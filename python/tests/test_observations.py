@@ -100,11 +100,11 @@ def test_observe_layered_deactivated_laser():
 @ @  @  @  @
 """
     )
-    observer = ObservationType.LAYERED.get_observation_generator(world)
+    observer = Layered(world)
     world.reset()
     layers = observer.observe()
-    LASERS_0_LAYER = world.n_agents + 1
-    LASERS_1_LAYER = LASERS_0_LAYER + 1
+    LASERS_0_LAYER = observer.LASER_0
+    LASERS_1_LAYER = observer.LASER_0 + 1
     # Laser source and laser beam in layer 0
     assert np.all(layers[:, LASERS_0_LAYER, 0, 2] == -1)
     assert np.all(layers[:, LASERS_0_LAYER, 1:4, 2] == 1)
