@@ -14,6 +14,11 @@ def test_generate_random_returns_world():
     assert world.n_agents == 2
 
 
+def test_generate_constructive_n_agents():
+    w = lle.generate("constructive", n_agents=4)
+    assert w.n_agents == 4
+
+
 def test_generate_random_is_solvable():
     world = lle.generate("random", n_agents=2, seed=0)
     plan = lle.solve(world)
@@ -74,7 +79,7 @@ def test_generate_cooperative_requires_at_least_two_agents():
 
 
 def test_generate_n():
-    worlds = lle.generate("random", n=10)
+    worlds = list(lle.generate("random", n=10))
     assert len(worlds) == 10
 
     w0 = worlds[0]

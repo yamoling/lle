@@ -155,28 +155,35 @@ class _BaseGenerator(ABC):
                 return maybe_world
         return None
 
-    def generate_n(self, n: int, n_jobs: int, seed: int | None = None) -> list[World]:
+    def generate_n(self, n: int, n_jobs: int, seed: int | None = None, max_attempts: int | None = None, quiet: bool = False):
         if seed is not None:
             self._rng.seed(seed)
         if n_jobs < 1:
             raise ValueError("Invalid argument in 'generate_n': n_jobs must be >=1")
-        worlds = list[World]()
+        show_attemps = max_attempts is not None
+        if max_attempts is None:
+            max_attempts = sys.maxsize
+        n_generated = 0
         try:
-            with mp.Pool(n_jobs) as pool, tqdm(total=n) as pbar:
+            with mp.Pool(n_jobs) as pool, tqdm(total=n, disable=quiet) as pbar:
                 # Worker seeds are 0, 1, 2, ...
-                results = pool.imap_unordered(self._try_generate, range(sys.maxsize))
-                for result in results:
+                results = pool.imap_unordered(self._try_generate, range(max_attempts))
+                for i, result in enumerate(results):
+                    if show_attemps and not quiet:
+                        budget_percent = 100 * (i + 1) / max_attempts
+                        pbar.set_description(f"{budget_percent:.2f}% budget elapsed")
                     if result is not None:
+                        n_generated += 1
                         pbar.update(1)
-                        worlds.append(result)
-                        if len(worlds) >= n:
+                        yield result
+                        if n_generated >= n:
                             pool.terminate()
-                            return worlds
+                            return
         except ConnectionResetError as e:
             raise RuntimeError(
                 "Error in the processing pool. Do you have an \"if __name__ == '__main__':\" guard around the entry of the main script?"
             ) from e
-        return worlds
+        return
 
     @property
     def cooperative(self):
