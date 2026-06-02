@@ -91,17 +91,16 @@ class MovementConstraints(ConstraintGenerator):
         We write this implication as ¬(a1(x, y, t) ∧ a2(x, y, t-1)), which translates in CNF to
         - ¬a1(x, y, t) ∨ ¬a2(x, y, t-1)
         """
-        if t == 0:
+        if t == 0 or self.n_agents == 0:
             return
         for c1, c2 in itertools.combinations(range(self.n_agents), 2):
-            t1 = t + 1
-            for x, y in self.reachable_positions_for_agent(t1, c1).intersection(self.reachable_positions_for_agent(t, c2)):
-                v1_t1 = self.var.agent(c1, x, y, t1)
+            for x, y in self.reachable_positions_for_agent(t - 1, c1).intersection(self.reachable_positions_for_agent(t, c2)):
+                v1_t1 = self.var.agent(c1, x, y, t - 1)
                 v2_t = self.var.agent(c2, x, y, t)
                 yield [-v1_t1, -v2_t]
-            for x, y in self.reachable_positions_for_agent(t, c1).intersection(self.reachable_positions_for_agent(t1, c2)):
+            for x, y in self.reachable_positions_for_agent(t, c1).intersection(self.reachable_positions_for_agent(t - 1, c2)):
                 v1_t = self.var.agent(c1, x, y, t)
-                v2_t1 = self.var.agent(c2, x, y, t1)
+                v2_t1 = self.var.agent(c2, x, y, t - 1)
                 yield [-v1_t, -v2_t1]
 
     def _stays_on_exit(self, t: int):

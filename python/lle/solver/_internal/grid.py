@@ -25,6 +25,6 @@ def get_neighbors(world: World, pos: Position) -> list[Position]:
     result = []
     for di, dj in ((-1, 0), (1, 0), (0, -1), (0, 1)):
         ni, nj = i + di, j + dj
-        if 0 <= ni < world.height and 0 <= nj < world.width:
+        if 0 <= ni < world.height and 0 <= nj < world.width and (ni, nj) not in world.wall_pos:
             result.append((ni, nj))
     return result

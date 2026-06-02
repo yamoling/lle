@@ -17,29 +17,26 @@ from typing import Literal, Sequence
 
 from ..world import Action, World
 from .cooperation_level import CooperationLevel, CooperationLevelStr
+from .incremental_solver import solve
 
 
 def _default_t_max(world: World) -> int:
     return (world.width * world.height) // 2
 
 
-def solve(world: World, t_max: int | Literal["auto"] = "auto"):
-    """Find the shortest joint plan of length at most `t_max`.
+# def solve(world: World, t_max: int | Literal["auto"] = "auto"):
+#     """Find the shortest joint plan of length at most `t_max`.
 
-    Returns `None` if no plan exists within the time bound.
-    """
-    from .world_solver import WorldSolver  # local import for ImportError gate
+#     Returns `None` if no plan exists within the time bound.
+#     """
+#     from .world_solver import WorldSolver  # local import for ImportError gate
 
-    t = _default_t_max(world) if t_max == "auto" else t_max
-    solver = WorldSolver(world, t_max=t)
-    sat, model = solver.solve_shortest()
-    if not sat or model is None:
-        return None
-    return solver.extract_plan(model)
-
-
-def solve_incremental(world: World, t_min: int = 0, t_max: int | Literal["auto"] = "auto"):
-    pass
+#     t = _default_t_max(world) if t_max == "auto" else t_max
+#     solver = WorldSolver(world, t_max=t)
+#     sat, model = solver.solve_shortest()
+#     if not sat or model is None:
+#         return None
+#     return solver.extract_plan(model)
 
 
 def solve_hybrid(world: World, t_max: int | Literal["auto"] = "auto"):

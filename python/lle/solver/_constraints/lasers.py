@@ -75,28 +75,28 @@ class LaserConstraints(ConstraintGenerator):
                 yield [laser_var, -neighbour_var]
 
 
-# class StrictLaserConstraints(LaserConstraints):
-#     """
-#     Variant of LaserConstraints where beam propagation does NOT stop on agents.
-#     It only stops at walls / bounds (same as base behavior except agent blocking).
-#     """
+class StrictLaserConstraints(LaserConstraints):
+    """
+    Variant of LaserConstraints where beam propagation does NOT stop on agents.
+    It only stops at walls / bounds (same as base behavior except agent blocking).
+    """
 
-#     def _beam_propagation(self, t: int):
-#         """
-#         Override only this method from LaserConstraints.
-#         Keep everything else exactly as in the parent class.
-#         """
+    def _beam_propagation(self, t: int):
+        """
+        Override only this method from LaserConstraints.
+        Keep everything else exactly as in the parent class.
+        """
 
-#         beam_var = self.ctx.beam_var
+        beam_var = self.ctx.beam_var
 
-#         for laser, source in self.ctx.lasers:
-#             c = laser.color
-#             d = laser.direction
-#             path = self.ctx.beam_paths[c, d, source]
+        for laser, source in self.ctx.lasers:
+            c = laser.color
+            d = laser.direction
+            path = self.ctx.beam_paths[c, d, source]
 
-#             for (x, y), (nx, ny) in zip(path, path[1:]):
-#                 for t in range(max(0, t_min), min(self.t_max, t_max) + 1):
-#                     bv_src = beam_var[c, d, source, x, y, t]
-#                     bv_dst = beam_var[c, d, source, nx, ny, t]
-#                     yield [-bv_src, bv_dst]
-#                     yield [bv_src, -bv_dst]
+            for (x, y), (nx, ny) in zip(path, path[1:]):
+                for t in range(max(0, t_min), min(self.t_max, t_max) + 1):
+                    bv_src = beam_var[c, d, source, x, y, t]
+                    bv_dst = beam_var[c, d, source, nx, ny, t]
+                    yield [-bv_src, bv_dst]
+                    yield [bv_src, -bv_dst]

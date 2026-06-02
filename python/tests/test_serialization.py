@@ -1,7 +1,8 @@
-from lle import World, WorldState, LLE
 import pickle
-import orjson
 import random
+
+import orjson
+from lle import LLE, World, WorldState
 
 
 def test_pickle_world_state():
@@ -51,8 +52,6 @@ def test_pickled_world_keeps_same_laser_ids():
 
 def test_serialize_env_to_json():
     env = LLE.from_str("S0 L0E X").build()
-    for key, value in env.__dict__.items():
-        print(f"{key}: {value}")
     s = orjson.dumps(env, option=orjson.OPT_SERIALIZE_NUMPY)
     deserialized = orjson.loads(s)
     assert deserialized["n_agents"] == env.n_agents

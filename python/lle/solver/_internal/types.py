@@ -30,7 +30,7 @@ def laser_sources_from_world(world: World) -> list[LaserSourceData]:
     return [
         LaserSourceData(
             color=src.agent_id,
-            direction=src.direction.delta(),
+            direction=src.direction.delta,
             position=src.pos,
         )
         for src in world.laser_sources

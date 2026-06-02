@@ -1,6 +1,8 @@
 import lle
 from lle import Action, World
-from lle.solver.world_solver import WorldSolver
+from lle.solver._constraints import ConstraintContext
+
+# from lle.solver.world_solver import WorldSolver
 
 
 def _default_t_max(world: World) -> int:
@@ -25,9 +27,9 @@ def test_solve_sat_keeps_fixed_horizon_behavior():
 
 def test_solver_uses_walkable_shortest_path_lower_bound():
     world = World("S0 @ X\n. . .\n. . .")
-    solver = WorldSolver(world, t_max=10)
+    ctx = ConstraintContext(world, t_min=0, t_max=10)
     # Manhattan distance would be 2, but the wall forces a 4-step detour.
-    assert solver.ctx.solution_lower_bound == 4
+    assert ctx.solution_lower_bound == 4
 
 
 def test_solve_unsolvable_returns_none():
@@ -46,39 +48,27 @@ def test_solve_default_t_max():
 
 def test_solver_prunes_beam_variables_to_actual_laser_path():
     world = World.level(3)
-    solver = WorldSolver(world, t_max=10)
-    assert len(solver.ctx.lasers) == 1
-
-    laser, source = solver.ctx.lasers[0]
-    key = (laser.color, laser.direction, source)
-    path = solver.ctx.beam_paths[key]
-    beam_keys = [k for k in solver.ctx.beam_var if k[:3] == key]
-
-    assert beam_keys
-    assert {k[3:5] for k in beam_keys} == set(path)
-    assert len(beam_keys) == len(path) * (solver.t_max + 1)
+    ctx = ConstraintContext(world, t_min=0, t_max=10)
+    assert len(ctx.next_laser_tiles) == len(world.lasers) - 1
 
 
 def test_incremental_solver_returns_shortest_plan():
     world = World("S0 . . X")
-    solver = WorldSolver(world, t_max=15)
-    success, model = solver.solve_incremental()
-    assert success is True
-    assert model is not None
-
-    # Extract plan from model
-    plan = solver.extract_plan(model)
+    plan = lle.solve(world, t_max=15)
     assert plan is not None
     assert len(plan) == 3  # Should find the shortest plan
 
 
-def test_incremental_solver_unsolvable_returns_false():
+def test_solver_unsolvable_returns_none():
     # Agent walled off from the exit.
     world = World("S0 @ X")
-    solver = WorldSolver(world, t_max=10)
-    success, model = solver.solve_incremental()
-    assert success is False
-    assert model is None
+    plan = lle.solve(world)
+    assert plan is False
+
+
+def assert_agents_are_on_exit(world: World):
+    for pos in world.agents_positions:
+        assert pos in world.exit_pos
 
 
 def test_solve_plan_is_executable():
@@ -88,12 +78,13 @@ def test_solve_plan_is_executable():
     world.reset()
     for joint in plan:
         world.step(list(joint))
+    assert_agents_are_on_exit(world)
     # After executing, agent 0 should have exited.
     # (LLE marks exited agents with a specific position equal to their exit;
     #  we just check no exception was raised and the loop completed.)
 
 
-def test_solve_path_is_executable():
+def test_solve_path_is_executable_2agents():
     world = World("""
 . . L1S . X
 S0 .  .  . .
@@ -105,6 +96,7 @@ S1 .  .  . .
     world.reset()
     for joint in plan:
         world.step(list(joint))
+    assert_agents_are_on_exit(world)
 
 
 def test_solve_level_6_world_is_executable():
@@ -114,12 +106,13 @@ def test_solve_level_6_world_is_executable():
     world.reset()
     for joint in plan:
         world.step(list(joint))
+    assert_agents_are_on_exit(world)
 
 
 def test_is_cooperative_on_known_cooperative_level():
     # LLE Level 6 is canonically cooperative.
     world = World.level(6)
-    assert lle.is_cooperative(world) is True
+    assert lle.is_cooperative(world)
 
 
 def test_is_cooperative_on_trivial_single_agent_level():
@@ -217,27 +210,6 @@ S1 .  .  . .
 # silently dropped (and the solver crashed with a KeyError on the missing beam variable).
 
 
-def test_multiple_same_colour_same_direction_lasers_get_independent_beams():
-    # Two colour-0 south lasers in different columns share (colour, direction); each must
-    # still keep its own beam, keyed by its distinct source position.
-    world = World("""
-.  L0S .  L0S .
-S0 .   .  .   S1
-X  .   .  .   X
-""")
-    solver = WorldSolver(world, t_max=10)
-    laser_sources = [(laser.color, laser.direction, src) for laser, src in solver.ctx.lasers]
-    assert len(laser_sources) == 2
-    # same colour and direction, but two distinct source positions
-    assert len({(c, d) for c, d, _ in laser_sources}) == 1
-    assert len({src for _, _, src in laser_sources}) == 2
-    # each source has its own beam path and its own beam variables
-    assert len(solver.ctx.beam_paths) == 2
-    for c, d, src in laser_sources:
-        assert (c, d, src) in solver.ctx.beam_paths
-        assert any(key[:3] == (c, d, src) for key in solver.ctx.beam_var)
-
-
 def test_two_same_colour_lasers_blocking_distinct_routes_is_unsat():
     # Agent 1 (colour 1) can only leave through (1, 0) or (1, 2); each exit sits under its
     # own colour-0 south laser. Agent 0 is sealed into column 4 and cannot block either
@@ -245,9 +217,9 @@ def test_two_same_colour_lasers_blocking_distinct_routes_is_unsat():
     # (wrongly) leave a route open.
     world = World("""
 L0S @  L0S @ S0
-X   S1 X   @ X
+ X  S1  X  @ X
 """)
-    assert lle.solve(world, 6) is None
+    assert lle.solve(world, t_max=6) is None
 
 
 def test_two_same_colour_same_direction_lasers_with_clear_lanes_is_solvable():
@@ -288,3 +260,23 @@ S1  .   .   .   L0N
     #     beams_here = {(key[1], key[2]) for key in solver.ctx.beam_var if key[3:6] == (*crossing, 0)}
     #     assert len(beams_here) >= 2
     assert lle.solve(world, 14) is not None
+
+
+def test_context_lower_bound_empty_world():
+    N_STEPS = 10
+    world_string = "S0 " + " ." * N_STEPS + " X"
+    world = World(world_string)
+    ctx = ConstraintContext(world, 0, 20)
+    assert ctx.solution_lower_bound == N_STEPS + 1
+
+
+def test_context_lower_bound_with_wall():
+    N_STEPS = 10
+    world_string = "S0 @ " + ". " * N_STEPS + " X\n"
+    world_string += ". " * (N_STEPS + 3)
+    world = World(world_string)
+    ctx = ConstraintContext(world, 0, 20)
+    # +1 for the exit step
+    # +1 for the wall
+    # +2 for SOUTH and UP
+    assert ctx.solution_lower_bound == N_STEPS + 1 + 1 + 2

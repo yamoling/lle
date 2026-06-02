@@ -16,8 +16,6 @@ from .._internal import (
     Position,
     agents_from_world,
     get_neighbors,
-    is_within_bounds,
-    laser_sources_from_world,
 )
 from ..variable_factory import VariableFactory
 
@@ -30,19 +28,16 @@ class ConstraintContext:
         self.t_min = t_min
         self.t_max = t_max
 
-        # Pre-compute sets
-        self.walls = frozenset(world.wall_pos)
         _agents = agents_from_world(world)
-        _lasers = laser_sources_from_world(world)
-        all_positions = itertools.product(range(world.height), range(world.width))
-        self.laser_positions = frozenset(src.position for src in _lasers)
-        self.blocked = self.walls | self.laser_positions
+        # _lasers = laser_sources_from_world(world)
+        all_positions = frozenset(itertools.product(range(world.height), range(world.width)))
+        self.blocked = frozenset(world.wall_pos)
         self.agents = [(a, a.position) for a in _agents]
-        self.lasers = [(src, src.position) for src in _lasers]
-        self.exits = list(world.exit_pos)
-        self.valid_positions = [p for p in all_positions if p not in self.blocked]
+        # self.lasers = [(src, src.position) for src in _lasers]
+        self.exits = list[Position](world.exit_pos)
+        self.valid_positions = all_positions.difference(self.blocked)
         # Neighbour map
-        self.neighbours = {pos: [pos, *(n for n in get_neighbors(world, pos) if n not in self.blocked)] for pos in self.valid_positions}
+        self.neighbours = {pos: [pos, *get_neighbors(world, pos)] for pos in self.valid_positions}
         # Time-wise reachability map
         self._reachable_positions = self.compute_time_reachability_map([a for a, _ in self.agents], t_max, self.neighbours)
         # The distance from each valid position to the nearest exit
@@ -54,13 +49,27 @@ class ConstraintContext:
         # A cheap global lower bound on the shortest solution length: the maximum
         # actual walkable shortest-path distance from any agent to its nearest exit.
         self.solution_lower_bound = self.compute_solution_lower_bound(self.agents, self._exit_distance)
-        # # Pre-compute variable IDs
-        # self.agent_var, self.beam_paths, self.beam_var = self.initialize_variables()
+        self.next_laser_tiles = self.compute_laser_paths(world)
+
+    @staticmethod
+    def compute_laser_paths(world: World):
+        next_tiles = dict[tuple[int, int, int], tuple[int, int]]()
+        for source in world.laser_sources:
+            dx, dy = source.direction.delta
+            prev_x, prev_y = source.pos
+            x = prev_x + dx
+            y = prev_y + dy
+            while (x, y) not in world.wall_pos and 0 <= x < world.width and 0 <= y < world.height:
+                next_tiles[prev_x, prev_y, source.laser_id] = x, y
+                prev_x, prev_y = x, y
+                x, y = x + dx, y + dy
+        return next_tiles
 
     def reachable_positions_for_agent(self, t: int, agent_num: int) -> set[Position]:
         if t < 0 or t > self.t_max:
             return set()
-        return self._reachable_positions[agent_num][t].intersection(self._exit_reachable[self.t_max - t])
+        # Return reachable positions without intersecting with _exit_reachable for testing
+        return self._reachable_positions[agent_num][t]
 
     def reachable_positions(self, t: int, *agents: int) -> set[Position]:
         """Return positions that are reachable by the given agents exactly at time `t`."""
@@ -182,7 +191,6 @@ class ConstraintGenerator(ABC):
         self.ctx = ctx
         self.world = ctx.world
         self.var = var
-        self.clauses = []
 
     @abstractmethod
     def generate(self, t: int) -> list:
