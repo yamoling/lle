@@ -19,20 +19,6 @@ from ..world import Action, World
 from .cooperation_level import CooperationLevel, CooperationLevelStr
 
 
-def _require_pysat() -> None:
-    try:
-        import pysat.solvers  # pyright: ignore[reportMissingImports] # noqa: F401
-    except ImportError as exc:
-        import inspect
-
-        current_frame = inspect.currentframe()
-        caller_frame = inspect.getouterframes(current_frame, 2)
-        caller_name = caller_frame[1].function
-        error_message = f"""The {caller_name!r} function requires the 'pysat' package which is not installed.
-To use {caller_name!r}, install lle with: pip install laser-learning-environment[generator]"""
-        raise ImportError(error_message) from exc
-
-
 def _default_t_max(world: World) -> int:
     return (world.width * world.height) // 2
 
@@ -42,7 +28,6 @@ def solve(world: World, t_max: int | Literal["auto"] = "auto"):
 
     Returns `None` if no plan exists within the time bound.
     """
-    _require_pysat()
     from .world_solver import WorldSolver  # local import for ImportError gate
 
     t = _default_t_max(world) if t_max == "auto" else t_max
@@ -53,12 +38,15 @@ def solve(world: World, t_max: int | Literal["auto"] = "auto"):
     return solver.extract_plan(model)
 
 
+def solve_incremental(world: World, t_min: int = 0, t_max: int | Literal["auto"] = "auto"):
+    pass
+
+
 def solve_hybrid(world: World, t_max: int | Literal["auto"] = "auto"):
     """Find the shortest joint plan using incremental SAT clause reuse.
 
     Returns `None` if no plan exists within the time bound.
     """
-    _require_pysat()
     from .world_solver import WorldSolver  # local import for ImportError gate
 
     t = _default_t_max(world) if t_max == "auto" else t_max
@@ -74,7 +62,6 @@ def solve_sat(world: World, t_max: int | Literal["auto"] = "auto"):
 
     Returns `None` if no plan exists within the fixed horizon.
     """
-    _require_pysat()
     from .world_solver import WorldSolver  # local import for ImportError gate
 
     t = _default_t_max(world) if t_max == "auto" else t_max
@@ -91,8 +78,8 @@ def is_cooperative(world: World, t_max: int | Literal["auto"] = "auto"):
     in `t_max` steps, i.e. when there exist a solution with laser blocking enabled (`LaserMode.STANDARD`)
     but not with lasers can not be blocked (`LaserMode.STRICT`).
     """
-    _require_pysat()
-    from .world_solver import LaserMode, WorldSolver
+    from .laser_mode import LaserMode
+    from .world_solver import WorldSolver
 
     t = _default_t_max(world) if t_max == "auto" else t_max
     standard_sat, _ = WorldSolver(world, t_max=t, laser_mode=LaserMode.STANDARD).solve()
@@ -107,7 +94,6 @@ def cooperation_level(world: World, t_max: int | Literal["auto"] = "auto"):
 
     See `CooperationLevel` for the meaning of each member.
     """
-    _require_pysat()
     from .profile_analyzer import classify
 
     t = _default_t_max(world) if t_max == "auto" else t_max
@@ -116,7 +102,6 @@ def cooperation_level(world: World, t_max: int | Literal["auto"] = "auto"):
 
 def cooperation_level_trajectory(world: World, trajectory: Sequence[tuple[Action, ...]]):
     """Return the cooperation classification induced by an explicit trajectory."""
-    _require_pysat()
     from .profile_analyzer import classify
 
     return classify(world, trajectory)

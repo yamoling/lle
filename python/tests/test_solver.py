@@ -59,6 +59,28 @@ def test_solver_prunes_beam_variables_to_actual_laser_path():
     assert len(beam_keys) == len(path) * (solver.t_max + 1)
 
 
+def test_incremental_solver_returns_shortest_plan():
+    world = World("S0 . . X")
+    solver = WorldSolver(world, t_max=15)
+    success, model = solver.solve_incremental()
+    assert success is True
+    assert model is not None
+
+    # Extract plan from model
+    plan = solver.extract_plan(model)
+    assert plan is not None
+    assert len(plan) == 3  # Should find the shortest plan
+
+
+def test_incremental_solver_unsolvable_returns_false():
+    # Agent walled off from the exit.
+    world = World("S0 @ X")
+    solver = WorldSolver(world, t_max=10)
+    success, model = solver.solve_incremental()
+    assert success is False
+    assert model is None
+
+
 def test_solve_plan_is_executable():
     world = World("S0 . . X")
     plan = lle.solve(world, t_max=4)

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import itertools
+
 from lle.world import World
 
 from .types import Position
@@ -9,7 +11,7 @@ from .types import Position
 
 def all_positions(world: World) -> list[Position]:
     """Every (i, j) cell in the grid."""
-    return [(i, j) for i in range(world.height) for j in range(world.width)]
+    return list(itertools.product(range(world.height), range(world.width)))
 
 
 def is_within_bounds(world: World, pos: Position) -> bool:

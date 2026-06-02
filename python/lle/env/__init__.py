@@ -8,13 +8,9 @@ handling before calling `build()`.
 from .builder import Builder
 from .env import LLE
 from .extras_generators import ExtraGenerator, LaserSubgoal, NoExtras
+from .lle_pool import make_pool
 from .reward_strategy import MultiObjective, RewardStrategy, SingleObjective
 
-# Optional import
-try:
-    from .lle_pool import make_pool
-except ImportError:
-    pass
 __all__ = [
     "LLE",
     "Builder",

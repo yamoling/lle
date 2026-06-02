@@ -4,6 +4,7 @@ Constraint classes use a shared context to avoid recomputing the same world
 metadata, reachability sets, and SAT variable IDs.
 """
 
+import itertools
 from abc import ABC, abstractmethod
 from collections import deque
 from typing import Collection
@@ -13,34 +14,33 @@ from lle.world import World
 from .._internal import (
     AgentData,
     Position,
-    VariableFactory,
     agents_from_world,
-    all_positions,
     get_neighbors,
     is_within_bounds,
     laser_sources_from_world,
 )
+from ..variable_factory import VariableFactory
 
 
 class ConstraintContext:
     """Pre-computed data shared across all constraint classes. Built once."""
 
-    def __init__(self, world: World, var_factory: VariableFactory, t_max: int):
+    def __init__(self, world: World, t_min: int, t_max: int):
         self.world = world
-        self.var = var_factory
+        self.t_min = t_min
         self.t_max = t_max
 
         # Pre-compute sets
         self.walls = frozenset(world.wall_pos)
         _agents = agents_from_world(world)
         _lasers = laser_sources_from_world(world)
+        all_positions = itertools.product(range(world.height), range(world.width))
         self.laser_positions = frozenset(src.position for src in _lasers)
         self.blocked = self.walls | self.laser_positions
         self.agents = [(a, a.position) for a in _agents]
         self.lasers = [(src, src.position) for src in _lasers]
         self.exits = list(world.exit_pos)
-        self.all_positions = all_positions(world)
-        self.valid_positions = [p for p in self.all_positions if p not in self.blocked]
+        self.valid_positions = [p for p in all_positions if p not in self.blocked]
         # Neighbour map
         self.neighbours = {pos: [pos, *(n for n in get_neighbors(world, pos) if n not in self.blocked)] for pos in self.valid_positions}
         # Time-wise reachability map
@@ -54,11 +54,10 @@ class ConstraintContext:
         # A cheap global lower bound on the shortest solution length: the maximum
         # actual walkable shortest-path distance from any agent to its nearest exit.
         self.solution_lower_bound = self.compute_solution_lower_bound(self.agents, self._exit_distance)
-        # Pre-compute variable IDs
-        self.agent_var, self.beam_paths, self.beam_var = self.initialize_variables()
+        # # Pre-compute variable IDs
+        # self.agent_var, self.beam_paths, self.beam_var = self.initialize_variables()
 
     def reachable_positions_for_agent(self, t: int, agent_num: int) -> set[Position]:
-        """"""
         if t < 0 or t > self.t_max:
             return set()
         return self._reachable_positions[agent_num][t].intersection(self._exit_reachable[self.t_max - t])
@@ -72,47 +71,47 @@ class ConstraintContext:
             reachable = reachable.intersection(self.reachable_positions_for_agent(t, agent_num))
         return reachable
 
-    def initialize_variables(self):
-        agent_var = dict[tuple[int, int, int, int], int]()
-        # Beam paths and variables are keyed by (colour, direction, source position).
-        # Including the source position lets a colour have any number of laser sources,
-        # even several sharing the same direction: each source keeps its own beam instead
-        # of overwriting the others under a shared (colour, direction) key.
-        beam_paths = dict[tuple[int, tuple[int, int], Position], list[Position]]()
-        beam_var = dict[tuple[int, tuple[int, int], Position, int, int, int], int]()
+    # def initialize_variables(self):
+    #     agent_var = dict[tuple[int, int, int, int], int]()
+    #     # Beam paths and variables are keyed by (colour, direction, source position).
+    #     # Including the source position lets a colour have any number of laser sources,
+    #     # even several sharing the same direction: each source keeps its own beam instead
+    #     # of overwriting the others under a shared (colour, direction) key.
+    #     beam_paths = dict[tuple[int, tuple[int, int], Position], list[Position]]()
+    #     beam_var = dict[tuple[int, tuple[int, int], Position, int, int, int], int]()
 
-        for agent, _ in self.agents:
-            for t in range(self.t_max + 1):
-                for x, y in self.reachable_positions_for_agent(t, agent.color):
-                    agent_var[agent.color, x, y, t] = self.var.agent(agent.color, x, y, t)
+    #     for agent, _ in self.agents:
+    #         for t in range(self.t_max + 1):
+    #             for x, y in self.reachable_positions_for_agent(t, agent.color):
+    #                 agent_var[agent.color, x, y, t] = self.var.agent(agent.color, x, y, t)
 
-        # Pre-compute beam rays per laser.
-        # Each laser has a single straight path until the first wall, boundary,
-        # or laser source tile. Beam and laser occupancy variables are only
-        # generated on that path.
-        for laser, source in self.lasers:
-            key = (laser.color, laser.direction, source)
-            di, dj = laser.direction
-            x, y = laser.position
-            path: list[Position] = [(x, y)]
-            while True:
-                nx = x + di
-                ny = y + dj
-                if not is_within_bounds(self.world, (nx, ny)):
-                    break
-                if (nx, ny) in self.walls or (nx, ny) in self.laser_positions:
-                    break
-                path.append((nx, ny))
-                x, y = nx, ny
-            beam_paths[key] = path
+    #     # Pre-compute beam rays per laser.
+    #     # Each laser has a single straight path until the first wall, boundary,
+    #     # or laser source tile. Beam and laser occupancy variables are only
+    #     # generated on that path.
+    #     for laser, source in self.lasers:
+    #         key = (laser.color, laser.direction, source)
+    #         di, dj = laser.direction
+    #         x, y = laser.position
+    #         path: list[Position] = [(x, y)]
+    #         while True:
+    #             nx = x + di
+    #             ny = y + dj
+    #             if not is_within_bounds(self.world, (nx, ny)):
+    #                 break
+    #             if (nx, ny) in self.walls or (nx, ny) in self.laser_positions:
+    #                 break
+    #             path.append((nx, ny))
+    #             x, y = nx, ny
+    #         beam_paths[key] = path
 
-        for laser, source in self.lasers:
-            c = laser.color
-            d = laser.direction
-            for t in range(self.t_max + 1):
-                for x, y in beam_paths[c, d, source]:
-                    beam_var[c, d, source, x, y, t] = self.var.beam(c, d, source, x, y, t)
-        return agent_var, beam_paths, beam_var
+    #     for laser, source in self.lasers:
+    #         c = laser.color
+    #         d = laser.direction
+    #         for t in range(self.t_max + 1):
+    #             for x, y in beam_paths[c, d, source]:
+    #                 beam_var[c, d, source, x, y, t] = self.var.beam(c, d, source, x, y, t)
+    #     return agent_var, beam_paths, beam_var
 
     @staticmethod
     def compute_exit_distance(exit_positions: list[Position], valid_positions: Collection[Position], t_max: int, neighbours: dict):
@@ -178,16 +177,16 @@ class ConstraintContext:
         return reachable_positions
 
 
-class Constraint(ABC):
-    def __init__(self, ctx: ConstraintContext):
+class ConstraintGenerator(ABC):
+    def __init__(self, var: VariableFactory, ctx: ConstraintContext):
         self.ctx = ctx
         self.world = ctx.world
-        self.var = ctx.var
-        self.t_max = ctx.t_max
+        self.var = var
+        self.clauses = []
 
     @abstractmethod
-    def generate(self) -> list:
-        """Generate the clauses"""
+    def generate(self, t: int) -> list:
+        """Generate the clauses for the given time step."""
 
     def _profile_method(self, _method_name: str, method_func):
         return list(method_func())

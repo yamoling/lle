@@ -150,6 +150,11 @@ class Direction(enum.Enum):
     WEST = ...
 
     @property
+    def delta(self) -> tuple[builtins.int, builtins.int]:
+        r"""
+        The delta of this direction (di, dj).
+        """
+    @property
     def is_horizontal(self) -> builtins.bool: ...
     @property
     def is_vertical(self) -> builtins.bool: ...
@@ -172,10 +177,6 @@ class Direction(enum.Enum):
         
         Raises:
           ValueError: If the string is not a valid cardinal direction.
-        """
-    def delta(self) -> tuple[builtins.int, builtins.int]:
-        r"""
-        The delta of this direction (di, dj).
         """
     def opposite(self) -> Direction:
         r"""

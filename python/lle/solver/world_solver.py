@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from enum import Enum
-
 from ..world import Action, World
 from ._constraints import (
     METHOD_LOCAL,
@@ -11,13 +9,10 @@ from ._constraints import (
     MovementConstraints,
     StrictLaserConstraints,
 )
-from ._constraints.base import Constraint
-from ._internal import SATModel, VariableFactory
-
-
-class LaserMode(Enum):
-    STANDARD = "standard"
-    STRICT = "strict"
+from ._constraints.base import ConstraintGenerator
+from ._internal import SATModel
+from .laser_mode import LaserMode
+from .variable_factory import VariableFactory
 
 
 class WorldSolver:
@@ -36,7 +31,7 @@ class WorldSolver:
         self.laser_mode = laser_mode
 
         self.ctx = ConstraintContext(world, self.var, t_max)
-        self.constraints: list[Constraint] = [
+        self.constraints: list[ConstraintGenerator] = [
             InitializationConstraints(self.ctx),
             MovementConstraints(self.ctx, movement_method=movement_method),
             self._build_laser_constraint(),
@@ -54,7 +49,7 @@ class WorldSolver:
         if self._model_built:
             return
         for constraint in self.constraints:
-            self.model.extend(constraint.generate())
+            self.model.extend(constraint.generate(0, self.t_max))
         self._model_built = True
 
     def solve(self):
