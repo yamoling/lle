@@ -66,7 +66,6 @@ class ConstraintContext:
                 next_tiles[prev_x, prev_y, source.laser_id] = x, y
                 prev_x, prev_y = x, y
                 x, y = x + dx, y + dy
-            print(next_tiles)
         return next_tiles
 
     def reachable_positions_for_agent(self, t: int, agent_num: int) -> set[Position]:

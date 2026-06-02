@@ -81,22 +81,21 @@ class StrictLaserConstraints(LaserConstraints):
     It only stops at walls / bounds (same as base behavior except agent blocking).
     """
 
-    def _beam_propagation(self, t: int):
-        """
-        Override only this method from LaserConstraints.
-        Keep everything else exactly as in the parent class.
-        """
+    def generate(self, t: int):
+        return [
+            *super().generate(t),
+            *self.forbid_agent_walk_on_tile_with_laser_of_other_colour(t),
+        ]
 
-        beam_var = self.ctx.beam_var
-
-        for laser, source in self.ctx.lasers:
-            c = laser.color
-            d = laser.direction
-            path = self.ctx.beam_paths[c, d, source]
-
-            for (x, y), (nx, ny) in zip(path, path[1:]):
-                for t in range(max(0, t_min), min(self.t_max, t_max) + 1):
-                    bv_src = beam_var[c, d, source, x, y, t]
-                    bv_dst = beam_var[c, d, source, nx, ny, t]
-                    yield [-bv_src, bv_dst]
-                    yield [bv_src, -bv_dst]
+    def forbid_agent_walk_on_tile_with_laser_of_other_colour(self, t: int):
+        for agent in range(self.n_agents):
+            reachable_positions = self.reachable_positions(t, agent)
+            for laser in self.lasers:
+                # Only block positions of agents of a different colour
+                if laser.agent_id == agent:
+                    continue
+                # Ignore lasers that are not reachable at time step t
+                if laser.pos not in reachable_positions:
+                    continue
+                # The agent can not be at (x, y) at time step t
+                yield [-self.var.agent(agent, *laser.pos, t)]
