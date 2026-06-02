@@ -30,26 +30,27 @@ class WorldSolver:
         self.movement_method = movement_method
         self.laser_mode = laser_mode
 
-        self.ctx = ConstraintContext(world, self.var, t_max)
+        self.ctx = ConstraintContext(world, 0, t_max)
         self.constraints: list[ConstraintGenerator] = [
-            InitializationConstraints(self.ctx),
-            MovementConstraints(self.ctx, movement_method=movement_method),
-            self._build_laser_constraint(),
+            InitializationConstraints(self.var, self.ctx),
+            MovementConstraints(self.var, self.ctx),
+            laser_mode.get(self.var, self.ctx),
         ]
         self._model_built = False
 
     def _build_laser_constraint(self):
         if self.laser_mode is LaserMode.STANDARD:
-            return LaserConstraints(self.ctx)
+            return LaserConstraints(self.var, self.ctx)
         if self.laser_mode is LaserMode.STRICT:
-            return StrictLaserConstraints(self.ctx)
+            return StrictLaserConstraints(self.var, self.ctx)
         raise ValueError(f"Unknown laser_mode: {self.laser_mode}")
 
     def build_model(self):
         if self._model_built:
             return
         for constraint in self.constraints:
-            self.model.extend(constraint.generate(0, self.t_max))
+            for t in range(self.t_max):
+                self.model.extend(constraint.generate(t))
         self._model_built = True
 
     def solve(self):

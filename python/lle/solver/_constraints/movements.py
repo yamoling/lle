@@ -36,6 +36,9 @@ class MovementConstraints(ConstraintGenerator):
             vars = [self.var.agent(agent.color, x, y, t) for (x, y) in self.reachable_positions_for_agent(t, agent.color)]
             for clause in CardEnc.atmost(vars, bound=1, vpool=self.var.pool).clauses:
                 yield clause
+            # # At least one position is true (exactly one = at most one + at least one)
+            # if vars:  # Only add if there are reachable positions
+            #     yield vars
 
     def _time_wise_adjacency(self, t: int):
         r"""

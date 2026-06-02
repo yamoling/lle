@@ -63,7 +63,7 @@ def test_solver_unsolvable_returns_none():
     # Agent walled off from the exit.
     world = World("S0 @ X")
     plan = lle.solve(world)
-    assert plan is False
+    assert plan is None
 
 
 def assert_agents_are_on_exit(world: World):

@@ -9,6 +9,7 @@ from ._constraints import (
     ConstraintContext,
     InitializationConstraints,
     MovementConstraints,
+    ObjectiveGenerator,
 )
 from ._constraints.base import ConstraintGenerator
 from .laser_mode import LaserMode
@@ -44,31 +45,18 @@ def solve(
         MovementConstraints(var, ctx),
         laser_mode.get(var, ctx),
     ]
+    objective = ObjectiveGenerator(var, ctx)
     # Generate initial clauses for t in [0, t_min]
     clauses = [clause for generator in generators for t in range(t_min + 1) for clause in generator.generate(t)]
-    with Minisat22(bootstrap_with=clauses) as solver:
-        # assumptions = []
-        for t in range(t_min, t_max + 1):
-            # Generate the clauses for the current horizon [t_min, current_t]
-            new_clauses = [clause for generator in generators for clause in generator.generate(t)]
-            if len(new_clauses) == 0:
-                continue
-            solver.append_formula(new_clauses)
-            # Initialize done variables for each time step
-            # done_vars = [var.done(t) for t in range(t_min, t_max + 1)]
-
-            # Get the done variable for this specific time step
-            # done_t = done_vars[t - t_min]
-
-            # Try to solve with current done_t assumption
-            if solver.solve():  # assumptions=[done_t]):
+    for t in range(t_min, t_max + 1):
+        clauses.extend([clause for generator in generators for clause in generator.generate(t)])
+        with Minisat22(bootstrap_with=clauses) as solver:
+            solver.append_formula(objective.generate(t))
+            if solver.solve():
                 model = solver.get_model()
                 assert model is not None
                 plan = extract_plan(var, model, t)
                 return plan
-
-            # If this horizon fails, exclude it from future attempts
-            # assumptions.append(-done_t)
     return None
 
 
@@ -89,7 +77,7 @@ def extract_plan(var: VariableFactory, model: list[int], t_end: int) -> list[tup
             done_times.append(t)
     agent_colors = sorted(positions.keys())
     plan: list[tuple[Action, ...]] = []
-    for t in range(t_end - 1):
+    for t in range(t_end):
         row: list[Action] = []
         for color in agent_colors:
             y1, x1 = positions[color][t]
