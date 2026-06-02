@@ -11,7 +11,7 @@ of the laser, in which case they can block the beam and let others pass safely.
 LLE gives you two complementary ways to work with a world:
 - `World` for low-level, deterministic control of maps, states, and steps.
 - `LLE` for a higher-level MARL environment compatible with `marlenv`.
-- `generate`, `solve`, `solve_sat`, `is_cooperative`, and `cooperation_level` for SAT-based generation and analysis.
+- `generate`, `solve`, `solve_hybrid`, `solve_sat`, `is_cooperative`, and `cooperation_level` for SAT-based generation and analysis.
 
 ## Quick start
 Create a simple world, run a step, then restore the previous state:
@@ -57,6 +57,7 @@ pip install laser-learning-environment[generator]
 
 - `lle.generate(...)` builds a solvable world on demand.
 - `lle.solve(world, t_max)` searches for the shortest joint plan that reaches all exits within the time bound.
+- `lle.solve_hybrid(world, t_max)` searches for the shortest joint plan using incremental SAT clause reuse.
 - `lle.solve_sat(world, t_max)` searches for a joint plan of exactly `t_max` steps.
 - `lle.is_cooperative(world, t_max)` checks whether the world requires laser blocking under standard semantics.
 - `lle.cooperation_level(world, t_max)` returns the more precise cooperation classification.
@@ -154,7 +155,16 @@ from .agent import Agent
 from .env import LLE, make_pool
 from .generator import generate
 from .observations import ObservationType
-from .solver import CooperationLevel, CooperationLevelStr, cooperation_level, cooperation_level_trajectory, is_cooperative, solve, solve_sat
+from .solver import (
+    CooperationLevel,
+    CooperationLevelStr,
+    cooperation_level,
+    cooperation_level_trajectory,
+    is_cooperative,
+    solve,
+    solve_hybrid,
+    solve_sat,
+)
 from .types import AgentId, LaserId, Position
 from .world import Action, EventType, World, WorldEvent, WorldState
 
@@ -185,6 +195,7 @@ __all__ = [
     "from_str",
     "level",
     "solve",
+    "solve_hybrid",
     "solve_sat",
     "is_cooperative",
     "cooperation_level",

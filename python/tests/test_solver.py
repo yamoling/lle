@@ -23,6 +23,13 @@ def test_solve_sat_keeps_fixed_horizon_behavior():
     assert len(plan) == 5
 
 
+def test_solver_uses_walkable_shortest_path_lower_bound():
+    world = World("S0 @ X\n. . .\n. . .")
+    solver = WorldSolver(world, t_max=10)
+    # Manhattan distance would be 2, but the wall forces a 4-step detour.
+    assert solver.ctx.solution_lower_bound == 4
+
+
 def test_solve_unsolvable_returns_none():
     # Agent walled off from the exit.
     world = World("S0 @ X")

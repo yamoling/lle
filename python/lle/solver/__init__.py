@@ -1,6 +1,7 @@
 """World solving and cooperation analysis helpers.
 
-Use `solve` to search for a shortest joint plan, `solve_sat` to search for a
+Use `solve` to search for a shortest joint plan, `solve_hybrid` to search for
+a shortest joint plan via incremental SAT reuse, `solve_sat` to search for a
 fixed-horizon plan of length exactly `t_max`, `is_cooperative` to test whether
 a level requires laser blocking, and `cooperation_level` to obtain the more
 precise structural classification. See `CooperationLevel` for the full
@@ -47,6 +48,22 @@ def solve(world: World, t_max: int | Literal["auto"] = "auto"):
     t = _default_t_max(world) if t_max == "auto" else t_max
     solver = WorldSolver(world, t_max=t)
     sat, model = solver.solve_shortest()
+    if not sat or model is None:
+        return None
+    return solver.extract_plan(model)
+
+
+def solve_hybrid(world: World, t_max: int | Literal["auto"] = "auto"):
+    """Find the shortest joint plan using incremental SAT clause reuse.
+
+    Returns `None` if no plan exists within the time bound.
+    """
+    _require_pysat()
+    from .world_solver import WorldSolver  # local import for ImportError gate
+
+    t = _default_t_max(world) if t_max == "auto" else t_max
+    solver = WorldSolver(world, t_max=t)
+    sat, model = solver.solve_hybrid()
     if not sat or model is None:
         return None
     return solver.extract_plan(model)
@@ -111,6 +128,7 @@ __all__ = [
     "cooperation_level_trajectory",
     "is_cooperative",
     "solve",
+    "solve_hybrid",
     "solve_sat",
     "CooperationLevelStr",
 ]

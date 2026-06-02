@@ -85,22 +85,45 @@ class WorldSolver:
         from pysat.formula import WCNF
 
         self.build_model()
+        done_vars, completion_clauses = self._completion_clauses()
         wcnf = WCNF()
         for clause in self.model.cnf.clauses:
             wcnf.append(clause)
-        self._extend_with_shortest_objective(wcnf)
+        for clause in completion_clauses:
+            wcnf.append(clause)
+        for done_t in done_vars:
+            wcnf.append([done_t], weight=1)
+        wcnf.append(done_vars)
         with RC2(wcnf) as solver:
             model = solver.compute()
         return model is not None, model
 
-    def _extend_with_shortest_objective(self, wcnf):
-        """Add the completion variables and the shortest-path objective."""
+    def solve_hybrid(self) -> tuple[bool, list | None]:
+        """Find the shortest plan using incremental SAT with clause reuse.
+
+        This keeps a single SAT instance alive and tries the horizon assumptions
+        in increasing order, so learned clauses are reused across checks.
+        """
+        from pysat.solvers import Minisat22
+
+        self.build_model()
+        done_vars, completion_clauses = self._completion_clauses()
+        bootstrap = [*self.model.cnf.clauses, *completion_clauses]
+        with Minisat22(bootstrap_with=bootstrap) as solver:
+            for done_t in done_vars:
+                if solver.solve(assumptions=[done_t]):
+                    model = solver.get_model()
+                    return True, model
+        return False, None
+
+    def _completion_clauses(self):
+        """Return the completion variables and the corresponding hard clauses."""
         agent_var = self.ctx.agent_var
         exit_positions = tuple(self.ctx.exits)
         agent_colors = [agent.color for agent, _ in self.ctx.agents]
 
-        # Require that a solution actually reaches the exits by `t_max`.
         done_vars = []
+        completion_clauses = []
         for t in range(self.t_max + 1):
             done_t = self.var.done(t)
             done_vars.append(done_t)
@@ -112,22 +135,19 @@ class WorldSolver:
                 if not exit_lits:
                     # No exit position is available for this agent at this time,
                     # so this branch cannot witness a valid solution.
-                    wcnf.append([-at_exit])
+                    completion_clauses.append([-at_exit])
                 else:
                     # at_exit -> some exit position
-                    wcnf.append([-at_exit, *exit_lits])
+                    completion_clauses.append([-at_exit, *exit_lits])
                     # any exit position -> at_exit
                     for exit_lit in exit_lits:
-                        wcnf.append([-exit_lit, at_exit])
+                        completion_clauses.append([-exit_lit, at_exit])
                 # done_t -> this agent is at an exit
-                wcnf.append([-done_t, at_exit])
+                completion_clauses.append([-done_t, at_exit])
             if at_exit_vars:
                 # all agents at an exit -> done_t
-                wcnf.append([*[-lit for lit in at_exit_vars], done_t])
-            # Prefer the earliest done_t to be true.
-            wcnf.append([done_t], weight=1)
-        # Some completion time must be reached.
-        wcnf.append(done_vars)
+                completion_clauses.append([*[-lit for lit in at_exit_vars], done_t])
+        return done_vars, completion_clauses
 
     def extract_plan(self, model, horizon: int | None = None) -> list[tuple[Action, ...]]:
         positions = dict[int, dict[int, tuple[int, int]]]()

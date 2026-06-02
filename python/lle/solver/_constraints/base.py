@@ -51,6 +51,9 @@ class ConstraintContext:
         self._exit_reachable = [{pos for pos, dist in self._exit_distance.items() if dist <= remaining} for remaining in range(t_max + 1)]
         # Positions where staying for one extra timestep is still compatible with reaching an exit.
         self._stay_allowed = [{pos for pos, dist in self._exit_distance.items() if dist < (t_max - t)} for t in range(t_max)]
+        # A cheap global lower bound on the shortest solution length: the maximum
+        # actual walkable shortest-path distance from any agent to its nearest exit.
+        self.solution_lower_bound = self.compute_solution_lower_bound(self.agents, self._exit_distance)
         # Pre-compute variable IDs
         self.agent_var, self.beam_paths, self.beam_var = self.initialize_variables()
 
@@ -134,6 +137,25 @@ class ConstraintContext:
                     exit_distances[neighbour] = dist + 1
                     queue.append(neighbour)
         return exit_distances
+
+    @staticmethod
+    def compute_solution_lower_bound(
+        agents: list[tuple[AgentData, Position]],
+        exit_distances: dict[Position, int],
+    ) -> int:
+        """Return a cheap admissible lower bound on the shortest plan length.
+
+        The bound is the maximum over agents of the shortest walkable path
+        distance from that agent's start position to any exit.
+        """
+        if not agents or not exit_distances:
+            return 0
+        bound = 0
+        for _, position in agents:
+            distance = exit_distances.get(position, 0)
+            if distance > bound:
+                bound = distance
+        return bound
 
     @staticmethod
     def compute_time_reachability_map(agents: list[AgentData], t_max: int, neighbours: dict[Position, list[Position]]):
