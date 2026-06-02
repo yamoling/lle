@@ -18,9 +18,9 @@ def test_solve_simple_world_returns_shortest_plan():
     assert all(isinstance(a, Action) for row in plan for a in row)
 
 
-def test_solve_sat_keeps_fixed_horizon_behavior():
+def test_solve_fixed_length():
     world = World("S0 . . X")
-    plan = lle.solve_sat(world, t_max=5)
+    plan = lle.solve(world, t_min=5, t_max=5)
     assert plan is not None
     assert len(plan) == 5
 
@@ -136,7 +136,7 @@ def test_standard_levels_solvable():
     T_MAX = [10, 10, 10, 10, 21, 21]
     for level, t_max in zip((1, 2, 3, 4, 5, 6), T_MAX):
         world = World.level(level)
-        path = lle.solve(world, t_max)
+        path = lle.solve(world, t_max=t_max)
         assert path is not None
         if level >= 3:
             assert lle.is_cooperative(world, t_max)
@@ -167,7 +167,7 @@ S1  .   .  X""",
     ]
     for ws in worlds:
         world = World(ws)
-        path = lle.solve(world, 10)
+        path = lle.solve(world, t_max=10)
         assert path is not None
         assert lle.is_cooperative(world, 10)
 
@@ -182,7 +182,7 @@ S1  .   .  X
     ]
     for ws in worlds:
         world = World(ws)
-        assert lle.solve(world, 10) is None
+        assert lle.solve(world, t_max=10) is None
 
 
 def test_solvable_non_cooperative():
@@ -230,7 +230,7 @@ S1 L0S L0S S0
 .  .   .   .
 X  .   .   X
 """)
-    assert lle.solve(world, 6) is not None
+    assert lle.solve(world, t_max=6) is not None
 
 
 def test_two_same_colour_crossing_lasers_keep_independent_beams():
@@ -259,7 +259,7 @@ S1  .   .   .   L0N
     # for crossing in [(1, 1), (1, 2), (1, 3), (1, 4)]:
     #     beams_here = {(key[1], key[2]) for key in solver.ctx.beam_var if key[3:6] == (*crossing, 0)}
     #     assert len(beams_here) >= 2
-    assert lle.solve(world, 14) is not None
+    assert lle.solve(world, t_max=14) is not None
 
 
 def test_context_lower_bound_empty_world():

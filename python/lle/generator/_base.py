@@ -15,9 +15,9 @@ from typing import Literal
 
 from tqdm import tqdm
 
+from .. import solver
 from ..solver.cooperation_level import CooperationLevel
 from ..solver.laser_mode import LaserMode
-from ..solver.world_solver import WorldSolver
 from ..world import World
 from ._candidates import CandidateLayout
 from ._world_builder import WorldBuilder
@@ -111,13 +111,11 @@ class _BaseGenerator(ABC):
 
     def _is_satisfiable(self, world: World, t: int) -> bool:
         world.reset()
-        sat, _ = WorldSolver(world, t_max=t).solve()
-        return bool(sat)
+        return solver.solve(world, t_max=t) is not None
 
     def _strict_laser_unsat(self, world: World) -> bool:
         world.reset()
-        sat, _ = WorldSolver(world, t_max=self.t_max, laser_mode=LaserMode.STRICT).solve()
-        return not bool(sat)
+        return solver.solve(world, laser_mode=LaserMode.STRICT) is not None
 
     def _accept_world(self, world: World) -> bool:
         # The level must be solvable within t_max (and meet the cooperation requirement,

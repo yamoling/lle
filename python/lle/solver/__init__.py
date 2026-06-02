@@ -20,70 +20,21 @@ from .cooperation_level import CooperationLevel, CooperationLevelStr
 from .incremental_solver import solve
 
 
-def _default_t_max(world: World) -> int:
-    return (world.width * world.height) // 2
-
-
-# def solve(world: World, t_max: int | Literal["auto"] = "auto"):
-#     """Find the shortest joint plan of length at most `t_max`.
-
-#     Returns `None` if no plan exists within the time bound.
-#     """
-#     from .world_solver import WorldSolver  # local import for ImportError gate
-
-#     t = _default_t_max(world) if t_max == "auto" else t_max
-#     solver = WorldSolver(world, t_max=t)
-#     sat, model = solver.solve_shortest()
-#     if not sat or model is None:
-#         return None
-#     return solver.extract_plan(model)
-
-
-def solve_hybrid(world: World, t_max: int | Literal["auto"] = "auto"):
-    """Find the shortest joint plan using incremental SAT clause reuse.
-
-    Returns `None` if no plan exists within the time bound.
-    """
-    from .world_solver import WorldSolver  # local import for ImportError gate
-
-    t = _default_t_max(world) if t_max == "auto" else t_max
-    solver = WorldSolver(world, t_max=t)
-    sat, model = solver.solve_hybrid()
-    if not sat or model is None:
-        return None
-    return solver.extract_plan(model)
-
-
-def solve_sat(world: World, t_max: int | Literal["auto"] = "auto"):
-    """Find a plan of length exactly `t_max` using the classic SAT solver.
-
-    Returns `None` if no plan exists within the fixed horizon.
-    """
-    from .world_solver import WorldSolver  # local import for ImportError gate
-
-    t = _default_t_max(world) if t_max == "auto" else t_max
-    solver = WorldSolver(world, t_max=t)
-    sat, model = solver.solve_sat()
-    if not sat or model is None:
-        return None
-    return solver.extract_plan(model)
-
-
 def is_cooperative(world: World, t_max: int | Literal["auto"] = "auto"):
     """
     Return `True` if the provided world requires cooperation to be solved
     in `t_max` steps, i.e. when there exist a solution with laser blocking enabled (`LaserMode.STANDARD`)
     but not with lasers can not be blocked (`LaserMode.STRICT`).
     """
-    from .laser_mode import LaserMode
-    from .world_solver import WorldSolver
-
-    t = _default_t_max(world) if t_max == "auto" else t_max
-    standard_sat, _ = WorldSolver(world, t_max=t, laser_mode=LaserMode.STANDARD).solve()
-    if not standard_sat:
-        return False
-    strict_sat, _ = WorldSolver(world, t_max=t, laser_mode=LaserMode.STRICT).solve()
-    return not bool(strict_sat)
+    # from .laser_mode import LaserMode
+    # from .world_solver import WorldSolver
+    raise NotImplementedError("TODO")
+    # t = _default_t_max(world) if t_max == "auto" else t_max
+    # standard_sat, _ = WorldSolver(world, t_max=t, laser_mode=LaserMode.STANDARD).solve_sat()
+    # if not standard_sat:
+    #     return False
+    # strict_sat, _ = WorldSolver(world, t_max=t, laser_mode=LaserMode.STRICT).solve_sat()
+    # return not bool(strict_sat)
 
 
 def cooperation_level(world: World, t_max: int | Literal["auto"] = "auto"):
@@ -91,10 +42,11 @@ def cooperation_level(world: World, t_max: int | Literal["auto"] = "auto"):
 
     See `CooperationLevel` for the meaning of each member.
     """
-    from .profile_analyzer import classify
+    # from .profile_analyzer import classify
 
-    t = _default_t_max(world) if t_max == "auto" else t_max
-    return classify(world, t)
+    # t = _default_t_max(world) if t_max == "auto" else t_max
+    # return classify(world, t)
+    raise NotImplementedError("TODO")
 
 
 def cooperation_level_trajectory(world: World, trajectory: Sequence[tuple[Action, ...]]):
