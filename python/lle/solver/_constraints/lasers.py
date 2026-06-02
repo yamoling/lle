@@ -67,7 +67,7 @@ class LaserConstraints(ConstraintGenerator):
                 laser_var = self.var.laser(laser.laser_id, x, y, t)
                 yield [-self.var.agent(agent, x, y, t), -laser_var]
 
-                next_pos = self.ctx.next_laser_tiles.get((x, y, laser.laser_id))
+                next_pos = self.ctx.get_next_laser_tile(x, y, laser.laser_id)
                 if next_pos is None:
                     continue
                 # If the tile is disabled, then the next tile is disabled as well (!a => !b) = a ∨ ¬b

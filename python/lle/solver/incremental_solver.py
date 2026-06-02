@@ -82,7 +82,7 @@ def extract_plan(var: VariableFactory, model: list[int], t_end: int) -> list[tup
         if not obj:
             continue
         if obj[0] == "agent":
-            _, color, (x, y), t = obj
+            _, color, x, y, t = obj
             positions.setdefault(color, {})[t] = (x, y)
         elif obj[0] == "done":
             _, t = obj

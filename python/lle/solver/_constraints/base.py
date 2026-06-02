@@ -51,6 +51,9 @@ class ConstraintContext:
         self.solution_lower_bound = self.compute_solution_lower_bound(self.agents, self._exit_distance)
         self.next_laser_tiles = self.compute_laser_paths(world)
 
+    def get_next_laser_tile(self, x: int, y: int, laser_id: int):
+        return self.next_laser_tiles.get((x, y, laser_id))
+
     @staticmethod
     def compute_laser_paths(world: World):
         next_tiles = dict[tuple[int, int, int], tuple[int, int]]()
@@ -59,10 +62,11 @@ class ConstraintContext:
             prev_x, prev_y = source.pos
             x = prev_x + dx
             y = prev_y + dy
-            while (x, y) not in world.wall_pos and 0 <= x < world.width and 0 <= y < world.height:
+            while (x, y) not in world.wall_pos and 0 <= x < world.height and 0 <= y < world.width:
                 next_tiles[prev_x, prev_y, source.laser_id] = x, y
                 prev_x, prev_y = x, y
                 x, y = x + dx, y + dy
+            print(next_tiles)
         return next_tiles
 
     def reachable_positions_for_agent(self, t: int, agent_num: int) -> set[Position]:

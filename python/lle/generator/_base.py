@@ -16,7 +16,8 @@ from typing import Literal
 from tqdm import tqdm
 
 from ..solver.cooperation_level import CooperationLevel
-from ..solver.world_solver import LaserMode, WorldSolver
+from ..solver.laser_mode import LaserMode
+from ..solver.world_solver import WorldSolver
 from ..world import World
 from ._candidates import CandidateLayout
 from ._world_builder import WorldBuilder
