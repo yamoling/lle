@@ -16,7 +16,6 @@ class MovementConstraints(ConstraintGenerator):
 
     def __init__(self, var: VariableFactory, ctx: ConstraintContext):
         super().__init__(var, ctx)
-        self.agents = ctx.agents
         self.exits = set(ctx.exits)
         self.n_agents = ctx.world.n_agents
 
@@ -31,9 +30,9 @@ class MovementConstraints(ConstraintGenerator):
 
     def _exactly_one_position(self, t: int):
         """Every agent is in exactly one position at any given time step."""
-        for agent, _ in self.agents:
+        for agent in range(self.n_agents):
             # For all reachable positions of each agent, there can only be one at every single time step that is true
-            vars = [self.var.agent(agent.color, x, y, t) for (x, y) in self.reachable_positions_for_agent(t, agent.color)]
+            vars = [self.var.agent(agent, x, y, t) for (x, y) in self.reachable_positions(t, agent)]
             for clause in CardEnc.atmost(vars, bound=1, vpool=self.var.pool).clauses:
                 yield clause
             # # At least one position is true (exactly one = at most one + at least one)
@@ -58,13 +57,15 @@ class MovementConstraints(ConstraintGenerator):
             return
         neighbor_map = self.ctx.neighbours
         for agent_num in range(self.n_agents):
+            previous_reachable = self.reachable_positions_for_agent(t - 1, agent_num)
             for x, y in self.reachable_positions_for_agent(t, agent_num):
-                prev_pos = neighbor_map[x, y]
-                # If the agent could remain in the same spot, then add this possibility (i.e. allow the STAY action)
-                if (x, y) in self.ctx._exit_reachable[t - 1]:
-                    prev_pos.append((x, y))
-                # if at (x,y,t), must be have been at some neighbour at t-1.
-                yield [-self.var.agent(agent_num, x, y, t), *[self.var.agent(agent_num, nx, ny, t - 1) for nx, ny in prev_pos]]
+                prev_pos = [pos for pos in neighbor_map[x, y] if pos in previous_reachable and (pos != (x, y) or self.can_stay(t - 1, pos))]
+                current_var = self.var.agent(agent_num, x, y, t)
+                if not prev_pos:
+                    yield [-current_var]
+                    continue
+                # if at (x,y,t), must have been at some reachable neighbour at t-1.
+                yield [-current_var, *[self.var.agent(agent_num, nx, ny, t - 1) for nx, ny in prev_pos]]
 
     def _no_overlap(self, t: int):
         """
