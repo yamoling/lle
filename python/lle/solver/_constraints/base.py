@@ -41,26 +41,23 @@ class ConstraintContext:
         # A cheap global lower bound on the shortest solution length: the maximum
         # actual walkable shortest-path distance from any agent to its nearest exit.
         self.solution_lower_bound = self.compute_solution_lower_bound(world.start_pos, self._exit_distance)
-        self.next_laser_tiles = self.compute_laser_paths(world)
+        self.prev_laser_beam = self.compute_prev_laser_beams(world)
 
-    def get_next_laser_tile(self, x: int, y: int, laser_id: int):
-        return self.next_laser_tiles.get((x, y, laser_id))
+    def get_prev_beam(self, x: int, y: int, laser_id: int):
+        return self.prev_laser_beam.get((x, y, laser_id))
 
     @staticmethod
-    def compute_laser_paths(world: World):
-        next_tiles = dict[tuple[int, int, int], tuple[int, int]]()
-        laser_positions = frozenset(src.pos for src in world.laser_sources)
+    def compute_prev_laser_beams(world: World):
+        prev_tiles = dict[tuple[int, int, int], tuple[int, int]]()
         for source in world.laser_sources:
+            prev_x, prev_y = source.pos
             dx, dy = source.direction.delta
-            path: list[tuple[int, int]] = []
-            x = source.pos[0] + dx
-            y = source.pos[1] + dy
-            while 0 <= x < world.height and 0 <= y < world.width and (x, y) not in world.wall_pos and (x, y) not in laser_positions:
-                path.append((x, y))
+            x = prev_x + dx
+            y = prev_y + dy
+            while 0 <= x < world.height and 0 <= y < world.width and (x, y) not in world.wall_pos:
+                prev_tiles[x, y, source.laser_id] = prev_x, prev_y
                 x, y = x + dx, y + dy
-            for current, next_pos in zip(path, path[1:]):
-                next_tiles[current[0], current[1], source.laser_id] = next_pos
-        return next_tiles
+        return prev_tiles
 
     def reachable_positions_for_agent(self, t: int, agent_num: int) -> set[Position]:
         if t < 0 or t > self.t_max:

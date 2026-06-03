@@ -49,7 +49,7 @@ def test_solve_default_t_max():
 def test_solver_prunes_beam_variables_to_actual_laser_path():
     world = World.level(3)
     ctx = ConstraintContext(world, t_min=0, t_max=10)
-    assert len(ctx.next_laser_tiles) == len(world.lasers) - 1
+    assert len(ctx.prev_laser_beam) == len(world.lasers) - 1
 
 
 def test_incremental_solver_returns_shortest_plan():
@@ -280,3 +280,7 @@ def test_context_lower_bound_with_wall():
     # +1 for the wall
     # +2 for SOUTH and UP
     assert ctx.solution_lower_bound == N_STEPS + 1 + 1 + 2
+
+
+def test_context_laser_next():
+    raise NotImplementedError()

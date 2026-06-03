@@ -13,7 +13,7 @@ class InitializationConstraints(ConstraintGenerator):
         clauses = []
         if t == 0:
             # Each agent is at its starting position at time 0, i.e. one clause per agent
-            return [[self.var.agent(agent, x, y, 0)] for agent, (x, y) in enumerate(self.ctx.world.start_pos)]
+            clauses.extend([[self.var.agent(agent, x, y, 0)] for agent, (x, y) in enumerate(self.ctx.world.start_pos)])
 
         # Laser source tiles are always active. Propagation constraints then determine
         # which downstream beam tiles are active or blocked at each time step.
