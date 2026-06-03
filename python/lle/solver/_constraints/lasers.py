@@ -4,6 +4,7 @@ from lle.solver.variable_factory import VariableFactory
 from lle.tiles import Laser, LaserSource
 
 from .base import ConstraintContext, ConstraintGenerator
+from .utils import equals, implies
 
 
 class LaserConstraints(ConstraintGenerator):
@@ -56,10 +57,8 @@ class LaserConstraints(ConstraintGenerator):
                 if laser.pos not in reachable_positions:
                     continue
                 x, y = laser.pos
-                print((agent, x, y, t), (laser.laser_id, x, y, t))
-                agent_var = self.var.agent(agent, x, y, t)
-                laser_var = self.var.laser(laser.laser_id, x, y, t)
-                yield [-agent_var, -laser_var]
+                # yield [-agent_var, -laser_var]
+                yield from implies(self.var.agent(agent, x, y, t, atom=True), -self.var.laser(laser.laser_id, x, y, t, atom=True))
 
     def _beam_activation(self, t: int):
         r"""
@@ -78,11 +77,6 @@ class LaserConstraints(ConstraintGenerator):
 
             active_c(l, x, y, t) = active_c(l, prev_x, prev_y, t) ∧ ¬agent(c, x, y, t),
 
-        which, in CNF, translates to the three following clauses:
-        1. (¬active_c(l, x, y, t) ∨ active_c(l, prev_x, prev_y, t)): if the previous tile is off, then the current tile is also off;
-        2. (¬agent(c, x, y, t) ∨ ¬active_c(l, x, y, t)): if there is an agent on the current tile, then the beam is off
-        3. (active_c(l, x, y, t) ∨ ¬active_c(l, prev_x, prev_y, t) ∨ agent(c, x, y, t)): if the beam is active, the previous tile must be active, and no agent must be on the current tile
-
         ## Special cases
         ### First tile of the beam & no agent can reach
         If the tile if the first of its beam and no agent can reach the position, then the tile is active: (active_c(l, x, y, t)).
@@ -97,66 +91,35 @@ class LaserConstraints(ConstraintGenerator):
             (¬active_c(l, x, y, t) ∨ ¬agent(c, x, y, t)) ∧ (active_c(l, x, y, t) ∨ agent(c, x, y, t)).
 
         ### The agent can not reach the position
-        For (x, y) positions that we know the agent cannot reach at step t, we know that agent(c, x, y, t) is False and the formula therefore simplifies to:
-        1. unchanged, since agent(c, x, y, t) does not influence the clause;
-        2. (true), since ¬agent(c, x, y, t) is true;
-        3. (active_c(l, x, y, t) ∨ ¬active_c(l, prev_x, prev_y, t)), since agent(c, x, y, t) is false, it is removed from the formula.
+        For (x, y) positions that we know the agent cannot reach at step t, we know that agent(c, x, y, t) is False.
+        Therefore, the formula becomes
 
+            active_c(l, x, y, t) = active_c(l, prev_x, prev_y, t).
 
-
-
-        # Main formula translation to CNF
-        The initial formula is x = ¬y ∧ z (c.f. previous section: Formula). The process to translate it to CNF is the following:
-        1. Express equivalence as two implications: (x → (y ∧ ¬z)) ∧ ((y ∧ ¬z) → x)
-        2. Eliminate the first implication (A → B ≡ ¬A ∨ B): ¬x ∨ (y ∧ ¬z)
-        3. Apply the distributive law: (¬x ∨ y) ∧ (¬x ∨ ¬z)
-        4. Eliminate the second implication: ¬(y ∧ ¬z) ∨ x
-        5. Apply De Morgan's laws: (¬y ∨ z) ∨ x ≡ x ∨ ¬y ∨ z
-        6. Combine the clauses: (¬x ∨ y) ∧ (¬x ∨ ¬z) ∧ (x ∨ ¬y ∨ z)
         """
         for laser in self.lasers:
             x, y = laser.pos
-            # Clause 1: if the previous tile is off, then the current tile is also off
             prev = self.ctx.get_prev_beam(x, y, laser.laser_id)
             agents_in_reach = [a for a in range(self.n_agents) if a == laser.agent_id and (x, y) in self.reachable_positions(t, a)]
             active = self.var.laser(laser.laser_id, x, y, t)
-            agent = self.var.agent(laser.agent_id, x, y, t)
             # General case
             match (prev, agents_in_reach):
-                case None, []:  # First tile & no agent in reach -> the laser is active
+                case None, []:  # First tile & no agent in reach
                     yield [active]
-                case None, [*agents]:  # First tile and there are agents in reach (simplification )
+                case None, [*agents]:  # First tile and some agents in reach
                     for a in agents:
-                        yield [-active, -self.var.agent(a, x, y, t)]
-                case ((prev_x, prev_y), []):
+                        agent = self.var.agent(a, x, y, t, atom=True)
+                        yield from equals(active, -agent)
+                case ((prev_x, prev_y), []):  # Subsequent tile, no agent in reach
                     prev_active = self.var.laser(laser.laser_id, prev_x, prev_y, t)
-                    # Unreachable tile -> active if the previous tile is actuve
-                    yield [-active, -prev_active]
-                    yield [active, -prev_active]
-                case ((x, y), [*agents]):
-                    ...
-
-            for agent in range(self.n_agents):
-                if laser.agent_id != agent:
-                    continue
-                if laser.pos not in self.reachable_positions(t, agent):
-                    continue
-                # Clause 2: if there is an agent on the current tile, then the beam is off
-                yield [-self.var.agent(agent, x, y, t), -self.var.laser(laser.laser_id, x, y, t)]
-                if prev_laser is not None:
-                    # Clause 3:
-                    yield [self.var.laser(laser.laser_id, x, y, t), -prev_laser, self.var.agent(agent, x, y, t)]
-                can_be_blocked = True
-            if not can_be_blocked:
-                # If no agent can block the laser, then it is on if the previous beam is on
-                prev_pos = self.ctx.get_prev_beam(x, y, laser.laser_id)
-                if prev_pos is None:
-                    # No previous -> first laser tile of the beam -> on by default
-                    yield [self.var.laser(laser.laser_id, *laser.pos, t)]
-                else:
-                    prev_pos = self.var.laser(laser.laser_id, *prev_pos, t)
-                    # prev is on -> current is on
-                    yield [prev_pos, self.var.laser(laser.laser_id, *laser.pos, t)]
+                    yield from equals(active, prev_active)
+                case ((prev_x, prev_y), [*agents]):  # General case
+                    prev_active = self.var.laser(laser.laser_id, prev_x, prev_y, t, atom=True)
+                    for a in agents:
+                        agent = self.var.agent(a, x, y, t, atom=True)
+                        yield from equals(active, prev_active & -agent)
+                case other:
+                    raise ValueError(f"There should be no other possible case but got: {other}")
 
 
 class StrictLaserConstraints(LaserConstraints):

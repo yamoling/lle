@@ -1,6 +1,6 @@
 from typing import Literal, overload
 
-from pysat.formula import IDPool
+from pysat.formula import Atom, IDPool
 
 
 class VariableFactory:
@@ -9,8 +9,16 @@ class VariableFactory:
     def __init__(self):
         self.pool = IDPool(start_from=1)
 
-    def agent(self, colour: int, x: int, y: int, t: int) -> int:
-        return self.pool.id(("agent", colour, x, y, t))
+    @overload
+    def agent(self, colour: int, x: int, y: int, t: int) -> int: ...
+    @overload
+    def agent(self, colour: int, x: int, y: int, t: int, *, atom: Literal[True]) -> Atom: ...
+
+    def agent(self, colour: int, x: int, y: int, t: int, *, atom: bool = False):
+        var = self.pool.id(("agent", colour, x, y, t))
+        if atom:
+            return Atom(var)
+        return var
 
     def agent_at_exit(self, colour: int, t: int) -> int:
         return self.pool.id(("agent_at_exit", colour, t))
@@ -18,11 +26,20 @@ class VariableFactory:
     def done(self, t: int) -> int:
         return self.pool.id(("done", t))
 
-    def laser(self, laser_id: int, x: int, y: int, t: int) -> int:
+    @overload
+    def laser(self, laser_id: int, x: int, y: int, t: int) -> int: ...
+
+    @overload
+    def laser(self, laser_id: int, x: int, y: int, t: int, *, atom: Literal[True]) -> Atom: ...
+
+    def laser(self, laser_id: int, x: int, y: int, t: int, *, atom: bool = False):
         """
         Variable that determines whether the laser at position (x, y) of the given ID is active at time step t.
         """
-        return self.pool.id(("laser", laser_id, x, y, t))
+        var = self.pool.id(("laser", laser_id, x, y, t))
+        if atom:
+            return Atom(var)
+        return var
 
     def name(self, lit: int):
         return self.pool.obj(abs(lit))

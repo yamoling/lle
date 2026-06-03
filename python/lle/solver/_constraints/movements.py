@@ -1,10 +1,12 @@
 import itertools
 
 from pysat.card import CardEnc
+from pysat.formula import XOr
 
 from lle.solver.variable_factory import VariableFactory
 
 from .base import ConstraintContext, ConstraintGenerator
+from .utils import implies
 
 # Movement method constants
 METHOD_LOCAL = "local"
@@ -33,25 +35,19 @@ class MovementConstraints(ConstraintGenerator):
         for agent in range(self.n_agents):
             # For all reachable positions of each agent, there can only be one at every single time step that is true
             vars = [self.var.agent(agent, x, y, t) for (x, y) in self.reachable_positions(t, agent)]
-            for clause in CardEnc.atmost(vars, bound=1, vpool=self.var.pool).clauses:
-                yield clause
-            # # At least one position is true (exactly one = at most one + at least one)
-            # if vars:  # Only add if there are reachable positions
-            #     yield vars
+            yield from CardEnc.atmost(vars, bound=1, vpool=self.var.pool).clauses
+            # The fact that at least one position per time step is true is encoded by the objective
+            # and the time-wise adjacency rule.
 
     def _time_wise_adjacency(self, t: int):
         r"""
         If agent is at (x, y) at time step t, it must have been in an adjacent cell at t - 1.
 
-        Notes:
-        -----
+        # Notes:
             - We only consider to remain in the same spot if at least one exit remains within reach at next step
 
-        Formula
-        -------
-        We want to express that A_t => (N_{1,t-1} V N_{2,t-1} V ... V N_{k,t-1}).
-        We leverage that P => Q ≡ ¬P∨Q to write it as:
-            - ¬A_t V (N_{1,t+1} V N_{2,t+1} V ... V N_{k,t-1}
+        # Formula
+        We want to express that A_t => (N_{1,t-1} XOR N_{2,t-1} XOR ... XOR N_{k,t-1}).
         """
         if t == 0:
             return
@@ -62,10 +58,12 @@ class MovementConstraints(ConstraintGenerator):
                 prev_pos = [pos for pos in neighbor_map[x, y] if pos in previous_reachable and (pos != (x, y) or self.can_stay(t - 1, pos))]
                 current_var = self.var.agent(agent_num, x, y, t)
                 if not prev_pos:
+                    # The agent cannot be in this location at this time step
                     yield [-current_var]
                     continue
                 # if at (x,y,t), must have been at some reachable neighbour at t-1.
-                yield [-current_var, *[self.var.agent(agent_num, nx, ny, t - 1) for nx, ny in prev_pos]]
+                yield from implies(current_var, XOr(*[self.var.agent(agent_num, nx, ny, t - 1, atom=True) for nx, ny in prev_pos]))
+                # yield [-current_var, *[self.var.agent(agent_num, nx, ny, t - 1) for nx, ny in prev_pos]]
 
     def _no_overlap(self, t: int):
         """
@@ -99,13 +97,11 @@ class MovementConstraints(ConstraintGenerator):
             return
         for c1, c2 in itertools.combinations(range(self.n_agents), 2):
             for x, y in self.reachable_positions_for_agent(t - 1, c1).intersection(self.reachable_positions_for_agent(t, c2)):
-                v1_t1 = self.var.agent(c1, x, y, t - 1)
-                v2_t = self.var.agent(c2, x, y, t)
-                yield [-v1_t1, -v2_t]
+                # yield [-v1_t1, -v2_t]
+                yield from implies(self.var.agent(c2, x, y, t), -self.var.agent(c1, x, y, t - 1))
             for x, y in self.reachable_positions_for_agent(t, c1).intersection(self.reachable_positions_for_agent(t - 1, c2)):
-                v1_t = self.var.agent(c1, x, y, t)
-                v2_t1 = self.var.agent(c2, x, y, t - 1)
-                yield [-v1_t, -v2_t1]
+                # yield [-v1_t, -v2_t1]
+                yield from implies(self.var.agent(c1, x, y, t), -self.var.agent(c2, x, y, t - 1))
 
     def _stays_on_exit(self, t: int):
         """
