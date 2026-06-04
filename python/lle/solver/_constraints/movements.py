@@ -1,7 +1,6 @@
 import itertools
 
 from pysat.card import CardEnc
-from pysat.formula import Or
 
 from lle.solver.variable_factory import VariableFactory
 
@@ -78,6 +77,8 @@ class MovementConstraints(ConstraintGenerator):
         -------
         Not in the same spot, i.e. ¬(agent1(x, y, t) ^ agent2(x, y, t)) <=> (¬agent1(x, y, t) ∨ ¬agent2(x, y, t))
         """
+        if self.n_agents == 1:
+            return
         for c1 in range(self.n_agents):
             for c2 in range(c1 + 1, self.n_agents):
                 # Ensure that two agents can not be at the same position simultaneously
@@ -90,8 +91,7 @@ class MovementConstraints(ConstraintGenerator):
         """
         Ensure following conflicts are prevented, i.e. from moving into a cell occupied by another agent in the previous timestep.
 
-        Formula
-        -------
+        # Formula
         For all every combination of two agents (a1, a2), make sure that if a1(x, y, t), then not a2(x, y, t-1), and vice versa.
         We write this implication as ¬(a1(x, y, t) ∧ a2(x, y, t-1)), which translates in CNF to
         - ¬a1(x, y, t) ∨ ¬a2(x, y, t-1)
@@ -110,8 +110,7 @@ class MovementConstraints(ConstraintGenerator):
         """
         If agent was on an exit at t-1, it must also be on an exit at t.
 
-        Formula
-        -------
+        # Formula
         We have (agent on exit(t-1) -> agent on exit(t)), which can be written as:
             - ¬agent on exit(t-1) ∨ agent on exit(t)
         """

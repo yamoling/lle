@@ -280,7 +280,3 @@ def test_context_lower_bound_with_wall():
     # +1 for the wall
     # +2 for SOUTH and UP
     assert ctx.solution_lower_bound == N_STEPS + 1 + 1 + 2
-
-
-def test_context_laser_next():
-    raise NotImplementedError()

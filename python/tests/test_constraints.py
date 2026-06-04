@@ -153,28 +153,117 @@ def test_time_wise_adjacency(map_str: str):
             assert dx + dy <= 1, f"Agent {agent_num} movements are not adjacent. {prev_pos} (t={t - 1}) -> {curr_pos} (t={t})"
 
 
-@pytest.mark.parametrize("map_str", TEST_MAPS)
+@pytest.mark.parametrize("map_str", TEST_MAPS[1:])  # Need ≥ 2 agents
 def test_no_overlap(map_str: str):
-    T_MAX = 10
+    """Two agents cannot occupy the same cell at the same time."""
+    T_MAX = 5
     world = World(map_str)
     var = VariableFactory()
     ctx = ConstraintContext(world, 0, T_MAX)
     gen = MovementConstraints(var, ctx)
-    clauses = []
+
+    all_clauses: list[list[int]] = []
     for t in range(T_MAX):
-        clauses.extend(gen._no_overlap(t))
+        all_clauses.extend(gen._exactly_one_position(t))
+        all_clauses.extend(gen._time_wise_adjacency(t))
+        all_clauses.extend(gen._no_overlap(t))
+
+    # Valid solution should exist
+    true_vars = solve_and_get_true_variables(all_clauses)
+    true_vars = [v for v in true_vars if var.name(v) is not None]
+
+    # Verify no two agents share a cell at any timestep
+    for t in range(T_MAX):
+        positions_by_cell: dict[Position, list[int]] = defaultdict(list)
+        for v in true_vars:
+            name = var.name(v)
+            if name and name[0] == "agent" and name[4] == t:
+                _, agent_num, x, y, _ = name
+                positions_by_cell[(x, y)].append(agent_num)
+        for (x, y), agents in positions_by_cell.items():
+            assert len(agents) <= 1, f"Agents {agents} both at ({x},{y}) at t={t}"
+
+    # Prove impossibility: assert two agents share a cell
+    with Minisat22(bootstrap_with=all_clauses) as s:
+        t = 1
+        for pos in ctx.reachable_positions(t, 0, 1):
+            x, y = pos
+            a = var.agent(0, x, y, t)
+            b = var.agent(1, x, y, t)
+            assert not s.solve(assumptions=[a, b]), f"Agents 0 and 1 should not both fit at ({x},{y}) at t={t}"
 
 
 def test_empty_level_with_two_agents_adds_collision_clauses():
+    """Two agents cannot swap places or follow each other into the same cell."""
     world = World("S0 . S1 X X")
     var = VariableFactory()
-    ctx = ConstraintContext(world, 0, 2)
-
+    ctx = ConstraintContext(world, 0, 3)
     gen = MovementConstraints(var, ctx)
 
-    assert var.exists("agent", 0, 0, 1, 1)
-    assert var.exists("agent", 1, 0, 1, 1)
-    assert False, "Complete this test"
+    clauses = []
+    clauses.extend(InitializationConstraints(var, ctx).generate(0))
+    for t in range(3):
+        clauses.extend(gen._exactly_one_position(t))
+        clauses.extend(gen._time_wise_adjacency(t))
+        clauses.extend(gen._no_overlap(t))
+        clauses.extend(gen._no_following_conflict(t))
+
+    # Solve and verify no following conflicts
+    true_vars = solve_and_get_true_variables(clauses)
+    true_vars = [v for v in true_vars if var.name(v) is not None]
+
+    # Build positions per agent per timestep
+    pos: dict[int, dict[int, Position]] = defaultdict(dict)
+    for v in true_vars:
+        name = var.name(v)
+        if name and name[0] == "agent":
+            _, agent_num, x, y, t = name
+            pos[agent_num][t] = (x, y)
+
+    # Verify no agent moves into a cell that another agent occupied at the previous step
+    for t in range(1, 3):
+        for a1 in range(world.n_agents):
+            for a2 in range(a1 + 1, world.n_agents):
+                if t in pos[a1] and t - 1 in pos[a2]:
+                    assert pos[a1][t] != pos[a2][t - 1], f"Agent {a1} followed agent {a2} into {pos[a1][t]} at t={t}"
+
+    # Prove impossibility: agent 1 at (0,1) t=1 AND agent 0 at (0,1) t=0
+    # (agent 0 starts at (0,0), can reach (0,1) at t=0? No. So use a different scenario.)
+    # Following conflict: agent 1 enters (0,1) at t=1 that agent 0 was at t=0.
+    # Agent 0 can be at (0,1) at t=1, agent 1 can be at (0,1) at t=0? No, agent 1 starts at (0,2).
+    # Instead: agent 0 at (0,2) t=2 AND agent 1 at (0,2) t=1 — agent 0 follows agent 1.
+    with Minisat22(bootstrap_with=clauses) as s:
+        assert not s.solve(
+            assumptions=[
+                var.agent(0, 0, 2, 2),  # agent 0 at (0,2) at t=2
+                var.agent(1, 0, 2, 1),  # agent 1 was at (0,2) at t=1
+            ]
+        ), "Agent 0 should not follow agent 1 into (0,2)"
+
+
+def test_stays_on_exit():
+    """If an agent is on an exit at t-1, it must also be on an exit at t."""
+    # Map with exit at (0, 2). Agent starts at (0, 0), reaches exit at t=2.
+    world = World("S0 . X")
+    var = VariableFactory()
+    ctx = ConstraintContext(world, 0, 4)
+    gen = MovementConstraints(var, ctx)
+    t = 3  # At t-1=2, agent could be at the exit (0, 2)
+
+    clauses = list(gen._stays_on_exit(t))
+    # Also need exactly_one_position to prevent agent from being at TWO positions at t
+    clauses.extend(gen._exactly_one_position(t))
+    assert len(clauses) > 0, "Expected clauses for stays-on-exit"
+
+    # The exit is at (0, 2). Prove: agent at exit at t-1 AND agent at non-exit at t is impossible
+    exit_pos = ctx.exits[0]  # (0, 2)
+    agent_exit_prev = var.agent(0, exit_pos[0], exit_pos[1], t - 1)
+
+    non_exit_positions = ctx.reachable_positions(t, 0) - set(ctx.exits)
+    for nx, ny in non_exit_positions:
+        agent_non_exit_now = var.agent(0, nx, ny, t)
+        with Minisat22(bootstrap_with=clauses) as s:
+            assert not s.solve(assumptions=[agent_exit_prev, agent_non_exit_now]), f"Agent should not leave exit (0,2) to go to ({nx},{ny})"
 
 
 def test_laser_source_tiles_are_blocked_for_agent_reachability():
@@ -202,6 +291,17 @@ S0  . .
 
 
 def test_same_colour_agent_can_block_laser_destination():
+    """A laser beam is active iff no same-colour agent blocks it.
+
+    Map:
+        .   X      (exit at (0,1))
+        S0  .
+        L0N .      (laser source at (2,0), going North)
+
+    The laser beam path is: (2,0) -> (1,0) -> (0,0).
+    If agent 0 is at (1,0), the beam should be blocked — laser at (0,0) must be off.
+    If agent 0 is NOT at (1,0), the beam should propagate to (0,0).
+    """
     world = World("""
 .   X
 S0  .
@@ -210,13 +310,37 @@ L0N .
     var = VariableFactory()
     ctx = ConstraintContext(world, 0, 2)
     source = world.laser_sources[0]
+    t = 0
 
-    laser_clauses = LaserConstraints(var, ctx).generate(0)
+    clauses = list(LaserConstraints(var, ctx).generate(t))
+    # Laser source activation comes from InitializationConstraints
+    init_clauses = InitializationConstraints(var, ctx).generate(t)
+    all_clauses = init_clauses + clauses
 
-    assert False, "Complete this test"
+    laser_var = var.laser(source.laser_id, 0, 0, t)
+    agent_var = var.agent(0, 1, 0, t)
+
+    # Prove: if agent is on (1,0), laser at (0,0) must be OFF
+    with Minisat22(bootstrap_with=all_clauses) as s:
+        assert not s.solve(assumptions=[agent_var, laser_var]), "Laser at (0,0) should be OFF when same-colour agent blocks at (1,0)"
+
+    # Prove: if agent is NOT on (1,0), laser at (0,0) must be ON
+    with Minisat22(bootstrap_with=all_clauses) as s:
+        assert not s.solve(assumptions=[-agent_var, -laser_var]), "Laser at (0,0) should be ON when no same-colour agent blocks"
 
 
 def test_different_colour_agent_cannot_step_on_active_laser():
+    """An agent cannot step on an active laser beam of a different colour.
+
+    Map:
+        L0S . X      (laser L0S at (0,0) going South)
+        .   S1 X     (agent S1 at (1,1))
+        S0  . .      (agent S0 at (2,0))
+
+    Laser L0S beam path: (0,0) -> (1,0) -> (2,0).
+    Agent 1 (colour 1) ≠ laser colour (0), so agent 1 cannot step on (1,0) at t=1
+    if the laser is active there.
+    """
     world = World("""
 L0S . X
 .   S1 X
@@ -225,10 +349,24 @@ S0  . .
     var = VariableFactory()
     ctx = ConstraintContext(world, 0, 2)
     source = world.laser_sources[0]
+    t = 1
 
-    laser_clauses = LaserConstraints(var, ctx).generate(1)
+    laser_clauses = list(LaserConstraints(var, ctx).generate(t))
+    # Also need movement constraints for the agent position variable to exist
+    movgen = MovementConstraints(var, ctx)
+    movement_clauses = [
+        *movgen._exactly_one_position(t),
+        *movgen._time_wise_adjacency(t),
+    ]
+    all_clauses = laser_clauses + movement_clauses
 
-    assert False, "Complete this test"
+    # Agent 1 (different colour) cannot be at (1,0) when laser is active there
+    agent_var = var.agent(1, 1, 0, t)
+    laser_var = var.laser(source.laser_id, 1, 0, t)
+
+    # First, laser IS active at (1,0) — agent 1 cannot step on it
+    with Minisat22(bootstrap_with=all_clauses) as s:
+        assert not s.solve(assumptions=[agent_var, laser_var]), "Agent 1 (colour 1) cannot step on active laser L0 (colour 0) at (1,0)"
 
 
 def test_two_lasers_stop_at_each_others_source_tiles():

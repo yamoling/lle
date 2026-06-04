@@ -56,7 +56,7 @@ class LaserConstraints(ConstraintGenerator):
                     continue
                 x, y = laser.pos
                 # yield [-agent_var, -laser_var]
-                yield from implies(self.var.agent(agent, x, y, t, atom=True), -self.var.laser(laser.laser_id, x, y, t, atom=True))
+                yield from implies(self.var.agent(agent, x, y, t), -self.var.laser(laser.laser_id, x, y, t))
 
     def _beam_activation(self, t: int):
         r"""
@@ -107,16 +107,25 @@ class LaserConstraints(ConstraintGenerator):
                     yield [active]
                 case None, [*agents]:  # First tile and some agents in reach
                     for a in agents:
-                        agent = self.var.agent(a, x, y, t, atom=True)
+                        agent = self.var.agent(a, x, y, t)
                         yield from equals(active, -agent)
                 case ((prev_x, prev_y), []):  # Subsequent tile, no agent in reach
                     prev_active = self.var.laser(laser.laser_id, prev_x, prev_y, t)
                     yield from equals(active, prev_active)
                 case ((prev_x, prev_y), [*agents]):  # General case
-                    prev_active = self.var.laser(laser.laser_id, prev_x, prev_y, t, atom=True)
+                    prev_active = self.var.laser(laser.laser_id, prev_x, prev_y, t)
                     for a in agents:
-                        agent = self.var.agent(a, x, y, t, atom=True)
-                        yield from equals(active, prev_active & -agent)
+                        # agent = self.var.agent(a, x, y, t, atom=True)
+                        # yield from equals(active, prev_active & -agent)
+                        # continue
+                        # active = prev_active AND NOT agent, in CNF:
+                        # active -> prev_active:     [-active, prev_active]
+                        # active -> NOT agent:       [-active, -agent]
+                        # prev_active AND NOT agent -> active: [-prev_active, agent, active]
+                        agent = self.var.agent(a, x, y, t)
+                        yield [-active, prev_active]
+                        yield [-active, -agent]
+                        yield [-prev_active, agent, active]
                 case other:
                     raise ValueError(f"There should be no other possible case but got: {other}")
 

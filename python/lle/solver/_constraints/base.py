@@ -53,8 +53,8 @@ class ConstraintContext:
             dx, dy = laser.direction.delta
             x, y = laser.pos
             prev_x, prev_y = x - dx, y - dy
-            if 0 <= prev_x < world.height and 0 <= prev_y < world.width and (x, y) and (prev_x, prev_y) not in world.wall_pos:
-                prev_tiles[prev_x, prev_y, laser.laser_id] = x, y
+            if 0 <= prev_x < world.height and 0 <= prev_y < world.width and (prev_x, prev_y) not in world.wall_pos:
+                prev_tiles[x, y, laser.laser_id] = prev_x, prev_y
         return prev_tiles
 
     def reachable_positions_for_agent(self, t: int, agent_num: int) -> set[Position]:
