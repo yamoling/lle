@@ -99,7 +99,7 @@ def test_exactly_one_position_wrong_assumtions_fail(map_str: str):
 
     for t in range(1, T_MAX):
         clauses = list(gen._exactly_one_position(t))
-        assert not solve_with_assumtions(clauses, [var.agent(0, 0, 0, t), var.agent(0, 0, 0, t + 1)]), "This should not be feasible"
+        assert not solve_with_assumtions(clauses, [var.agent(0, 0, 0, t), var.agent(0, 0, 1, t)]), "This should not be feasible"
 
 
 @pytest.mark.parametrize("map_str", TEST_MAPS)
