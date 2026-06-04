@@ -83,3 +83,4 @@ uv.lock
 !python/lle/env
 python/main.py
 .zed
+python/benchmarks/

@@ -41,7 +41,7 @@ class VariableFactory:
             return Atom(var)
         return var
 
-    def name(self, lit: int):
+    def name(self, lit: int) -> tuple | None:
         return self.pool.obj(abs(lit))
 
     @overload

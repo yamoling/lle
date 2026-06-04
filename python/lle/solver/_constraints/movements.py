@@ -1,11 +1,12 @@
 import itertools
 
-from pysat.formula import XOr
+from pysat.card import CardEnc
+from pysat.formula import Or
 
 from lle.solver.variable_factory import VariableFactory
 
 from .base import ConstraintContext, ConstraintGenerator
-from .utils import implies, xor
+from .utils import implies
 
 # Movement method constants
 METHOD_LOCAL = "local"
@@ -36,8 +37,10 @@ class MovementConstraints(ConstraintGenerator):
             vars = [self.var.agent(agent, x, y, t) for (x, y) in self.reachable_positions(t, agent)]
             if len(vars) <= 1:
                 continue
-            # Exactly one of these positions must be true
-            yield from xor(*vars)
+            # At least one position must be true
+            yield list(vars)
+            # At most one position is true
+            yield from CardEnc.atmost(vars, bound=1, vpool=self.var.pool).clauses
 
     def _time_wise_adjacency(self, t: int):
         r"""
@@ -63,12 +66,9 @@ class MovementConstraints(ConstraintGenerator):
                     yield [-current_var]
                     continue
                 # if at (x,y,t), must have been at some reachable neighbour at t-1.
-                prev_vars = [self.var.agent(agent_num, nx, ny, t - 1, atom=True) for nx, ny in prev_pos]
-                if len(prev_vars) == 1:
-                    # XOr requires >= 2 args; with one predecessor this is just an implication
-                    yield from implies(current_var, prev_vars[0])
-                else:
-                    yield from implies(current_var, XOr(*prev_vars))
+                prev_vars = [self.var.agent(agent_num, nx, ny, t - 1) for nx, ny in prev_pos]
+                # current_var -> prev1 or prev 2 or prev3 ...
+                yield [-current_var, *prev_vars]
 
     def _no_overlap(self, t: int):
         """

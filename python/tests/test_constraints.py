@@ -1,9 +1,31 @@
 from collections import defaultdict
+from typing import Any, Generator
 
 import pytest
 from lle import World
 from lle.solver._constraints import ConstraintContext, InitializationConstraints, LaserConstraints, MovementConstraints, utils
 from lle.solver.variable_factory import VariableFactory
+from lle.types import Position
+from pysat.solvers import Minisat22
+
+TEST_MAPS = [
+    "S0 . X",
+    "S0 S1\n. .\nX X",
+    "S0 S1 S2 S3\n. . . .\nX X X X",
+]
+
+
+def solve_with_assumtions(clauses: list | Generator[list, Any, None], assumptions: list):
+    with Minisat22(bootstrap_with=list(clauses)) as s:
+        return s.solve(assumptions=assumptions)
+
+
+def solve_and_get_true_variables(clauses: list | Generator[list, Any, None]):
+    with Minisat22(bootstrap_with=list(clauses)) as s:
+        assert s.solve(), "Non statisfiable formula"
+        model = s.get_model()
+        assert model is not None
+        return [v for v in model if v > 0]
 
 
 def test_empty_level_with_one_agent_initializes_start_and_movement_clauses():
@@ -29,14 +51,11 @@ def test_empty_level_with_one_agent_initializes_start_and_movement_clauses():
     assert not var.exists("agent", 0, 0, 2, t)
 
 
-@pytest.mark.parametrize(
-    "map_str",
-    [
-        #    "S0 . X",
-        "S0 S1\n. .\nX X",
-    ],
-)
+@pytest.mark.parametrize("map_str", TEST_MAPS)
 def test_exactly_one_position(map_str: str):
+    """
+    This test verifies that satisfiable solutions output by the solver indeed verifies what is expected;
+    """
     T_MAX = 10
     world = World(map_str)
     var = VariableFactory()
@@ -59,18 +78,91 @@ def test_exactly_one_position(map_str: str):
             vid = var.agent(0, x, y, t)
             assert vid in agent_vars, f"Variable for agent 0 at ({x},{y},t={t}) should appear in clauses"
 
-        # Verify XOR semantics: exactly one assignment satisfies all clauses
-        from pysat.solvers import Minisat22
+        # Verify exactly-one semantics: exactly one assignment satisfies all clauses
+        true_agent_vars = solve_and_get_true_variables(clauses)
+        var_names = [var.name(v) for v in true_agent_vars]
+        # The variable name is of shape ("agent", agent_num, x, y, t)
+        agent_nums = set(v[1] for v in var_names if v is not None)
+        assert len(agent_nums) == world.n_agents, f"Exactly one position per agent should be true, got {len(true_agent_vars)}: {var_names}"
 
-        with Minisat22(bootstrap_with=clauses) as s:
-            assert s.solve(), "XOR clauses should be satisfiable"
-            # Check that exactly one position variable is true for each agent in the solution
-            model = s.get_model()
-            assert model is not None
-            true_vars = [v for v in model if v > 0]
-            assert len(true_vars) == world.n_agents, (
-                f"Exactly one position should be true, got {len(true_vars)}: {[var.name(v) for v in true_vars]}"
-            )
+
+@pytest.mark.parametrize("map_str", TEST_MAPS)
+def test_exactly_one_position_wrong_assumtions_fail(map_str: str):
+    """
+    This test verifies that satisfiable solutions output by the solver indeed verifies what is expected;
+    """
+    T_MAX = 10
+    world = World(map_str)
+    var = VariableFactory()
+    ctx = ConstraintContext(world, 0, T_MAX)
+    gen = MovementConstraints(var, ctx)
+
+    for t in range(1, T_MAX):
+        clauses = list(gen._exactly_one_position(t))
+        assert not solve_with_assumtions(clauses, [var.agent(0, 0, 0, t), var.agent(0, 0, 0, t + 1)]), "This should not be feasible"
+
+
+@pytest.mark.parametrize("map_str", TEST_MAPS)
+def test_time_wise_adjacency(map_str: str):
+    """Verify that solver-produced trajectories have valid movement: consecutive
+    positions for each agent must be adjacent (or the same cell).
+
+    This test combines both _exactly_one_position and _time_wise_adjacency clauses,
+    since neither alone is sufficient:
+      - exactly_one_position: one position per timestep, but no movement validation
+      - time_wise_adjacency: enforces adjacency, but without exactly-one the solver
+        could pick multiple positions per timestep
+    """
+    T_MAX = 10
+    world = World(map_str)
+    var = VariableFactory()
+    ctx = ConstraintContext(world, 0, T_MAX)
+    gen = MovementConstraints(var, ctx)
+
+    # Collect all clauses across all timesteps
+    all_clauses: list[list[int]] = []
+    for t in range(T_MAX):
+        all_clauses.extend(gen._exactly_one_position(t))
+        all_clauses.extend(gen._time_wise_adjacency(t))
+
+    # Solve
+    true_vars = solve_and_get_true_variables(all_clauses)
+    # Filter out auxiliary variables (from CardEnc.atmost) not tracked in the vpool
+    true_vars = [v for v in true_vars if var.name(v) is not None]
+    var_names = [var.name(v) for v in true_vars]
+
+    # Build trajectory: agent -> {t -> (x, y)}
+    trajectory: dict[int, dict[int, Position]] = defaultdict(dict)
+    for name in var_names:
+        assert name is not None, "None variable while it is returned by the sovler"
+        kind, agent_num, x, y, t = name
+        if kind == "agent":
+            trajectory[agent_num][t] = (x, y)
+
+    # Verify: every agent has exactly one position per timestep
+    for agent_num in range(world.n_agents):
+        assert agent_num in trajectory, f"Agent {agent_num} has no positions in solution"
+        for t in range(T_MAX):
+            assert t in trajectory[agent_num], f"Agent {agent_num} missing position at t={t}"
+
+        # Verify consecutive positions are neighbors (Manhattan distance ≤ 1)
+        for t in range(1, T_MAX):
+            prev_pos = trajectory[agent_num][t - 1]
+            curr_pos = trajectory[agent_num][t]
+            dx, dy = abs(curr_pos[0] - prev_pos[0]), abs(curr_pos[1] - prev_pos[1])
+            assert dx + dy <= 1, f"Agent {agent_num} movements are not adjacent. {prev_pos} (t={t - 1}) -> {curr_pos} (t={t})"
+
+
+@pytest.mark.parametrize("map_str", TEST_MAPS)
+def test_no_overlap(map_str: str):
+    T_MAX = 10
+    world = World(map_str)
+    var = VariableFactory()
+    ctx = ConstraintContext(world, 0, T_MAX)
+    gen = MovementConstraints(var, ctx)
+    clauses = []
+    for t in range(T_MAX):
+        clauses.extend(gen._no_overlap(t))
 
 
 def test_empty_level_with_two_agents_adds_collision_clauses():
@@ -78,7 +170,7 @@ def test_empty_level_with_two_agents_adds_collision_clauses():
     var = VariableFactory()
     ctx = ConstraintContext(world, 0, 2)
 
-    movement_clauses = MovementConstraints(var, ctx).generate(1)
+    gen = MovementConstraints(var, ctx)
 
     assert var.exists("agent", 0, 0, 1, 1)
     assert var.exists("agent", 1, 0, 1, 1)
