@@ -46,8 +46,8 @@ def solve(
         laser_mode.get(var, ctx),
     ]
     objective = ObjectiveGenerator(var, ctx)
-    # Generate initial clauses for t in [0, t_min]
-    clauses = [clause for generator in generators for t in range(t_min + 1) for clause in generator.generate(t)]
+    # Generate initial clauses for t in [0, t_min)
+    clauses = [clause for generator in generators for t in range(t_min) for clause in generator.generate(t)]
     for t in range(t_min, t_max + 1):
         clauses.extend([clause for generator in generators for clause in generator.generate(t)])
         with Minisat22(bootstrap_with=clauses) as solver:

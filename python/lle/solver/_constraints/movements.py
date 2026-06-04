@@ -1,12 +1,11 @@
 import itertools
 
-from pysat.card import CardEnc
 from pysat.formula import XOr
 
 from lle.solver.variable_factory import VariableFactory
 
 from .base import ConstraintContext, ConstraintGenerator
-from .utils import implies
+from .utils import implies, xor
 
 # Movement method constants
 METHOD_LOCAL = "local"
@@ -35,9 +34,10 @@ class MovementConstraints(ConstraintGenerator):
         for agent in range(self.n_agents):
             # For all reachable positions of each agent, there can only be one at every single time step that is true
             vars = [self.var.agent(agent, x, y, t) for (x, y) in self.reachable_positions(t, agent)]
-            yield from CardEnc.atmost(vars, bound=1, vpool=self.var.pool).clauses
-            # The fact that at least one position per time step is true is encoded by the objective
-            # and the time-wise adjacency rule.
+            if len(vars) <= 1:
+                continue
+            # Exactly one of these positions must be true
+            yield from xor(*vars)
 
     def _time_wise_adjacency(self, t: int):
         r"""
@@ -48,6 +48,7 @@ class MovementConstraints(ConstraintGenerator):
 
         # Formula
         We want to express that A_t => (N_{1,t-1} XOR N_{2,t-1} XOR ... XOR N_{k,t-1}).
+        For k=1 this degenerates to a simple implication A_t => N_{1,t-1}.
         """
         if t == 0:
             return
@@ -62,8 +63,12 @@ class MovementConstraints(ConstraintGenerator):
                     yield [-current_var]
                     continue
                 # if at (x,y,t), must have been at some reachable neighbour at t-1.
-                yield from implies(current_var, XOr(*[self.var.agent(agent_num, nx, ny, t - 1, atom=True) for nx, ny in prev_pos]))
-                # yield [-current_var, *[self.var.agent(agent_num, nx, ny, t - 1) for nx, ny in prev_pos]]
+                prev_vars = [self.var.agent(agent_num, nx, ny, t - 1, atom=True) for nx, ny in prev_pos]
+                if len(prev_vars) == 1:
+                    # XOr requires >= 2 args; with one predecessor this is just an implication
+                    yield from implies(current_var, prev_vars[0])
+                else:
+                    yield from implies(current_var, XOr(*prev_vars))
 
     def _no_overlap(self, t: int):
         """
@@ -73,8 +78,6 @@ class MovementConstraints(ConstraintGenerator):
         -------
         Not in the same spot, i.e. ¬(agent1(x, y, t) ^ agent2(x, y, t)) <=> (¬agent1(x, y, t) ∨ ¬agent2(x, y, t))
         """
-        if t == 0:
-            return
         for c1 in range(self.n_agents):
             for c2 in range(c1 + 1, self.n_agents):
                 # Ensure that two agents can not be at the same position simultaneously

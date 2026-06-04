@@ -18,6 +18,7 @@ from typing import Literal, Sequence
 from ..world import Action, World
 from .cooperation_level import CooperationLevel, CooperationLevelStr
 from .incremental_solver import solve
+from .laser_mode import LaserMode
 
 
 def is_cooperative(world: World, t_max: int | Literal["auto"] = "auto"):
@@ -26,15 +27,11 @@ def is_cooperative(world: World, t_max: int | Literal["auto"] = "auto"):
     in `t_max` steps, i.e. when there exist a solution with laser blocking enabled (`LaserMode.STANDARD`)
     but not with lasers can not be blocked (`LaserMode.STRICT`).
     """
-    # from .laser_mode import LaserMode
-    # from .world_solver import WorldSolver
-    raise NotImplementedError("TODO")
-    # t = _default_t_max(world) if t_max == "auto" else t_max
-    # standard_sat, _ = WorldSolver(world, t_max=t, laser_mode=LaserMode.STANDARD).solve_sat()
-    # if not standard_sat:
-    #     return False
-    # strict_sat, _ = WorldSolver(world, t_max=t, laser_mode=LaserMode.STRICT).solve_sat()
-    # return not bool(strict_sat)
+    standard_plan = solve(world, t_max=t_max, laser_mode=LaserMode.STANDARD)
+    if standard_plan is None:
+        return False
+    strict_plan = solve(world, t_max=t_max, laser_mode=LaserMode.STRICT)
+    return strict_plan is None
 
 
 def cooperation_level(world: World, t_max: int | Literal["auto"] = "auto"):
@@ -62,7 +59,5 @@ __all__ = [
     "cooperation_level_trajectory",
     "is_cooperative",
     "solve",
-    "solve_hybrid",
-    "solve_sat",
     "CooperationLevelStr",
 ]

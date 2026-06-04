@@ -49,14 +49,12 @@ class ConstraintContext:
     @staticmethod
     def compute_prev_laser_beams(world: World):
         prev_tiles = dict[tuple[int, int, int], tuple[int, int]]()
-        for source in world.laser_sources:
-            prev_x, prev_y = source.pos
-            dx, dy = source.direction.delta
-            x = prev_x + dx
-            y = prev_y + dy
-            while 0 <= x < world.height and 0 <= y < world.width and (x, y) not in world.wall_pos:
-                prev_tiles[x, y, source.laser_id] = prev_x, prev_y
-                x, y = x + dx, y + dy
+        for laser in world.lasers:
+            dx, dy = laser.direction.delta
+            x, y = laser.pos
+            prev_x, prev_y = x - dx, y - dy
+            if 0 <= prev_x < world.height and 0 <= prev_y < world.width and (x, y) and (prev_x, prev_y) not in world.wall_pos:
+                prev_tiles[prev_x, prev_y, laser.laser_id] = x, y
         return prev_tiles
 
     def reachable_positions_for_agent(self, t: int, agent_num: int) -> set[Position]:

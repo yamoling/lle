@@ -45,8 +45,6 @@ class LaserConstraints(ConstraintGenerator):
         Given agent a of colour c and laser l of colour != c, if a_c is in (x, y), then l_c(x, y) must be off.
         - agent(a, x, y, t) -> ¬laser(l, x, y, t)
         """
-        if t == 0:
-            return
         for agent in range(self.n_agents):
             reachable_positions = self.reachable_positions(t, agent)
             for laser in self.lasers:
@@ -97,6 +95,7 @@ class LaserConstraints(ConstraintGenerator):
             active_c(l, x, y, t) = active_c(l, prev_x, prev_y, t).
 
         """
+        # iterate on every laser tile of the environment (i.e. every beam tile)
         for laser in self.lasers:
             x, y = laser.pos
             prev = self.ctx.get_prev_beam(x, y, laser.laser_id)

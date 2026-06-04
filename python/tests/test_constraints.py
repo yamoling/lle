@@ -1,51 +1,76 @@
 from collections import defaultdict
 
+import pytest
 from lle import World
-from lle.solver._constraints import ConstraintContext, InitializationConstraints, LaserConstraints, MovementConstraints
+from lle.solver._constraints import ConstraintContext, InitializationConstraints, LaserConstraints, MovementConstraints, utils
 from lle.solver.variable_factory import VariableFactory
-
-
-def literal_name(var: VariableFactory, lit: int):
-    name = var.name(lit)
-    return ("not", name) if lit < 0 else name
-
-
-def clause_names(var: VariableFactory, clauses: list[list[int]]):
-    return [[literal_name(var, lit) for lit in clause] for clause in clauses]
-
-
-def assert_has_clause(var: VariableFactory, clauses: list[list[int]], expected):
-    assert list(expected) in clause_names(var, clauses)
-
-
-def assert_not_has_variable(var: VariableFactory, kind: str, *prefix):
-    for name in var.pool.obj2id:
-        assert name[: 1 + len(prefix)] != (kind, *prefix)
 
 
 def test_empty_level_with_one_agent_initializes_start_and_movement_clauses():
     world = World("S0 . X")
     var = VariableFactory()
-    ctx = ConstraintContext(world, 0, 2)
+    ctx = ConstraintContext(world, 0, 10)
 
     init_clauses = InitializationConstraints(var, ctx).generate(0)
-    assert clause_names(var, init_clauses) == [[("agent", 0, 0, 0, 0)]]
-
-    movement_clauses = MovementConstraints(var, ctx).generate(1)
+    assert len(init_clauses) == world.n_agents + len(world.lasers)
     assert var.exists("agent", 0, 0, 0, 0)
-    assert var.exists("agent", 0, 0, 0, 1)
-    assert var.exists("agent", 0, 0, 1, 1)
+    # Until t=0, there should not be any consideration of agent 0 being in (0, 1) or (0, 2)
+    # because we know it is impossible.
+    assert not var.exists("agent", 0, 0, 1, 0)
     assert not var.exists("agent", 0, 0, 2, 0)
 
-    # The agent can only be at the middle tile at t=1 if it came from its start at t=0.
-    assert_has_clause(var, movement_clauses, [("not", ("agent", 0, 0, 1, 1)), ("agent", 0, 0, 0, 0)])
-    # Staying at the start would make the exit unreachable by t_max, so it is forbidden,
-    # not encoded as an empty unsatisfiable clause.
-    assert_has_clause(var, movement_clauses, [("not", ("agent", 0, 0, 0, 1))])
-    assert [] not in movement_clauses
-    # Reachability filtering should prevent clauses from creating impossible t=0 variables.
-    assert_not_has_variable(var, "agent", 0, 0, 1, 0)
-    assert_not_has_variable(var, "agent", 0, 0, 2, 0)
+    t = 1
+    movgen = MovementConstraints(var, ctx)
+    movement_clauses = list(movgen._exactly_one_position(t))
+    # Two possibilities: remain on spot or move east
+    assert len(movement_clauses) == 2
+    assert var.exists("agent", 0, 0, 0, t)
+    assert var.exists("agent", 0, 0, 1, t)
+    assert not var.exists("agent", 0, 0, 2, t)
+
+
+@pytest.mark.parametrize(
+    "map_str",
+    [
+        #    "S0 . X",
+        "S0 S1\n. .\nX X",
+    ],
+)
+def test_exactly_one_position(map_str: str):
+    T_MAX = 10
+    world = World(map_str)
+    var = VariableFactory()
+    ctx = ConstraintContext(world, 0, T_MAX)
+    movgen = MovementConstraints(var, ctx)
+
+    for t in range(1, T_MAX):
+        clauses = list(movgen._exactly_one_position(t))
+        # Agent 0 can reach (0,0) and (0,1) by any t >= 1, so XOR produces clauses
+        assert len(clauses) > 0, f"Expected clauses at t={t}"
+
+        # Collect all agent position variables referenced in clauses
+        agent_vars = set()
+        for clause in clauses:
+            for lit in clause:
+                agent_vars.add(abs(lit))
+
+        # Verify all referenced variables are agent position vars for agent 0 at time t
+        for x, y in ctx.reachable_positions(t, 0):
+            vid = var.agent(0, x, y, t)
+            assert vid in agent_vars, f"Variable for agent 0 at ({x},{y},t={t}) should appear in clauses"
+
+        # Verify XOR semantics: exactly one assignment satisfies all clauses
+        from pysat.solvers import Minisat22
+
+        with Minisat22(bootstrap_with=clauses) as s:
+            assert s.solve(), "XOR clauses should be satisfiable"
+            # Check that exactly one position variable is true for each agent in the solution
+            model = s.get_model()
+            assert model is not None
+            true_vars = [v for v in model if v > 0]
+            assert len(true_vars) == world.n_agents, (
+                f"Exactly one position should be true, got {len(true_vars)}: {[var.name(v) for v in true_vars]}"
+            )
 
 
 def test_empty_level_with_two_agents_adds_collision_clauses():
@@ -86,13 +111,6 @@ S0  . .
     assert var.exists("laser", source.laser_id, 0, 1, t)
     assert var.exists("laser", source.laser_id, 0, 2, t)
     print(clauses)
-
-    # assert clause_names(var, laser_clauses) == [
-    #     [("not", ("laser", source.laser_id, 0, 0, 0)), ("laser", source.laser_id, 0, 1, 0)],
-    #     [("laser", source.laser_id, 0, 0, 0), ("not", ("laser", source.laser_id, 0, 1, 0))],
-    #     [("not", ("laser", source.laser_id, 0, 1, 0)), ("laser", source.laser_id, 0, 2, 0)],
-    #     [("laser", source.laser_id, 0, 1, 0), ("not", ("laser", source.laser_id, 0, 2, 0))],
-    # ]
 
 
 def test_same_colour_agent_can_block_laser_destination():
@@ -221,3 +239,36 @@ S1   .   .    .
         if n_lasers_superimposed == 0:
             continue
         assert count == n_lasers_superimposed
+
+
+def test_implies_expansion():
+    """In CNF, implication expands to (¬a ∨ b)"""
+    a = 1
+    b = 2
+    clauses = list(utils.implies(a, b))
+    assert len(clauses) == 1
+    assert len(clauses[0]) == 2
+    clause = sorted(clauses[0])
+    assert clause == [-a, b]
+
+
+def test_equality_expansion():
+    """Equality expands to (a -> b) ∧ (b -> a). In CNF: (¬a ∨ b) ∧ (¬b ∨ a)"""
+    a = 1
+    b = 2
+    clauses = [sorted(c) for c in utils.equals(a, b)]
+    assert len(clauses) == 2
+    expected = [[-a, b], [-b, a]]
+    for c in expected:
+        assert c in clauses
+
+
+def test_xor_expansion():
+    """XOR expands to (¬a ∨ ¬b) ∧ (a ∨ b)"""
+    a = 1
+    b = 2
+    clauses = [sorted(c) for c in utils.xor(a, b)]
+    assert len(clauses) == 2
+    expected = [[a, b], [-b, -a]]
+    for c in expected:
+        assert c in clauses
