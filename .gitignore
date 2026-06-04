@@ -83,4 +83,6 @@ uv.lock
 !python/lle/env
 python/main.py
 .zed
-python/benchmarks/
+.qwen
+python/benchmark*
+python/lle/solver_old/
