@@ -174,11 +174,7 @@ def test_empty_level_with_two_agents_adds_collision_clauses():
 
     assert var.exists("agent", 0, 0, 1, 1)
     assert var.exists("agent", 1, 0, 1, 1)
-    assert_has_clause(
-        var,
-        movement_clauses,
-        [("not", ("agent", 0, 0, 1, 1)), ("not", ("agent", 1, 0, 1, 1))],
-    )
+    assert False, "Complete this test"
 
 
 def test_laser_source_tiles_are_blocked_for_agent_reachability():
@@ -217,25 +213,7 @@ L0N .
 
     laser_clauses = LaserConstraints(var, ctx).generate(0)
 
-    assert_has_clause(
-        var,
-        laser_clauses,
-        [
-            ("not", ("laser", source.laser_id, 2, 0, 0)),
-            ("agent", source.agent_id, 1, 0, 0),
-            ("laser", source.laser_id, 1, 0, 0),
-        ],
-    )
-    assert_has_clause(
-        var,
-        laser_clauses,
-        [("not", ("agent", source.agent_id, 1, 0, 0)), ("not", ("laser", source.laser_id, 1, 0, 0))],
-    )
-    assert_has_clause(
-        var,
-        laser_clauses,
-        [("laser", source.laser_id, 2, 0, 0), ("not", ("laser", source.laser_id, 1, 0, 0))],
-    )
+    assert False, "Complete this test"
 
 
 def test_different_colour_agent_cannot_step_on_active_laser():
@@ -250,11 +228,7 @@ S0  . .
 
     laser_clauses = LaserConstraints(var, ctx).generate(1)
 
-    assert_has_clause(
-        var,
-        laser_clauses,
-        [("not", ("agent", 1, 1, 0, 1)), ("not", ("laser", source.laser_id, 1, 0, 1))],
-    )
+    assert False, "Complete this test"
 
 
 def test_two_lasers_stop_at_each_others_source_tiles():
