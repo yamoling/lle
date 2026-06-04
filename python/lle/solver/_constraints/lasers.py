@@ -56,7 +56,7 @@ class LaserConstraints(ConstraintGenerator):
                     continue
                 x, y = laser.pos
                 # yield [-agent_var, -laser_var]
-                yield from implies(self.var.agent(agent, x, y, t), -self.var.laser(laser.laser_id, x, y, t))
+                yield implies(self.var.agent(agent, x, y, t), -self.var.laser(laser.laser_id, x, y, t))
 
     def _beam_activation(self, t: int):
         r"""
@@ -114,18 +114,16 @@ class LaserConstraints(ConstraintGenerator):
                     yield from equals(active, prev_active)
                 case ((prev_x, prev_y), [*agents]):  # General case
                     prev_active = self.var.laser(laser.laser_id, prev_x, prev_y, t)
-                    for a in agents:
-                        # agent = self.var.agent(a, x, y, t, atom=True)
-                        # yield from equals(active, prev_active & -agent)
-                        # continue
-                        # active = prev_active AND NOT agent, in CNF:
-                        # active -> prev_active:     [-active, prev_active]
-                        # active -> NOT agent:       [-active, -agent]
-                        # prev_active AND NOT agent -> active: [-prev_active, agent, active]
-                        agent = self.var.agent(a, x, y, t)
-                        yield [-active, prev_active]
-                        yield [-active, -agent]
-                        yield [-prev_active, agent, active]
+                    # Encode: active = prev_active AND NOT(any agent on tile)
+                    # Clauses:
+                    #   active -> prev_active
+                    #   active -> NOT agent_i for each agent i:   [-active, -agent_i]            (N clauses)
+                    #   prev_active AND NOT(any agent) -> active: [-prev_active, *agents, active] (1 clause)
+                    agent_vars = [self.var.agent(a, x, y, t) for a in agents]
+                    # yield implies(active, prev_active)
+                    yield [-active, prev_active]
+                    yield from ([-active, -agent_var] for agent_var in agent_vars)
+                    yield [-prev_active, *agent_vars, active]
                 case other:
                     raise ValueError(f"There should be no other possible case but got: {other}")
 

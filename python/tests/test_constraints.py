@@ -174,7 +174,7 @@ def test_no_overlap(map_str: str):
     for t in range(T_MAX):
         all_clauses.extend(gen._exactly_one_position(t))
         all_clauses.extend(gen._time_wise_adjacency(t))
-        all_clauses.extend(gen._all_collision_constraints(t))
+        all_clauses.extend(gen._no_overlap(t))
         all_clauses.extend(gen._stays_on_exit(t))
 
     # Valid solution should exist
@@ -217,7 +217,8 @@ def test_empty_level_with_two_agents_adds_collision_clauses():
     for t in range(3):
         clauses.extend(gen._exactly_one_position(t))
         clauses.extend(gen._time_wise_adjacency(t))
-        clauses.extend(gen._all_collision_constraints(t))
+        clauses.extend(gen._no_overlap(t))
+        clauses.extend(gen._no_following_conflict(t))
 
     # Solve and verify no following conflicts
     true_vars = solve_and_get_true_variables(clauses)
@@ -485,10 +486,8 @@ def test_implies_expansion():
     """In CNF, implication expands to (¬a ∨ b)"""
     a = 1
     b = 2
-    clauses = list(utils.implies(a, b))
-    assert len(clauses) == 1
-    assert len(clauses[0]) == 2
-    clause = sorted(clauses[0])
+    clause = utils.implies(a, b)
+    clause = sorted(clause)
     assert clause == [-a, b]
 
 

@@ -68,11 +68,11 @@ class ConstraintContext:
 
     def reachable_positions(self, t: int, *agents: int) -> set[Position]:
         """Return positions that are reachable by the given agents exactly at time `t`, filtered by exit reachability."""
-        if t < 0 or t > self.t_max or not agents:
+        if t < 0 or t > self.t_max or len(agents) == 0:
             return set()
         reachable = self.reachable_positions_for_agent(t, agents[0])
         for agent_num in agents[1:]:
-            reachable = reachable.intersection(self.reachable_positions_for_agent(t, agent_num))
+            reachable = reachable.intersection(self._reachable_positions[agent_num][t])
         return reachable
 
     @staticmethod
