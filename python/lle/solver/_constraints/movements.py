@@ -24,8 +24,7 @@ class MovementConstraints(ConstraintGenerator):
         return [
             *self._exactly_one_position(t),
             *self._time_wise_adjacency(t),
-            *self._no_overlap(t),
-            *self._no_following_conflict(t),
+            *self._all_collision_constraints(t),
             *self._stays_on_exit(t),
         ]
 
@@ -69,42 +68,34 @@ class MovementConstraints(ConstraintGenerator):
                 # current_var -> prev1 or prev 2 or prev3 ...
                 yield [-current_var, *prev_vars]
 
-    def _no_overlap(self, t: int):
+    def _all_collision_constraints(self, t: int):
         """
-        Prevent agents from occupying the same cell at the same time.
+        Prevent agents from occupying the same cell at the same time (same-time collisions)
+        and from moving into a cell occupied by another agent in the previous timestep (cross-time collisions).
 
         Formula
         -------
-        Not in the same spot, i.e. ¬(agent1(x, y, t) ^ agent2(x, y, t)) <=> (¬agent1(x, y, t) ∨ ¬agent2(x, y, t))
+        Same-time: ¬(agent1(x, y, t) ∧ agent2(x, y, t)) <=> (¬agent1(x, y, t) ∨ ¬agent2(x, y, t))
+        Cross-time: ¬(agent1(x, y, t) ∧ agent2(x, y, t-1)) <=> (¬agent1(x, y, t) ∨ ¬agent2(x, y, t-1))
         """
         if self.n_agents == 1:
             return
-        for c1 in range(self.n_agents):
-            for c2 in range(c1 + 1, self.n_agents):
-                # Ensure that two agents can not be at the same position simultaneously
-                for x, y in self.reachable_positions(t, c1, c2):
-                    v1_t = self.var.agent(c1, x, y, t)
-                    v2_t = self.var.agent(c2, x, y, t)
-                    yield [-v1_t, -v2_t]
 
-    def _no_following_conflict(self, t: int):
-        """
-        Ensure following conflicts are prevented, i.e. from moving into a cell occupied by another agent in the previous timestep.
-
-        # Formula
-        For all every combination of two agents (a1, a2), make sure that if a1(x, y, t), then not a2(x, y, t-1), and vice versa.
-        We write this implication as ¬(a1(x, y, t) ∧ a2(x, y, t-1)), which translates in CNF to
-        - ¬a1(x, y, t) ∨ ¬a2(x, y, t-1)
-        """
-        if t == 0 or self.n_agents == 0:
-            return
         for c1, c2 in itertools.combinations(range(self.n_agents), 2):
-            for x, y in self.reachable_positions_for_agent(t - 1, c1).intersection(self.reachable_positions_for_agent(t, c2)):
-                # yield [-v1_t1, -v2_t]
-                yield from implies(self.var.agent(c2, x, y, t), -self.var.agent(c1, x, y, t - 1))
-            for x, y in self.reachable_positions_for_agent(t, c1).intersection(self.reachable_positions_for_agent(t - 1, c2)):
-                # yield [-v1_t, -v2_t1]
-                yield from implies(self.var.agent(c1, x, y, t), -self.var.agent(c2, x, y, t - 1))
+            # Same-time collisions: agents cannot be at the same position at time t
+            for x, y in self.reachable_positions(t, c1, c2):
+                v1_t = self.var.agent(c1, x, y, t)
+                v2_t = self.var.agent(c2, x, y, t)
+                yield [-v1_t, -v2_t]
+
+            # Cross-time collisions: agents cannot move into cells occupied in previous timestep
+            if t > 0:
+                # c2 at (x,y,t) cannot collide with c1 at (x,y,t-1)
+                for x, y in self.reachable_positions_for_agent(t - 1, c1).intersection(self.reachable_positions_for_agent(t, c2)):
+                    yield from implies(self.var.agent(c2, x, y, t), -self.var.agent(c1, x, y, t - 1))
+                # c1 at (x,y,t) cannot collide with c2 at (x,y,t-1)
+                for x, y in self.reachable_positions_for_agent(t, c1).intersection(self.reachable_positions_for_agent(t - 1, c2)):
+                    yield from implies(self.var.agent(c1, x, y, t), -self.var.agent(c2, x, y, t - 1))
 
     def _stays_on_exit(self, t: int):
         """
