@@ -58,13 +58,16 @@ class ConstraintContext:
         return prev_tiles
 
     def reachable_positions_for_agent(self, t: int, agent_num: int) -> set[Position]:
+        """Return positions reachable by agent at time t, filtered by exit reachability."""
         if t < 0 or t > self.t_max:
             return set()
-        # Return reachable positions without intersecting with _exit_reachable for testing
-        return self._reachable_positions[agent_num][t]
+        # Only return positions that are still within reaching distance of an exit
+        reachable = self._reachable_positions[agent_num][t]
+        # Filter by exit reachability: position must be reachable from start AND can reach exit
+        return reachable.intersection(self._exit_reachable[self.t_max - t])
 
     def reachable_positions(self, t: int, *agents: int) -> set[Position]:
-        """Return positions that are reachable by the given agents exactly at time `t`."""
+        """Return positions that are reachable by the given agents exactly at time `t`, filtered by exit reachability."""
         if t < 0 or t > self.t_max or not agents:
             return set()
         reachable = self.reachable_positions_for_agent(t, agents[0])
