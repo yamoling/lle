@@ -29,6 +29,12 @@ class MovementConstraints(ConstraintGenerator):
             *self._stays_on_exit(t),
         ]
 
+    # At-most-one encoding crossover: for small variable sets the naive pairwise encoding
+    # (n(n-1)/2 binary clauses, no auxiliary variables) uses fewer-or-equal clauses AND zero
+    # auxiliary variables compared to pysat's default sequential counter; the sequential counter
+    # only wins on clause count from n >= 6 onward, at the cost of n-1 auxiliary variables.
+    _PAIRWISE_ATMOST_MAX = 5
+
     def _exactly_one_position(self, t: int):
         """Every agent is in exactly one position at any given time step."""
         for agent in range(self.n_agents):
@@ -37,8 +43,13 @@ class MovementConstraints(ConstraintGenerator):
                 continue
             # At least one position must be true
             yield list(vars)
-            # At most one position is true
-            yield from CardEnc.atmost(vars, bound=1, vpool=self.var.pool).clauses
+            # At most one position is true (adaptive encoding, see `_PAIRWISE_ATMOST_MAX`).
+            if len(vars) <= self._PAIRWISE_ATMOST_MAX:
+                for i in range(len(vars)):
+                    for j in range(i + 1, len(vars)):
+                        yield [-vars[i], -vars[j]]
+            else:
+                yield from CardEnc.atmost(vars, bound=1, vpool=self.var.pool).clauses
 
     def _time_wise_adjacency(self, t: int):
         r"""

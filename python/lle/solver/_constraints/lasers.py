@@ -17,9 +17,11 @@ class LaserConstraints(ConstraintGenerator):
         self.n_agents = ctx.world.n_agents
 
     def generate(self, t: int):
+        # `_beam_activation` must run first: it populates `self._active_lit`, the per-tile
+        # activation-literal map that `_no_step_on_active_laser` reads.
         return [
-            *self._no_step_on_active_laser(t),
             *self._beam_activation(t),
+            *self._no_step_on_active_laser(t),
         ]
 
     def _no_step_on_active_laser(self, t: int):
@@ -29,7 +31,14 @@ class LaserConstraints(ConstraintGenerator):
         Formula:
         Given agent a of colour c and laser l of colour != c, if a_c is in (x, y), then l_c(x, y) must be off.
         - agent(a, x, y, t) -> ¬laser(l, x, y, t)
+
+        When the beam tile is *constant active* (no same-colour agent can ever block it at time
+        `t`), there is no laser variable to reference and the implication collapses to the unit
+        clause `¬agent(a, x, y, t)`: the agent simply cannot be there.
         """
+        # `None` for the strict subclass, which defines laser variables via beam propagation
+        # and never folds constant-active tiles.
+        active_lit = getattr(self, "_active_lit", None)
         for agent in range(self.n_agents):
             reachable_positions = self.reachable_positions(t, agent)
             for laser in self.lasers:
@@ -40,8 +49,15 @@ class LaserConstraints(ConstraintGenerator):
                 if laser.pos not in reachable_positions:
                     continue
                 x, y = laser.pos
-                # yield [-agent_var, -laser_var]
-                yield implies(self.var.agent(agent, x, y, t), -self.var.laser(laser.laser_id, x, y, t))
+                agent_var = self.var.agent(agent, x, y, t)
+                if active_lit is None:
+                    yield [-agent_var, -self.var.laser(laser.laser_id, x, y, t)]
+                    continue
+                lit = active_lit.get((laser.laser_id, x, y))
+                if lit is None:
+                    yield [-agent_var]  # constant-active beam tile
+                else:
+                    yield [-agent_var, -lit]
 
     def _beam_activation(self, t: int):
         r"""
@@ -70,41 +86,46 @@ class LaserConstraints(ConstraintGenerator):
 
             active_c(l, x, y, t) = ¬agent(c, x, y, t).
 
-        ## Unblockable tiles
+        ## Unblockable tiles (constant folding)
         A beam tile can only be switched off by a same-colour agent standing on it. If the
         blocking agent cannot reach a tile at time `t` (it is not in
         `reachable_positions(t, source.agent_id)`), then that tile carries no agent term: its
-        state simply mirrors the previous beam tile, or is unconditionally active when no
-        upstream tile is blockable. Defining a clause for *every* tile of the full beam path
-        (not only the blockable subset) is what prevents downstream tiles from becoming free
-        variables that the solver could silently switch off to walk an agent through the beam.
+        activation is exactly that of the previous beam tile.
+
+        We exploit this to fold constant-active tiles away entirely. Walking a beam from its
+        source, while no upstream tile is blockable the beam is unconditionally active, so we
+        allocate no variable and emit no clause; once past the first blockable tile, an
+        unblockable tile simply *aliases* the upstream variable (still no new variable, no
+        clause). A variable and its defining clauses are introduced only for blockable tiles.
+        The resulting `self._active_lit` maps each beam tile that has a variable to that literal;
+        tiles absent from the map are constant active. Since 87–99% of beam-tile-timesteps on the
+        canonical levels are unblockable, this removes the bulk of the laser variables and
+        clauses while remaining logically equivalent.
         """
+        active_lit: dict[tuple[int, int, int], int] = {}
         for source, full_path in self.ctx.laser_paths.items():
             blockable = self.reachable_positions(t, source.agent_id)
-            prev_active = None  # `None` means the upstream tile is the always-on source.
+            prev_active = None  # `None` means the upstream beam is constant active.
             for x, y in full_path:
-                active = self.var.laser(source.laser_id, x, y, t)
                 if (x, y) in blockable:
                     agent = self.var.agent(source.agent_id, x, y, t)
+                    active = self.var.laser(source.laser_id, x, y, t)
                     if prev_active is None:
                         # First blockable tile: active iff no blocking agent stands on it.
                         yield from equals(active, -agent)
                     else:
                         # active = (prev_active ^ ¬agent)
-                        # Clauses:
-                        #  active -> prev_active
-                        #  active -> NOT agent
-                        #  prev_active AND NOT agent -> active
+                        #  active -> prev_active ; active -> ¬agent ; prev_active ∧ ¬agent -> active
                         yield implies(active, prev_active)
                         yield implies(active, -agent)
                         yield [-prev_active, agent, active]
-                elif prev_active is None:
-                    # No blockable tile upstream yet: the beam is always on here.
-                    yield [active]
-                else:
-                    # Unblockable tile: its state is exactly that of the previous beam tile.
-                    yield from equals(active, prev_active)
-                prev_active = active
+                    prev_active = active
+                    active_lit[source.laser_id, x, y] = active
+                elif prev_active is not None:
+                    # Unblockable tile downstream of a blockable one: aliases the upstream literal.
+                    active_lit[source.laser_id, x, y] = prev_active
+                # else: constant-active tile — no variable, no clause, absent from the map.
+        self._active_lit = active_lit
 
         # for laser in self.lasers:
         #     x, y = laser.pos

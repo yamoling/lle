@@ -396,22 +396,27 @@ S0  . .
             )
 
 
-def test_unblockable_beam_tile_is_forced_active():
-    """A beam tile the blocking agent can never reach must be forced active.
+def test_unblockable_beam_tile_forbids_other_colour_agent():
+    """A beam tile the blocking agent can never reach is constant-active and forbids crossing.
 
-    Regression: beam activation only defined laser variables for tiles the same-colour
-    (blocking) agent could reach. Downstream tiles it could not reach were left as *free*
-    SAT variables, so the solver could silently switch the beam off and walk a different
+    Regression (free variable): beam activation once defined laser variables only for tiles the
+    same-colour (blocking) agent could reach; downstream tiles it could not reach were left as
+    *free* SAT variables, so the solver could silently switch the beam off and walk a different
     colour agent straight through it.
+
+    Optimization (constant folding): such unblockable tiles are now constant-active and carry no
+    laser variable at all — the no-step constraint collapses to a unit clause forbidding the
+    other-colour agent. Either way the essential property must hold: agent 1 cannot stand on the
+    downstream beam tile. We assert that property directly (it is satisfiable to keep agent 1 off
+    the tile, but unsatisfiable to place it there).
 
     Map:
         L0E .  .  X   (colour-0 east laser; beam runs along row 0)
         S0  @  S1 X
 
-    Agent 0 (colour 0, the only one that could block) starts at (1,0), walled in by the
-    laser source and (1,1); it can never reach any beam tile. The beam is therefore
-    unblockable and every tile must stay active for all time. Agent 1 (colour 1) can step
-    up onto the downstream beam tile (0,2) and must be forbidden from doing so.
+    Agent 0 (colour 0, the only one that could block) starts at (1,0), walled in by the laser
+    source and (1,1); it can never reach any beam tile, so the whole beam is unblockable. Agent 1
+    (colour 1) can step up onto the downstream beam tile (0,2) and must be forbidden from doing so.
     """
     world = World("""
 L0E .  .  X
@@ -427,11 +432,9 @@ S0  @  S1 X
     clauses = [clause for t in range(t_max + 1) for clause in LaserConstraints(var, ctx).generate(t)]
 
     t = 2
-    assert var.exists("laser", source.laser_id, *downstream, t), "downstream beam tile must have a laser variable"
-    laser_var = var.laser(source.laser_id, *downstream, t)
-    with Minisat22(bootstrap_with=list(clauses)) as s:
-        assert not s.solve(assumptions=[-laser_var]), "unblockable downstream beam tile must be forced active"
     agent1_var = var.agent(1, *downstream, t)
+    with Minisat22(bootstrap_with=list(clauses)) as s:
+        assert s.solve(assumptions=[-agent1_var]), "keeping agent 1 off the beam tile must stay satisfiable"
     with Minisat22(bootstrap_with=list(clauses)) as s:
         assert not s.solve(assumptions=[agent1_var]), "agent 1 must not step on the always-active downstream beam tile"
 
@@ -457,7 +460,11 @@ S0  . S1  . .
 
 def test_multiple_same_colour_same_direction_lasers_get_independent_beams():
     # Two colour-0 south lasers in different columns share (colour, direction); each must
-    # still keep its own beam, keyed by its distinct source position.
+    # still keep its own beam, keyed by its distinct source position. We generate at t=3, where
+    # the colour-0 blocking agent can reach both sources' first beam tiles, so both tiles are
+    # blockable and therefore each carry their own (independent) laser variable. (Constant-active
+    # tiles are folded away and carry no variable, so a blockable timestep is needed to observe
+    # the per-source variables.)
     world = World("""
 .  L0S .  L0S .
 S0 .   .  .   S1
@@ -466,15 +473,17 @@ X  .   .  .   X
     var = VariableFactory()
     ctx = ConstraintContext(world, 10)
     constraints = LaserConstraints(var, ctx)
-    constraints.generate(1)
-    # Laser source with id 0 is at (0, 1)
+    constraints.generate(3)
+    # Laser source with id 0 is at (0, 1): its beam owns (1, 1) but not (1, 3).
     s1 = world.source_at((0, 1)).laser_id
-    assert var.exists("laser", s1, 1, 1, 1)
-    assert not var.exists("laser", s1, 1, 3, 1)
-    # Laser source with id 1 is at (0, 3)
+    assert var.exists("laser", s1, 1, 1, 3)
+    assert not var.exists("laser", s1, 1, 3, 3)
+    # Laser source with id 1 is at (0, 3): its beam owns (1, 3) but not (1, 1).
     s2 = world.source_at((0, 3)).laser_id
-    assert var.exists("laser", s2, 1, 3, 1)
-    assert not var.exists("laser", s2, 1, 1, 1)
+    assert var.exists("laser", s2, 1, 3, 3)
+    assert not var.exists("laser", s2, 1, 1, 3)
+    # The two beams are kept distinct, never collapsed onto a single shared variable.
+    assert var.laser(s1, 1, 1, 3) != var.laser(s2, 1, 3, 3)
 
 
 def test_two_same_colour_crossing_lasers_keep_variables():
