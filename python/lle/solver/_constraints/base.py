@@ -148,7 +148,7 @@ class ConstraintContext:
             distance = exit_distances.get(position, 0)
             if distance > bound:
                 bound = distance
-        return bound
+        return int(bound)
 
     @staticmethod
     def compute_time_reachability_map(world: World, t_max: int, neighbours: dict[Position, list[Position]]):

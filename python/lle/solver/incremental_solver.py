@@ -33,7 +33,7 @@ def solve(
     """
     if t_max == "auto":
         t_max = (world.width * world.height) // 2
-    ctx = ConstraintContext(world, t_min, t_max)
+    ctx = ConstraintContext(world, t_max)
     t_min = max(ctx.solution_lower_bound, t_min)
     if t_min > t_max:
         return None

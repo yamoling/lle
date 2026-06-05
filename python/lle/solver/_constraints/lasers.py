@@ -152,6 +152,6 @@ class StrictLaserConstraints(LaserConstraints):
                 if agent == source.agent_id:
                     continue
                 for x, y in self.ctx.laser_paths[source]:
-                    if (x, y) not in self.reachable_positions_for_agent(t, agent):
+                    if (x, y) not in self.reachable_positions(t, agent):
                         continue
                     yield [-self.var.agent(agent, x, y, t)]

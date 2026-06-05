@@ -41,7 +41,7 @@ def test_solve_default_t_max():
 
 def test_solver_prunes_beam_variables_to_actual_laser_path():
     world = World.level(3)
-    ctx = ConstraintContext(world, t_min=0, t_max=10)
+    ctx = ConstraintContext(world, t_max=10)
     assert len(ctx.prev_laser_beam) == len(world.lasers) - 1
 
 

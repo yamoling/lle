@@ -81,10 +81,10 @@ def test_exactly_one_position(map_str: str):
 
         # Verify exactly-one semantics: exactly one assignment satisfies all clauses
         true_agent_vars = solve_and_get_true_variables(clauses)
-        var_names = [var.name(v) for v in true_agent_vars]
-        # The variable name is of shape ("agent", agent_num, x, y, t)
-        agent_nums = set(v[1] for v in var_names if v is not None)
-        assert len(agent_nums) == world.n_agents, f"Exactly one position per agent should be true, got {len(true_agent_vars)}: {var_names}"
+        var_keys = [var.key(v) for v in true_agent_vars]
+        # The variable key is of shape ("agent", agent_num, x, y, t)
+        agent_nums = set(k[1] for k in var_keys if k is not None)
+        assert len(agent_nums) == world.n_agents, f"Exactly one position per agent should be true, got {len(true_agent_vars)}: {var_keys}"
 
 
 @pytest.mark.parametrize("map_str", TEST_MAPS)
