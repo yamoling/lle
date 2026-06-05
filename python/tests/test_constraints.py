@@ -211,7 +211,7 @@ def test_empty_level_with_two_agents_adds_collision_clauses():
     # Build positions per agent per timestep
     pos: dict[int, dict[int, Position]] = defaultdict(dict)
     for v in true_vars:
-        name = var.name(v)
+        name = var.key(v)
         if name and name[0] == "agent":
             _, agent_num, x, y, t = name
             pos[agent_num][t] = (x, y)

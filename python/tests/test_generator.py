@@ -166,3 +166,19 @@ def test_default_cooperative():
 
     args = _GenerateArgs("constructive", cooperation=False).resolve()
     assert args.cooperation == ("exactly", CooperationLevel.INDEPENDENT)
+
+
+def test_generator_produces_world_matching_requested_cooperation_profile():
+    """Constructive generator with profile=ASYMMETRIC yields a world that classifies as ASYMMETRIC."""
+    world = lle.generate(
+        kind="constructive",
+        width=6,
+        height=6,
+        n_agents=2,
+        n_lasers=1,
+        cooperation=CooperationLevel.ASYMMETRIC,
+        t_max=15,
+        seed=0,
+    )
+    assert world is not None
+    assert lle.cooperation_level(world, t_max=15) is CooperationLevel.ASYMMETRIC
