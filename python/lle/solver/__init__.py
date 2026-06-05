@@ -37,13 +37,13 @@ def is_cooperative(world: World, t_max: int | Literal["auto"] = "auto"):
 def cooperation_level(world: World, t_max: int | Literal["auto"] = "auto"):
     """Return the precise cooperation classification for `world`.
 
+    Returns `None` when the world is not solvable within `t_max` steps.
     See `CooperationLevel` for the meaning of each member.
     """
-    # from .profile_analyzer import classify
+    from .profile_analyzer import classify
 
-    # t = _default_t_max(world) if t_max == "auto" else t_max
-    # return classify(world, t)
-    raise NotImplementedError("TODO")
+    t = (world.width * world.height) // 2 if t_max == "auto" else t_max
+    return classify(world, t)
 
 
 def cooperation_level_trajectory(world: World, trajectory: Sequence[tuple[Action, ...]]):

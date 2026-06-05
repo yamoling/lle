@@ -14,7 +14,8 @@ from ..world import Action, World
 from ._internal.grid import is_within_bounds
 from ._internal.types import Position, laser_sources_from_world
 from .cooperation_level import CooperationLevel
-from .world_solver import LaserMode, WorldSolver
+from .incremental_solver import solve
+from .laser_mode import LaserMode
 
 
 @dataclass(frozen=True)
@@ -43,20 +44,19 @@ def classify(world: World, t_max_or_trajectory: int | Sequence[tuple[Action, ...
 def _classify_from_scratch(world: World, t_max: int) -> CooperationLevel | None:
     """Return the precise CooperationLevel for ``world`` within ``t_max`` steps, or None if the level is not solvable."""
     # 1) Check that the world is solvable within t_max steps
-    standard = WorldSolver(world, t_max=t_max, laser_mode=LaserMode.STANDARD)
-    sat, model = standard.solve()
-    if not sat or model is None:
+    standard_plan = solve(world, t_max=t_max, laser_mode=LaserMode.STANDARD)
+    if standard_plan is None:
         return None
-    # 2) Check if the provided path is already independent
-    positions_by_time = _positions_by_time(standard, model)
+    # 2) Check if the proposed plan is already independent (no agent shields a beam for another).
+    positions_by_time = _positions_by_time_from_trajectory(world, standard_plan)
     helper_events = _extract_helper_events(world, positions_by_time)
     dependency_edges = {(e.helper, e.beneficiary) for e in helper_events}
     if len(dependency_edges) == 0:
         return CooperationLevel.INDEPENDENT
     # 3) Check that no other path exists in t_max steps when laser-blocking is disabled.
     # If the world is solvable without blocking any laser, then it is independent.
-    strict_sat, _ = WorldSolver(world, t_max=t_max, laser_mode=LaserMode.STRICT).solve()
-    cooperation_required = not bool(strict_sat)
+    strict_plan = solve(world, t_max=t_max, laser_mode=LaserMode.STRICT)
+    cooperation_required = strict_plan is None
     if not cooperation_required:
         return CooperationLevel.INDEPENDENT
     # 4) Finally, profile the initial proposed solution
@@ -95,23 +95,6 @@ def _classify_trajectory(world: World, trajectory: Sequence[Action | Sequence[Ac
 # ---------------------------------------------------------------------------
 # SAT model -> agent positions per timestep
 # ---------------------------------------------------------------------------
-
-
-def _dictpos2list(d: dict[int, Position]):
-    return [d[i] for i in range(len(d))]
-
-
-def _positions_by_time(solver: WorldSolver, model) -> list[list[Position]]:
-    positions: dict[int, dict[int, tuple[int, int]]] = defaultdict(dict)
-    for lit in model:
-        if lit <= 0:
-            continue
-        obj = solver.var.pool.obj(abs(lit))
-        if not obj or obj[0] != "agent":
-            continue
-        _, color, position, t = obj
-        positions[t][color] = position
-    return [[positions[t][i] for i in range(len(positions[t]))] for t in range(len(positions))]
 
 
 def _positions_by_time_from_trajectory(world: World, trajectory: Sequence[Action | Sequence[Action]]):

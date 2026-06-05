@@ -85,6 +85,26 @@ def test_exit_distance_walls():
     assert (0, 1) not in ctx._exit_distance
 
 
+def test_exit_distance_adjacent_exits_are_zero():
+    """Two side-by-side exits must each keep distance 0.
+
+    Regression: when exits are adjacent, each exit is a grid-neighbour of the other.
+    A naive forward flood-fill re-enqueued each exit and overwrote its distance with 1,
+    poisoning the whole distance map (and thus the reachability pruning, which then made
+    the optimal-length horizon spuriously UNSAT).
+    """
+    world = World("X X\n. .\nS0 S1")
+    ctx = ConstraintContext(world, 10)
+    assert ctx._exit_distance[(0, 0)] == 0
+    assert ctx._exit_distance[(0, 1)] == 0
+    # One row below the exits is exactly one step away.
+    assert ctx._exit_distance[(1, 0)] == 1
+    assert ctx._exit_distance[(1, 1)] == 1
+    # Starts are two steps from their exit.
+    assert ctx._exit_distance[(2, 0)] == 2
+    assert ctx._exit_distance[(2, 1)] == 2
+
+
 @pytest.mark.parametrize(
     ["map_str", "distance"],
     [

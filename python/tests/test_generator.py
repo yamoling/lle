@@ -150,8 +150,8 @@ def test_generate_with_t_min_is_not_solvable_below_it():
     t_min, t_max = 5, 12
     world = lle.generate("random", width=5, height=5, n_agents=2, t_min=t_min, t_max=t_max, seed=0)
     assert world is not None
-    assert lle.solve(world, t_min - 1) is None  # not solvable below the lower bound
-    assert lle.solve(world, t_max) is not None  # still solvable within the horizon
+    assert lle.solve(world, t_max=t_min - 1) is None  # not solvable below the lower bound
+    assert lle.solve(world, t_max=t_max) is not None  # still solvable within the horizon
 
 
 def test_default_cooperative():

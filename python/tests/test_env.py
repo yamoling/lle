@@ -364,7 +364,6 @@ def test_randomized_lasers():
 
 
 def test_env_pool():
-    assert False, "TODO"
     from lle import make_pool
 
     N_AGENTS = 4

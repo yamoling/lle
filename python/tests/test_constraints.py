@@ -396,6 +396,46 @@ S0  . .
             )
 
 
+def test_unblockable_beam_tile_is_forced_active():
+    """A beam tile the blocking agent can never reach must be forced active.
+
+    Regression: beam activation only defined laser variables for tiles the same-colour
+    (blocking) agent could reach. Downstream tiles it could not reach were left as *free*
+    SAT variables, so the solver could silently switch the beam off and walk a different
+    colour agent straight through it.
+
+    Map:
+        L0E .  .  X   (colour-0 east laser; beam runs along row 0)
+        S0  @  S1 X
+
+    Agent 0 (colour 0, the only one that could block) starts at (1,0), walled in by the
+    laser source and (1,1); it can never reach any beam tile. The beam is therefore
+    unblockable and every tile must stay active for all time. Agent 1 (colour 1) can step
+    up onto the downstream beam tile (0,2) and must be forbidden from doing so.
+    """
+    world = World("""
+L0E .  .  X
+S0  @  S1 X
+""")
+    t_max = 4
+    ctx = ConstraintContext(world, t_max)
+    source = world.laser_sources[0]
+    downstream = (0, 2)  # a beam tile past the first, reachable by agent 1 but not agent 0
+    assert downstream in ctx.laser_paths[source]
+
+    var = VariableFactory()
+    clauses = [clause for t in range(t_max + 1) for clause in LaserConstraints(var, ctx).generate(t)]
+
+    t = 2
+    assert var.exists("laser", source.laser_id, *downstream, t), "downstream beam tile must have a laser variable"
+    laser_var = var.laser(source.laser_id, *downstream, t)
+    with Minisat22(bootstrap_with=list(clauses)) as s:
+        assert not s.solve(assumptions=[-laser_var]), "unblockable downstream beam tile must be forced active"
+    agent1_var = var.agent(1, *downstream, t)
+    with Minisat22(bootstrap_with=list(clauses)) as s:
+        assert not s.solve(assumptions=[agent1_var]), "agent 1 must not step on the always-active downstream beam tile"
+
+
 def test_two_lasers_stop_at_each_others_source_tiles():
     world = World("""
 L0E . L1W X X

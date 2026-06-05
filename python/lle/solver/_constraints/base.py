@@ -40,7 +40,7 @@ class ConstraintContext:
         # Time-wise reachability map
         self._reachable_positions = self.compute_time_reachability_map(world, t_max, self.neighbours)
         # The distance from each valid position to the nearest exit
-        self._exit_distance = self.compute_exit_distance(world, self.neighbours)
+        self._exit_distance = self.compute_exit_distance(world, self.predecessors)
         # A index i, the set of positions from which, at time step `i`, an exit can still be reached.
         self._exit_reachable = [
             {pos for pos, dist in self._exit_distance.items() if dist <= remaining} for remaining in range(t_max, -1, -1)
@@ -103,37 +103,24 @@ class ConstraintContext:
         return reachable
 
     @staticmethod
-    def compute_exit_distance(world: World, neighbours: dict[Position, list[Position]]):
+    def compute_exit_distance(world: World, predecessors: dict[Position, set[Position]]):
         """
-        Compute the minimum number of steps from each valid position to the nearest exit using a forward flood fill.
+        Compute the minimum number of steps from each valid position to the nearest exit.
 
-        The search starts from all exit tiles at and expands through the precomputed neighbour map.
+        This is a multi-source BFS seeded with all exit tiles at distance 0 and expanded
+        over the *reverse* adjacency (`predecessors`): if an agent can move from ``p`` into
+        ``cur`` in one step, then ``p`` is one step further from an exit than ``cur``. Because
+        each cell is assigned a distance exactly once (when first dequeued), seeded exits keep
+        their distance 0 even when two exits are adjacent to each other.
         """
         dist = {pos: 0.0 for pos in world.exit_pos}
-        frontier = deque[Position]()
-        for i, j in world.exit_pos:
-            # Add neighbours (not in the neighbour dict since no move is allowed from exits)
-            ns = list[Position]()
-            if 0 < i:
-                ns.append((i - 1, j))
-            if i < world.height - 1:
-                ns.append((i + 1, j))
-            if 0 < j:
-                ns.append((i, j - 1))
-            if j < world.width - 1:
-                ns.append((i, j + 1))
-            for n in ns:
-                if n in neighbours:  # Filter out invalid positions
-                    frontier.append(n)
+        frontier = deque[Position](world.exit_pos)
         while len(frontier) > 0:
             current = frontier.popleft()
-            min_distance = float("inf")
-            for n in neighbours[current]:
-                if n in dist:
-                    min_distance = min(min_distance, dist[n])
-                elif n != current:
-                    frontier.append(n)
-            dist[current] = min_distance + 1
+            for pred in predecessors.get(current, ()):
+                if pred not in dist:
+                    dist[pred] = dist[current] + 1
+                    frontier.append(pred)
         return dist
 
     @staticmethod

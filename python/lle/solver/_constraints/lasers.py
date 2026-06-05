@@ -69,25 +69,42 @@ class LaserConstraints(ConstraintGenerator):
         For the first laser tile of a beam, there is no previous tile and the general-case formula simplifies to
 
             active_c(l, x, y, t) = ¬agent(c, x, y, t).
+
+        ## Unblockable tiles
+        A beam tile can only be switched off by a same-colour agent standing on it. If the
+        blocking agent cannot reach a tile at time `t` (it is not in
+        `reachable_positions(t, source.agent_id)`), then that tile carries no agent term: its
+        state simply mirrors the previous beam tile, or is unconditionally active when no
+        upstream tile is blockable. Defining a clause for *every* tile of the full beam path
+        (not only the blockable subset) is what prevents downstream tiles from becoming free
+        variables that the solver could silently switch off to walk an agent through the beam.
         """
-        for source, time_wise_tiles in self.ctx.reachable_laser_paths.items():
-            for x, y in time_wise_tiles[t]:
-                prev = self.ctx.get_prev_beam(t, x, y, source.laser_id)
+        for source, full_path in self.ctx.laser_paths.items():
+            blockable = self.reachable_positions(t, source.agent_id)
+            prev_active = None  # `None` means the upstream tile is the always-on source.
+            for x, y in full_path:
                 active = self.var.laser(source.laser_id, x, y, t)
-                agent = self.var.agent(source.agent_id, x, y, t)
-                if prev is None:
-                    # The laser is on if there is no agent on it
-                    yield from equals(active, -agent)
+                if (x, y) in blockable:
+                    agent = self.var.agent(source.agent_id, x, y, t)
+                    if prev_active is None:
+                        # First blockable tile: active iff no blocking agent stands on it.
+                        yield from equals(active, -agent)
+                    else:
+                        # active = (prev_active ^ ¬agent)
+                        # Clauses:
+                        #  active -> prev_active
+                        #  active -> NOT agent
+                        #  prev_active AND NOT agent -> active
+                        yield implies(active, prev_active)
+                        yield implies(active, -agent)
+                        yield [-prev_active, agent, active]
+                elif prev_active is None:
+                    # No blockable tile upstream yet: the beam is always on here.
+                    yield [active]
                 else:
-                    # active = (prev ^ ¬agent)
-                    # Clauses:
-                    #  active -> prev_active
-                    #  active -> NOT agent [-active, -agent_i]
-                    #  prev_active AND NOT(any agent) -> active: [-prev_active, *agents, active]
-                    prev_active = self.var.laser(source.laser_id, prev[0], prev[1], t)
-                    yield implies(active, prev_active)
-                    yield implies(active, -agent)
-                    yield [-prev_active, agent, active]
+                    # Unblockable tile: its state is exactly that of the previous beam tile.
+                    yield from equals(active, prev_active)
+                prev_active = active
 
         # for laser in self.lasers:
         #     x, y = laser.pos
