@@ -48,25 +48,24 @@ class MovementConstraints(ConstraintGenerator):
             - We only consider to remain in the same spot if at least one exit remains within reach at next step
 
         # Formula
-        We want to express that A_t => (N_{1,t-1} XOR N_{2,t-1} XOR ... XOR N_{k,t-1}).
+        We want to express that A_t => (N_{1,t-1} V N_{2,t-1} V ... V N_{k,t-1}).
         For k=1 this degenerates to a simple implication A_t => N_{1,t-1}.
         """
         if t == 0:
             return
-        neighbor_map = self.ctx.neighbours
         for agent_num in range(self.n_agents):
-            previous_reachable = self.reachable_positions_for_agent(t - 1, agent_num)
-            for x, y in self.reachable_positions_for_agent(t, agent_num):
-                prev_pos = [pos for pos in neighbor_map[x, y] if pos in previous_reachable and (pos != (x, y) or self.can_stay(t - 1, pos))]
-                current_var = self.var.agent(agent_num, x, y, t)
-                if not prev_pos:
+            # previous_reachable = self.reachable_positions(t - 1, agent_num)
+            for i, j in self.reachable_positions(t, agent_num):
+                prev_pos = self.ctx.prev_neighbours(agent_num, i, j, t)
+                current_var = self.var.agent(agent_num, i, j, t)
+                if len(prev_pos) == 0:
                     # The agent cannot be in this location at this time step
+                    raise ValueError("Does this ever happen ?")
                     yield [-current_var]
                     continue
                 # if at (x,y,t), must have been at some reachable neighbour at t-1.
-                prev_vars = [self.var.agent(agent_num, nx, ny, t - 1) for nx, ny in prev_pos]
                 # current_var -> prev1 or prev 2 or prev3 ...
-                yield [-current_var, *prev_vars]
+                yield [-current_var, *(self.var.agent(agent_num, nx, ny, t - 1) for nx, ny in prev_pos)]
 
     def _no_overlap(self, t: int):
         """
@@ -98,9 +97,9 @@ class MovementConstraints(ConstraintGenerator):
         if t == 0 or self.n_agents == 0:
             return
         for c1, c2 in itertools.combinations(range(self.n_agents), 2):
-            for x, y in self.reachable_positions_for_agent(t - 1, c1).intersection(self.reachable_positions_for_agent(t, c2)):
+            for x, y in self.reachable_positions(t - 1, c1).intersection(self.reachable_positions(t, c2)):
                 yield implies(self.var.agent(c2, x, y, t), -self.var.agent(c1, x, y, t - 1))
-            for x, y in self.reachable_positions_for_agent(t, c1).intersection(self.reachable_positions_for_agent(t - 1, c2)):
+            for x, y in self.reachable_positions(t, c1).intersection(self.reachable_positions(t - 1, c2)):
                 yield implies(self.var.agent(c1, x, y, t), -self.var.agent(c2, x, y, t - 1))
 
     def _stays_on_exit(self, t: int):
@@ -114,7 +113,7 @@ class MovementConstraints(ConstraintGenerator):
         if t == 0:
             return
         for agent in range(self.n_agents):
-            reachable_exit_positions = self.reachable_positions_for_agent(t - 1, agent).intersection(self.exits)
+            reachable_exit_positions = self.reachable_positions(t - 1, agent).intersection(self.exits)
             for x, y in reachable_exit_positions:
                 # Ensure that if the agent was on an exit at t-1, it remains on an exit at t
                 yield [-self.var.agent(agent, x, y, t - 1), self.var.agent(agent, x, y, t)]

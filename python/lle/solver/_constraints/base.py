@@ -7,21 +7,19 @@ metadata, reachability sets, and SAT variable IDs.
 import itertools
 from abc import ABC, abstractmethod
 from collections import deque
-from typing import Collection
 
 from lle.tiles import LaserSource
 from lle.world import World
 
-from .._internal import Position, get_neighbors
+from .._internal import Position, get_neighbours
 from ..variable_factory import VariableFactory
 
 
 class ConstraintContext:
     """Pre-computed data shared across all constraint classes. Built once."""
 
-    def __init__(self, world: World, t_min: int, t_max: int):
+    def __init__(self, world: World, t_max: int):
         self.world = world
-        self.t_min = t_min
         self.t_max = t_max
 
         all_positions = frozenset(itertools.product(range(world.height), range(world.width)))
@@ -29,16 +27,17 @@ class ConstraintContext:
         # self.agents = [(a, a.position) for a in _agents]
         self.exits = list[Position](world.exit_pos)
         self.valid_positions = all_positions.difference(self.walls).difference(world.void_pos)
-        # Neighbour map
-        self.neighbours = {pos: [pos, *(n for n in get_neighbors(world, pos) if n in self.valid_positions)] for pos in self.valid_positions}
+        self.neighbours = {
+            pos: [pos, *(n for n in get_neighbours(world, pos) if n in self.valid_positions)] for pos in self.valid_positions
+        }
         # Time-wise reachability map
         self._reachable_positions = self.compute_time_reachability_map(world, t_max, self.neighbours)
         # The distance from each valid position to the nearest exit
-        self._exit_distance = self.compute_exit_distance(world.exit_pos, self.valid_positions, t_max, self.neighbours)
+        self._exit_distance = self.compute_exit_distance(world, self.neighbours)
         # A index i, the set of positions from which, at time step `i`, an exit can still be reached.
-        self._exit_reachable = [{pos for pos, dist in self._exit_distance.items() if dist <= remaining} for remaining in range(t_max + 1)]
-        # Positions where staying for one extra timestep is still compatible with reaching an exit.
-        self._stay_allowed = [{pos for pos, dist in self._exit_distance.items() if dist < (t_max - t)} for t in range(t_max)]
+        self._exit_reachable = [
+            {pos for pos, dist in self._exit_distance.items() if dist <= remaining} for remaining in range(t_max, -1, -1)
+        ]
         # A cheap global lower bound on the shortest solution length: the maximum
         # actual walkable shortest-path distance from any agent to its nearest exit.
         self.solution_lower_bound = self.compute_solution_lower_bound(world.start_pos, self._exit_distance)
@@ -46,26 +45,26 @@ class ConstraintContext:
         self.reachable_laser_paths = self.compute_reachable_lasers()
         self.prev_laser_beam = self.compute_effective_prev_laser()
 
-    def get_prev_beam(self, t: int, x: int, y: int, laser_id: int):
-        return self.prev_laser_beam.get((t, x, y, laser_id))
+    def get_prev_beam(self, t: int, i: int, j: int, laser_id: int):
+        return self.prev_laser_beam.get((t, i, j, laser_id))
 
     @staticmethod
     def _laser_path(world: World, source: LaserSource) -> list[tuple[int, int]]:
         """Return the source tile followed by all beam tiles for one laser source."""
-        path = [source.pos]
-        dx, dy = source.direction.delta
-        x = source.pos[0] + dx
-        y = source.pos[1] + dy
-        while 0 <= x < world.height and 0 <= y < world.width and (x, y) not in world.wall_pos:
-            path.append((x, y))
-            x, y = x + dx, y + dy
+        path = []
+        di, dj = source.direction.delta
+        i = source.pos[0] + di
+        j = source.pos[1] + dj
+        while 0 <= i < world.height and 0 <= j < world.width and (i, j) not in world.wall_pos:
+            path.append((i, j))
+            i, j = i + di, j + dj
         return path
 
     def compute_reachable_lasers(self):
         reachable = dict[LaserSource, list[list[Position]]]()
         for source, path in self.laser_paths.items():
             time_wise = list[list[Position]]()
-            for t in range(0, self.t_max + 1):
+            for t in range(self.t_max + 1):
                 reachable_by_blocking_agent = self.reachable_positions(t, source.agent_id)
                 time_wise.append([p for p in path if p in reachable_by_blocking_agent])
             reachable[source] = time_wise
@@ -81,61 +80,63 @@ class ConstraintContext:
                 if len(reachable_path) == 0:
                     continue
                 prev = reachable_path[0]
-                for x, y in reachable_path[1:]:
-                    prev_tiles[t, x, y, source.laser_id] = prev
-                    prev = x, y
+                for i, j in reachable_path[1:]:
+                    prev_tiles[t, i, j, source.laser_id] = prev
+                    prev = i, j
         return prev_tiles
-
-    def reachable_positions_for_agent(self, t: int, agent_num: int) -> set[Position]:
-        """Return positions reachable by agent at time t, filtered by exit reachability."""
-        if t < 0 or t > self.t_max:
-            return set()
-        # Only return positions that are still within reaching distance of an exit
-        reachable = self._reachable_positions[agent_num][t]
-        # Filter by exit reachability: position must be reachable from start AND can reach exit
-        return reachable.intersection(self._exit_reachable[self.t_max - t])
 
     def reachable_positions(self, t: int, *agents: int) -> set[Position]:
         """Return positions that are reachable by the given agents exactly at time `t`, filtered by exit reachability."""
         if t < 0 or t > self.t_max or len(agents) == 0:
             return set()
-        reachable = self.reachable_positions_for_agent(t, agents[0])
+        # Positions that the agent can reach and that can still yield an exit within the remaining time
+        reachable = self._reachable_positions[agents[0]][t] & self._exit_reachable[t]
         for agent_num in agents[1:]:
-            reachable = reachable.intersection(self._reachable_positions[agent_num][t])
+            reachable = reachable & self._reachable_positions[agent_num][t]
         return reachable
 
     @staticmethod
-    def compute_exit_distance(exit_positions: list[Position], valid_positions: Collection[Position], t_max: int, neighbours: dict):
+    def compute_exit_distance(world: World, neighbours: dict[Position, list[Position]]):
         """
-        Compute the minimum number of steps from each valid position to the nearest exit using a breadth-first search.
+        Compute the minimum number of steps from each valid position to the nearest exit using a forward flood fill.
 
         The search starts from all exit tiles at and expands through the precomputed neighbour map.
         """
-        exit_distances = {pos: t_max + 1 for pos in valid_positions}
-        queue = deque[Position]()
-        for exit_pos in exit_positions:
-            if exit_pos in exit_distances:
-                exit_distances[exit_pos] = 0
-                queue.append(exit_pos)
-        while len(queue) > 0:
-            pos = queue.popleft()
-            dist = exit_distances[pos]
-            for neighbour in neighbours[pos]:
-                if neighbour not in exit_distances:
-                    continue
-                if exit_distances[neighbour] > dist + 1:
-                    exit_distances[neighbour] = dist + 1
-                    queue.append(neighbour)
-        return exit_distances
+        dist = {pos: 0.0 for pos in world.exit_pos}
+        frontier = deque[Position]()
+        for i, j in world.exit_pos:
+            # Add neighbours (not in the neighbour dict since no move is allowed from exits)
+            ns = list[Position]()
+            if 0 < i:
+                ns.append((i - 1, j))
+            if i < world.height - 1:
+                ns.append((i + 1, j))
+            if 0 < j:
+                ns.append((i, j - 1))
+            if j < world.width - 1:
+                ns.append((i, j + 1))
+            for n in ns:
+                if n in neighbours:  # Filter out invalid positions
+                    frontier.append(n)
+        while len(frontier) > 0:
+            current = frontier.popleft()
+            min_distance = float("inf")
+            for n in neighbours[current]:
+                if n in dist:
+                    min_distance = min(min_distance, dist[n])
+                elif n != current:
+                    frontier.append(n)
+            dist[current] = min_distance + 1
+        return dist
 
     @staticmethod
-    def compute_solution_lower_bound(start_pos: list[Position], exit_distances: dict[Position, int]) -> int:
+    def compute_solution_lower_bound(start_pos: list[Position], exit_distances: dict[Position, float]):
         """Return a cheap admissible lower bound on the shortest plan length.
 
         The bound is the maximum over agents of the shortest walkable path
         distance from that agent's start position to any exit.
         """
-        bound = 0
+        bound = 0.0
         for position in start_pos:
             distance = exit_distances.get(position, 0)
             if distance > bound:
@@ -162,6 +163,17 @@ class ConstraintContext:
             reachable_positions[agent] = reachable
         return reachable_positions
 
+    def can_stay(self, t: int, pos: Position):
+        """Check if staying in the same position for one more timestep is still compatible with reaching an exit."""
+        if t + 1 > self.t_max:
+            return False
+        return pos in self._exit_reachable[t + 1]
+
+    def prev_neighbours(self, agent_num: int, i: int, j: int, t):
+        """Return the list of potential neighbours at time step (t - 1)."""
+        neighbours = self.neighbours[i, j]
+        return self.reachable_positions(t, agent_num).intersection(neighbours)
+
 
 class ConstraintGenerator(ABC):
     def __init__(self, var: VariableFactory, ctx: ConstraintContext):
@@ -176,12 +188,9 @@ class ConstraintGenerator(ABC):
     def _profile_method(self, _method_name: str, method_func):
         return list(method_func())
 
-    def reachable_positions_for_agent(self, t: int, agent_num: int):
-        return self.ctx.reachable_positions_for_agent(t, agent_num)
-
     def reachable_positions(self, t: int, *agents: int):
         return self.ctx.reachable_positions(t, *agents)
 
     def can_stay(self, t: int, pos: Position):
         """Check if staying in the same position for one more timestep is still compatible with reaching an exit."""
-        return pos in self.ctx._stay_allowed[t]
+        return self.ctx.can_stay(t, pos)

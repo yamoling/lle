@@ -9,8 +9,8 @@ class VariableFactory:
     def __init__(self):
         self.pool = IDPool(start_from=1)
 
-    def agent(self, colour: int, x: int, y: int, t: int) -> int:
-        return self.pool.id(("agent", colour, x, y, t))
+    def agent(self, agent_num: int, i: int, j: int, t: int) -> int:
+        return self.pool.id(("agent", agent_num, i, j, t))
 
     def agent_at_exit(self, colour: int, t: int) -> int:
         return self.pool.id(("agent_at_exit", colour, t))
@@ -18,20 +18,26 @@ class VariableFactory:
     def done(self, t: int) -> int:
         return self.pool.id(("done", t))
 
-    def laser(self, laser_id: int, x: int, y: int, t: int) -> int:
+    def laser(self, laser_id: int, i: int, j: int, t: int) -> int:
         """
-        Variable that determines whether the laser at position (x, y) of the given ID is active at time step t.
+        Variable that determines whether the laser at position (i, j) of the given ID is active at time step t.
         """
-        return self.pool.id(("laser", laser_id, x, y, t))
+        return self.pool.id(("laser", laser_id, i, j, t))
 
-    def name(self, lit: int) -> tuple | None:
+    def name(self, lit: int) -> str:
+        key = self.pool.obj(abs(lit))
+        if key is None:
+            return ""
+        return " ".join((str(k) for k in key))
+
+    def key(self, lit: int) -> tuple | None:
         return self.pool.obj(abs(lit))
 
     @overload
-    def exists(self, kind: Literal["laser"], laser_id: int, x: int, y: int, t: int, /) -> bool: ...
+    def exists(self, kind: Literal["laser"], laser_id: int, i: int, j: int, t: int, /) -> bool: ...
 
     @overload
-    def exists(self, kind: Literal["agent"], colour: int, x: int, y: int, t: int, /) -> bool: ...
+    def exists(self, kind: Literal["agent"], colour: int, i: int, j: int, t: int, /) -> bool: ...
 
     @overload
     def exists(self, kind: Literal["agent_at_exit"], colour: int, t: int, /) -> bool: ...

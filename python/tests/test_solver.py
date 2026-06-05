@@ -25,13 +25,6 @@ def test_solve_fixed_length():
     assert len(plan) == 5
 
 
-def test_solver_uses_walkable_shortest_path_lower_bound():
-    world = World("S0 @ X\n. . .\n. . .")
-    ctx = ConstraintContext(world, t_min=0, t_max=10)
-    # Manhattan distance would be 2, but the wall forces a 4-step detour.
-    assert ctx.solution_lower_bound == 4
-
-
 def test_solve_unsolvable_returns_none():
     # Agent walled off from the exit.
     world = World("S0 @ X")
@@ -260,23 +253,3 @@ S1  .   .   .   L0N
     #     beams_here = {(key[1], key[2]) for key in solver.ctx.beam_var if key[3:6] == (*crossing, 0)}
     #     assert len(beams_here) >= 2
     assert lle.solve(world, t_max=14) is not None
-
-
-def test_context_lower_bound_empty_world():
-    N_STEPS = 10
-    world_string = "S0 " + " ." * N_STEPS + " X"
-    world = World(world_string)
-    ctx = ConstraintContext(world, 0, 20)
-    assert ctx.solution_lower_bound == N_STEPS + 1
-
-
-def test_context_lower_bound_with_wall():
-    N_STEPS = 10
-    world_string = "S0 @ " + ". " * N_STEPS + " X\n"
-    world_string += ". " * (N_STEPS + 3)
-    world = World(world_string)
-    ctx = ConstraintContext(world, 0, 20)
-    # +1 for the exit step
-    # +1 for the wall
-    # +2 for SOUTH and UP
-    assert ctx.solution_lower_bound == N_STEPS + 1 + 1 + 2

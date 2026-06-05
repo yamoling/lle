@@ -19,8 +19,11 @@ def is_within_bounds(world: World, pos: Position) -> bool:
     return 0 <= i < world.height and 0 <= j < world.width
 
 
-def get_neighbors(world: World, pos: Position) -> list[Position]:
+def get_neighbours(world: World, pos: Position) -> list[Position]:
     """4-directional neighbors that are within bounds."""
+    if pos in world.exit_pos:
+        # When an agent reaches an exit, it can no longer move, so there is no other neighbour than itself.
+        return [pos]
     i, j = pos
     result = []
     for di, dj in ((-1, 0), (1, 0), (0, -1), (0, 1)):

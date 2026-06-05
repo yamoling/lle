@@ -1,3 +1,4 @@
+import itertools
 from collections import defaultdict
 from typing import Any, Generator
 
@@ -10,7 +11,7 @@ from pysat.solvers import Minisat22
 
 TEST_MAPS = [
     "S0 . X",
-    "S0 S1\n. .\nX X",
+    "S0 S1 . .\n. . . .\nX X X X",
     "S0 S1 S2 S3\n. . . .\nX X X X",
 ]
 
@@ -20,7 +21,7 @@ def solve_with_assumtions(clauses: list | Generator[list, Any, None], assumption
         return s.solve(assumptions=assumptions)
 
 
-def solve_and_get_true_variables(clauses: list | Generator[list, Any, None]):
+def solve_and_get_true_variables(clauses: list | Generator[list, Any, None]) -> list[int]:
     with Minisat22(bootstrap_with=list(clauses)) as s:
         assert s.solve(), "Non statisfiable formula"
         model = s.get_model()
@@ -31,7 +32,7 @@ def solve_and_get_true_variables(clauses: list | Generator[list, Any, None]):
 def test_empty_level_with_one_agent_initializes_start_and_movement_clauses():
     world = World("S0 . X")
     var = VariableFactory()
-    ctx = ConstraintContext(world, 0, 10)
+    ctx = ConstraintContext(world, 10)
 
     init_clauses = InitializationConstraints(var, ctx).generate(0)
     assert len(init_clauses) == world.n_agents + len(world.lasers)
@@ -59,7 +60,7 @@ def test_exactly_one_position(map_str: str):
     T_MAX = 10
     world = World(map_str)
     var = VariableFactory()
-    ctx = ConstraintContext(world, 0, T_MAX)
+    ctx = ConstraintContext(world, T_MAX)
     movgen = MovementConstraints(var, ctx)
 
     for t in range(1, T_MAX):
@@ -94,13 +95,13 @@ def test_exactly_one_position_wrong_assumtions_fail(map_str: str):
     T_MAX = 10
     world = World(map_str)
     var = VariableFactory()
-    ctx = ConstraintContext(world, 0, T_MAX)
+    ctx = ConstraintContext(world, T_MAX)
     gen = MovementConstraints(var, ctx)
 
     for t in range(1, T_MAX):
         clauses = list(gen._exactly_one_position(t))
         # Only test positions that are actually reachable (and thus have variables generated)
-        reachable = gen.reachable_positions_for_agent(t, 0)
+        reachable = gen.reachable_positions(t, 0)
         if len(reachable) < 2:
             continue  # Skip if fewer than 2 positions are reachable
         positions = sorted(reachable)
@@ -124,17 +125,33 @@ def test_time_wise_adjacency(map_str: str):
     T_MAX = 10
     world = World(map_str)
     var = VariableFactory()
-    ctx = ConstraintContext(world, 0, T_MAX)
+    ctx = ConstraintContext(world, T_MAX)
     gen = MovementConstraints(var, ctx)
 
     # Collect all clauses across all timesteps
-    all_clauses: list[list[int]] = []
+    clauses: list[list[int]] = []
     for t in range(T_MAX):
-        all_clauses.extend(gen._exactly_one_position(t))
-        all_clauses.extend(gen._time_wise_adjacency(t))
+        clauses.extend(gen._exactly_one_position(t))
+        clauses.extend(gen._time_wise_adjacency(t))
 
+    for agent in range(world.n_agents):
+        v1 = var.agent(agent, 0, 0, 0)
+        v2 = var.agent(agent, 0, 2, 1)
+        res = solve_with_assumtions(clauses, [v1, v2])
+        if res:  # Should not be the case
+            true_vars = solve_and_get_true_variables(clauses)
+            keys = [var.key(v) for v in true_vars]
+            keys = [k[1:] for k in keys if k is not None]  # remove "agent"
+            keys = [k for k in keys if k[0] == agent]  # Filter out other agents
+            keys = sorted(keys, key=lambda k: k[3])  # Sort by ascending time
+            msg = "Agent positions:"
+            for num, i, j, t in keys:
+                msg += f"\n\t- Agent {num} at ({i}, {j}) at t={t}"
+            assert not res, msg
+
+    return
     # Solve
-    true_vars = solve_and_get_true_variables(all_clauses)
+    true_vars = solve_and_get_true_variables(clauses)
     # Filter out auxiliary variables (from CardEnc.atmost) not tracked in the vpool
     true_vars = [v for v in true_vars if var.name(v) is not None]
     var_names = [var.name(v) for v in true_vars]
@@ -164,52 +181,34 @@ def test_time_wise_adjacency(map_str: str):
 @pytest.mark.parametrize("map_str", TEST_MAPS[1:])  # Need ≥ 2 agents
 def test_no_overlap(map_str: str):
     """Two agents cannot occupy the same cell at the same time."""
-    T_MAX = 5
     world = World(map_str)
+    T_MAX = world.height * world.height
     var = VariableFactory()
-    ctx = ConstraintContext(world, 0, T_MAX)
+    ctx = ConstraintContext(world, T_MAX)
     gen = MovementConstraints(var, ctx)
 
-    all_clauses: list[list[int]] = []
+    clauses: list[list[int]] = []
     for t in range(T_MAX):
-        all_clauses.extend(gen._exactly_one_position(t))
-        all_clauses.extend(gen._time_wise_adjacency(t))
-        all_clauses.extend(gen._no_overlap(t))
-        all_clauses.extend(gen._stays_on_exit(t))
+        clauses.extend(gen._no_overlap(t))
 
-    # Valid solution should exist
-    true_vars = solve_and_get_true_variables(all_clauses)
-    true_vars = [v for v in true_vars if var.name(v) is not None]
-
-    # Verify no two agents share a cell at any timestep
-    for t in range(T_MAX):
-        positions_by_cell: dict[Position, list[int]] = defaultdict(list)
-        for v in true_vars:
-            name = var.name(v)
-            if name and name[0] == "agent" and name[4] == t:
-                _, agent_num, x, y, _ = name
-                positions_by_cell[(x, y)].append(agent_num)
-        for (x, y), agents in positions_by_cell.items():
-            assert len(agents) <= 1, f"Agents {agents} both at ({x},{y}) at t={t}"
-
-    # Prove impossibility: assert two agents share a cell (only test positions that are reachable by both)
-    with Minisat22(bootstrap_with=all_clauses) as s:
-        t = 1
-        # Only test positions reachable by both agents
-        reachable_both = ctx.reachable_positions(t, 0, 1)
-        if reachable_both:  # Only test if there are positions reachable by both
-            pos = next(iter(reachable_both))
-            x, y = pos
-            a = var.agent(0, x, y, t)
-            b = var.agent(1, x, y, t)
-            assert not s.solve(assumptions=[a, b]), f"Agents 0 and 1 should not both fit at ({x},{y}) at t={t}"
+    # For all combination of two agents
+    for a0, a1 in itertools.combinations(range(world.n_agents), 2):
+        # for all time steps
+        for t in range(T_MAX):
+            # for all positions that both agents can reach at that time step
+            for i, j in ctx.reachable_positions(t, a0, a1):
+                # Prove impossibility: assert two agents cannot be in the same location
+                var0 = var.agent(a0, i, j, t)
+                var1 = var.agent(a1, i, j, t)
+                res = solve_with_assumtions(clauses, [var0, var1])
+                assert not res
 
 
 def test_empty_level_with_two_agents_adds_collision_clauses():
     """Two agents cannot swap places or follow each other into the same cell."""
     world = World("S0 . S1 X X")
     var = VariableFactory()
-    ctx = ConstraintContext(world, 0, 3)
+    ctx = ConstraintContext(world, 3)
     gen = MovementConstraints(var, ctx)
 
     clauses = []
@@ -258,7 +257,7 @@ def test_stays_on_exit():
     # Map with exit at (0, 2). Agent starts at (0, 0), reaches exit at t=2.
     world = World("S0 . X")
     var = VariableFactory()
-    ctx = ConstraintContext(world, 0, 4)
+    ctx = ConstraintContext(world, 4)
     gen = MovementConstraints(var, ctx)
     t = 3  # At t-1=2, agent could be at the exit (0, 2)
 
@@ -285,11 +284,11 @@ def test_laser_source_tiles_are_blocked_for_agent_reachability():
     time horizon are not considered reachable, even if physically reachable.
     """
     world = World("S0 L0E X")
-    ctx = ConstraintContext(world, 0, 2)
+    ctx = ConstraintContext(world, 2)
 
     assert (0, 1) not in ctx.valid_positions
     # Position (0,0) requires 3 steps to reach exit, but t_max=2, so it's not reachable
-    assert ctx.reachable_positions_for_agent(1, 0) == set()
+    assert ctx.reachable_positions(1, 0) == set()
 
 
 def test_unblocked_laser_does_not_generate_variable():
@@ -304,7 +303,7 @@ S0  . .
 """)
     t = 3
     var = VariableFactory()
-    ctx = ConstraintContext(world, 0, t)
+    ctx = ConstraintContext(world, t)
     source = world.laser_sources[0]
 
     # With t_max=3, sufficient time to reach exit from all positions
@@ -328,7 +327,7 @@ def test_same_colour_agent_can_block_laser_destination():
 
     The laser beam path is: (2,0) -> (1,0) -> (0,0).
     If agent 0 is at (1,0), the beam should be blocked — laser at (0,0) must be off.
-    If agent 0 is NOT at (1,0), the beam should propagate to (0,0).
+    If agent 0 is at (1,1), the beam should propagate to (0,0).
     """
     world = World("""
 .   X
@@ -336,25 +335,31 @@ S0  .
 L0N .
 """)
     var = VariableFactory()
-    ctx = ConstraintContext(world, 0, 2)
-    source = world.laser_sources[0]
-    t = 0
+    ctx = ConstraintContext(world, 10)
+    t = 2
 
     clauses = list(LaserConstraints(var, ctx).generate(t))
     # Laser source activation comes from InitializationConstraints
     init_clauses = InitializationConstraints(var, ctx).generate(t)
     all_clauses = init_clauses + clauses
 
-    laser_var = var.laser(source.laser_id, 0, 0, t)
-    agent_var = var.agent(0, 1, 0, t)
+    laser_var = var.laser(0, 0, 0, t)
+    agent_1_0 = var.agent(0, 1, 0, t)
+    agent_0_0 = var.agent(0, 0, 0, t)
 
     # Prove: if agent is on (1,0), laser at (0,0) must be OFF
     with Minisat22(bootstrap_with=all_clauses) as s:
-        assert not s.solve(assumptions=[agent_var, laser_var]), "Laser at (0,0) should be OFF when same-colour agent blocks at (1,0)"
+        # If we assume that the agent is in (1, 0), then the laser must be OFF.
+        # Therefore, if we solve with the assumption that the laser is ON, it must be UNSAT.
+        assert not s.solve(assumptions=[agent_1_0, laser_var]), "Laser at (0,0) should be OFF when same-colour agent blocks at (1,0)"
+        # Opposite: verify that if the agent is in (1, 0), the laser must be OFF and the formula is SAT.
+        assert s.solve(assumptions=[agent_1_0, -laser_var])
 
     # Prove: if agent is NOT on (1,0), laser at (0,0) must be ON
     with Minisat22(bootstrap_with=all_clauses) as s:
-        assert not s.solve(assumptions=[-agent_var, -laser_var]), "Laser at (0,0) should be ON when no same-colour agent blocks"
+        # If we assume that the agent is neither in (0, 1) nor (0, 0), then the laser must be ON.
+        # Therefore, if we solve with the assumption that the laser is OFF, it must be UNSAT.
+        assert not s.solve(assumptions=[-agent_1_0, -agent_0_0, -laser_var]), "Laser at (0,0) should be ON when no same-colour agent blocks"
 
 
 def test_different_colour_agent_cannot_step_on_active_laser():
@@ -375,7 +380,7 @@ L0S . X
 S0  . .
 """)
     var = VariableFactory()
-    ctx = ConstraintContext(world, 0, 2)
+    ctx = ConstraintContext(world, 2)
     source = world.laser_sources[0]
     t = 1
 
@@ -390,7 +395,7 @@ S0  . .
 
     # Find a position that is on the laser path and reachable by agent 1
     laser_path = [(0, 0), (1, 0), (2, 0)]
-    reachable_agent1 = movgen.reachable_positions_for_agent(t, 1)
+    reachable_agent1 = movgen.reachable_positions(t, 1)
     laser_on_reachable = [pos for pos in laser_path if pos in reachable_agent1]
 
     if laser_on_reachable:
@@ -412,7 +417,7 @@ L0E . L1W X X
 S0  . S1  . .
 """)
     var = VariableFactory()
-    ctx = ConstraintContext(world, 0, 2)
+    ctx = ConstraintContext(world, t_max=10)
     first, second = world.laser_sources
     t = 2
     LaserConstraints(var, ctx).generate(t)
@@ -434,7 +439,7 @@ S0 .   .  .   S1
 X  .   .  .   X
 """)
     var = VariableFactory()
-    ctx = ConstraintContext(world, 0, 10)
+    ctx = ConstraintContext(world, 10)
     constraints = LaserConstraints(var, ctx)
     constraints.generate(1)
     # Laser source with id 0 is at (0, 1)
@@ -461,7 +466,7 @@ S1   .   .    .
 .    .   .    X
 """)
     var = VariableFactory()
-    ctx = ConstraintContext(world, 0, 20)
+    ctx = ConstraintContext(world, 20)
     constraints = LaserConstraints(var, ctx)
     constraints.generate(10)
     # Make sure that there exist different variables for crossing lasers at i=1
