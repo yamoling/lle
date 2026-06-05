@@ -9,6 +9,7 @@ from abc import ABC, abstractmethod
 from collections import deque
 from typing import Collection
 
+from lle.tiles import LaserSource
 from lle.world import World
 
 from .._internal import Position, get_neighbors
@@ -41,20 +42,48 @@ class ConstraintContext:
         # A cheap global lower bound on the shortest solution length: the maximum
         # actual walkable shortest-path distance from any agent to its nearest exit.
         self.solution_lower_bound = self.compute_solution_lower_bound(world.start_pos, self._exit_distance)
-        self.prev_laser_beam = self.compute_prev_laser_beams(world)
+        self.laser_paths = {s: self._laser_path(world, s) for s in world.laser_sources}
+        self.reachable_laser_paths = self.compute_reachable_lasers()
+        self.prev_laser_beam = self.compute_effective_prev_laser()
 
-    def get_prev_beam(self, x: int, y: int, laser_id: int):
-        return self.prev_laser_beam.get((x, y, laser_id))
+    def get_prev_beam(self, t: int, x: int, y: int, laser_id: int):
+        return self.prev_laser_beam.get((t, x, y, laser_id))
 
     @staticmethod
-    def compute_prev_laser_beams(world: World):
-        prev_tiles = dict[tuple[int, int, int], tuple[int, int]]()
-        for laser in world.lasers:
-            dx, dy = laser.direction.delta
-            x, y = laser.pos
-            prev_x, prev_y = x - dx, y - dy
-            if 0 <= prev_x < world.height and 0 <= prev_y < world.width and (prev_x, prev_y) not in world.wall_pos:
-                prev_tiles[x, y, laser.laser_id] = prev_x, prev_y
+    def _laser_path(world: World, source: LaserSource) -> list[tuple[int, int]]:
+        """Return the source tile followed by all beam tiles for one laser source."""
+        path = [source.pos]
+        dx, dy = source.direction.delta
+        x = source.pos[0] + dx
+        y = source.pos[1] + dy
+        while 0 <= x < world.height and 0 <= y < world.width and (x, y) not in world.wall_pos:
+            path.append((x, y))
+            x, y = x + dx, y + dy
+        return path
+
+    def compute_reachable_lasers(self):
+        reachable = dict[LaserSource, list[list[Position]]]()
+        for source, path in self.laser_paths.items():
+            time_wise = list[list[Position]]()
+            for t in range(0, self.t_max + 1):
+                reachable_by_blocking_agent = self.reachable_positions(t, source.agent_id)
+                time_wise.append([p for p in path if p in reachable_by_blocking_agent])
+            reachable[source] = time_wise
+        return reachable
+
+    def compute_effective_prev_laser(self):
+        """
+        The effective previous laser tile is the previous laser tile that is blockable.
+        """
+        prev_tiles = dict[tuple[int, int, int, int], tuple[int, int]]()
+        for source, time_wise_reachable in self.reachable_laser_paths.items():
+            for t, reachable_path in enumerate(time_wise_reachable):
+                if len(reachable_path) == 0:
+                    continue
+                prev = reachable_path[0]
+                for x, y in reachable_path[1:]:
+                    prev_tiles[t, x, y, source.laser_id] = prev
+                    prev = x, y
         return prev_tiles
 
     def reachable_positions_for_agent(self, t: int, agent_num: int) -> set[Position]:
@@ -126,7 +155,7 @@ class ConstraintContext:
             reachable: list[set[Position]] = [{start_pos}]
             for _t in range(t_max):
                 frontier = reachable[-1]
-                nxt: set[Position] = set()
+                nxt = set()
                 for pos in frontier:
                     nxt.update(neighbours[pos])
                 reachable.append(nxt)
