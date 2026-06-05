@@ -134,48 +134,33 @@ def test_time_wise_adjacency(map_str: str):
         clauses.extend(gen._exactly_one_position(t))
         clauses.extend(gen._time_wise_adjacency(t))
 
+    def distance(p1, p2):
+        return abs(p1[0] - p2[0]) + abs(p1[1] - p2[1])
+
+    # For every agent
     for agent in range(world.n_agents):
-        v1 = var.agent(agent, 0, 0, 0)
-        v2 = var.agent(agent, 0, 2, 1)
-        res = solve_with_assumtions(clauses, [v1, v2])
-        if res:  # Should not be the case
-            true_vars = solve_and_get_true_variables(clauses)
-            keys = [var.key(v) for v in true_vars]
-            keys = [k[1:] for k in keys if k is not None]  # remove "agent"
-            keys = [k for k in keys if k[0] == agent]  # Filter out other agents
-            keys = sorted(keys, key=lambda k: k[3])  # Sort by ascending time
-            msg = "Agent positions:"
-            for num, i, j, t in keys:
-                msg += f"\n\t- Agent {num} at ({i}, {j}) at t={t}"
-            assert not res, msg
-
-    return
-    # Solve
-    true_vars = solve_and_get_true_variables(clauses)
-    # Filter out auxiliary variables (from CardEnc.atmost) not tracked in the vpool
-    true_vars = [v for v in true_vars if var.name(v) is not None]
-    var_names = [var.name(v) for v in true_vars]
-
-    # Build trajectory: agent -> {t -> (x, y)}
-    trajectory: dict[int, dict[int, Position]] = defaultdict(dict)
-    for name in var_names:
-        assert name is not None, "None variable while it is returned by the sovler"
-        kind, agent_num, x, y, t = name
-        if kind == "agent":
-            trajectory[agent_num][t] = (x, y)
-
-    # Verify: every agent has exactly one position per timestep
-    for agent_num in range(world.n_agents):
-        assert agent_num in trajectory, f"Agent {agent_num} has no positions in solution"
-        for t in range(T_MAX):
-            assert t in trajectory[agent_num], f"Agent {agent_num} missing position at t={t}"
-
-        # Verify consecutive positions are neighbors (Manhattan distance ≤ 1)
+        # For each time step
         for t in range(1, T_MAX):
-            prev_pos = trajectory[agent_num][t - 1]
-            curr_pos = trajectory[agent_num][t]
-            dx, dy = abs(curr_pos[0] - prev_pos[0]), abs(curr_pos[1] - prev_pos[1])
-            assert dx + dy <= 1, f"Agent {agent_num} movements are not adjacent. {prev_pos} (t={t - 1}) -> {curr_pos} (t={t})"
+            reachable_t0 = ctx.reachable_positions(t - 1, agent)
+            reachable_t1 = ctx.reachable_positions(t, agent)
+            # For any two combination of consecutive locations
+            for pos_t0, pos_t1 in itertools.product(reachable_t0, reachable_t1):
+                if distance(pos_t0, pos_t1) <= 1:
+                    continue
+                # If the distance is > 1, make sur the formula is UNSAT
+                v1 = var.agent(agent, *pos_t0, t - 1)
+                v2 = var.agent(agent, *pos_t1, t)
+                res = solve_with_assumtions(clauses, [v1, v2])
+                if res:  # Should not be the case
+                    true_vars = solve_and_get_true_variables(clauses)
+                    keys = [var.key(v) for v in true_vars]
+                    keys = [k[1:] for k in keys if k is not None]  # remove "agent"
+                    keys = [k for k in keys if k[0] == agent]  # Filter out other agents
+                    keys = sorted(keys, key=lambda k: k[3])  # Sort by ascending time
+                    msg = "Agent positions:"
+                    for num, i, j, t in keys:
+                        msg += f"\n\t- Agent {num} at ({i}, {j}) at t={t}"
+                    assert not res, msg
 
 
 @pytest.mark.parametrize("map_str", TEST_MAPS[1:])  # Need ≥ 2 agents

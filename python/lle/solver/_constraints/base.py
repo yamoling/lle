@@ -30,6 +30,13 @@ class ConstraintContext:
         self.neighbours = {
             pos: [pos, *(n for n in get_neighbours(world, pos) if n in self.valid_positions)] for pos in self.valid_positions
         }
+        # Reverse adjacency: predecessors[p] are the positions from which an agent can move into p
+        # in a single step. This differs from `neighbours` for exit tiles, which an agent cannot
+        # leave (so `neighbours[exit] == [exit]`) but can still be entered from adjacent cells.
+        self.predecessors = {pos: set[Position]() for pos in self.valid_positions}
+        for pos, successors in self.neighbours.items():
+            for successor in successors:
+                self.predecessors[successor].add(pos)
         # Time-wise reachability map
         self._reachable_positions = self.compute_time_reachability_map(world, t_max, self.neighbours)
         # The distance from each valid position to the nearest exit
@@ -170,9 +177,8 @@ class ConstraintContext:
         return pos in self._exit_reachable[t + 1]
 
     def prev_neighbours(self, agent_num: int, i: int, j: int, t):
-        """Return the list of potential neighbours at time step (t - 1)."""
-        neighbours = self.neighbours[i, j]
-        return self.reachable_positions(t, agent_num).intersection(neighbours)
+        """Return the positions the agent could have occupied at time step (t - 1) to reach (i, j) at t."""
+        return self.reachable_positions(t - 1, agent_num).intersection(self.predecessors[i, j])
 
 
 class ConstraintGenerator(ABC):
