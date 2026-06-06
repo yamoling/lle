@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 from lle import World
-from lle.solver._constraints import (
+from lle.solver.constraints import (
     ConstraintContext,
     CooperationConstraints,
     InitializationConstraints,
@@ -20,7 +20,7 @@ from lle.solver._constraints import (
     MovementConstraints,
     ObjectiveGenerator,
 )
-from lle.solver.incremental_solver import extract_plan, solve_no_cooperation
+from lle.solver.solver import extract_plan, solve_no_cooperation
 from lle.solver.variable_factory import VariableFactory
 from pysat.solvers import Minisat22
 

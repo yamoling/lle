@@ -5,15 +5,15 @@ from typing import Literal
 from pysat.solvers import Minisat22
 
 from ..world import Action, World
-from ._constraints import (
+from .constraints import (
     ConstraintContext,
+    ConstraintGenerator,
+    CooperationConstraints,
     InitializationConstraints,
     LaserConstraints,
     MovementConstraints,
     ObjectiveGenerator,
 )
-from ._constraints.base import ConstraintGenerator
-from ._constraints.cooperation import CooperationConstraints
 from .variable_factory import VariableFactory
 
 

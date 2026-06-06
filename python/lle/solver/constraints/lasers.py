@@ -1,7 +1,8 @@
 from lle.solver.variable_factory import VariableFactory
 from lle.tiles import Laser, LaserSource
 
-from .base import ConstraintContext, ConstraintGenerator
+from .constraint import ConstraintGenerator
+from .context import ConstraintContext
 from .utils import equals, implies
 
 

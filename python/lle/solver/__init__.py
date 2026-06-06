@@ -16,9 +16,9 @@ from __future__ import annotations
 from typing import Literal, Sequence
 
 from ..world import Action, World
-from ._constraints.cooperation import CooperationConstraints
+from .constraints import CooperationConstraints
 from .cooperation_level import CooperationLevel, CooperationLevelStr
-from .incremental_solver import solve, solve_no_cooperation
+from .solver import solve, solve_no_cooperation
 
 
 def is_cooperative(world: World, t_max: int | Literal["auto"] = "auto"):

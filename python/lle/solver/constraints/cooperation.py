@@ -46,7 +46,8 @@ from __future__ import annotations
 from collections.abc import Iterator
 
 from ..variable_factory import VariableFactory
-from .base import ConstraintContext, ConstraintGenerator
+from .constraint import ConstraintGenerator
+from .context import ConstraintContext
 
 
 class CooperationConstraints(ConstraintGenerator):

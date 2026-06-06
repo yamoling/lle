@@ -200,7 +200,7 @@ def test_classify_in_interval_respects_t_min():
 
 def test_generator_cooperation_holds_across_interval():
     """A world generated with cooperation and t_min should require cooperation across [t_min, t_max]."""
-    from lle.solver.incremental_solver import solve_no_cooperation
+    from lle.solver.solver import solve_no_cooperation
 
     t_min, t_max = 3, 12
     world = lle.generate(

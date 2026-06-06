@@ -1,18 +1,23 @@
-"""Base classes and shared context for SAT constraints.
-
-Constraint classes use a shared context to avoid recomputing the same world
-metadata, reachability sets, and SAT variable IDs.
-"""
-
 import itertools
-from abc import ABC, abstractmethod
 from collections import deque
 
 from lle.tiles import LaserSource
+from lle.types import Position
 from lle.world import World
 
-from .._internal import Position, get_neighbours
-from ..variable_factory import VariableFactory
+
+def get_neighbours(world: World, pos: Position) -> list[Position]:
+    """4-directional neighbors that are within bounds."""
+    if pos in world.exit_pos:
+        # When an agent reaches an exit, it can no longer move, so there is no other neighbour than itself.
+        return [pos]
+    i, j = pos
+    result = []
+    for di, dj in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+        ni, nj = i + di, j + dj
+        if 0 <= ni < world.height and 0 <= nj < world.width and (ni, nj) not in world.wall_pos:
+            result.append((ni, nj))
+    return result
 
 
 class ConstraintContext:
@@ -166,24 +171,3 @@ class ConstraintContext:
     def prev_neighbours(self, agent_num: int, i: int, j: int, t):
         """Return the positions the agent could have occupied at time step (t - 1) to reach (i, j) at t."""
         return self.reachable_positions(t - 1, agent_num).intersection(self.predecessors[i, j])
-
-
-class ConstraintGenerator(ABC):
-    def __init__(self, var: VariableFactory, ctx: ConstraintContext):
-        self.ctx = ctx
-        self.world = ctx.world
-        self.var = var
-
-    @abstractmethod
-    def generate(self, t: int) -> list:
-        """Generate the clauses for the given time step."""
-
-    def _profile_method(self, _method_name: str, method_func):
-        return list(method_func())
-
-    def reachable_positions(self, t: int, *agents: int):
-        return self.ctx.reachable_positions(t, *agents)
-
-    def can_stay(self, t: int, pos: Position):
-        """Check if staying in the same position for one more timestep is still compatible with reaching an exit."""
-        return self.ctx.can_stay(t, pos)

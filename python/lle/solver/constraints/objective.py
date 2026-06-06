@@ -1,5 +1,6 @@
 from ..variable_factory import VariableFactory
-from .base import ConstraintContext, ConstraintGenerator
+from .constraint import ConstraintGenerator
+from .context import ConstraintContext
 
 
 class ObjectiveGenerator(ConstraintGenerator):

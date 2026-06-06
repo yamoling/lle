@@ -10,11 +10,10 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Sequence, overload
 
+from ..types import Position
 from ..world import Action, World
-from ._internal.grid import is_within_bounds
-from ._internal.types import Position, laser_sources_from_world
 from .cooperation_level import CooperationLevel
-from .incremental_solver import solve, solve_no_cooperation
+from .solver import solve, solve_no_cooperation
 
 
 @dataclass(frozen=True)
@@ -169,15 +168,19 @@ def _extract_helper_events(world: World, positions_by_time: list[list[Position]]
     return events
 
 
+def is_within_bounds(world: World, pos: Position) -> bool:
+    i, j = pos
+    return 0 <= i < world.height and 0 <= j < world.width
+
+
 def _raw_beam_paths(world: World) -> dict[int, list[tuple[tuple[int, int], list[tuple[int, int]]]]]:
     paths: dict[int, list[tuple[tuple[int, int], list[tuple[int, int]]]]] = defaultdict(list)
     wall_positions = frozenset(world.wall_pos)
-    sources = laser_sources_from_world(world)
-    source_positions = {src.position for src in sources}
+    source_positions = {src.pos for src in world.laser_sources}
 
-    for laser in sources:
-        di, dj = laser.direction
-        x, y = laser.position
+    for laser in world.laser_sources:
+        di, dj = laser.direction.delta
+        x, y = laser.pos
         x += di
         y += dj
         path: list[tuple[int, int]] = []
@@ -187,7 +190,7 @@ def _raw_beam_paths(world: World) -> dict[int, list[tuple[tuple[int, int], list[
             path.append((x, y))
             x += di
             y += dj
-        paths[laser.color].append((laser.position, path))
+        paths[laser.agent_id].append((laser.pos, path))
     return paths
 
 
