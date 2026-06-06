@@ -150,8 +150,8 @@ def test_generate_with_t_min_is_not_solvable_below_it():
     t_min, t_max = 5, 12
     world = lle.generate("random", width=5, height=5, n_agents=2, t_min=t_min, t_max=t_max, seed=0)
     assert world is not None
-    assert lle.solve(world, t_min - 1) is None  # not solvable below the lower bound
-    assert lle.solve(world, t_max) is not None  # still solvable within the horizon
+    assert lle.solve(world, t_max=t_min - 1) is None  # not solvable below the lower bound
+    assert lle.solve(world, t_max=t_max) is not None  # still solvable within the horizon
 
 
 def test_default_cooperative():
@@ -166,3 +166,55 @@ def test_default_cooperative():
 
     args = _GenerateArgs("constructive", cooperation=False).resolve()
     assert args.cooperation == ("exactly", CooperationLevel.INDEPENDENT)
+
+
+def test_generator_produces_world_matching_requested_cooperation_profile():
+    """Constructive generator with profile=ASYMMETRIC yields a world that classifies as ASYMMETRIC."""
+    world = lle.generate(
+        kind="constructive",
+        width=6,
+        height=6,
+        n_agents=2,
+        n_lasers=1,
+        cooperation=CooperationLevel.ASYMMETRIC,
+        t_max=15,
+        seed=0,
+    )
+    assert world is not None
+    assert lle.cooperation_level(world, t_max=15) is CooperationLevel.ASYMMETRIC
+
+
+def test_classify_in_interval_respects_t_min():
+    """classify_in_interval should not consider non-cooperative plans shorter than t_min."""
+    from lle.solver.profile_analyzer import _classify_in_interval
+
+    # Level 3 is asymmetric - cooperation is strictly required.
+    level3 = lle.World.level(3)
+    level = _classify_in_interval(level3, t_min=0, t_max=15)
+    assert level is CooperationLevel.ASYMMETRIC
+
+    # Level 1 is independent regardless of interval.
+    level1 = lle.World.level(1)
+    assert _classify_in_interval(level1, t_min=0, t_max=10) is CooperationLevel.INDEPENDENT
+
+
+def test_generator_cooperation_holds_across_interval():
+    """A world generated with cooperation and t_min should require cooperation across [t_min, t_max]."""
+    from lle.solver.solver import solve_no_cooperation
+
+    t_min, t_max = 3, 12
+    world = lle.generate(
+        kind="constructive",
+        width=6,
+        height=6,
+        n_agents=2,
+        n_lasers=1,
+        cooperation=("at-least", CooperationLevel.COOPERATIVE),
+        t_min=t_min,
+        t_max=t_max,
+        seed=0,
+    )
+    assert world is not None
+    # No non-cooperative solution should exist in [t_min, t_max].
+    no_coop = solve_no_cooperation(world, t_min=t_min, t_max=t_max)
+    assert no_coop is None, "a non-cooperative solution was found within [t_min, t_max]"

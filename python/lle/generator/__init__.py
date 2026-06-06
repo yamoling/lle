@@ -18,7 +18,6 @@ from __future__ import annotations
 
 from typing import Any, Generator, Literal, overload
 
-from ..solver import _require_pysat
 from ..solver.cooperation_level import CooperationLevel, CooperationLevelStr
 from ..world import World
 from ._args import _GenerateArgs
@@ -212,7 +211,6 @@ def generate(
     world_or_none = lle.genrate("random", max_attempts=10, cooperation="mutual")
     ```
     """
-    _require_pysat()
     args = _GenerateArgs(
         kind=kind,
         height=height,

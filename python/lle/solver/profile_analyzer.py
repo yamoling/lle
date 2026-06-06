@@ -10,11 +10,10 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Sequence, overload
 
+from ..types import Position
 from ..world import Action, World
-from ._internal.grid import is_within_bounds
-from ._internal.types import Position, laser_sources_from_world
 from .cooperation_level import CooperationLevel
-from .world_solver import LaserMode, WorldSolver
+from .solver import solve, solve_no_cooperation
 
 
 @dataclass(frozen=True)
@@ -22,6 +21,40 @@ class _HelperEvent:
     helper: int
     beneficiary: int
     time: int
+
+
+def _classify_in_interval(world: World, t_min: int, t_max: int) -> CooperationLevel | None:
+    """Return the cooperation level for ``world`` restricted to the interval ``[t_min, t_max]``.
+
+    Unlike :func:`classify`, both the cooperative-plan search and the non-cooperative check
+    are bounded below by ``t_min``.  This is the correct function to use when generating
+    levels with a guaranteed minimum solution length: a non-cooperative plan shorter than
+    ``t_min`` steps is irrelevant because agents cannot reach it.
+
+    Returns ``None`` if ``world`` is not solvable in ``[t_min, t_max]`` steps.
+    """
+    standard_plan = solve(world, t_min=t_min, t_max=t_max)
+    if standard_plan is None:
+        return None
+    positions_by_time = _positions_by_time_from_trajectory(world, standard_plan)
+    helper_events = _extract_helper_events(world, positions_by_time)
+    dependency_edges = {(e.helper, e.beneficiary) for e in helper_events}
+    if not dependency_edges:
+        return CooperationLevel.INDEPENDENT
+    no_coop_plan = solve_no_cooperation(world, t_min=t_min, t_max=t_max)
+    if no_coop_plan is not None:
+        return CooperationLevel.INDEPENDENT
+    return classify_profile(
+        dependency_edges=dependency_edges,
+        mutual_pairs=_mutual_pairs(dependency_edges),
+        largest_scc_size=_largest_scc_size(dependency_edges, world.n_agents),
+        longest_chain_length=_longest_chain_length(dependency_edges, world.n_agents),
+        num_agents=world.n_agents,
+    )
+
+
+@overload
+def classify(world: World, t_min: int, t_max: int, /) -> CooperationLevel | None: ...
 
 
 @overload
@@ -32,31 +65,34 @@ def classify(world: World, t_max: int, /) -> CooperationLevel | None: ...
 def classify(world: World, trajectory: Sequence[tuple[Action, ...]], /) -> CooperationLevel | None: ...
 
 
-def classify(world: World, t_max_or_trajectory: int | Sequence[tuple[Action, ...]]):
-    match t_max_or_trajectory:
-        case int(t_max):
-            return _classify_from_scratch(world, t_max)
-        case trajectory:
+def classify(world: World, *args):
+    match args:
+        case (int(t_max),):
+            return _classify_in_interval(world, 0, t_max)
+        case (int(t_min), int(t_max)):
+            return _classify_in_interval(world, t_min, t_max)
+        case (trajectory,):
             return _classify_trajectory(world, trajectory)
+        case other:
+            raise ValueError(f"Invalid arguments: {other}")
 
 
 def _classify_from_scratch(world: World, t_max: int) -> CooperationLevel | None:
     """Return the precise CooperationLevel for ``world`` within ``t_max`` steps, or None if the level is not solvable."""
     # 1) Check that the world is solvable within t_max steps
-    standard = WorldSolver(world, t_max=t_max, laser_mode=LaserMode.STANDARD)
-    sat, model = standard.solve()
-    if not sat or model is None:
+    standard_plan = solve(world, t_max=t_max)
+    if standard_plan is None:
         return None
-    # 2) Check if the provided path is already independent
-    positions_by_time = _positions_by_time(standard, model)
+    # 2) Check if the proposed plan is already independent (no agent shields a beam for another).
+    positions_by_time = _positions_by_time_from_trajectory(world, standard_plan)
     helper_events = _extract_helper_events(world, positions_by_time)
     dependency_edges = {(e.helper, e.beneficiary) for e in helper_events}
     if len(dependency_edges) == 0:
         return CooperationLevel.INDEPENDENT
-    # 3) Check that no other path exists in t_max steps when laser-blocking is disabled.
-    # If the world is solvable without blocking any laser, then it is independent.
-    strict_sat, _ = WorldSolver(world, t_max=t_max, laser_mode=LaserMode.STRICT).solve()
-    cooperation_required = not bool(strict_sat)
+    # 3) Check that no non-blocking path exists within t_max steps.
+    # Uses no_blocking_clauses (CooperationConstraints) instead of StrictLaserConstraints.
+    no_coop_plan = solve_no_cooperation(world, t_max=t_max)
+    cooperation_required = no_coop_plan is None
     if not cooperation_required:
         return CooperationLevel.INDEPENDENT
     # 4) Finally, profile the initial proposed solution
@@ -97,23 +133,6 @@ def _classify_trajectory(world: World, trajectory: Sequence[Action | Sequence[Ac
 # ---------------------------------------------------------------------------
 
 
-def _dictpos2list(d: dict[int, Position]):
-    return [d[i] for i in range(len(d))]
-
-
-def _positions_by_time(solver: WorldSolver, model) -> list[list[Position]]:
-    positions: dict[int, dict[int, tuple[int, int]]] = defaultdict(dict)
-    for lit in model:
-        if lit <= 0:
-            continue
-        obj = solver.var.pool.obj(abs(lit))
-        if not obj or obj[0] != "agent":
-            continue
-        _, color, position, t = obj
-        positions[t][color] = position
-    return [[positions[t][i] for i in range(len(positions[t]))] for t in range(len(positions))]
-
-
 def _positions_by_time_from_trajectory(world: World, trajectory: Sequence[Action | Sequence[Action]]):
     world.reset()
     positions = [world.agents_positions]
@@ -149,15 +168,19 @@ def _extract_helper_events(world: World, positions_by_time: list[list[Position]]
     return events
 
 
+def is_within_bounds(world: World, pos: Position) -> bool:
+    i, j = pos
+    return 0 <= i < world.height and 0 <= j < world.width
+
+
 def _raw_beam_paths(world: World) -> dict[int, list[tuple[tuple[int, int], list[tuple[int, int]]]]]:
     paths: dict[int, list[tuple[tuple[int, int], list[tuple[int, int]]]]] = defaultdict(list)
     wall_positions = frozenset(world.wall_pos)
-    sources = laser_sources_from_world(world)
-    source_positions = {src.position for src in sources}
+    source_positions = {src.pos for src in world.laser_sources}
 
-    for laser in sources:
-        di, dj = laser.direction
-        x, y = laser.position
+    for laser in world.laser_sources:
+        di, dj = laser.direction.delta
+        x, y = laser.pos
         x += di
         y += dj
         path: list[tuple[int, int]] = []
@@ -167,7 +190,7 @@ def _raw_beam_paths(world: World) -> dict[int, list[tuple[tuple[int, int], list[
             path.append((x, y))
             x += di
             y += dj
-        paths[laser.color].append((laser.position, path))
+        paths[laser.agent_id].append((laser.pos, path))
     return paths
 
 

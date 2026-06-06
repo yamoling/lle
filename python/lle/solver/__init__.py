@@ -16,73 +16,9 @@ from __future__ import annotations
 from typing import Literal, Sequence
 
 from ..world import Action, World
+from .constraints import CooperationConstraints
 from .cooperation_level import CooperationLevel, CooperationLevelStr
-
-
-def _require_pysat() -> None:
-    try:
-        import pysat.solvers  # pyright: ignore[reportMissingImports] # noqa: F401
-    except ImportError as exc:
-        import inspect
-
-        current_frame = inspect.currentframe()
-        caller_frame = inspect.getouterframes(current_frame, 2)
-        caller_name = caller_frame[1].function
-        error_message = f"""The {caller_name!r} function requires the 'pysat' package which is not installed.
-To use {caller_name!r}, install lle with: pip install laser-learning-environment[generator]"""
-        raise ImportError(error_message) from exc
-
-
-def _default_t_max(world: World) -> int:
-    return (world.width * world.height) // 2
-
-
-def solve(world: World, t_max: int | Literal["auto"] = "auto"):
-    """Find the shortest joint plan of length at most `t_max`.
-
-    Returns `None` if no plan exists within the time bound.
-    """
-    _require_pysat()
-    from .world_solver import WorldSolver  # local import for ImportError gate
-
-    t = _default_t_max(world) if t_max == "auto" else t_max
-    solver = WorldSolver(world, t_max=t)
-    sat, model = solver.solve_shortest()
-    if not sat or model is None:
-        return None
-    return solver.extract_plan(model)
-
-
-def solve_hybrid(world: World, t_max: int | Literal["auto"] = "auto"):
-    """Find the shortest joint plan using incremental SAT clause reuse.
-
-    Returns `None` if no plan exists within the time bound.
-    """
-    _require_pysat()
-    from .world_solver import WorldSolver  # local import for ImportError gate
-
-    t = _default_t_max(world) if t_max == "auto" else t_max
-    solver = WorldSolver(world, t_max=t)
-    sat, model = solver.solve_hybrid()
-    if not sat or model is None:
-        return None
-    return solver.extract_plan(model)
-
-
-def solve_sat(world: World, t_max: int | Literal["auto"] = "auto"):
-    """Find a plan of length exactly `t_max` using the classic SAT solver.
-
-    Returns `None` if no plan exists within the fixed horizon.
-    """
-    _require_pysat()
-    from .world_solver import WorldSolver  # local import for ImportError gate
-
-    t = _default_t_max(world) if t_max == "auto" else t_max
-    solver = WorldSolver(world, t_max=t)
-    sat, model = solver.solve_sat()
-    if not sat or model is None:
-        return None
-    return solver.extract_plan(model)
+from .solver import solve, solve_no_cooperation
 
 
 def is_cooperative(world: World, t_max: int | Literal["auto"] = "auto"):
@@ -91,44 +27,39 @@ def is_cooperative(world: World, t_max: int | Literal["auto"] = "auto"):
     in `t_max` steps, i.e. when there exist a solution with laser blocking enabled (`LaserMode.STANDARD`)
     but not with lasers can not be blocked (`LaserMode.STRICT`).
     """
-    _require_pysat()
-    from .world_solver import LaserMode, WorldSolver
-
-    t = _default_t_max(world) if t_max == "auto" else t_max
-    standard_sat, _ = WorldSolver(world, t_max=t, laser_mode=LaserMode.STANDARD).solve()
-    if not standard_sat:
+    standard_plan = solve(world, t_max=t_max)
+    if standard_plan is None:
         return False
-    strict_sat, _ = WorldSolver(world, t_max=t, laser_mode=LaserMode.STRICT).solve()
-    return not bool(strict_sat)
+    strict_plan = solve_no_cooperation(world, t_max=t_max)
+    return strict_plan is None
 
 
 def cooperation_level(world: World, t_max: int | Literal["auto"] = "auto"):
     """Return the precise cooperation classification for `world`.
 
+    Returns `None` when the world is not solvable within `t_max` steps.
     See `CooperationLevel` for the meaning of each member.
     """
-    _require_pysat()
     from .profile_analyzer import classify
 
-    t = _default_t_max(world) if t_max == "auto" else t_max
+    t = (world.width * world.height) // 2 if t_max == "auto" else t_max
     return classify(world, t)
 
 
 def cooperation_level_trajectory(world: World, trajectory: Sequence[tuple[Action, ...]]):
     """Return the cooperation classification induced by an explicit trajectory."""
-    _require_pysat()
     from .profile_analyzer import classify
 
     return classify(world, trajectory)
 
 
 __all__ = [
+    "CooperationConstraints",
     "CooperationLevel",
     "cooperation_level",
     "cooperation_level_trajectory",
     "is_cooperative",
     "solve",
-    "solve_hybrid",
-    "solve_sat",
+    "solve_no_cooperation",
     "CooperationLevelStr",
 ]

@@ -197,24 +197,53 @@ def test_cooperation_level_unsolvable_for_walled_off_agent():
 
 
 # ---------------------------------------------------------------------------
-# Generator profile parameter
+# is_cooperative
 # ---------------------------------------------------------------------------
 
 
-def test_generator_produces_world_matching_requested_profile():
-    """Sanity check: constructive cooperative with profile=ASYMMETRIC yields
-    a world that classifies as ASYMMETRIC. The lane-based structural laser
-    produces a single helper -> beneficiary dependency, which is the
-    asymmetric profile by definition."""
-    world = lle.generate(
-        kind="constructive",
-        width=6,
-        height=6,
-        n_agents=2,
-        n_lasers=1,
-        cooperation=CooperationLevel.ASYMMETRIC,
-        t_max=15,
-        seed=0,
-    )
-    assert world is not None
-    assert lle.cooperation_level(world, t_max=15) is CooperationLevel.ASYMMETRIC
+def test_is_cooperative_on_known_cooperative_level():
+    # LLE Level 6 is canonically cooperative.
+    world = World.level(6)
+    assert lle.is_cooperative(world)
+
+
+def test_is_cooperative_on_trivial_single_agent_level():
+    world = World("S0 . X")
+    assert not lle.is_cooperative(world, t_max=3)
+
+
+def test_is_cooperative_on_explicitly_cooperative_worlds():
+    worlds = [
+        """
+ . . L1S . X
+S0 .  .  . .
+S1 .  .  . .
+ . .  .  . X""",
+        """
+.  . L0S . X
+S0 .  .  . .
+S1 .  .  . .
+.  .  .  . X""",
+        """
+.   .  L0S . X
+S0  .   .  . .
+S1  .   .  . .
+.  L1N  .  . X""",
+        """
+. L1S L0S .
+S0  .   .  X
+S1  .   .  X""",
+    ]
+    for ws in worlds:
+        world = World(ws)
+        assert lle.is_cooperative(world, 10)
+
+
+def test_is_not_cooperative_on_independent_world():
+    world = World("""
+.  X L0S . X
+S0 .  .  . .
+S1 .  .  . .
+.  X  .  . X
+""")
+    assert not lle.is_cooperative(world, 10)

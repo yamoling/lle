@@ -98,6 +98,7 @@ impl PyDirection {
     }
 
     /// The delta of this direction (di, dj).
+    #[getter]
     fn delta(&self) -> (i32, i32) {
         let d: Direction = self.into();
         d.delta()

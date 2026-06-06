@@ -162,8 +162,6 @@ from .solver import (
     cooperation_level_trajectory,
     is_cooperative,
     solve,
-    solve_hybrid,
-    solve_sat,
 )
 from .types import AgentId, LaserId, Position
 from .world import Action, EventType, World, WorldEvent, WorldState
@@ -195,8 +193,6 @@ __all__ = [
     "from_str",
     "level",
     "solve",
-    "solve_hybrid",
-    "solve_sat",
     "is_cooperative",
     "cooperation_level",
     "cooperation_level_trajectory",
