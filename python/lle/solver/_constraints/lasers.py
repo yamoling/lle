@@ -127,37 +127,6 @@ class LaserConstraints(ConstraintGenerator):
                 # else: constant-active tile — no variable, no clause, absent from the map.
         self._active_lit = active_lit
 
-        # for laser in self.lasers:
-        #     x, y = laser.pos
-        #     prev = self.ctx.get_prev_beam(t, x, y, laser.laser_id)
-        #     agents_in_reach = [a for a in range(self.n_agents) if a == laser.agent_id and (x, y) in self.reachable_positions(t, a)]
-        #     active = self.var.laser(laser.laser_id, x, y, t)
-        #     # General case
-        #     match (prev, agents_in_reach):
-        #         case None, []:  # First tile & no agent in reach
-        #             yield [active]
-        #         case None, [*agents]:  # First tile and some agents in reach
-        #             for a in agents:
-        #                 agent = self.var.agent(a, x, y, t)
-        #                 yield from equals(active, -agent)
-        #         case ((prev_x, prev_y), []):  # Subsequent tile, no agent in reach
-        #             prev_active = self.var.laser(laser.laser_id, prev_x, prev_y, t)
-        #             yield from equals(active, prev_active)
-        #         case ((prev_x, prev_y), [*agents]):  # General case
-        #             prev_active = self.var.laser(laser.laser_id, prev_x, prev_y, t)
-        #             # Encode: active = prev_active AND NOT(any agent on tile)
-        #             # Clauses:
-        #             #   active -> prev_active
-        #             #   active -> NOT agent_i for each agent i:   [-active, -agent_i]            (N clauses)
-        #             #   prev_active AND NOT(any agent) -> active: [-prev_active, *agents, active] (1 clause)
-        #             agent_vars = [self.var.agent(a, x, y, t) for a in agents]
-        #             # yield implies(active, prev_active)
-        #             yield [-active, prev_active]
-        #             yield from ([-active, -agent_var] for agent_var in agent_vars)
-        #             yield [-prev_active, *agent_vars, active]
-        #         case other:
-        #             raise ValueError(f"There should be no other possible case but got: {other}")
-
 
 class StrictLaserConstraints(LaserConstraints):
     """
