@@ -14,8 +14,7 @@ from ..world import Action, World
 from ._internal.grid import is_within_bounds
 from ._internal.types import Position, laser_sources_from_world
 from .cooperation_level import CooperationLevel
-from .incremental_solver import solve
-from .laser_mode import LaserMode
+from .incremental_solver import solve, solve_no_cooperation
 
 
 @dataclass(frozen=True)
@@ -23,6 +22,40 @@ class _HelperEvent:
     helper: int
     beneficiary: int
     time: int
+
+
+def _classify_in_interval(world: World, t_min: int, t_max: int) -> CooperationLevel | None:
+    """Return the cooperation level for ``world`` restricted to the interval ``[t_min, t_max]``.
+
+    Unlike :func:`classify`, both the cooperative-plan search and the non-cooperative check
+    are bounded below by ``t_min``.  This is the correct function to use when generating
+    levels with a guaranteed minimum solution length: a non-cooperative plan shorter than
+    ``t_min`` steps is irrelevant because agents cannot reach it.
+
+    Returns ``None`` if ``world`` is not solvable in ``[t_min, t_max]`` steps.
+    """
+    standard_plan = solve(world, t_min=t_min, t_max=t_max)
+    if standard_plan is None:
+        return None
+    positions_by_time = _positions_by_time_from_trajectory(world, standard_plan)
+    helper_events = _extract_helper_events(world, positions_by_time)
+    dependency_edges = {(e.helper, e.beneficiary) for e in helper_events}
+    if not dependency_edges:
+        return CooperationLevel.INDEPENDENT
+    no_coop_plan = solve_no_cooperation(world, t_min=t_min, t_max=t_max)
+    if no_coop_plan is not None:
+        return CooperationLevel.INDEPENDENT
+    return classify_profile(
+        dependency_edges=dependency_edges,
+        mutual_pairs=_mutual_pairs(dependency_edges),
+        largest_scc_size=_largest_scc_size(dependency_edges, world.n_agents),
+        longest_chain_length=_longest_chain_length(dependency_edges, world.n_agents),
+        num_agents=world.n_agents,
+    )
+
+
+@overload
+def classify(world: World, t_min: int, t_max: int, /) -> CooperationLevel | None: ...
 
 
 @overload
@@ -33,18 +66,22 @@ def classify(world: World, t_max: int, /) -> CooperationLevel | None: ...
 def classify(world: World, trajectory: Sequence[tuple[Action, ...]], /) -> CooperationLevel | None: ...
 
 
-def classify(world: World, t_max_or_trajectory: int | Sequence[tuple[Action, ...]]):
-    match t_max_or_trajectory:
-        case int(t_max):
-            return _classify_from_scratch(world, t_max)
-        case trajectory:
+def classify(world: World, *args):
+    match args:
+        case (int(t_max),):
+            return _classify_in_interval(world, 0, t_max)
+        case (int(t_min), int(t_max)):
+            return _classify_in_interval(world, t_min, t_max)
+        case (trajectory,):
             return _classify_trajectory(world, trajectory)
+        case other:
+            raise ValueError(f"Invalid arguments: {other}")
 
 
 def _classify_from_scratch(world: World, t_max: int) -> CooperationLevel | None:
     """Return the precise CooperationLevel for ``world`` within ``t_max`` steps, or None if the level is not solvable."""
     # 1) Check that the world is solvable within t_max steps
-    standard_plan = solve(world, t_max=t_max, laser_mode=LaserMode.STANDARD)
+    standard_plan = solve(world, t_max=t_max)
     if standard_plan is None:
         return None
     # 2) Check if the proposed plan is already independent (no agent shields a beam for another).
@@ -53,10 +90,10 @@ def _classify_from_scratch(world: World, t_max: int) -> CooperationLevel | None:
     dependency_edges = {(e.helper, e.beneficiary) for e in helper_events}
     if len(dependency_edges) == 0:
         return CooperationLevel.INDEPENDENT
-    # 3) Check that no other path exists in t_max steps when laser-blocking is disabled.
-    # If the world is solvable without blocking any laser, then it is independent.
-    strict_plan = solve(world, t_max=t_max, laser_mode=LaserMode.STRICT)
-    cooperation_required = strict_plan is None
+    # 3) Check that no non-blocking path exists within t_max steps.
+    # Uses no_blocking_clauses (CooperationConstraints) instead of StrictLaserConstraints.
+    no_coop_plan = solve_no_cooperation(world, t_max=t_max)
+    cooperation_required = no_coop_plan is None
     if not cooperation_required:
         return CooperationLevel.INDEPENDENT
     # 4) Finally, profile the initial proposed solution

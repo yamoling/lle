@@ -1,5 +1,3 @@
-from collections.abc import Iterator
-
 from lle.solver.variable_factory import VariableFactory
 from lle.tiles import Laser, LaserSource
 
@@ -126,39 +124,3 @@ class LaserConstraints(ConstraintGenerator):
                     active_lit[source.laser_id, x, y] = prev_active
                 # else: constant-active tile — no variable, no clause, absent from the map.
         self._active_lit = active_lit
-
-
-class StrictLaserConstraints(LaserConstraints):
-    """
-    Variant of LaserConstraints where beam propagation does NOT stop on agents.
-    It only stops at walls / bounds (same as base behavior except agent blocking).
-    """
-
-    def generate(self, t: int):
-        return [
-            *self._no_step_on_active_laser(t),
-            *self._beam_propagation(t),
-            *self.forbid_agent_walk_on_tile_with_laser_of_other_colour(t),
-        ]
-
-    def _laser_edges(self, source: LaserSource) -> Iterator[tuple[tuple[int, int], tuple[int, int]]]:
-        path = self.ctx.laser_paths[source]
-        yield from zip(path, path[1:])
-
-    def _beam_propagation(self, t: int):
-        for source in self.sources:
-            for (x, y), (nx, ny) in self._laser_edges(source):
-                src_var = self.var.laser(source.laser_id, x, y, t)
-                dst_var = self.var.laser(source.laser_id, nx, ny, t)
-                yield [-src_var, dst_var]
-                yield [src_var, -dst_var]
-
-    def forbid_agent_walk_on_tile_with_laser_of_other_colour(self, t: int):
-        for source in self.sources:
-            for agent in range(self.n_agents):
-                if agent == source.agent_id:
-                    continue
-                for x, y in self.ctx.laser_paths[source]:
-                    if (x, y) not in self.reachable_positions(t, agent):
-                        continue
-                    yield [-self.var.agent(agent, x, y, t)]

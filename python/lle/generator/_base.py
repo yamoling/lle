@@ -17,7 +17,7 @@ from tqdm import tqdm
 
 from .. import solver
 from ..solver.cooperation_level import CooperationLevel
-from ..solver.laser_mode import LaserMode
+from ..solver.profile_analyzer import classify
 from ..world import World
 from ._candidates import CandidateLayout
 from ._world_builder import WorldBuilder
@@ -113,19 +113,11 @@ class _BaseGenerator(ABC):
         world.reset()
         return solver.solve(world, t_max=t) is not None
 
-    def _strict_laser_unsat(self, world: World) -> bool:
-        world.reset()
-        return solver.solve(world, laser_mode=LaserMode.STRICT) is not None
-
     def _accept_world(self, world: World) -> bool:
-        # The level must be solvable within t_max (and meet the cooperation requirement,
-        # if any). classify() returning a level already implies standard solvability.
         if self.coop_constraint is not None:
-            from ..solver.profile_analyzer import classify
-
             constraint, required_level = self.coop_constraint
             world.reset()
-            actual_level = classify(world, self.t_max)
+            actual_level = classify(world, self.t_min, self.t_max)
             if actual_level is None:
                 return False
             if constraint == "at-least":
@@ -135,7 +127,6 @@ class _BaseGenerator(ABC):
                 return False
         elif not self._is_satisfiable(world, self.t_max):
             return False
-        # The level must NOT be solvable in fewer than t_min steps.
         if self.t_min > 0 and self._is_satisfiable(world, self.t_min - 1):
             return False
         return True

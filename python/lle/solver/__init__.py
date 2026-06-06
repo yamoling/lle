@@ -16,9 +16,9 @@ from __future__ import annotations
 from typing import Literal, Sequence
 
 from ..world import Action, World
+from ._constraints.cooperation import CooperationConstraints
 from .cooperation_level import CooperationLevel, CooperationLevelStr
-from .incremental_solver import solve
-from .laser_mode import LaserMode
+from .incremental_solver import solve, solve_no_cooperation
 
 
 def is_cooperative(world: World, t_max: int | Literal["auto"] = "auto"):
@@ -27,10 +27,10 @@ def is_cooperative(world: World, t_max: int | Literal["auto"] = "auto"):
     in `t_max` steps, i.e. when there exist a solution with laser blocking enabled (`LaserMode.STANDARD`)
     but not with lasers can not be blocked (`LaserMode.STRICT`).
     """
-    standard_plan = solve(world, t_max=t_max, laser_mode=LaserMode.STANDARD)
+    standard_plan = solve(world, t_max=t_max)
     if standard_plan is None:
         return False
-    strict_plan = solve(world, t_max=t_max, laser_mode=LaserMode.STRICT)
+    strict_plan = solve_no_cooperation(world, t_max=t_max)
     return strict_plan is None
 
 
@@ -54,10 +54,12 @@ def cooperation_level_trajectory(world: World, trajectory: Sequence[tuple[Action
 
 
 __all__ = [
+    "CooperationConstraints",
     "CooperationLevel",
     "cooperation_level",
     "cooperation_level_trajectory",
     "is_cooperative",
     "solve",
+    "solve_no_cooperation",
     "CooperationLevelStr",
 ]
