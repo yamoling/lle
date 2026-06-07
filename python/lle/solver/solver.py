@@ -1,6 +1,6 @@
 """Incremental SAT solver that builds constraints incrementally for time-bounded solving."""
 
-from typing import Literal
+from typing import Literal, overload
 
 from pysat.solvers import Minisat22
 
@@ -17,7 +17,13 @@ from .constraints import (
 from .variable_factory import VariableFactory
 
 
-def solve(world: World, t_min: int = 0, t_max: int | Literal["auto"] = "auto") -> list[tuple[Action, ...]] | None:
+@overload
+def solve(world: World, t_max: int | Literal["auto"] = "auto", /) -> list[tuple[Action, ...]] | None: ...
+@overload
+def solve(world: World, t_min: int, t_max: int | Literal["auto"] = "auto", /) -> list[tuple[Action, ...]] | None: ...
+
+
+def solve(world: World, *min_max):
     """
     Find the shortest plan within the time range [t_min, t_max] (both ends included).
 
@@ -26,6 +32,18 @@ def solve(world: World, t_min: int = 0, t_max: int | Literal["auto"] = "auto") -
         - `t_min`: The minimum time step to consider.
         - `t_max`: The maximum time step to consider. Defaults to (width * height) // 2.
     """
+    match min_max:
+        case ():
+            return _solve(world, 0, "auto")
+        case (t_max,):
+            return _solve(world, 0, t_max)
+        case (t_min, t_max):
+            return _solve(world, t_min, t_max)
+        case _:
+            raise ValueError(f"Invalid arguments: (world, {min_max})")
+
+
+def _solve(world: World, t_min: int, t_max: int | Literal["auto"]) -> list[tuple[Action, ...]] | None:
     if t_max == "auto":
         t_max = (world.width * world.height) // 2
     ctx = ConstraintContext(world, t_max)

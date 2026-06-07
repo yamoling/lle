@@ -11,18 +11,13 @@ import multiprocessing as mp
 import random
 import sys
 from abc import ABC, abstractmethod
-from typing import Literal
 
 from tqdm import tqdm
 
 from .. import solver
-from ..solver.cooperation_level import CooperationLevel
-from ..solver.profile_analyzer import classify
 from ..world import World
 from ._candidates import CandidateLayout
 from ._world_builder import WorldBuilder
-
-CooperationSpec = tuple[Literal["exactly", "at-least"], CooperationLevel]
 
 
 class _LayoutRetry(Exception):
@@ -37,7 +32,7 @@ class Generator(ABC):
         height: int,
         n_agents: int = 2,
         n_lasers: int = 0,
-        cooperation: CooperationSpec | None = None,
+        cooperation: bool | None = None,
         n_walls: int | None = None,
         t_max: int | None = None,
         t_min: int | None = None,
@@ -52,17 +47,7 @@ class Generator(ABC):
         if n_agents < 1:
             raise ValueError(f"agents must be >= 1. Got {n_agents}")
         self.agents = n_agents
-        self.coop_constraint = None
-        if cooperation is not None:
-            constraint, level = cooperation
-            if level.is_cooperative:
-                if n_agents < 2:
-                    raise ValueError("Can not generate a cooperative level with less than two agents.")
-                if not (1 <= n_lasers <= n_agents):
-                    raise ValueError(
-                        f"Cooperation constraint {constraint!r} {level!r} requires lasers in [1, agents]; got lasers={n_lasers}, agents={n_agents}."
-                    )
-            self.coop_constraint = constraint, level
+        self.require_cooperation = cooperation
 
         if n_lasers < 0:
             raise ValueError(f"lasers must be >= 0. Got {n_lasers}")
@@ -109,27 +94,14 @@ class Generator(ABC):
             b.add_laser(owner, pos, direction)
         return b.build()
 
-    def _is_satisfiable(self, world: World, t: int) -> bool:
-        world.reset()
-        return solver.solve(world, t_max=t) is not None
-
     def _accept_world(self, world: World) -> bool:
-        if self.coop_constraint is not None:
-            constraint, required_level = self.coop_constraint
-            world.reset()
-            actual_level = classify(world, self.t_min, self.t_max)
-            if actual_level is None:
-                return False
-            if constraint == "at-least":
-                if not actual_level.is_at_least(required_level):
-                    return False
-            elif actual_level is not required_level:
-                return False
-        elif not self._is_satisfiable(world, self.t_max):
+        is_solvable = solver.solve(world, self.t_max) is not None
+        if not is_solvable:
             return False
-        if self.t_min > 0 and self._is_satisfiable(world, self.t_min - 1):
-            return False
-        return True
+        if self.require_cooperation is None:
+            return is_solvable
+        cooperation_required = solver.solve_no_cooperation(world, 0, self.t_max) is None
+        return cooperation_required == self.require_cooperation
 
     def _try_generate(self, seed: int | None):
         if seed is not None:
@@ -192,10 +164,3 @@ class Generator(ABC):
                 "Error in the processing pool. Do you have an \"if __name__ == '__main__':\" guard around the entry of the main script?"
             ) from e
         return
-
-    @property
-    def cooperative(self):
-        if self.coop_constraint is None:
-            return False
-        _, level = self.coop_constraint
-        return level.is_cooperative

@@ -152,14 +152,10 @@ from .lle import __version__, agent, exceptions, tiles, world  # noqa # prevent 
 
 
 from .agent import Agent
-from .env import LLE, make_pool
+from .env import LLE
 from .generator import generate
 from .observations import ObservationType
 from .solver import (
-    CooperationLevel,
-    CooperationLevelStr,
-    cooperation_level,
-    cooperation_level_trajectory,
     is_cooperative,
     solve,
 )

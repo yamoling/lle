@@ -2,13 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from multiprocessing import cpu_count
-from typing import TYPE_CHECKING, Literal
-
-from ..solver.cooperation_level import CooperationLevel
-from .generator import CooperationSpec
-
-if TYPE_CHECKING:
-    from lle.generator import LooseCooperationSpec
+from typing import Literal
 
 
 def _resolve_lasers(n_lasers: int | Literal["auto"], n_agents: int, is_cooperative: bool) -> int:
@@ -30,7 +24,7 @@ class GenerateArgs:
     width: int | None = None
     n_agents: int | None = None
     n_lasers: int | Literal["auto"] = "auto"
-    cooperation: LooseCooperationSpec | None = None
+    cooperation: bool | None = None
     t_max: int | Literal["auto"] = "auto"
     t_min: int | Literal["auto"] = "auto"
     n_walls: int | Literal["auto"] = "auto"
@@ -58,26 +52,6 @@ class GenerateArgs:
             else:
                 raise _no_default_for(self.kind, "n_agents")
         return self.n_agents
-
-    def _resolve_cooperation_requirement(self) -> CooperationSpec | None:
-        match self.cooperation:
-            case None:
-                if self.kind in ("random", "constructive"):
-                    return None
-                if self.kind == "level6_style":
-                    return "exactly", CooperationLevel.MUTUAL
-                raise _no_default_for(self.kind, "cooperation")
-            case True:
-                return "at-least", CooperationLevel.ASYMMETRIC
-            case False:
-                return "exactly", CooperationLevel.INDEPENDENT
-            case CooperationLevel(level) | str(level):
-                return "exactly", CooperationLevel(level)
-            case (op, str(level)):
-                return op, CooperationLevel(level)
-            case (op, CooperationLevel(level)):
-                return op, level
-        raise ValueError(f"Invalid cooperation specification: {self.cooperation!r}")
 
     def _resolve_t_max(self, width: int, height: int) -> int:
         if self.t_max == "auto":
@@ -108,8 +82,7 @@ class GenerateArgs:
     def resolve(self, n: int = 1) -> _SanitizedArgs:
         height, width = self._resolve_size()
         n_agents = self._resolve_n_agents()
-        cooperation = self._resolve_cooperation_requirement()
-        is_cooperative = cooperation is not None and cooperation[1].is_cooperative
+        is_cooperative = self.cooperation is not None and self.cooperation
         if self.kind == "level6_style" and not is_cooperative:
             raise ValueError("Levels in the style of level 6 must be cooperative.")
         t_max = self._resolve_t_max(width, height)
@@ -123,7 +96,7 @@ class GenerateArgs:
             width=width,
             n_agents=n_agents,
             n_lasers=n_lasers,
-            cooperation=cooperation,
+            cooperation=self.cooperation,
             t_max=t_max,
             t_min=t_min,
             n_walls=n_walls,
@@ -139,7 +112,7 @@ class _SanitizedArgs:
     width: int
     n_agents: int
     n_lasers: int
-    cooperation: CooperationSpec | None
+    cooperation: bool | None
     t_max: int
     t_min: int
     n_walls: int
