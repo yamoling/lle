@@ -14,12 +14,6 @@ from lle.solver import CooperationLevelStr
 # ---------------------------------------------------------------------------
 
 
-def test_cooperation_level_is_str_compatible():
-    assert CooperationLevel.COOPERATIVE == "cooperative"
-    assert CooperationLevel.FULLY_COUPLED == "fully-coupled"
-    assert CooperationLevel.ASYMMETRIC == "asymmetric"
-
-
 def test_cooperation_level_round_trips_through_string():
     for level in CooperationLevel:
         assert CooperationLevel(level.value) is level
@@ -53,19 +47,12 @@ def test_typing_cooperation_level_str():
         assert c in get_args(CooperationLevelStr)
 
 
-def test_is_at_least_cooperative():
-    for other in CooperationLevel:
-        if other.is_cooperative:
-            assert other.is_at_least(CooperationLevel.COOPERATIVE)
-
-
 @pytest.mark.parametrize(
     "tested, expected_false, expected_true",
     [
         (
             CooperationLevel.INDEPENDENT,
             [
-                CooperationLevel.COOPERATIVE,
                 CooperationLevel.ASYMMETRIC,
                 CooperationLevel.CHAIN,
                 CooperationLevel.DISTRIBUTED,
@@ -75,37 +62,25 @@ def test_is_at_least_cooperative():
             [],
         ),
         (
-            CooperationLevel.COOPERATIVE,
-            [
-                CooperationLevel.ASYMMETRIC,
-                CooperationLevel.CHAIN,
-                CooperationLevel.DISTRIBUTED,
-                CooperationLevel.MUTUAL,
-                CooperationLevel.FULLY_COUPLED,
-            ],
-            [CooperationLevel.INDEPENDENT],
-        ),
-        (
             CooperationLevel.ASYMMETRIC,
             [CooperationLevel.CHAIN, CooperationLevel.DISTRIBUTED, CooperationLevel.MUTUAL, CooperationLevel.FULLY_COUPLED],
-            [CooperationLevel.INDEPENDENT, CooperationLevel.COOPERATIVE],
+            [CooperationLevel.INDEPENDENT],
         ),
         (
             CooperationLevel.CHAIN,
             [CooperationLevel.DISTRIBUTED, CooperationLevel.MUTUAL, CooperationLevel.FULLY_COUPLED],
-            [CooperationLevel.INDEPENDENT, CooperationLevel.COOPERATIVE, CooperationLevel.ASYMMETRIC],
+            [CooperationLevel.INDEPENDENT, CooperationLevel.ASYMMETRIC],
         ),
         (
             CooperationLevel.DISTRIBUTED,
             [CooperationLevel.MUTUAL, CooperationLevel.FULLY_COUPLED],
-            [CooperationLevel.INDEPENDENT, CooperationLevel.COOPERATIVE, CooperationLevel.ASYMMETRIC, CooperationLevel.CHAIN],
+            [CooperationLevel.INDEPENDENT, CooperationLevel.ASYMMETRIC, CooperationLevel.CHAIN],
         ),
         (
             CooperationLevel.MUTUAL,
             [CooperationLevel.FULLY_COUPLED],
             [
                 CooperationLevel.INDEPENDENT,
-                CooperationLevel.COOPERATIVE,
                 CooperationLevel.ASYMMETRIC,
                 CooperationLevel.CHAIN,
                 CooperationLevel.DISTRIBUTED,
@@ -116,7 +91,6 @@ def test_is_at_least_cooperative():
             [],
             [
                 CooperationLevel.INDEPENDENT,
-                CooperationLevel.COOPERATIVE,
                 CooperationLevel.ASYMMETRIC,
                 CooperationLevel.CHAIN,
                 CooperationLevel.DISTRIBUTED,

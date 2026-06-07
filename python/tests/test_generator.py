@@ -5,7 +5,7 @@ from multiprocessing import cpu_count
 import lle
 import pytest
 from lle import CooperationLevel, World
-from lle.generator._args import _GenerateArgs
+from lle.generator._args import GenerateArgs
 
 
 def test_generate_random_returns_world():
@@ -50,7 +50,7 @@ def test_generate_level6_style_always_cooperative():
         seed=0,
         n=1,
         n_jobs=5,
-        cooperation=("at-least", "cooperative"),
+        cooperation=("at-least", "asymmetric"),
         t_max=15,
     )
     assert world is not None
@@ -91,7 +91,7 @@ def test_generate_n():
 
 
 def test_lvl6_defaults():
-    args = _GenerateArgs("level6_style").resolve()
+    args = GenerateArgs("level6_style").resolve()
     assert args.height == 12
     assert args.width == 13
     assert args.n_agents == 4
@@ -102,7 +102,7 @@ def test_lvl6_defaults():
 
 
 def test_random_defaults():
-    args = _GenerateArgs("random").resolve()
+    args = GenerateArgs("random").resolve()
     assert args.height == 5
     assert args.width == 5
     assert args.n_agents == 2
@@ -112,26 +112,26 @@ def test_random_defaults():
 
 
 def test_n_jobs():
-    args = _GenerateArgs("random").resolve(10)
+    args = GenerateArgs("random").resolve(10)
     assert args.n_jobs == cpu_count() - 1
 
-    args = _GenerateArgs("random", n_jobs="auto").resolve(10)
+    args = GenerateArgs("random", n_jobs="auto").resolve(10)
     assert args.n_jobs == cpu_count() - 1
 
-    args = _GenerateArgs("random", n_jobs="auto").resolve(1)
+    args = GenerateArgs("random", n_jobs="auto").resolve(1)
     assert args.n_jobs == 1
 
-    args = _GenerateArgs("random", n_jobs=5).resolve(10)
+    args = GenerateArgs("random", n_jobs=5).resolve(10)
     assert args.n_jobs == 5
 
 
 def test_t_min_defaults_to_zero():
-    assert _GenerateArgs("random").resolve().t_min == 0
-    assert _GenerateArgs("level6_style").resolve().t_min == 0
+    assert GenerateArgs("random").resolve().t_min == 0
+    assert GenerateArgs("level6_style").resolve().t_min == 0
 
 
 def test_t_min_passthrough():
-    assert _GenerateArgs("random", t_min=4).resolve().t_min == 4
+    assert GenerateArgs("random", t_min=4).resolve().t_min == 4
 
 
 def test_generate_rejects_t_min_greater_than_t_max():
@@ -155,16 +155,16 @@ def test_generate_with_t_min_is_not_solvable_below_it():
 
 
 def test_default_cooperative():
-    args = _GenerateArgs("random", cooperation=True).resolve()
-    assert args.cooperation == ("at-least", CooperationLevel.COOPERATIVE)
+    args = GenerateArgs("random", cooperation=True).resolve()
+    assert args.cooperation == ("at-least", CooperationLevel.ASYMMETRIC)
 
-    args = _GenerateArgs("constructive", cooperation=True).resolve()
-    assert args.cooperation == ("at-least", CooperationLevel.COOPERATIVE)
+    args = GenerateArgs("constructive", cooperation=True).resolve()
+    assert args.cooperation == ("at-least", CooperationLevel.ASYMMETRIC)
 
-    args = _GenerateArgs("random", cooperation=False).resolve()
+    args = GenerateArgs("random", cooperation=False).resolve()
     assert args.cooperation == ("exactly", CooperationLevel.INDEPENDENT)
 
-    args = _GenerateArgs("constructive", cooperation=False).resolve()
+    args = GenerateArgs("constructive", cooperation=False).resolve()
     assert args.cooperation == ("exactly", CooperationLevel.INDEPENDENT)
 
 
@@ -209,7 +209,7 @@ def test_generator_cooperation_holds_across_interval():
         height=6,
         n_agents=2,
         n_lasers=1,
-        cooperation=("at-least", CooperationLevel.COOPERATIVE),
+        cooperation=("at-least", CooperationLevel.ASYMMETRIC),
         t_min=t_min,
         t_max=t_max,
         seed=0,

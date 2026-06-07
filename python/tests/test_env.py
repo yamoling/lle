@@ -375,7 +375,7 @@ def test_env_pool():
         n_agents=N_AGENTS,
         obs_type="layered",
         state_type="flattened",
-        cooperation=("at-least", "cooperative"),
+        cooperation=("at-least", "asymmetric"),
     )
     assert env.n_agents == N_AGENTS
     o, s = env.reset()

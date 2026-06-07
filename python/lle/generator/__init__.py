@@ -20,9 +20,9 @@ from typing import Any, Generator, Literal, overload
 
 from ..solver.cooperation_level import CooperationLevel, CooperationLevelStr
 from ..world import World
-from ._args import _GenerateArgs
-from ._base import CooperationSpec
+from ._args import GenerateArgs
 from .constructive import ConstructiveGenerator
+from .generator import CooperationSpec
 from .level6_style import Level6StyleGenerator
 from .random import RandomGenerator
 
@@ -211,7 +211,7 @@ def generate(
     world_or_none = lle.genrate("random", max_attempts=10, cooperation="mutual")
     ```
     """
-    args = _GenerateArgs(
+    args = GenerateArgs(
         kind=kind,
         height=height,
         width=width,

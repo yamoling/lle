@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from lle.tiles import Direction
 
-from ._base import CooperationSpec
 from ._candidates import CandidateLayout
 from .constructive import ConstructiveGenerator
+from .generator import CooperationSpec
 
 
 class Level6StyleGenerator(ConstructiveGenerator):

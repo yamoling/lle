@@ -29,7 +29,7 @@ class _LayoutRetry(Exception):
     """Raised by a generator when sampling produced an unusable layout."""
 
 
-class _BaseGenerator(ABC):
+class Generator(ABC):
     def __init__(
         self,
         *,

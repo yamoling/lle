@@ -15,7 +15,7 @@ def make_pool(
     *,
     obs_type: ObservationTypeLiteral = "layered",
     state_type: ObservationTypeLiteral = "state",
-    cooperation: LooseCooperationSpec | None = ("at-least", CooperationLevel.COOPERATIVE),
+    cooperation: LooseCooperationSpec | None = ("at-least", CooperationLevel.ASYMMETRIC),
     height: int = 12,
     width: int = 13,
     n_agents: int = 4,

@@ -9,7 +9,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Literal
 
-CooperationLevelStr = Literal["independent", "cooperative", "asymmetric", "mutual", "chain", "distributed", "fully-coupled"]
+CooperationLevelStr = Literal["independent", "asymmetric", "mutual", "chain", "distributed", "fully-coupled"]
 
 
 class CooperationLevel(str, Enum):
@@ -23,7 +23,6 @@ class CooperationLevel(str, Enum):
 
     Solvability gate:
 
-    - ``UNSOLVABLE`` — no joint plan reaches all exits within ``t_max``.
     - ``INDEPENDENT`` — solvable under strict-laser semantics, so no agent ever
       has to block another. Cooperation is *not* required.
 
@@ -42,13 +41,9 @@ class CooperationLevel(str, Enum):
     - ``ASYMMETRIC`` — there is at least one helper → beneficiary edge but the
       structure is neither chain-like nor distributed (typically a single
       directed edge, never reciprocated).
-    - ``COOPERATIVE`` — cooperation is required by the strict-laser test, yet
-      no helper event was observed on the SAT-found plan (the catch-all when
-      no other subtype applies).
     """
 
     INDEPENDENT = "independent"
-    COOPERATIVE = "cooperative"
     ASYMMETRIC = "asymmetric"
     CHAIN = "chain"
     DISTRIBUTED = "distributed"
@@ -59,7 +54,7 @@ class CooperationLevel(str, Enum):
     def cooperative_subtypes(cls) -> tuple[CooperationLevel, ...]:
         """Return the levels that imply cooperation is required."""
         return (
-            cls.COOPERATIVE,
+            # cls.COOPERATIVE,
             cls.ASYMMETRIC,
             cls.MUTUAL,
             cls.CHAIN,
@@ -85,7 +80,7 @@ class CooperationLevel(str, Enum):
     def is_cooperative(self):
         """Whether the level means that cooperation is required."""
         return self in (
-            CooperationLevel.COOPERATIVE,
+            # CooperationLevel.COOPERATIVE,
             CooperationLevel.ASYMMETRIC,
             CooperationLevel.MUTUAL,
             CooperationLevel.CHAIN,

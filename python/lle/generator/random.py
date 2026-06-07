@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from lle.tiles import Direction
 
-from ._base import _BaseGenerator, _LayoutRetry
 from ._candidates import CandidateLayout
 from ._geometry import beam_tiles, points_out_immediately
+from .generator import Generator, _LayoutRetry
 
 
-class RandomGenerator(_BaseGenerator):
+class RandomGenerator(Generator):
     """Random sampling generator used by `lle.generate(kind="random")`.
 
     It samples positions, checks the laser geometry, and relies on the SAT solver

@@ -5,7 +5,7 @@ from multiprocessing import cpu_count
 from typing import TYPE_CHECKING, Literal
 
 from ..solver.cooperation_level import CooperationLevel
-from ._base import CooperationSpec
+from .generator import CooperationSpec
 
 if TYPE_CHECKING:
     from lle.generator import LooseCooperationSpec
@@ -24,7 +24,7 @@ def _no_default_for(kind: str, arg_name: str):
 
 
 @dataclass
-class _GenerateArgs:
+class GenerateArgs:
     kind: Literal["random", "constructive", "level6_style"]
     height: int | None = None
     width: int | None = None
@@ -68,7 +68,7 @@ class _GenerateArgs:
                     return "exactly", CooperationLevel.MUTUAL
                 raise _no_default_for(self.kind, "cooperation")
             case True:
-                return "at-least", CooperationLevel.COOPERATIVE
+                return "at-least", CooperationLevel.ASYMMETRIC
             case False:
                 return "exactly", CooperationLevel.INDEPENDENT
             case CooperationLevel(level) | str(level):
