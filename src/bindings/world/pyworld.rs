@@ -106,6 +106,15 @@ impl From<World> for PyWorld {
     }
 }
 
+impl PyWorld {
+    /// Run `f` with a read lock on the inner `World`. Used by other binding modules
+    /// (e.g. the constraint generator) that need access to the core `World`.
+    pub(crate) fn with_world<R>(&self, f: impl FnOnce(&World) -> R) -> R {
+        let world = self.world.lock().unwrap();
+        f(&world)
+    }
+}
+
 #[gen_stub_pymethods]
 #[pymethods]
 impl PyWorld {

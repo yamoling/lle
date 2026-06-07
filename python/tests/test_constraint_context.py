@@ -1,6 +1,6 @@
 import pytest
 from lle import World
-from lle.solver.constraints.context import ConstraintContext
+from lle.solver.constraints_old.context import ConstraintContext
 
 
 def test_solver_uses_walkable_shortest_path_lower_bound():

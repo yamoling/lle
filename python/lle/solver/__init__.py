@@ -15,7 +15,6 @@ from __future__ import annotations
 from typing import Literal
 
 from ..world import World
-from .constraints import CooperationConstraints
 from .solver import solve, solve_no_cooperation
 
 
@@ -33,7 +32,6 @@ def is_cooperative(world: World, t_max: int | Literal["auto"] = "auto"):
 
 
 __all__ = [
-    "CooperationConstraints",
     "is_cooperative",
     "solve",
     "solve_no_cooperation",

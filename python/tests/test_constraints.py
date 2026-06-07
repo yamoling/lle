@@ -4,7 +4,7 @@ from typing import Any, Generator
 
 import pytest
 from lle import World
-from lle.solver.constraints import ConstraintContext, InitializationConstraints, LaserConstraints, MovementConstraints, utils
+from lle.solver.constraints_old import ConstraintContext, InitializationConstraints, LaserConstraints, MovementConstraints, utils
 from lle.solver.variable_factory import VariableFactory
 from lle.types import Position
 from pysat.solvers import Minisat22

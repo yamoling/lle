@@ -120,6 +120,6 @@ cargo run --bin stub-gen
 Run unit tests in rust & python with 
 ```bash
 cargo test
-maturin develop
+maturin dev
 pytest
 ```
