@@ -1,22 +1,29 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
-use crate::World;
+use strum::IntoEnumIterator;
+
+use crate::{World, tiles::Direction};
 
 /// A grid position as (row, column), matching the Python solver's `(i, j)` convention.
 pub type Pos = (usize, usize);
 
-const DELTAS: [(i64, i64); 4] = [(-1, 0), (1, 0), (0, -1), (0, 1)];
-
-fn neighbours_of(pos: Pos, exits: &HashSet<Pos>, height: usize, width: usize, walls: &HashSet<Pos>) -> Vec<Pos> {
+fn neighbours_of(
+    pos: Pos,
+    exits: &HashSet<Pos>,
+    height: usize,
+    width: usize,
+    walls: &HashSet<Pos>,
+) -> Vec<Pos> {
     if exits.contains(&pos) {
         // Once an agent reaches an exit, it can no longer move.
         return vec![pos];
     }
     let (i, j) = pos;
     let mut result = Vec::new();
-    for (di, dj) in DELTAS {
-        let ni = i as i64 + di;
-        let nj = j as i64 + dj;
+    for d in Direction::iter() {
+        let (di, dj) = d.delta();
+        let ni = i as i32 + di;
+        let nj = j as i32 + dj;
         if ni >= 0 && nj >= 0 {
             let (ni, nj) = (ni as usize, nj as usize);
             if ni < height && nj < width && !walls.contains(&(ni, nj)) {
@@ -66,8 +73,16 @@ impl ConstraintContext {
         let width = world.width();
         let n_agents = world.n_agents();
         let walls: HashSet<Pos> = world.walls().into_iter().map(|p| p.as_ij()).collect();
-        let voids: HashSet<Pos> = world.void_positions().into_iter().map(|p| p.as_ij()).collect();
-        let exits: HashSet<Pos> = world.exits_positions().into_iter().map(|p| p.as_ij()).collect();
+        let voids: HashSet<Pos> = world
+            .void_positions()
+            .into_iter()
+            .map(|p| p.as_ij())
+            .collect();
+        let exits: HashSet<Pos> = world
+            .exits_positions()
+            .into_iter()
+            .map(|p| p.as_ij())
+            .collect();
         let start_pos: Vec<Pos> = world.starts().iter().map(|p| p.as_ij()).collect();
 
         let mut valid_positions = HashSet::new();
@@ -93,7 +108,8 @@ impl ConstraintContext {
         }
 
         // Reverse adjacency: predecessors[p] = positions from which an agent can move into p.
-        let mut predecessors: HashMap<Pos, Vec<Pos>> = valid_positions.iter().map(|&p| (p, Vec::new())).collect();
+        let mut predecessors: HashMap<Pos, Vec<Pos>> =
+            valid_positions.iter().map(|&p| (p, Vec::new())).collect();
         for (&pos, successors) in &neighbours {
             for &succ in successors {
                 predecessors.get_mut(&succ).unwrap().push(pos);
@@ -149,7 +165,12 @@ impl ConstraintContext {
             let mut i = pos.i as i64 + di;
             let mut j = pos.j as i64 + dj;
             let mut path = Vec::new();
-            while i >= 0 && j >= 0 && (i as usize) < height && (j as usize) < width && !walls.contains(&(i as usize, j as usize)) {
+            while i >= 0
+                && j >= 0
+                && (i as usize) < height
+                && (j as usize) < width
+                && !walls.contains(&(i as usize, j as usize))
+            {
                 path.push((i as usize, j as usize));
                 i += di;
                 j += dj;
@@ -181,7 +202,12 @@ impl ConstraintContext {
                 (0..=t_max)
                     .map(|t| {
                         let blockable = ctx.reachable_positions(t, &[source.agent_id]);
-                        source.path.iter().copied().filter(|p| blockable.contains(p)).collect()
+                        source
+                            .path
+                            .iter()
+                            .copied()
+                            .filter(|p| blockable.contains(p))
+                            .collect()
                     })
                     .collect()
             })
@@ -218,11 +244,18 @@ impl ConstraintContext {
             return Vec::new();
         }
         let reachable = self.reachable_positions(t - 1, &[agent]);
-        self.predecessors[&pos].iter().copied().filter(|p| reachable.contains(p)).collect()
+        self.predecessors[&pos]
+            .iter()
+            .copied()
+            .filter(|p| reachable.contains(p))
+            .collect()
     }
 }
 
-fn compute_exit_distance(exits: &HashSet<Pos>, predecessors: &HashMap<Pos, Vec<Pos>>) -> HashMap<Pos, usize> {
+fn compute_exit_distance(
+    exits: &HashSet<Pos>,
+    predecessors: &HashMap<Pos, Vec<Pos>>,
+) -> HashMap<Pos, usize> {
     let mut dist: HashMap<Pos, usize> = exits.iter().map(|&p| (p, 0)).collect();
     let mut frontier: VecDeque<Pos> = exits.iter().copied().collect();
     while let Some(current) = frontier.pop_front() {
