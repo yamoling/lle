@@ -133,8 +133,7 @@ impl ConstraintContext {
             });
         }
         // Initial cache values for t=0
-        let mut exit_reachable_cache = HashMap::with_capacity(t_max + 1);
-        exit_reachable_cache.insert(0, HashSet::with_capacity(0));
+        // let exit_reachable_cache = HashMap::with_capacity(t_max + 1);
         let mut reachable_positions_cache = HashMap::with_capacity((t_max + 1) * n_agents);
         for agent in 0..n_agents {
             reachable_positions_cache.insert((agent, 0), HashSet::from([start_pos[agent]]));
@@ -156,8 +155,8 @@ impl ConstraintContext {
             neighbours,
             exit_distance,
             updated_until: 0,
-            exit_reachable_cache,
-            reachable_positions_cache,
+            exit_reachable_cache: HashMap::with_capacity(t_max + 1),
+            reachable_positions_cache, //: HashMap::with_capacity((t_max + 1) * n_agents),
             reachable_laser_paths_cache,
         }
     }
@@ -165,9 +164,6 @@ impl ConstraintContext {
     /// Ensure that `exit_reachable_cache[t]` is populated: the set of positions from which an
     /// exit can still be reached within `t_max - t` steps.
     fn update_exit_reachable(&mut self, t: usize) {
-        if t > self.t_max || self.exit_reachable_cache.contains_key(&t) {
-            return;
-        }
         let remaining = self.t_max - t;
         let result: HashSet<Position> = self
             .exit_distance
@@ -182,19 +178,15 @@ impl ConstraintContext {
     /// every time step from the last cached one up to `t` along the way. Recursing this way (rather
     /// than holding a reference across the recursive call) lets each step borrow `&mut self` freely.
     fn update_reachable_positions(&mut self, agent: usize, t: usize) {
-        let result = if t == 0 {
-            let mut set = HashSet::with_capacity(self.n_agents);
-            set.insert(self.start_pos[agent]);
-            set
-        } else {
-            let mut next = HashSet::new();
-            for &pos in &self.reachable_positions_cache[&(agent, t - 1)] {
-                for &n in &self.neighbours[&pos] {
-                    next.insert(n);
-                }
+        if t == 0 {
+            return;
+        }
+        let mut result = HashSet::new();
+        for &pos in &self.reachable_positions_cache[&(agent, t - 1)] {
+            for &n in &self.neighbours[&pos] {
+                result.insert(n);
             }
-            next
-        };
+        }
         let positions_in_reach_of_exit = &self.exit_reachable_cache[&t];
         let filtered = &result & positions_in_reach_of_exit;
         self.reachable_positions_cache.insert((agent, t), filtered);
@@ -222,7 +214,7 @@ impl ConstraintContext {
             return;
         }
         for tt in self.updated_until..=t {
-            self.update_exit_reachable(t);
+            self.update_exit_reachable(tt);
             for agent in 0..self.n_agents {
                 self.update_reachable_positions(agent, tt);
             }
@@ -271,7 +263,6 @@ impl ConstraintContext {
     /// The reachable laser path for a given laser source at time `t`: the beam tiles that can
     /// still be blocked. Assumes `update` has already been called for this `t`.
     pub fn get_reachable_laser_path(&self, laser_idx: usize, t: usize) -> &Vec<Position> {
-        eprintln!("get_reachable_laser_path: laser_idx={laser_idx}, t={t}");
         &self.reachable_laser_paths_cache[&(laser_idx, t)]
     }
 }

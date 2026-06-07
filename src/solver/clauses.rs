@@ -98,6 +98,7 @@ impl ClauseGenerator {
 
     /// Clauses asserting that, at the final time step `t`, every agent is on an exit.
     pub fn objective(&mut self, t: usize) -> Vec<Clause> {
+        self.ctx.update(t);
         let mut clauses = Vec::with_capacity(self.ctx.n_agents);
         for agent in 0..self.ctx.n_agents {
             let reachable = self.ctx.reachable_positions(t, &[agent]);
