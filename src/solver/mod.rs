@@ -11,12 +11,12 @@ mod context;
 mod var_pool;
 
 pub use clauses::{Clause, ClauseGenerator};
-pub use context::{ConstraintContext, Pos};
+pub use context::ConstraintContext;
 pub use var_pool::VarKey;
 
 use std::collections::HashMap;
 
-use crate::{Action, World};
+use crate::{Action, Position, World};
 
 /// High level entry point: builds the constraint context once and exposes incremental
 /// clause generation plus model decoding.
@@ -27,7 +27,9 @@ pub struct ConstraintGenerator {
 impl ConstraintGenerator {
     pub fn new(world: &World, t_max: usize) -> Self {
         let ctx = ConstraintContext::new(world, t_max);
-        ConstraintGenerator { generator: ClauseGenerator::new(ctx) }
+        ConstraintGenerator {
+            generator: ClauseGenerator::new(ctx),
+        }
     }
 
     pub fn solution_lower_bound(&self) -> usize {
@@ -52,13 +54,16 @@ impl ConstraintGenerator {
 
     /// Decode a SAT model (list of signed literals) into a joint action plan of length `t_end`.
     pub fn decode_plan(&self, model: &[i32], t_end: usize) -> Result<Vec<Vec<Action>>, String> {
-        let mut positions: HashMap<usize, HashMap<usize, Pos>> = HashMap::new();
+        let mut positions: HashMap<usize, HashMap<usize, Position>> = HashMap::new();
         for &lit in model {
             if lit <= 0 {
                 continue;
             }
             if let Some(VarKey::Agent(agent, i, j, t)) = self.generator.pool.key(lit) {
-                positions.entry(agent).or_default().insert(t, (i, j));
+                positions
+                    .entry(agent)
+                    .or_default()
+                    .insert(t, Position { i, j });
             }
         }
         let mut agent_ids: Vec<usize> = positions.keys().copied().collect();
@@ -68,8 +73,8 @@ impl ConstraintGenerator {
         for t in 0..t_end {
             let mut row = Vec::with_capacity(agent_ids.len());
             for &agent in &agent_ids {
-                let (y1, x1) = positions[&agent][&t];
-                let (y2, x2) = positions[&agent][&(t + 1)];
+                let Position { i: y1, j: x1 } = positions[&agent][&t];
+                let Position { i: y2, j: x2 } = positions[&agent][&(t + 1)];
                 let (dx, dy) = (x2 as i64 - x1 as i64, y2 as i64 - y1 as i64);
                 let action = match (dx, dy) {
                     (0, 0) => Action::Stay,
@@ -81,7 +86,7 @@ impl ConstraintGenerator {
                         return Err(format!(
                             "Invalid movement for agent {agent} at t={t}->{}: delta=({dx}, {dy})",
                             t + 1
-                        ))
+                        ));
                     }
                 };
                 row.push(action);

@@ -2,7 +2,9 @@ use std::collections::HashMap;
 
 use itertools::Itertools;
 
-use super::context::{ConstraintContext, Pos};
+use crate::Position;
+
+use super::context::ConstraintContext;
 use super::var_pool::{VarKey, VarPool};
 
 pub type Clause = Vec<i32>;
@@ -23,11 +25,7 @@ fn equals(a: i32, b: i32) -> Vec<Clause> {
 
 /// Sequential-counter at-most-one encoding (mirrors `pysat.card.CardEnc.atmost(bound=1)`),
 /// used once pairwise encoding stops being competitive.
-fn at_most_one_sequential(
-    vars: &[i32],
-    pool: &mut VarPool,
-    aux_counter: &mut i32,
-) -> Vec<Clause> {
+fn at_most_one_sequential(vars: &[i32], pool: &mut VarPool, aux_counter: &mut i32) -> Vec<Clause> {
     // Sequential-counter encoding: introduce auxiliary variables s_i meaning
     // "at least one of vars[0..=i] is true", forbidding any later variable once one is set.
     let n = vars.len();
@@ -53,7 +51,7 @@ pub struct ClauseGenerator {
     ctx: ConstraintContext,
     pub pool: VarPool,
     aux_counter: i32,
-    exits: std::collections::HashSet<Pos>,
+    exits: std::collections::HashSet<Position>,
 }
 
 impl ClauseGenerator {
@@ -70,12 +68,12 @@ impl ClauseGenerator {
         &self.ctx
     }
 
-    fn agent(&mut self, agent: usize, pos: Pos, t: usize) -> i32 {
-        self.pool.id(VarKey::Agent(agent, pos.0, pos.1, t))
+    fn agent(&mut self, agent: usize, pos: Position, t: usize) -> i32 {
+        self.pool.id(VarKey::Agent(agent, pos.i, pos.j, t))
     }
 
-    fn laser(&mut self, laser_id: usize, pos: Pos, t: usize) -> i32 {
-        self.pool.id(VarKey::Laser(laser_id, pos.0, pos.1, t))
+    fn laser(&mut self, laser_id: usize, pos: Position, t: usize) -> i32 {
+        self.pool.id(VarKey::Laser(laser_id, pos.i, pos.j, t))
     }
 
     /// All clauses for time step `t`: initialization (t == 0), movement and laser constraints.
@@ -98,7 +96,7 @@ impl ClauseGenerator {
         let mut clauses = Vec::with_capacity(self.ctx.n_agents);
         for agent in 0..self.ctx.n_agents {
             let reachable = self.ctx.reachable_positions(t, &[agent]);
-            let positions: Vec<Pos> = self
+            let positions: Vec<Position> = self
                 .exits
                 .iter()
                 .copied()
@@ -153,7 +151,7 @@ impl ClauseGenerator {
     fn exactly_one_position(&mut self, t: usize) -> Vec<Clause> {
         let mut clauses = Vec::new();
         for agent in 0..self.ctx.n_agents {
-            let positions: Vec<Pos> = self
+            let positions: Vec<Position> = self
                 .ctx
                 .reachable_positions(t, &[agent])
                 .into_iter()
@@ -173,7 +171,11 @@ impl ClauseGenerator {
                     }
                 }
             } else {
-                clauses.extend(at_most_one_sequential(&vars, &mut self.pool, &mut self.aux_counter));
+                clauses.extend(at_most_one_sequential(
+                    &vars,
+                    &mut self.pool,
+                    &mut self.aux_counter,
+                ));
             }
         }
         clauses
@@ -186,7 +188,7 @@ impl ClauseGenerator {
         }
         let mut clauses = Vec::new();
         for agent in 0..self.ctx.n_agents {
-            let positions: Vec<Pos> = self
+            let positions: Vec<Position> = self
                 .ctx
                 .reachable_positions(t, &[agent])
                 .into_iter()
@@ -209,7 +211,7 @@ impl ClauseGenerator {
         let mut clauses = Vec::new();
         for c1 in 0..self.ctx.n_agents {
             for c2 in c1 + 1..self.ctx.n_agents {
-                let positions: Vec<Pos> = self
+                let positions: Vec<Position> = self
                     .ctx
                     .reachable_positions(t, &[c1, c2])
                     .into_iter()
@@ -257,7 +259,7 @@ impl ClauseGenerator {
         let mut clauses = Vec::new();
         for agent in 0..self.ctx.n_agents {
             let reachable = self.ctx.reachable_positions(t - 1, &[agent]);
-            let exit_positions: Vec<Pos> = self
+            let exit_positions: Vec<Position> = self
                 .exits
                 .iter()
                 .copied()
@@ -283,7 +285,7 @@ impl ClauseGenerator {
     fn beam_activation(&mut self, t: usize) -> (Vec<Clause>, HashMap<(usize, usize, usize), i32>) {
         let mut clauses = Vec::new();
         let mut active_lit = HashMap::new();
-        let sources: Vec<(usize, usize, Vec<Pos>)> = self
+        let sources: Vec<(usize, usize, Vec<Position>)> = self
             .ctx
             .laser_sources
             .iter()
@@ -305,9 +307,9 @@ impl ClauseGenerator {
                         }
                     }
                     prev_active = Some(active);
-                    active_lit.insert((laser_id, pos.0, pos.1), active);
+                    active_lit.insert((laser_id, pos.i, pos.j), active);
                 } else if let Some(prev) = prev_active {
-                    active_lit.insert((laser_id, pos.0, pos.1), prev);
+                    active_lit.insert((laser_id, pos.i, pos.j), prev);
                 }
                 // else: constant-active tile, no variable, no clause.
             }
@@ -322,7 +324,7 @@ impl ClauseGenerator {
         active_lit: &HashMap<(usize, usize, usize), i32>,
     ) -> Vec<Clause> {
         let mut clauses = Vec::new();
-        let sources: Vec<(usize, usize, Vec<Pos>)> = self
+        let sources: Vec<(usize, usize, Vec<Position>)> = self
             .ctx
             .laser_sources
             .iter()
@@ -339,7 +341,7 @@ impl ClauseGenerator {
                         continue;
                     }
                     let agent_var = self.agent(agent, pos, t);
-                    match active_lit.get(&(laser_id, pos.0, pos.1)) {
+                    match active_lit.get(&(laser_id, pos.i, pos.j)) {
                         Some(&lit) => clauses.push(vec![-agent_var, -lit]),
                         None => clauses.push(vec![-agent_var]), // constant-active beam tile
                     }
