@@ -206,10 +206,7 @@ class CooperationConstraints(ConstraintGenerator):
     # ------------------------------------------------------------------
 
     def require_cooperation(self):
-        """Assert at least one blocking event: the plan is not independent.
-
-        Equivalent to requiring the plan to have ``CooperationLevel ≥ COOPERATIVE``.
-        """
+        """Assert at least one blocking event: the plan is not independent."""
         blocked_vars = [
             self.var.laser_blocked(source.laser_id, t)
             for source in self.ctx.laser_paths
@@ -222,7 +219,6 @@ class CooperationConstraints(ConstraintGenerator):
     def require_asymmetric(self):
         """Assert at least one directed dependency edge: ∃(helper, beneficiary).
 
-        Equivalent to requiring ``CooperationLevel ≥ ASYMMETRIC``.
         Yields an empty (UNSAT) clause when no cooperation event is achievable.
         """
         dep_vars = [
@@ -240,7 +236,6 @@ class CooperationConstraints(ConstraintGenerator):
         """Assert at least one mutual pair: ∃(a < b): dep(a,b) ∧ dep(b,a).
 
         Introduces ``mutual(a, b)`` auxiliary variables for each eligible pair.
-        Equivalent to requiring ``CooperationLevel ≥ MUTUAL``.
         Yields an empty (UNSAT) clause when no mutual pair is achievable.
         """
         mutual_vars: list[int] = []
@@ -267,7 +262,6 @@ class CooperationConstraints(ConstraintGenerator):
     def require_distributed(self) -> Iterator[list[int]]:
         """Assert that some beneficiary depends on ≥ 2 distinct helpers.
 
-        Equivalent to requiring ``CooperationLevel ≥ DISTRIBUTED``.
         Meaningful only with ≥ 3 agents (otherwise equivalent to ``require_mutual``).
         """
         has_two_vars: list[int] = []
@@ -301,7 +295,6 @@ class CooperationConstraints(ConstraintGenerator):
     def require_fully_coupled(self) -> Iterator[list[int]]:
         """Assert that every pair (a, b) with a ≠ b satisfies depends_on(a, b).
 
-        Equivalent to requiring ``CooperationLevel = FULLY_COUPLED``.
         Requires at least 2 agents; yields an empty (UNSAT) clause otherwise.
         """
         if self.n_agents < 2:

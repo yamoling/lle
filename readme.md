@@ -75,15 +75,13 @@ pip install laser-learning-environment[generator]
 
 ```python
 import lle
-from lle import CooperationLevel, World
+from lle import World
 
 world = lle.generate(kind="random", height=5, width=5, n_agents=2, seed=0)
 plan = lle.solve(world, t_max=5)
 assert plan is not None
-assert lle.is_cooperative(World.level(6)) is True
-
+assert lle.is_cooperative(World.level(6))
 coop = lle.generate(kind="random", height=6, width=6, n_agents=2, n_lasers=2, cooperation=True, seed=0)
-assert lle.cooperation_level(coop) in CooperationLevel.cooperative_subtypes()
 ```
 
 

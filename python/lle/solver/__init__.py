@@ -4,8 +4,7 @@ Use `solve` to search for a shortest joint plan, `solve_hybrid` to search for
 a shortest joint plan via incremental SAT reuse, `solve_sat` to search for a
 fixed-horizon plan of length exactly `t_max`, `is_cooperative` to test whether
 a level requires laser blocking, and `cooperation_level` to obtain the more
-precise structural classification. See `CooperationLevel` for the full
-classification vocabulary.
+precise structural classification.
 
 These functions need the optional `generator` extra at runtime because they
 rely on the SAT solver backend.

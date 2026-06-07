@@ -31,11 +31,7 @@ def generate(
     Parameters:
     ----------
     - `kind`: the kind of generator to use. Refer to generator classes in the `lle.generator` module for more information.
-    - `cooperation`: The required level of cooperation. Can be specified as:
-        - `None`: any cooperation level is accepted, including non-cooperative maps;
-        - a boolean: `True` for any cooperative level, `False` for no cooperation;
-        - a `CooperationLevel` or a `CooperationLevelStr` (e.g. `CooperationLevel.MUTUAL` or `"mutual"` for exactly mutual);
-        - a tuple `(constraint, level)` where `constraint` is either `"exactly"` or `"at-least"` and `level` is a `CooperationLevel` or a `CooperationLevelStr`.
+    - `cooperation`: `None`: any cooperation level is accepted, including non-cooperative maps; `True` for any cooperative level, `False` for no cooperation;
     - `n_walls`: the number of walls to place. If `"auto"`, 10% of the grid is filled with walls.
     - `t_min`: a guaranteed lower bound on the solution length. The generator only accepts
       levels that are *not* solvable in fewer than `t_min` steps (and still solvable within
@@ -68,7 +64,6 @@ def generate(
     world = lle.generate("level6_style", n_agents=4, n_lasers=3)
     world = lle.generate("random", n=10, width=5, height=7, n_agents=2, seed=0)
     world = lle.generate("random", cooperation=("at-least", "mutual"))
-    world = lle.generate("random", cooperation=CooperationLevel.FULLY_COUPLED, seed=0)
     world_or_none = lle.genrate("random", max_attempts=10, cooperation="mutual")
     ```
     """
