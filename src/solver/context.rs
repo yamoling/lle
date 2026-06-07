@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::sync::Mutex;
 
 use strum::IntoEnumIterator;
 
@@ -42,29 +43,32 @@ pub struct LaserSourceInfo {
     pub path: Vec<Pos>,
 }
 
-/// Pre-computed data shared across all constraint-generation routines, mirroring the
-/// Python `ConstraintContext`. Built once per `(world, t_max)` pair.
+/// Data shared across all constraint-generation routines, mirroring the Python `ConstraintContext`.
+/// Built once per `(world, t_max)` pair. Expensive data like time-wise reachability is computed
+/// on-demand and cached for efficiency.
 pub struct ConstraintContext {
     pub t_max: usize,
     pub n_agents: usize,
     pub start_pos: Vec<Pos>,
     pub exits: HashSet<Pos>,
-
     pub predecessors: HashMap<Pos, Vec<Pos>>,
-
-    /// `reachable_positions[agent][t]`: positions reachable by `agent` exactly at time `t`,
-    /// already filtered by exit-reachability.
-    reachable_positions: Vec<Vec<HashSet<Pos>>>,
-
-    /// `exit_reachable[t]`: positions from which an exit can still be reached within `t_max - t` steps.
-    exit_reachable: Vec<HashSet<Pos>>,
-
     pub solution_lower_bound: usize,
-
     pub laser_sources: Vec<LaserSourceInfo>,
-    /// `reachable_laser_paths[laser_idx][t]`: subset of the beam path reachable (blockable) at time `t`,
-    /// in beam order. Indexed in the same order as `laser_sources`.
-    pub reachable_laser_paths: Vec<Vec<Vec<Pos>>>,
+
+    // Neighborhood and distance information (computed once at construction).
+    neighbours: HashMap<Pos, Vec<Pos>>,
+    exit_distance: HashMap<Pos, usize>,
+
+    // Cached on-demand data (lazily computed per time step).
+    /// Cache for `exit_reachable[t]`: positions from which an exit can still be reached
+    /// within `t_max - t` steps.
+    exit_reachable_cache: Mutex<HashMap<usize, HashSet<Pos>>>,
+
+    /// Cache for reachable positions per agent and time step.
+    reachable_positions_cache: Mutex<HashMap<(usize, usize), HashSet<Pos>>>,
+
+    /// Cache for reachable laser paths per laser source and time step.
+    reachable_laser_paths_cache: Mutex<HashMap<(usize, usize), Vec<Pos>>>,
 }
 
 impl ConstraintContext {
@@ -118,45 +122,11 @@ impl ConstraintContext {
 
         let exit_distance = compute_exit_distance(&exits, &predecessors);
 
-        // exit_reachable[t] = positions from which an exit can still be reached within (t_max - t) steps
-        let exit_reachable: Vec<HashSet<Pos>> = (0..=t_max)
-            .map(|t| {
-                let remaining = t_max - t;
-                exit_distance
-                    .iter()
-                    .filter(|&(_, &d)| d <= remaining)
-                    .map(|(&p, _)| p)
-                    .collect()
-            })
-            .collect();
-
         let solution_lower_bound = start_pos
             .iter()
             .map(|p| exit_distance.get(p).copied().unwrap_or(0))
             .max()
             .unwrap_or(0);
-
-        // Time-wise reachability per agent (forward flood fill), filtered by exit-reachability.
-        let mut reachable_positions: Vec<Vec<HashSet<Pos>>> = Vec::with_capacity(n_agents);
-        for &start in &start_pos {
-            let mut reachable: Vec<HashSet<Pos>> = Vec::with_capacity(t_max + 1);
-            reachable.push(HashSet::from([start]));
-            for _ in 0..t_max {
-                let frontier = reachable.last().unwrap();
-                let mut next = HashSet::new();
-                for &pos in frontier {
-                    for &n in &neighbours[&pos] {
-                        next.insert(n);
-                    }
-                }
-                reachable.push(next);
-            }
-            // Filter by exit-reachability at each time step.
-            for (t, set) in reachable.iter_mut().enumerate() {
-                set.retain(|p| exit_reachable[t].contains(p));
-            }
-            reachable_positions.push(reachable);
-        }
 
         let mut laser_sources = Vec::new();
         for (pos, source) in world.sources() {
@@ -182,49 +152,93 @@ impl ConstraintContext {
             });
         }
 
-        let mut ctx = ConstraintContext {
+        ConstraintContext {
             t_max,
             n_agents,
             start_pos,
             exits,
             predecessors,
-            reachable_positions,
-            exit_reachable,
             solution_lower_bound,
             laser_sources,
-            reachable_laser_paths: Vec::new(),
+            neighbours,
+            exit_distance,
+            exit_reachable_cache: Mutex::new(HashMap::new()),
+            reachable_positions_cache: Mutex::new(HashMap::new()),
+            reachable_laser_paths_cache: Mutex::new(HashMap::new()),
+        }
+    }
+
+    /// Get or compute `exit_reachable[t]`: positions from which an exit can still be reached
+    /// within `t_max - t` steps. Cached for efficiency.
+    fn get_exit_reachable(&self, t: usize) -> HashSet<Pos> {
+        if t > self.t_max {
+            return HashSet::new();
+        }
+        let mut cache = self.exit_reachable_cache.lock().unwrap();
+        if let Some(result) = cache.get(&t) {
+            return result.clone();
+        }
+        let remaining = self.t_max - t;
+        let result: HashSet<Pos> = self
+            .exit_distance
+            .iter()
+            .filter(|&(_, &d)| d <= remaining)
+            .map(|(&p, _)| p)
+            .collect();
+        cache.insert(t, result.clone());
+        result
+    }
+
+    /// Get or compute reachable positions for a single agent at time `t`. Cached for efficiency.
+    fn get_reachable_positions_for_agent(&self, agent: usize, t: usize) -> HashSet<Pos> {
+        if t > self.t_max || agent >= self.n_agents {
+            return HashSet::new();
+        }
+        let cache = self.reachable_positions_cache.lock().unwrap();
+        if let Some(result) = cache.get(&(agent, t)) {
+            return result.clone();
+        }
+        drop(cache); // Drop the lock before recursive call.
+
+        let result = if t == 0 {
+            let mut set = HashSet::new();
+            set.insert(self.start_pos[agent]);
+            set
+        } else {
+            let prev = self.get_reachable_positions_for_agent(agent, t - 1);
+            let mut next = HashSet::new();
+            for &pos in &prev {
+                for &n in &self.neighbours[&pos] {
+                    next.insert(n);
+                }
+            }
+            next
         };
 
-        ctx.reachable_laser_paths = ctx
-            .laser_sources
-            .iter()
-            .map(|source| {
-                (0..=t_max)
-                    .map(|t| {
-                        let blockable = ctx.reachable_positions(t, &[source.agent_id]);
-                        source
-                            .path
-                            .iter()
-                            .copied()
-                            .filter(|p| blockable.contains(p))
-                            .collect()
-                    })
-                    .collect()
-            })
+        // Filter by exit-reachability at this time step.
+        let exit_reachable = self.get_exit_reachable(t);
+        let filtered: HashSet<Pos> = result
+            .into_iter()
+            .filter(|p| exit_reachable.contains(p))
             .collect();
 
-        ctx
+        self.reachable_positions_cache
+            .lock()
+            .unwrap()
+            .insert((agent, t), filtered.clone());
+        filtered
     }
 
     /// Positions reachable by *all* the given agents exactly at time `t` (already filtered by
     /// exit-reachability). Mirrors `ConstraintContext.reachable_positions`.
     pub fn reachable_positions(&self, t: usize, agents: &[usize]) -> HashSet<Pos> {
-        if t > self.t_max || agents.is_empty() {
+        if agents.is_empty() {
             return HashSet::new();
         }
-        let mut reachable = self.reachable_positions[agents[0]][t].clone();
+        let mut reachable = self.get_reachable_positions_for_agent(agents[0], t);
         for &agent in &agents[1..] {
-            reachable.retain(|p| self.reachable_positions[agent][t].contains(p));
+            let agent_reachable = self.get_reachable_positions_for_agent(agent, t);
+            reachable.retain(|p| agent_reachable.contains(p));
         }
         reachable
     }
@@ -235,7 +249,7 @@ impl ConstraintContext {
         if t + 1 > self.t_max {
             return false;
         }
-        self.exit_reachable[t + 1].contains(&pos)
+        self.get_exit_reachable(t + 1).contains(&pos)
     }
 
     /// Positions the agent could have occupied at time `t - 1` to reach `(i, j)` at `t`.
@@ -243,12 +257,40 @@ impl ConstraintContext {
         if t == 0 {
             return Vec::new();
         }
-        let reachable = self.reachable_positions(t - 1, &[agent]);
+        let reachable = self.get_reachable_positions_for_agent(agent, t - 1);
         self.predecessors[&pos]
             .iter()
             .copied()
             .filter(|p| reachable.contains(p))
             .collect()
+    }
+
+    /// Get or compute the reachable laser path for a given laser source at time `t`.
+    /// This is called by the constraint generator to determine which beam tiles can be blocked.
+    pub fn get_reachable_laser_path(&self, laser_idx: usize, t: usize) -> Vec<Pos> {
+        if laser_idx >= self.laser_sources.len() || t > self.t_max {
+            return Vec::new();
+        }
+        let cache = self.reachable_laser_paths_cache.lock().unwrap();
+        if let Some(result) = cache.get(&(laser_idx, t)) {
+            return result.clone();
+        }
+        drop(cache);
+
+        let source = &self.laser_sources[laser_idx];
+        let blockable = self.get_reachable_positions_for_agent(source.agent_id, t);
+        let result: Vec<Pos> = source
+            .path
+            .iter()
+            .copied()
+            .filter(|p| blockable.contains(p))
+            .collect();
+
+        self.reachable_laser_paths_cache
+            .lock()
+            .unwrap()
+            .insert((laser_idx, t), result.clone());
+        result
     }
 }
 

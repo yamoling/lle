@@ -120,7 +120,7 @@ impl ClauseGenerator {
         let mut clauses = Vec::new();
         for idx in 0..self.ctx.laser_sources.len() {
             let agent_id = self.ctx.laser_sources[idx].agent_id;
-            let positions = self.ctx.reachable_laser_paths[idx][t].clone();
+            let positions = self.ctx.get_reachable_laser_path(idx, t);
             for pos in positions {
                 let agent_var = self.agent(agent_id, pos, t);
                 clauses.push(vec![-agent_var]);
