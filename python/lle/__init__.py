@@ -148,6 +148,12 @@ from .lle import __version__, agent, exceptions, tiles, world  # noqa # prevent 
 
 
 from .agent import Agent
+from .cooperation import (
+    CooperationProfile,
+    DependencyEdge,
+    TemporalDependencyGraph,
+    analyse_cooperation,
+)
 from .env import LLE
 from .generator import generate
 from .observations import ObservationType
@@ -187,4 +193,8 @@ __all__ = [
     "solve",
     "is_cooperative",
     "generate",
+    "analyse_cooperation",
+    "CooperationProfile",
+    "TemporalDependencyGraph",
+    "DependencyEdge",
 ]
