@@ -238,14 +238,14 @@ impl ClauseGenerator {
         for (c1, c2) in (0..self.ctx.n_agents).tuple_combinations() {
             let prev_c1 = self.ctx.reachable_positions(t - 1, &[c1]);
             let cur_c2 = self.ctx.reachable_positions(t, &[c2]);
-            for &pos in prev_c1.intersection(&cur_c2) {
+            for pos in prev_c1.intersection(&cur_c2) {
                 let a2 = self.agent(c2, pos, t);
                 let a1_prev = self.agent(c1, pos, t - 1);
                 clauses.push(implies(a2, -a1_prev));
             }
             let cur_c1 = self.ctx.reachable_positions(t, &[c1]);
             let prev_c2 = self.ctx.reachable_positions(t - 1, &[c2]);
-            for &pos in cur_c1.intersection(&prev_c2) {
+            for pos in cur_c1.intersection(&prev_c2) {
                 let a1 = self.agent(c1, pos, t);
                 let a2_prev = self.agent(c2, pos, t - 1);
                 clauses.push(implies(a1, -a2_prev));

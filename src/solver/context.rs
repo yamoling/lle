@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 use strum::IntoEnumIterator;
 
+use super::position_set::PositionSet;
 use crate::Position;
 use crate::{World, tiles::Direction};
 
@@ -43,13 +44,19 @@ pub struct ConstraintContext {
     pub n_agents: usize,
     pub start_pos: Vec<Position>,
     pub exits: HashSet<Position>,
-    pub predecessors: HashMap<Position, Vec<Position>>,
+    /// `predecessors[i * width + j]` = positions from which an agent can move into `(i, j)`.
+    pub predecessors: Vec<Vec<Position>>,
     pub solution_lower_bound: usize,
     pub laser_sources: Vec<LaserSourceInfo>,
+    height: usize,
+    width: usize,
     updated_until: usize,
 
-    // Neighborhood and distance information (computed once at construction).
-    neighbours: HashMap<Position, Vec<Position>>,
+    // Neighborhood and distance information (computed once at construction), flat-indexed by
+    // `i * width + j` rather than hashed by `Position`: positions are dense and bounded, so a
+    // plain array lookup beats hashing in these hot paths.
+    /// `neighbours[i * width + j]` = `[(i, j), ...reachable single-step neighbours]`.
+    neighbours: Vec<Vec<Position>>,
     /// `distance_buckets[d]` = positions whose distance to the nearest exit is exactly `d`
     /// (only for `d <= t_max`, the only distances that ever matter). Used to incrementally
     /// shrink `exit_reachable` as `t` grows, instead of recomputing it from scratch every step.
@@ -58,14 +65,14 @@ pub struct ConstraintContext {
     // Cached on-demand data (lazily computed per time step, in increasing order of `t`).
     /// Positions from which an exit can still be reached within `t_max - t` steps, for the
     /// current `updated_until`. This set only shrinks as `t` grows, so it is maintained
-    /// incrementally rather than cached per time step.
-    exit_reachable: HashSet<Position>,
+    /// incrementally (as a bitset) rather than cached per time step.
+    exit_reachable: PositionSet,
 
     /// Cache for reachable positions per agent and time step, flattened as `agent * (t_max + 1)
     /// + t` (dense, since every `(agent, t)` in `0..n_agents x 0..=t_max` is eventually
-    /// populated in increasing order of `t`). Avoids hashing `(usize, usize)` keys on every
-    /// lookup in the hot path.
-    reachable_positions_cache: Vec<HashSet<Position>>,
+    /// populated in increasing order of `t`). Bitsets here turn the per-agent intersections in
+    /// `reachable_positions` into word-at-a-time ANDs instead of per-element hashing.
+    reachable_positions_cache: Vec<PositionSet>,
 
     /// Cache for reachable laser paths per laser source and time step, flattened the same way
     /// as `reachable_positions_cache` (`laser_idx * (t_max + 1) + t`).
@@ -92,8 +99,10 @@ impl ConstraintContext {
             }
         }
 
-        // neighbours[pos] = [pos, ...reachable single-step neighbours]
-        let mut neighbours: HashMap<Position, Vec<Position>> = HashMap::new();
+        let flat_index = |pos: Position| pos.i * width + pos.j;
+
+        // neighbours[i * width + j] = [(i, j), ...reachable single-step neighbours]
+        let mut neighbours: Vec<Vec<Position>> = vec![Vec::new(); height * width];
         for &pos in &valid_positions {
             let mut succ = vec![pos];
             for n in neighbours_of(pos, &exits, height, width, &walls) {
@@ -101,19 +110,18 @@ impl ConstraintContext {
                     succ.push(n);
                 }
             }
-            neighbours.insert(pos, succ);
+            neighbours[flat_index(pos)] = succ;
         }
 
         // Reverse adjacency: predecessors[p] = positions from which an agent can move into p.
-        let mut predecessors: HashMap<Position, Vec<Position>> =
-            valid_positions.iter().map(|&p| (p, Vec::new())).collect();
-        for (&pos, successors) in &neighbours {
-            for &succ in successors {
-                predecessors.get_mut(&succ).unwrap().push(pos);
+        let mut predecessors: Vec<Vec<Position>> = vec![Vec::new(); height * width];
+        for &pos in &valid_positions {
+            for &succ in &neighbours[flat_index(pos)] {
+                predecessors[flat_index(succ)].push(pos);
             }
         }
 
-        let exit_distance = compute_exit_distance(&exits, &predecessors);
+        let exit_distance = compute_exit_distance(&exits, &predecessors, width);
 
         let solution_lower_bound = start_pos
             .iter()
@@ -144,7 +152,7 @@ impl ConstraintContext {
         // since farther positions can never be exit-reachable within the horizon) and seed
         // `exit_reachable` with the full set for `t = 0` (i.e. `remaining = t_max`).
         let mut distance_buckets: Vec<Vec<Position>> = vec![Vec::new(); t_max + 1];
-        let mut exit_reachable = HashSet::with_capacity(exit_distance.len());
+        let mut exit_reachable = PositionSet::empty(height, width);
         for (&pos, &d) in &exit_distance {
             if d <= t_max {
                 distance_buckets[d].push(pos);
@@ -157,9 +165,11 @@ impl ConstraintContext {
         // avoids hashing `(usize, usize)` keys on every lookup in the hot constraint-generation
         // loop. Seed the `t = 0` slots here; `update` fills in the rest.
         let stride = t_max + 1;
-        let mut reachable_positions_cache = vec![HashSet::new(); n_agents * stride];
+        let mut reachable_positions_cache =
+            vec![PositionSet::empty(height, width); n_agents * stride];
         for agent in 0..n_agents {
-            reachable_positions_cache[agent * stride] = HashSet::from([start_pos[agent]]);
+            reachable_positions_cache[agent * stride] =
+                PositionSet::singleton(height, width, start_pos[agent]);
         }
         let reachable_laser_paths_cache = vec![Vec::new(); laser_sources.len() * stride];
 
@@ -171,6 +181,8 @@ impl ConstraintContext {
             predecessors,
             solution_lower_bound,
             laser_sources,
+            height,
+            width,
             neighbours,
             distance_buckets,
             updated_until: 0,
@@ -180,10 +192,12 @@ impl ConstraintContext {
         }
     }
 
-    /// Shrink `exit_reachable` from the set valid at `t - 1` to the set valid at `t`: as `t`
-    /// grows by one, the remaining horizon `t_max - t` shrinks by one, so exactly the positions
-    /// at distance `t_max - t + 1` fall out of reach. `t` must be processed in increasing order
-    /// (guaranteed by `update`), so the set is shrunk in place rather than recomputed.
+    /// Flat index into `neighbours` / `predecessors` for `pos`.
+    #[inline]
+    fn flat_index(&self, pos: &Position) -> usize {
+        pos.i * self.width + pos.j
+    }
+
     /// Flat index into `reachable_positions_cache` for `(agent, t)`.
     #[inline]
     fn pos_cache_idx(&self, agent: usize, t: usize) -> usize {
@@ -196,6 +210,10 @@ impl ConstraintContext {
         laser_idx * (self.t_max + 1) + t
     }
 
+    /// Shrink `exit_reachable` from the set valid at `t - 1` to the set valid at `t`: as `t`
+    /// grows by one, the remaining horizon `t_max - t` shrinks by one, so exactly the positions
+    /// at distance `t_max - t + 1` fall out of reach. `t` must be processed in increasing order
+    /// (guaranteed by `update`), so the set is shrunk in place rather than recomputed.
     fn update_exit_reachable(&mut self, t: usize) {
         let excluded_distance = self.t_max - t + 1;
         for pos in &self.distance_buckets[excluded_distance] {
@@ -205,13 +223,13 @@ impl ConstraintContext {
 
     /// Compute and cache `reachable_positions_cache[agent, t]` from the `t - 1` entry.
     fn update_reachable_positions(&mut self, agent: usize, t: usize) {
-        let mut result = HashSet::new();
-        for &pos in &self.reachable_positions_cache[self.pos_cache_idx(agent, t - 1)] {
-            for &n in &self.neighbours[&pos] {
+        let mut result = PositionSet::empty(self.height, self.width);
+        for pos in &self.reachable_positions_cache[self.pos_cache_idx(agent, t - 1)] {
+            for &n in &self.neighbours[self.flat_index(&pos)] {
                 result.insert(n);
             }
         }
-        result.retain(|p| self.exit_reachable.contains(p));
+        result.intersect_with(&self.exit_reachable);
         let idx = self.pos_cache_idx(agent, t);
         self.reachable_positions_cache[idx] = result;
     }
@@ -250,21 +268,20 @@ impl ConstraintContext {
 
     /// Reachable positions for a single agent at time `t`, returning a reference to the cached
     /// set (no cloning). Assumes `update` has already been called for this `t`.
-    pub fn reachable_positions_for_agent(&self, agent: usize, t: usize) -> &HashSet<Position> {
+    pub fn reachable_positions_for_agent(&self, agent: usize, t: usize) -> &PositionSet {
         &self.reachable_positions_cache[self.pos_cache_idx(agent, t)]
     }
 
     /// Positions reachable by *all* the given agents exactly at time `t` (already filtered by
     /// exit-reachability). Mirrors `ConstraintContext.reachable_positions`. Assumes `update` has
     /// already been called for this `t`.
-    pub fn reachable_positions(&self, t: usize, agents: &[usize]) -> HashSet<Position> {
+    pub fn reachable_positions(&self, t: usize, agents: &[usize]) -> PositionSet {
         if agents.is_empty() {
-            return HashSet::new();
+            return PositionSet::empty(self.height, self.width);
         }
         let mut reachable = self.reachable_positions_for_agent(agents[0], t).clone();
         for &agent in &agents[1..] {
-            let agent_reachable = self.reachable_positions_for_agent(agent, t);
-            reachable.retain(|p| agent_reachable.contains(p));
+            reachable.intersect_with(self.reachable_positions_for_agent(agent, t));
         }
         reachable
     }
@@ -276,7 +293,7 @@ impl ConstraintContext {
             return Vec::new();
         }
         let reachable = &self.reachable_positions_cache[self.pos_cache_idx(agent, t - 1)];
-        self.predecessors[pos]
+        self.predecessors[self.flat_index(pos)]
             .iter()
             .copied()
             .filter(|p| reachable.contains(p))
@@ -292,18 +309,17 @@ impl ConstraintContext {
 
 fn compute_exit_distance(
     exits: &HashSet<Position>,
-    predecessors: &HashMap<Position, Vec<Position>>,
+    predecessors: &[Vec<Position>],
+    width: usize,
 ) -> HashMap<Position, usize> {
     let mut dist: HashMap<Position, usize> = exits.iter().map(|&p| (p, 0)).collect();
     let mut frontier: VecDeque<Position> = exits.iter().copied().collect();
     while let Some(current) = frontier.pop_front() {
         let current_dist = dist[&current];
-        if let Some(preds) = predecessors.get(&current) {
-            for &pred in preds {
-                if !dist.contains_key(&pred) {
-                    dist.insert(pred, current_dist + 1);
-                    frontier.push_back(pred);
-                }
+        for &pred in &predecessors[current.i * width + current.j] {
+            if !dist.contains_key(&pred) {
+                dist.insert(pred, current_dist + 1);
+                frontier.push_back(pred);
             }
         }
     }
