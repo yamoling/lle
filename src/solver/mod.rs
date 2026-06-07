@@ -33,11 +33,11 @@ impl ConstraintGenerator {
     }
 
     pub fn solution_lower_bound(&self) -> usize {
-        self.generator.ctx().solution_lower_bound
+        self.generator.solution_lower_bound()
     }
 
     pub fn t_max(&self) -> usize {
-        self.generator.ctx().t_max
+        self.generator.t_max()
     }
 
     pub fn generate(&mut self, t: usize) -> Vec<Clause> {

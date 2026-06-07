@@ -24,15 +24,31 @@ impl VarPool {
         Self::default()
     }
 
-    pub fn id(&mut self, key: VarKey) -> i32 {
+    fn id(&mut self, key: VarKey) -> i32 {
         if let Some(&id) = self.ids.get(&key) {
             return id;
         }
-        // ids start at 1, as required by SAT solvers
-        let id = (self.keys.len() + 1) as i32;
-        self.keys.push(key);
+        let id = self.next_id();
         self.ids.insert(key, id);
+        self.keys.push(key);
         id
+    }
+
+    pub fn agent(&mut self, agent: usize, i: usize, j: usize, t: usize) -> i32 {
+        self.id(VarKey::Agent(agent, i, j, t))
+    }
+
+    pub fn laser(&mut self, laser: usize, i: usize, j: usize, t: usize) -> i32 {
+        self.id(VarKey::Laser(laser, i, j, t))
+    }
+
+    fn next_id(&self) -> i32 {
+        // ids start at 1, as required by SAT solvers
+        self.ids.len() as i32 + 1
+    }
+
+    pub fn aux(&mut self) -> i32 {
+        self.id(VarKey::Aux(self.next_id()))
     }
 
     pub fn get(&self, key: &VarKey) -> Option<i32> {

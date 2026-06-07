@@ -5,7 +5,7 @@ use itertools::Itertools;
 use crate::Position;
 
 use super::context::ConstraintContext;
-use super::var_pool::{VarKey, VarPool};
+use super::var_pool::VarPool;
 
 pub type Clause = Vec<i32>;
 
@@ -25,14 +25,13 @@ fn equals(a: i32, b: i32) -> Vec<Clause> {
 
 /// Sequential-counter at-most-one encoding (mirrors `pysat.card.CardEnc.atmost(bound=1)`),
 /// used once pairwise encoding stops being competitive.
-fn at_most_one_sequential(vars: &[i32], pool: &mut VarPool, aux_counter: &mut i32) -> Vec<Clause> {
+fn at_most_one_sequential(vars: &[i32], pool: &mut VarPool) -> Vec<Clause> {
     // Sequential-counter encoding: introduce auxiliary variables s_i meaning
     // "at least one of vars[0..=i] is true", forbidding any later variable once one is set.
     let n = vars.len();
     let mut s = Vec::with_capacity(n - 1);
     for _ in 0..n - 1 {
-        *aux_counter += 1;
-        s.push(pool.id(VarKey::Aux(*aux_counter)));
+        s.push(pool.aux());
     }
     let mut clauses = Vec::new();
     for i in 0..n - 1 {
@@ -50,7 +49,6 @@ fn at_most_one_sequential(vars: &[i32], pool: &mut VarPool, aux_counter: &mut i3
 pub struct ClauseGenerator {
     ctx: ConstraintContext,
     pub pool: VarPool,
-    aux_counter: i32,
     exits: std::collections::HashSet<Position>,
 }
 
@@ -60,24 +58,31 @@ impl ClauseGenerator {
             exits: ctx.exits.clone(),
             ctx,
             pool: VarPool::new(),
-            aux_counter: 0,
         }
     }
-
-    pub fn ctx(&self) -> &ConstraintContext {
-        &self.ctx
+    #[inline]
+    pub fn t_max(&self) -> usize {
+        self.ctx.t_max
     }
 
+    #[inline]
+    pub fn solution_lower_bound(&self) -> usize {
+        self.ctx.solution_lower_bound
+    }
+
+    #[inline]
     fn agent(&mut self, agent: usize, pos: Position, t: usize) -> i32 {
-        self.pool.id(VarKey::Agent(agent, pos.i, pos.j, t))
+        self.pool.agent(agent, pos.i, pos.j, t)
     }
 
+    #[inline]
     fn laser(&mut self, laser_id: usize, pos: Position, t: usize) -> i32 {
-        self.pool.id(VarKey::Laser(laser_id, pos.i, pos.j, t))
+        self.pool.laser(laser_id, pos.i, pos.j, t)
     }
 
     /// All clauses for time step `t`: initialization (t == 0), movement and laser constraints.
     pub fn generate(&mut self, t: usize) -> Vec<Clause> {
+        self.ctx.update(t);
         let mut clauses = Vec::new();
         clauses.extend(self.initialization(t));
         clauses.extend(self.exactly_one_position(t));
@@ -93,6 +98,7 @@ impl ClauseGenerator {
 
     /// Clauses asserting that, at the final time step `t`, every agent is on an exit.
     pub fn objective(&mut self, t: usize) -> Vec<Clause> {
+        self.ctx.update(t);
         let mut clauses = Vec::with_capacity(self.ctx.n_agents);
         for agent in 0..self.ctx.n_agents {
             let reachable = self.ctx.reachable_positions(t, &[agent]);
@@ -115,10 +121,11 @@ impl ClauseGenerator {
     /// Unit clauses forbidding any laser-blocking event at time `t` (used by `solve_no_cooperation`,
     /// logically equivalent to a strict laser mode where cooperation is impossible).
     pub fn no_blocking_clauses(&mut self, t: usize) -> Vec<Clause> {
+        self.ctx.update(t);
         let mut clauses = Vec::new();
         for idx in 0..self.ctx.laser_sources.len() {
             let agent_id = self.ctx.laser_sources[idx].agent_id;
-            let positions = self.ctx.get_reachable_laser_path(idx, t);
+            let positions = self.ctx.get_reachable_laser_path(idx, t).clone();
             for pos in positions {
                 let agent_var = self.agent(agent_id, pos, t);
                 clauses.push(vec![-agent_var]);
@@ -171,11 +178,7 @@ impl ClauseGenerator {
                     }
                 }
             } else {
-                clauses.extend(at_most_one_sequential(
-                    &vars,
-                    &mut self.pool,
-                    &mut self.aux_counter,
-                ));
+                clauses.extend(at_most_one_sequential(&vars, &mut self.pool));
             }
         }
         clauses
@@ -194,7 +197,7 @@ impl ClauseGenerator {
                 .into_iter()
                 .collect();
             for pos in positions {
-                let prev_positions = self.ctx.prev_neighbours(agent, pos, t);
+                let prev_positions = self.ctx.prev_neighbours(agent, &pos, t);
                 let current_var = self.agent(agent, pos, t);
                 let mut clause = vec![-current_var];
                 for prev in prev_positions {
