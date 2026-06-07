@@ -74,9 +74,9 @@ def solve_no_cooperation(
 
     # Pre-generate no-blocking unit clauses for the entire horizon so they are
     # present from the very first solver instance onward.
-    no_blocking: list[list[int]] = [c for t in range(t_max + 1) for c in gen.no_blocking_clauses(t)]
-
-    clauses = [clause for t in range(t_min) for clause in gen.generate(t)] + no_blocking
+    clauses = [clause for t in range(t_min) for clause in gen.generate(t)] + [
+        c for t in range(t_max + 1) for c in gen.no_blocking_clauses(t)
+    ]
     for t in range(t_min, t_max + 1):
         clauses.extend(gen.generate(t))
         with Minisat22(bootstrap_with=clauses) as solver:
