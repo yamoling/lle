@@ -148,14 +148,11 @@ impl ConstraintContext {
         }
     }
 
-    /// Get or compute whether `pos` can still reach an exit
-    /// within `t_max - t` steps. Cached for efficiency.
-    fn is_exit_reachable(&mut self, t: usize, pos: &Position) -> bool {
-        if t > self.t_max {
-            return false;
-        }
-        if let Some(result) = self.exit_reachable_cache.get(&t) {
-            return result.contains(pos);
+    /// Ensure that `exit_reachable_cache[t]` is populated: the set of positions from which an
+    /// exit can still be reached within `t_max - t` steps.
+    fn ensure_exit_reachable(&mut self, t: usize) {
+        if t > self.t_max || self.exit_reachable_cache.contains_key(&t) {
+            return;
         }
         let remaining = self.t_max - t;
         let result: HashSet<Position> = self
@@ -164,9 +161,21 @@ impl ConstraintContext {
             .filter(|&(_, &d)| d <= remaining)
             .map(|(&p, _)| p)
             .collect();
-        let is_contained = result.contains(pos);
         self.exit_reachable_cache.insert(t, result);
-        is_contained
+    }
+
+    /// Get or compute whether `pos` can still reach an exit within `t_max - t` steps.
+    fn can_reach_exit_at(&mut self, t: usize, pos: &Position) -> bool {
+        if t > self.t_max {
+            return false;
+        }
+        self.ensure_exit_reachable(t);
+        self.exit_reachable_cache[&t].contains(pos)
+    }
+
+    fn get_positions_in_reach_of_exits(&mut self, t: usize) -> &HashSet<Position> {
+        self.ensure_exit_reachable(t);
+        &self.exit_reachable_cache[&t]
     }
 
     /// Ensure that `reachable_positions_cache[(agent, t)]` is populated, computing (and caching)
@@ -196,13 +205,8 @@ impl ConstraintContext {
             }
             next
         };
-        // let reachable_exits = self.get_reachable_positions_for_agent(agent, t);
-        // Filter by exit-reachability at this time step.
-        let filtered: HashSet<Position> = result
-            .into_iter()
-            .filter(|p| self.is_exit_reachable(t, p))
-            .collect();
-
+        let positions_in_reach_of_exit = self.get_positions_in_reach_of_exits(t);
+        let filtered = &result & positions_in_reach_of_exit;
         self.reachable_positions_cache.insert((agent, t), filtered);
     }
 
@@ -233,7 +237,7 @@ impl ConstraintContext {
         if t + 1 > self.t_max {
             return false;
         }
-        self.is_exit_reachable(t + 1, &pos)
+        self.can_reach_exit_at(t + 1, &pos)
     }
 
     /// Positions the agent could have occupied at time `t - 1` to reach `(i, j)` at `t`.
