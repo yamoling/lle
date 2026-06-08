@@ -217,3 +217,17 @@ fn test_positions_spanning_multiple_words() {
         }
     }
 }
+
+#[test]
+fn set_size() {
+    let mut set = PositionSet::empty(10, 10);
+    let mut size = 0;
+    for i in 0..10 {
+        for j in 0..10 {
+            assert_eq!(size, set.size());
+            set.insert(Position { i, j });
+            size += 1;
+        }
+    }
+    assert_eq!(size, set.size());
+}

@@ -83,10 +83,6 @@ impl VarPool {
         self.id(VarKey::Aux(self.next_id()))
     }
 
-    pub fn get(&self, key: &VarKey) -> Option<i32> {
-        self.ids.get(key).copied()
-    }
-
     pub fn key(&self, id: i32) -> Option<VarKey> {
         if id <= 0 {
             return None;
@@ -96,14 +92,6 @@ impl VarPool {
 
     pub fn exists(&self, key: &VarKey) -> bool {
         self.ids.contains_key(key)
-    }
-
-    /// Every generated variable id, paired with its semantic key, in order of creation.
-    pub fn iter(&self) -> impl Iterator<Item = (i32, VarKey)> + '_ {
-        self.keys
-            .iter()
-            .enumerate()
-            .map(|(i, &key)| ((i + 1) as i32, key))
     }
 
     /// Decode a SAT model (list of signed literals) into a joint action plan of length `t_end`.

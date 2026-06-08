@@ -77,6 +77,10 @@ impl PositionSet {
         self.words.iter().all(|&w| w == 0)
     }
 
+    pub fn size(&self) -> usize {
+        self.words.iter().map(|&w| w.count_ones() as usize).sum()
+    }
+
     /// Intersect this set with `other` in place (`self &= other`), word at a time.
     pub fn intersect_with(&mut self, other: &PositionSet) {
         for (a, &b) in self.words.iter_mut().zip(&other.words) {

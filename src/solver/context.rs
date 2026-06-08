@@ -36,9 +36,8 @@ pub struct LaserSourceInfo {
     pub path: Vec<Position>,
 }
 
-/// Data shared across all constraint-generation routines, mirroring the Python `ConstraintContext`.
-/// Built once per `(world, t_max)` pair. Expensive data like time-wise reachability is computed
-/// on-demand and cached for efficiency.
+/// Data shared across all constraint-generation routines.
+/// Built once per `(world, t_max)` pair. Data is computed on-demand and cached for efficiency.
 pub struct ConstraintContext {
     pub t_max: usize,
     pub n_agents: usize,
@@ -314,6 +313,17 @@ impl ConstraintContext {
     /// still be blocked. Assumes `update` has already been called for this `t`.
     pub fn get_reachable_laser_path(&self, laser_idx: usize, t: usize) -> &Vec<Position> {
         &self.reachable_laser_paths_cache[self.laser_path_cache_idx(laser_idx, t)]
+    }
+
+    #[cfg(test)]
+    /// ONLY USE THIS FOR TESTING PURPOSES
+    fn get_exit_distance(&self, pos: &Position) -> usize {
+        for (bucket, dist) in self.distance_buckets.iter().enumerate() {
+            if dist.contains(pos) {
+                return bucket;
+            }
+        }
+        usize::MAX
     }
 }
 
