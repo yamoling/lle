@@ -21,6 +21,28 @@ pub enum VarKey {
     Aux(i32),
 }
 
+impl VarKey {
+    pub fn agent(id: AgentId, pos: Position, t: usize) -> Self {
+        VarKey::Agent {
+            agent_id: id,
+            pos,
+            t,
+        }
+    }
+
+    pub fn laser(id: AgentId, pos: Position, t: usize) -> Self {
+        VarKey::Laser {
+            laser_id: id,
+            pos,
+            t,
+        }
+    }
+
+    pub fn aux(id: i32) -> Self {
+        VarKey::Aux(id)
+    }
+}
+
 /// Lazily assigns sequential positive integer ids to semantic variable keys,
 /// keeping the SAT variable space dense and small (mirrors `pysat.formula.IDPool`).
 #[derive(Default)]
@@ -70,5 +92,9 @@ impl VarPool {
             return None;
         }
         self.keys.get((id - 1) as usize).copied()
+    }
+
+    pub fn exists(&self, key: &VarKey) -> bool {
+        self.ids.contains_key(key)
     }
 }

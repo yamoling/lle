@@ -8,7 +8,7 @@
 
 mod clauses;
 mod context;
-mod position_set;
+pub mod position_set;
 mod var_pool;
 
 pub use clauses::{Clause, ClauseGenerator};
