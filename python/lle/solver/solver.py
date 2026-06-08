@@ -5,7 +5,7 @@ from typing import Literal, overload
 from pysat.solvers import Minisat22
 
 from ..world import Action, World
-from .constraints import ConstraintGenerator
+from .constraints import ClauseGenerator
 
 
 @overload
@@ -36,7 +36,7 @@ def solve(world: World, *min_max):
 def _solve(world: World, t_min: int, t_max: int | Literal["auto"]) -> list[tuple[Action, ...]] | None:
     if t_max == "auto":
         t_max = (world.width * world.height) // 2
-    gen = ConstraintGenerator(world, t_max)
+    gen = ClauseGenerator(world, t_max)
     t_min = max(gen.solution_lower_bound, t_min)
     if t_min > t_max:
         return None
@@ -66,7 +66,7 @@ def solve_no_cooperation(
     """
     if t_max == "auto":
         t_max = (world.width * world.height) // 2
-    gen = ConstraintGenerator(world, t_max)
+    gen = ClauseGenerator(world, t_max)
     t_min = max(gen.solution_lower_bound, t_min)
     if t_min > t_max:
         return None

@@ -130,20 +130,201 @@ impl ClauseGenerator {
         clauses
     }
 
-    /// Unit clauses forbidding any laser-blocking event at time `t` (used by `solve_no_cooperation`,
-    /// logically equivalent to a strict laser mode where cooperation is impossible).
+    /// Unit clauses implementing strict (no-cooperation) laser mode at time `t`.
+    ///
+    /// Since a beam can never be blocked, every beam tile is permanently active, so no agent of a
+    /// *different* colour may ever stand on one (it would die). The laser's own colour is immune
+    /// and may still walk *through* its own beam — forbidding the source agent here (as a previous
+    /// version did) was a bug: it conflated "the beam is unblockable" with "the source may not
+    /// traverse it", needlessly ruling out otherwise-valid independent plans.
+    ///
+    /// Adding these clauses for every `t` in `[0, t_max]` makes the formula UNSAT iff laser
+    /// blocking (cooperation) is required to solve the level within the horizon.
     pub fn no_blocking_clauses(&mut self, t: usize) -> Vec<Clause> {
         self.ctx.update(t);
         let mut clauses = Vec::new();
-        for idx in 0..self.ctx.laser_sources.len() {
-            let agent_id = self.ctx.laser_sources[idx].agent_id;
-            let positions = self.ctx.get_reachable_laser_path(idx, t).clone();
-            for pos in positions {
-                let agent_var = self.agent(agent_id, pos, t);
-                clauses.push(vec![-agent_var]);
+        let sources: Vec<(AgentId, Vec<Position>)> = self
+            .ctx
+            .laser_sources
+            .iter()
+            .map(|s| (s.agent_id, s.path.clone()))
+            .collect();
+        for (source_agent, path) in sources {
+            for agent in 0..self.ctx.n_agents {
+                if agent == source_agent {
+                    continue; // the laser's own colour is immune to its beam
+                }
+                // Scope the immutable borrow of `ctx` so it ends before the `self.agent` mutation.
+                let positions: Vec<Position> = {
+                    let reachable = self.ctx.relevant_positions_for_agent(agent, t);
+                    path.iter().copied().filter(|p| reachable.contains(p)).collect()
+                };
+                for pos in positions {
+                    let agent_var = self.agent(agent, pos, t);
+                    clauses.push(vec![-agent_var]);
+                }
             }
         }
         clauses
+    }
+
+    // ------------------------------------------------------------------
+    // Cooperation tracking (laser_blocked / coop_event / depends_on)
+    // ------------------------------------------------------------------
+
+    /// All cooperation-tracking clauses for time step `t`: the `laser_blocked` and `coop_event`
+    /// indicator-variable definitions. Mirrors the Python `CooperationConstraints.generate`.
+    ///
+    /// These clauses are *additive* to those produced by [`Self::generate`] (they introduce new
+    /// variables that reference the same per-step agent variables) and are only needed by callers
+    /// that reason about who-helps-whom, such as `lle.cooperation.characterize`. The plain
+    /// `lle.solver.solve` path does not generate them.
+    pub fn coop_clauses(&mut self, t: usize) -> Vec<Clause> {
+        self.ctx.update(t);
+        let mut clauses = Vec::new();
+        clauses.extend(self.laser_blocked_definitions(t));
+        clauses.extend(self.coop_event_definitions(t));
+        clauses
+    }
+
+    /// Define `laser_blocked(laser_id, t) ↔ ∃ blockable (x, y): agent(colour, x, y, t)`.
+    fn laser_blocked_definitions(&mut self, t: usize) -> Vec<Clause> {
+        let mut clauses = Vec::new();
+        for idx in 0..self.ctx.laser_sources.len() {
+            let agent_id = self.ctx.laser_sources[idx].agent_id;
+            let laser_id = self.ctx.laser_sources[idx].laser_id;
+            let blockable = self.ctx.get_reachable_laser_path(idx, t).clone();
+            if blockable.is_empty() {
+                continue;
+            }
+            let blocked_var = self.pool.laser_blocked(laser_id, t);
+            let agent_vars: Vec<i32> = blockable
+                .into_iter()
+                .map(|pos| self.agent(agent_id, pos, t))
+                .collect();
+            // blocked → some same-colour agent is at a blocking position
+            let mut clause = vec![-blocked_var];
+            clause.extend(agent_vars.iter().copied());
+            clauses.push(clause);
+            // each blocking-position agent → blocked
+            for av in agent_vars {
+                clauses.push(vec![-av, blocked_var]);
+            }
+        }
+        clauses
+    }
+
+    /// Define `coop_event(helper, beneficiary, laser_id, t)` as the OR, over every beam-index pair
+    /// `(i, j)` with `i < j` where `path[i]` is blockable by `helper` and `path[j]` is reachable by
+    /// `beneficiary`, of "helper at `path[i]` ∧ beneficiary at `path[j]`".
+    fn coop_event_definitions(&mut self, t: usize) -> Vec<Clause> {
+        let mut clauses = Vec::new();
+        let n_agents = self.ctx.n_agents;
+        for idx in 0..self.ctx.laser_sources.len() {
+            let helper = self.ctx.laser_sources[idx].agent_id;
+            let laser_id = self.ctx.laser_sources[idx].laser_id;
+            let path = self.ctx.laser_sources[idx].path.clone();
+            let blockable: std::collections::HashSet<Position> =
+                self.ctx.get_reachable_laser_path(idx, t).iter().copied().collect();
+
+            for beneficiary in 0..n_agents {
+                if beneficiary == helper {
+                    continue;
+                }
+                // Collect valid (helper_pos, beneficiary_pos) index pairs (helper upstream of beneficiary).
+                let benef_reachable = self.ctx.relevant_positions_for_agent(beneficiary, t);
+                let mut pairs: Vec<(Position, Position)> = Vec::new();
+                for i in 0..path.len() {
+                    if !blockable.contains(&path[i]) {
+                        continue;
+                    }
+                    for j in (i + 1)..path.len() {
+                        if benef_reachable.contains(&path[j]) {
+                            pairs.push((path[i], path[j]));
+                        }
+                    }
+                }
+                if pairs.is_empty() {
+                    continue;
+                }
+
+                let coop_var = self.pool.coop_event(helper, beneficiary, laser_id, t);
+                let mut term_vars: Vec<i32> = Vec::with_capacity(pairs.len());
+                for (blocker_pos, benef_pos) in pairs {
+                    let blocker_av = self.agent(helper, blocker_pos, t);
+                    let benef_av = self.agent(beneficiary, benef_pos, t);
+                    let term = self.pool.aux();
+                    term_vars.push(term);
+                    // term ↔ blocker ∧ beneficiary_present
+                    clauses.push(vec![-term, blocker_av]);
+                    clauses.push(vec![-term, benef_av]);
+                    clauses.push(vec![-blocker_av, -benef_av, term]);
+                    // each witness implies the event
+                    clauses.push(vec![-term, coop_var]);
+                }
+                // coop_event → OR(terms)  [close the iff]
+                let mut closing = vec![-coop_var];
+                closing.extend(term_vars);
+                clauses.push(closing);
+            }
+        }
+        clauses
+    }
+
+    /// Define `depends_on(beneficiary, helper) ↔ ∃ t ≤ t_end: coop_event(helper, beneficiary, ·, t)`
+    /// over the horizon `[0, t_end]`.
+    ///
+    /// Must be called *once per candidate horizon*, **after** the per-step [`Self::coop_clauses`]
+    /// have been generated for every `t ≤ t_end`. The resulting clauses depend on `t_end` and so
+    /// should be fed to the solver for that horizon only, **not** accumulated across horizons.
+    /// A `depends_on` variable is created only for pairs that have at least one `coop_event` within
+    /// the horizon; use [`Self::depends_on_lit`] afterwards to read a pair's literal back out.
+    pub fn finalize_depends_on(&mut self, t_end: usize) -> Vec<Clause> {
+        let mut clauses = Vec::new();
+        let n_agents = self.ctx.n_agents;
+        let sources: Vec<(AgentId, usize)> = self
+            .ctx
+            .laser_sources
+            .iter()
+            .map(|s| (s.agent_id, s.laser_id))
+            .collect();
+        for (helper, laser_id) in sources {
+            for beneficiary in 0..n_agents {
+                if beneficiary == helper {
+                    continue;
+                }
+                let coop_vars: Vec<i32> = (0..=t_end)
+                    .filter_map(|t| {
+                        self.pool
+                            .get(&VarKey::coop_event(helper, beneficiary, laser_id, t))
+                    })
+                    .collect();
+                if coop_vars.is_empty() {
+                    continue;
+                }
+                let dep_var = self.pool.depends_on(beneficiary, helper);
+                // dep_var → OR(coop_vars)
+                let mut clause = vec![-dep_var];
+                clause.extend(coop_vars.iter().copied());
+                clauses.push(clause);
+                // each coop_event → dep_var
+                for cv in coop_vars {
+                    clauses.push(vec![-cv, dep_var]);
+                }
+            }
+        }
+        clauses
+    }
+
+    /// The SAT literal for `depends_on(beneficiary, helper)`, or `None` if no such variable was
+    /// created (i.e. that dependency can never occur within the horizon last passed to
+    /// [`Self::finalize_depends_on`]).
+    ///
+    /// Returning `None` rather than minting a fresh, unconstrained variable is deliberate: an
+    /// undefined `depends_on` literal could be set to either polarity by the solver, which would
+    /// silently corrupt any assumption built on top of it.
+    pub fn depends_on_lit(&self, beneficiary: AgentId, helper: AgentId) -> Option<i32> {
+        self.pool.get(&VarKey::depends_on(beneficiary, helper))
     }
 
     // ------------------------------------------------------------------

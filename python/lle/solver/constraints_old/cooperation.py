@@ -5,11 +5,12 @@ cooperation events within the standard-laser-mode formula.  They serve two
 purposes:
 
 1. **Strict-cooperation check without StrictLaserConstraints**:
-   ``no_blocking_clauses(t)`` yields unit clauses that prevent any same-colour
-   agent from standing on their own laser beam at time ``t``.  Adding these
-   clauses for every ``t`` in ``[0, t_max]`` is logically equivalent to using
-   ``StrictLaserConstraints``: if the augmented formula is UNSAT (for all
-   horizons), cooperation is strictly required within that range.
+   ``no_blocking_clauses(t)`` yields unit clauses that prevent any *other*-colour
+   agent from standing on a laser beam at time ``t`` (beams are unblockable in
+   strict mode, hence permanently active).  Adding these clauses for every ``t``
+   in ``[0, t_max]`` is logically equivalent to using ``StrictLaserConstraints``:
+   if the augmented formula is UNSAT (for all horizons), cooperation is strictly
+   required within that range.
 
 2. **Cooperation-level tracking and enforcement**: the variables
    ``laser_blocked``, ``coop_event``, and ``depends_on`` let the solver reason
@@ -84,15 +85,25 @@ class CooperationConstraints(ConstraintGenerator):
         ]
 
     def no_blocking_clauses(self, t: int):
-        """Yield unit clauses forbidding every laser-blocking event at time ``t``.
+        """Yield the unit clauses implementing strict (no-cooperation) laser mode at time ``t``.
 
-        Adding these clauses for all ``t`` in ``[0, t_max]`` is semantically
-        equivalent to ``StrictLaserConstraints``: the resulting formula is UNSAT
-        iff cooperation is strictly required within the given horizon.
+        Since a beam can never be blocked, every beam tile is permanently active, so no agent of a
+        *different* colour may ever stand on one. The laser's own colour is immune and may still
+        walk *through* its own beam (forbidding the source agent here, as a previous version did,
+        was a bug: it conflated "unblockable beam" with "source may not traverse it").
+
+        Adding these clauses for all ``t`` in ``[0, t_max]`` is semantically equivalent to
+        ``StrictLaserConstraints``: the resulting formula is UNSAT iff cooperation is strictly
+        required within the given horizon.
         """
-        for source, _ in self.ctx.laser_paths.items():
-            for x, y in self.ctx.reachable_laser_paths[source][t]:
-                yield [-self.var.agent(source.agent_id, x, y, t)]
+        for source, path in self.ctx.laser_paths.items():
+            for agent in range(self.n_agents):
+                if agent == source.agent_id:
+                    continue  # the laser's own colour is immune to its beam
+                reachable = self.ctx.reachable_positions(t, agent)
+                for x, y in path:
+                    if (x, y) in reachable:
+                        yield [-self.var.agent(agent, x, y, t)]
 
     def _laser_blocked_definitions(self, t: int):
         """Define ``laser_blocked(laser_id, t) ↔ ∃(x,y) blockable: agent(colour, x, y, t)``."""

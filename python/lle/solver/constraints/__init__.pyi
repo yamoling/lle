@@ -5,11 +5,11 @@ import builtins
 from lle import world
 import typing
 __all__ = [
-    "ConstraintGenerator",
+    "ClauseGenerator",
 ]
 
 @typing.final
-class ConstraintGenerator:
+class ClauseGenerator:
     r"""
     Generates the SAT clauses (CNF, as lists of signed integer literals) used by
     `lle.solver.solve` and decodes solver models back into joint-action plans.
@@ -21,10 +21,10 @@ class ConstraintGenerator:
     ```python
     from pysat.solvers import Minisat22
     from lle import World
-    from lle.solver.constraints import ConstraintGenerator
+    from lle.solver.constraints import ClauseGenerator
     
     world = World.level(1)
-    gen = ConstraintGenerator(world, t_max=20)
+    gen = ClauseGenerator(world, t_max=20)
     clauses = [c for t in range(gen.t_max + 1) for c in gen.generate(t)]
     with Minisat22(bootstrap_with=clauses) as solver:
         solver.append_formula(gen.objective(gen.t_max))
@@ -43,7 +43,7 @@ class ConstraintGenerator:
         A cheap admissible lower bound on the length of any valid plan: the maximum,
         over all agents, of the shortest walkable-path distance to the nearest exit.
         """
-    def __new__(cls, world: world.World, t_max: builtins.int) -> ConstraintGenerator:
+    def __new__(cls, world: world.World, t_max: builtins.int) -> ClauseGenerator:
         r"""
         Build a constraint generator for `world`, considering plans of length up to `t_max`.
         """
@@ -60,11 +60,38 @@ class ConstraintGenerator:
         """
     def no_blocking_clauses(self, t: builtins.int) -> builtins.list[builtins.list[builtins.int]]:
         r"""
-        Generate unit clauses forbidding any laser-blocking event at time `t`.
+        Generate the unit clauses implementing strict (no-cooperation) laser mode at time `t`:
+        since beams can never be blocked, every beam tile is permanently active, so no agent of a
+        *different* colour may ever stand on one. The laser's own colour is immune and may still
+        walk through its own beam.
         
-        Adding these clauses for every `t` in `[0, t_max]` is logically equivalent to
-        forbidding cooperation altogether: the resulting formula is UNSAT iff laser
-        blocking is required to solve the level within the horizon.
+        Adding these clauses for every `t` in `[0, t_max]` makes the formula UNSAT iff laser
+        blocking (cooperation) is required to solve the level within the horizon.
+        """
+    def coop_clauses(self, t: builtins.int) -> builtins.list[builtins.list[builtins.int]]:
+        r"""
+        Generate the cooperation-tracking clauses for time step `t`: the `laser_blocked` and
+        `coop_event` indicator-variable definitions.
+        
+        These are additive to `generate(t)` (they introduce new variables referencing the same
+        per-step agent variables) and are only needed when reasoning about who helps whom, e.g.
+        by `lle.cooperation.characterize`.
+        """
+    def finalize_depends_on(self, t_end: builtins.int) -> builtins.list[builtins.list[builtins.int]]:
+        r"""
+        Generate the `depends_on(beneficiary, helper)` definition clauses over the horizon
+        `[0, t_end]`.
+        
+        Call this once per candidate horizon, after `coop_clauses(t)` has been generated for every
+        `t` in `[0, t_end]`. The clauses depend on `t_end`, so feed them to the solver for that
+        horizon only; do not accumulate them across horizons.
+        """
+    def depends_on_lit(self, beneficiary: builtins.int, helper: builtins.int) -> typing.Optional[builtins.int]:
+        r"""
+        The SAT literal for `depends_on(beneficiary, helper)`, or `None` when no such variable
+        exists (the dependency can never occur within the horizon last passed to
+        `finalize_depends_on`). Never creates a variable, so the returned literal is safe to use as
+        a solver assumption.
         """
     def decode_plan(self, model: typing.Sequence[builtins.int], t_end: builtins.int) -> builtins.list[builtins.list[world.Action]]:
         r"""

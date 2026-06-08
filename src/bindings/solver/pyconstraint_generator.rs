@@ -16,10 +16,10 @@ use crate::{
 /// ```python
 /// from pysat.solvers import Minisat22
 /// from lle import World
-/// from lle.solver.constraints import ConstraintGenerator
+/// from lle.solver.constraints import ClauseGenerator
 ///
 /// world = World.level(1)
-/// gen = ConstraintGenerator(world, t_max=20)
+/// gen = ClauseGenerator(world, t_max=20)
 /// clauses = [c for t in range(gen.t_max + 1) for c in gen.generate(t)]
 /// with Minisat22(bootstrap_with=clauses) as solver:
 ///     solver.append_formula(gen.objective(gen.t_max))
@@ -67,13 +67,43 @@ impl PyClauseGenerator {
         self.inner.objective(t)
     }
 
-    /// Generate unit clauses forbidding any laser-blocking event at time `t`.
+    /// Generate the unit clauses implementing strict (no-cooperation) laser mode at time `t`:
+    /// since beams can never be blocked, every beam tile is permanently active, so no agent of a
+    /// *different* colour may ever stand on one. The laser's own colour is immune and may still
+    /// walk through its own beam.
     ///
-    /// Adding these clauses for every `t` in `[0, t_max]` is logically equivalent to
-    /// forbidding cooperation altogether: the resulting formula is UNSAT iff laser
-    /// blocking is required to solve the level within the horizon.
+    /// Adding these clauses for every `t` in `[0, t_max]` makes the formula UNSAT iff laser
+    /// blocking (cooperation) is required to solve the level within the horizon.
     fn no_blocking_clauses(&mut self, t: usize) -> Vec<Clause> {
         self.inner.no_blocking_clauses(t)
+    }
+
+    /// Generate the cooperation-tracking clauses for time step `t`: the `laser_blocked` and
+    /// `coop_event` indicator-variable definitions.
+    ///
+    /// These are additive to `generate(t)` (they introduce new variables referencing the same
+    /// per-step agent variables) and are only needed when reasoning about who helps whom, e.g.
+    /// by `lle.cooperation.characterize`.
+    fn coop_clauses(&mut self, t: usize) -> Vec<Clause> {
+        self.inner.coop_clauses(t)
+    }
+
+    /// Generate the `depends_on(beneficiary, helper)` definition clauses over the horizon
+    /// `[0, t_end]`.
+    ///
+    /// Call this once per candidate horizon, after `coop_clauses(t)` has been generated for every
+    /// `t` in `[0, t_end]`. The clauses depend on `t_end`, so feed them to the solver for that
+    /// horizon only; do not accumulate them across horizons.
+    fn finalize_depends_on(&mut self, t_end: usize) -> Vec<Clause> {
+        self.inner.finalize_depends_on(t_end)
+    }
+
+    /// The SAT literal for `depends_on(beneficiary, helper)`, or `None` when no such variable
+    /// exists (the dependency can never occur within the horizon last passed to
+    /// `finalize_depends_on`). Never creates a variable, so the returned literal is safe to use as
+    /// a solver assumption.
+    fn depends_on_lit(&self, beneficiary: usize, helper: usize) -> Option<i32> {
+        self.inner.depends_on_lit(beneficiary, helper)
     }
 
     /// Decode a SAT model (as returned by `solver.get_model()`) into a joint-action plan

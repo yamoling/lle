@@ -20,6 +20,7 @@ for the graph queries, and `CooperationProfile` for the summary of properties.
 from __future__ import annotations
 
 from .analyser import analyse_cooperation, detect_dependencies
+from .characterization import WorldCharacterization, characterize
 from .graph import DependencyEdge, TemporalDependencyGraph
 from .profile import CooperationProfile
 
@@ -29,4 +30,6 @@ __all__ = [
     "DependencyEdge",
     "TemporalDependencyGraph",
     "CooperationProfile",
+    "characterize",
+    "WorldCharacterization",
 ]

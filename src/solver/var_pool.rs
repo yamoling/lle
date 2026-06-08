@@ -17,6 +17,21 @@ pub enum VarKey {
         pos: Position,
         t: usize,
     },
+    /// Whether laser `laser_id`'s beam is blocked by its same-colour agent at time `t`.
+    LaserBlocked { laser_id: usize, t: usize },
+    /// Whether `helper` blocks laser `laser_id` while `beneficiary` occupies a protected
+    /// downstream beam position at time `t` (a single concrete cooperation event).
+    CoopEvent {
+        helper: AgentId,
+        beneficiary: AgentId,
+        laser_id: usize,
+        t: usize,
+    },
+    /// Whether `helper` ever helps `beneficiary` at some point across the whole horizon.
+    DependsOn {
+        beneficiary: AgentId,
+        helper: AgentId,
+    },
     /// Auxiliary variable used internally by cardinality encodings; carries a unique counter.
     Aux(i32),
 }
@@ -37,6 +52,29 @@ impl VarKey {
             laser_id: id,
             pos,
             t,
+        }
+    }
+
+    #[inline]
+    pub fn laser_blocked(laser_id: usize, t: usize) -> Self {
+        VarKey::LaserBlocked { laser_id, t }
+    }
+
+    #[inline]
+    pub fn coop_event(helper: AgentId, beneficiary: AgentId, laser_id: usize, t: usize) -> Self {
+        VarKey::CoopEvent {
+            helper,
+            beneficiary,
+            laser_id,
+            t,
+        }
+    }
+
+    #[inline]
+    pub fn depends_on(beneficiary: AgentId, helper: AgentId) -> Self {
+        VarKey::DependsOn {
+            beneficiary,
+            helper,
         }
     }
 
@@ -75,6 +113,40 @@ impl VarPool {
 
     pub fn laser(&mut self, laser_id: usize, pos: Position, t: usize) -> i32 {
         self.id(VarKey::Laser { laser_id, pos, t })
+    }
+
+    pub fn laser_blocked(&mut self, laser_id: usize, t: usize) -> i32 {
+        self.id(VarKey::LaserBlocked { laser_id, t })
+    }
+
+    pub fn coop_event(
+        &mut self,
+        helper: AgentId,
+        beneficiary: AgentId,
+        laser_id: usize,
+        t: usize,
+    ) -> i32 {
+        self.id(VarKey::CoopEvent {
+            helper,
+            beneficiary,
+            laser_id,
+            t,
+        })
+    }
+
+    pub fn depends_on(&mut self, beneficiary: AgentId, helper: AgentId) -> i32 {
+        self.id(VarKey::DependsOn {
+            beneficiary,
+            helper,
+        })
+    }
+
+    /// Variable id already assigned to `key`, or `None` if it was never created.
+    ///
+    /// Unlike the factory methods above, this never *creates* a variable, so it is safe to use
+    /// when probing whether a (possibly non-existent) cooperation variable should be constrained.
+    pub fn get(&self, key: &VarKey) -> Option<i32> {
+        self.ids.get(key).copied()
     }
 
     fn next_id(&self) -> i32 {

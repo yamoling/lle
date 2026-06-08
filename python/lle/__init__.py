@@ -61,6 +61,8 @@ pip install laser-learning-environment[generator]
 - `lle.solve_sat(world, t_max)` searches for a joint plan of exactly `t_max` steps.
 - `lle.is_cooperative(world, t_max)` checks whether the world requires laser blocking under standard semantics.
 - `lle.cooperation_level(world, t_max)` returns the more precise cooperation classification.
+- `lle.analyse_cooperation(world, trajectory)` extracts the help graph of one concrete trajectory.
+- `lle.characterize(world, t_max)` proves, via SAT/UNSAT, which agent dependencies *every* plan of length ≤ t requires.
 
 `lle.generate(...)` and the solver helpers live in `lle.generator` and
 `lle.solver`, but `import lle` re-exports them for convenience.
@@ -152,7 +154,9 @@ from .cooperation import (
     CooperationProfile,
     DependencyEdge,
     TemporalDependencyGraph,
+    WorldCharacterization,
     analyse_cooperation,
+    characterize,
 )
 from .env import LLE
 from .generator import generate
@@ -197,4 +201,6 @@ __all__ = [
     "CooperationProfile",
     "TemporalDependencyGraph",
     "DependencyEdge",
+    "characterize",
+    "WorldCharacterization",
 ]
