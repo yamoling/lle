@@ -55,16 +55,18 @@ pub struct ConstraintContext {
     // plain array lookup beats hashing in these hot paths.
     /// `neighbours[i * width + j]` = `[(i, j), ...reachable single-step neighbours]`.
     neighbours: Vec<Vec<Position>>,
-    /// `distance_buckets[d]` = positions whose distance to the nearest exit is exactly `d`
-    /// (only for `d <= t_max`, the only distances that ever matter). Used to incrementally
-    /// shrink `exit_reachable` as `t` grows, instead of recomputing it from scratch every step.
-    distance_buckets: Vec<Vec<Position>>,
 
     // Cached on-demand data (lazily computed per time step, in increasing order of `t`).
-    /// Positions from which an exit can still be reached within `t_max - t` steps, for the
-    /// current `updated_until`. This set only shrinks as `t` grows, so it is maintained
-    /// incrementally (as a bitset) rather than cached per time step.
-    exit_reachable: PositionSet,
+    /// `distance_buckets[d]` = positions whose distance to the nearest exit is exactly `d`
+    /// (only for `d <= t_max`, the only distances that ever matter). Used to incrementally
+    /// build `exit_reachable` as `t` grows, instead of recomputing each entry from scratch.
+    distance_buckets: Vec<Vec<Position>>,
+
+    /// `exit_reachable[t]` = positions from which an exit can still be reached within
+    /// `t_max - t` steps. Lazily computed and cached per time step (in increasing order of
+    /// `t`, like `relevant_positions`): each entry is independent and never overwritten once
+    /// computed.
+    exit_reachable: Vec<PositionSet>,
 
     /// Cache for reachable positions per agent and time step, flattened as `agent * (t_max + 1)
     /// + t` (dense, since every `(agent, t)` in `0..n_agents x 0..=t_max` is eventually
@@ -120,7 +122,6 @@ impl ConstraintContext {
         }
 
         let exit_distance = compute_exit_distance(&exits, &predecessors, width);
-
         let solution_lower_bound = start_pos
             .iter()
             .map(|p| exit_distance.get(p).copied().unwrap_or(0))
@@ -147,14 +148,22 @@ impl ConstraintContext {
             });
         }
         // Bucket positions by their exact distance to the nearest exit (capped at `t_max`,
-        // since farther positions can never be exit-reachable within the horizon) and seed
-        // `exit_reachable` with the full set for `t = 0` (i.e. `remaining = t_max`).
+        // since farther positions can never be exit-reachable within the horizon).
         let mut distance_buckets: Vec<Vec<Position>> = vec![Vec::new(); t_max + 1];
-        let mut exit_reachable = PositionSet::empty(height, width);
         for (&pos, &d) in &exit_distance {
             if d <= t_max {
                 distance_buckets[d].push(pos);
-                exit_reachable.insert(pos);
+            }
+        }
+
+        // Seed `exit_reachable[0]` with the full set of exit-reachable positions (distance
+        // `<= t_max`, i.e. `remaining = t_max - 0 = t_max`); `update` fills in the rest by
+        // shrinking this set one distance bucket at a time as `t` grows.
+        let mut exit_reachable: Vec<PositionSet> =
+            vec![PositionSet::empty(height, width); t_max + 1];
+        for bucket in &distance_buckets {
+            for &pos in bucket {
+                exit_reachable[0].insert(pos);
             }
         }
 
@@ -165,9 +174,12 @@ impl ConstraintContext {
         let stride = t_max + 1;
         let mut relevant_positions = vec![PositionSet::empty(height, width); n_agents * stride];
         for agent in 0..n_agents {
-            // No position is relevant to consider at t=0 since no exit is reachable in 0 time steps
-            relevant_positions[agent * stride] = PositionSet::empty(height, width);
-            // PositionSet::singleton(height, width, start_pos[agent]);
+            // Only the initial positions are relevant to consider at t=0
+            let agent_start = start_pos[agent];
+            if exit_reachable[0].contains(&agent_start) {
+                relevant_positions[agent * stride] =
+                    PositionSet::singleton(height, width, start_pos[agent]);
+            }
         }
         // Seed the `t = 0` laser-path slots from the `t = 0` reachable-positions seed above
         // (mirroring `update_reachable_laser_path`); `update` only fills in `t >= 1`, since its
@@ -193,8 +205,8 @@ impl ConstraintContext {
             height,
             width,
             neighbours,
-            distance_buckets,
             updated_until: 0,
+            distance_buckets,
             exit_reachable,
             relevant_positions,
             relevant_laser_paths,
@@ -219,15 +231,17 @@ impl ConstraintContext {
         laser_idx * (self.t_max + 1) + t
     }
 
-    /// Shrink `exit_reachable` from the set valid at `t - 1` to the set valid at `t`: as `t`
-    /// grows by one, the remaining horizon `t_max - t` shrinks by one, so exactly the positions
-    /// at distance `t_max - t + 1` fall out of reach. `t` must be processed in increasing order
-    /// (guaranteed by `update`), so the set is shrunk in place rather than recomputed.
+    /// Compute and cache `exit_reachable[t]` from `exit_reachable[t - 1]`: as `t` grows by one,
+    /// the remaining horizon `t_max - t` shrinks by one, so exactly the positions at distance
+    /// `t_max - t + 1` fall out of reach. Clones the previous entry and removes that bucket,
+    /// rather than mutating it in place, so every `exit_reachable[t]` stays independently cached.
     fn update_exit_reachable(&mut self, t: usize) {
+        let mut result = self.exit_reachable[t - 1].clone();
         let excluded_distance = self.t_max - t + 1;
         for pos in &self.distance_buckets[excluded_distance] {
-            self.exit_reachable.remove(pos);
+            result.remove(pos);
         }
+        self.exit_reachable[t] = result;
     }
 
     /// Update the relevant positions for each agent at time step t.
@@ -235,9 +249,6 @@ impl ConstraintContext {
     /// A position is relevant to a given agent at time step t if:
     ///     - the agent can reach it at time step t
     ///     - the agent can still access the exit within `t_max - t` steps
-    ///
-    /// # Assumptions
-    /// This function assumes that `update_exit_reachable` has already been called for `t`.
     fn update_relevant_positions(&mut self, t: usize) {
         for agent in 0..self.n_agents {
             let mut result = PositionSet::empty(self.height, self.width);
@@ -246,7 +257,7 @@ impl ConstraintContext {
                     result.insert(n);
                 }
             }
-            result.intersect_with(&self.exit_reachable);
+            result.intersect_with(&self.exit_reachable[t]);
             let idx = self.pos_cache_idx(agent, t);
             self.relevant_positions[idx] = result;
         }
@@ -334,18 +345,22 @@ impl ConstraintContext {
 #[cfg(test)]
 impl ConstraintContext {
     /// ONLY USE THIS FOR TESTING PURPOSES
-    fn get_exit_distance(&self, pos: &Position) -> usize {
-        for (bucket, dist) in self.distance_buckets.iter().enumerate() {
-            if dist.contains(pos) {
-                return bucket;
+    ///
+    /// `exit_reachable` is now lazily computed by `update`, so make sure every entry is
+    /// available before scanning it for `pos`.
+    fn get_exit_distance(&mut self, pos: &Position) -> usize {
+        self.update(self.t_max);
+        for t in (0..=self.t_max).rev() {
+            if self.exit_reachable[t].contains(pos) {
+                return self.t_max - t;
             }
         }
         panic!("{pos:?} is not in the PositionSet !")
     }
 
     /// ONLY USE THIS FOR TESTING PURPOSES
-    fn is_exit_reachable(&self, pos: &Position) -> bool {
-        self.exit_reachable.contains(pos)
+    fn is_exit_reachable(&self, pos: &Position, t: usize) -> bool {
+        self.exit_reachable[t].contains(pos)
     }
 }
 

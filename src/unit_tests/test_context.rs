@@ -24,7 +24,7 @@ fn test_reachable_positions_grow_with_time() {
     assert_eq!(
         positions_t0.len(),
         1,
-        "At t=0, only start position reachable"
+        "At t=0, only start positions are relevant to consider"
     );
     assert_eq!(positions_t0[0], pos(0, 0), "Should be at start position");
 
@@ -138,7 +138,7 @@ fn lower_bound_with_wall() {
 #[test]
 fn exit_distance_empty() {
     let world = World::try_from("S0 . X").expect("Failed to parse world");
-    let ctx = ConstraintContext::new(&world, 10);
+    let mut ctx = ConstraintContext::new(&world, 10);
     assert_eq!(ctx.get_exit_distance(&pos(0, 0)), 2);
     assert_eq!(ctx.get_exit_distance(&pos(0, 1)), 1);
     assert_eq!(ctx.get_exit_distance(&pos(0, 2)), 0);
@@ -152,7 +152,7 @@ fn exit_distance_with_walls() {
           . . .",
     )
     .expect("Failed to parse world");
-    let ctx = ConstraintContext::new(&world, 10);
+    let mut ctx = ConstraintContext::new(&world, 10);
     assert_eq!(ctx.get_exit_distance(&pos(0, 0)), 4);
     assert_eq!(ctx.get_exit_distance(&pos(1, 0)), 3);
     assert_eq!(ctx.get_exit_distance(&pos(1, 1)), 2);
@@ -174,7 +174,7 @@ fn exit_distance_adjacent_exits_are_zero() {
         S0 S1",
     )
     .expect("Failed to parse world");
-    let ctx = ConstraintContext::new(&world, 10);
+    let mut ctx = ConstraintContext::new(&world, 10);
     assert_eq!(ctx.get_exit_distance(&pos(0, 0)), 0);
     assert_eq!(ctx.get_exit_distance(&pos(0, 1)), 0);
     assert_eq!(ctx.get_exit_distance(&pos(1, 0)), 1);
@@ -194,11 +194,11 @@ fn exit_reachable_basic(#[case] map_str: &str, #[case] distance: usize) {
 
     for t in 0..=(T_MAX - distance) {
         ctx.update(t);
-        assert!(ctx.is_exit_reachable(&pos(0, 0)));
+        assert!(ctx.is_exit_reachable(&pos(0, 0), t));
     }
     for t in (T_MAX - distance + 1)..=T_MAX {
         ctx.update(t);
-        assert!(!ctx.is_exit_reachable(&pos(0, 0)));
+        assert!(!ctx.is_exit_reachable(&pos(0, 0), t));
     }
 }
 
@@ -352,12 +352,14 @@ fn reachable_laser_paths_two_agents() {
     assert!(path_d.contains(&pos(1, 1)));
 
     for t in (DISTANCE_TO_LASER + 1)..(T_MAX - 1) {
+        ctx.update(t);
         let path = ctx.get_reachable_laser_path(0, t);
         assert_eq!(path.len(), 2, "t={t}");
         assert!(path.contains(&pos(1, 1)));
         assert!(path.contains(&pos(2, 1)));
     }
 
+    ctx.update(T_MAX - 1);
     let path_last = ctx.get_reachable_laser_path(0, T_MAX - 1);
     assert_eq!(path_last.len(), 1);
     assert!(!path_last.contains(&pos(1, 1)));
