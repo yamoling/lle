@@ -19,7 +19,7 @@ fn test_reachable_positions_grow_with_time() {
 
     // At t=0, agent 0 can only be at start position (0,0)
     ctx.update(0);
-    let reachable_t0 = ctx.reachable_positions(0, &[0]);
+    let reachable_t0 = ctx.relevant_positions(0, &[0]);
     let positions_t0: Vec<_> = reachable_t0.iter().collect();
     assert_eq!(
         positions_t0.len(),
@@ -30,7 +30,7 @@ fn test_reachable_positions_grow_with_time() {
 
     // At t=1, agent 0 can reach adjacent positions if time permits
     ctx.update(1);
-    let reachable_t1 = ctx.reachable_positions(1, &[0]);
+    let reachable_t1 = ctx.relevant_positions(1, &[0]);
     let positions_t1: Vec<_> = reachable_t1.iter().collect();
     // With 9 steps remaining and exit at distance 1 from adjacent cells, both (0,0) and (0,1) should be reachable
     assert!(
@@ -40,7 +40,7 @@ fn test_reachable_positions_grow_with_time() {
 
     // At t=2, agent can reach more positions
     ctx.update(2);
-    let reachable_t2 = ctx.reachable_positions(2, &[0]);
+    let reachable_t2 = ctx.relevant_positions(2, &[0]);
     let positions_t2: Vec<_> = reachable_t2.iter().collect();
     assert!(
         positions_t2.len() > 0,
@@ -99,9 +99,9 @@ fn test_t_max_and_cache_size() {
 fn test_world_with_walls_blocks_reachability() {
     let world = World::try_from("S0 @ X").expect("Failed to parse world");
     let mut ctx = ConstraintContext::new(&world, 5);
-    ctx.update(5);
     for t in 0..5 {
-        assert_eq!(1, ctx.reachable_positions_for_agent(0, t).size());
+        ctx.update(t);
+        assert_eq!(0, ctx.relevant_positions_for_agent(0, t).size());
     }
 }
 
@@ -131,6 +131,75 @@ fn lower_bound_with_wall() {
     let width = line1.chars().filter(|&c| c == '.').count();
     // +1 for the north detour at the end of the line
     assert_eq!(ctx.solution_lower_bound, width + 1);
+}
+
+// ==================== exit distance ====================
+
+#[test]
+fn exit_distance_empty() {
+    let world = World::try_from("S0 . X").expect("Failed to parse world");
+    let ctx = ConstraintContext::new(&world, 10);
+    assert_eq!(ctx.get_exit_distance(&pos(0, 0)), 2);
+    assert_eq!(ctx.get_exit_distance(&pos(0, 1)), 1);
+    assert_eq!(ctx.get_exit_distance(&pos(0, 2)), 0);
+}
+
+#[test]
+#[should_panic]
+fn exit_distance_with_walls() {
+    let world = World::try_from(
+        "S0 @ X
+          . . .",
+    )
+    .expect("Failed to parse world");
+    let ctx = ConstraintContext::new(&world, 10);
+    assert_eq!(ctx.get_exit_distance(&pos(0, 0)), 4);
+    assert_eq!(ctx.get_exit_distance(&pos(1, 0)), 3);
+    assert_eq!(ctx.get_exit_distance(&pos(1, 1)), 2);
+    assert_eq!(ctx.get_exit_distance(&pos(1, 2)), 1);
+    assert_eq!(ctx.get_exit_distance(&pos(0, 2)), 0);
+    // The wall at (0,1) is never assigned a distance.
+    // Should panic
+    ctx.get_exit_distance(&pos(0, 1));
+}
+
+#[test]
+fn exit_distance_adjacent_exits_are_zero() {
+    // Regression: a naive forward flood-fill would re-enqueue each exit from its
+    // neighbour and overwrite its distance with 1, poisoning the whole distance map.
+    let world = World::try_from(
+        "
+         X X
+         . .
+        S0 S1",
+    )
+    .expect("Failed to parse world");
+    let ctx = ConstraintContext::new(&world, 10);
+    assert_eq!(ctx.get_exit_distance(&pos(0, 0)), 0);
+    assert_eq!(ctx.get_exit_distance(&pos(0, 1)), 0);
+    assert_eq!(ctx.get_exit_distance(&pos(1, 0)), 1);
+    assert_eq!(ctx.get_exit_distance(&pos(1, 1)), 1);
+    assert_eq!(ctx.get_exit_distance(&pos(2, 0)), 2);
+    assert_eq!(ctx.get_exit_distance(&pos(2, 1)), 2);
+}
+
+#[rstest]
+#[case("S0 . . . . X", 5)]
+#[case("S0 . . . X\n.  . X . .", 3)]
+#[case("S0 @ . . X\n.  . . X .", 4)]
+fn exit_reachable_basic(#[case] map_str: &str, #[case] distance: usize) {
+    const T_MAX: usize = 10;
+    let world = World::try_from(map_str).expect("Failed to parse world");
+    let mut ctx = ConstraintContext::new(&world, T_MAX);
+
+    for t in 0..=(T_MAX - distance) {
+        ctx.update(t);
+        assert!(ctx.is_exit_reachable(&pos(0, 0)));
+    }
+    for t in (T_MAX - distance + 1)..=T_MAX {
+        ctx.update(t);
+        assert!(!ctx.is_exit_reachable(&pos(0, 0)));
+    }
 }
 
 #[apply(standard_levels)]
@@ -269,30 +338,31 @@ fn reachable_laser_paths_two_agents() {
          .   .  X . . . . . . . . . . . . X",
     )
     .expect("Failed to parse world");
-    let distance = 15;
-    let t_max = distance + 10;
-    let mut ctx = ConstraintContext::new(&world, t_max);
-    ctx.update(t_max);
+    const DISTANCE_TO_LASER: usize = 15;
+    const T_MAX: usize = DISTANCE_TO_LASER + 10;
+    let mut ctx = ConstraintContext::new(&world, T_MAX);
 
-    for t in 0..distance {
+    for t in 0..DISTANCE_TO_LASER {
+        ctx.update(t);
         assert_eq!(ctx.get_reachable_laser_path(0, t).len(), 0, "t={t}");
     }
-    let path_d = ctx.get_reachable_laser_path(0, distance);
+    ctx.update(DISTANCE_TO_LASER);
+    let path_d = ctx.get_reachable_laser_path(0, DISTANCE_TO_LASER);
     assert_eq!(path_d.len(), 1);
     assert!(path_d.contains(&pos(1, 1)));
 
-    for t in (distance + 1)..(t_max - 1) {
+    for t in (DISTANCE_TO_LASER + 1)..(T_MAX - 1) {
         let path = ctx.get_reachable_laser_path(0, t);
         assert_eq!(path.len(), 2, "t={t}");
         assert!(path.contains(&pos(1, 1)));
         assert!(path.contains(&pos(2, 1)));
     }
 
-    let path_last = ctx.get_reachable_laser_path(0, t_max - 1);
+    let path_last = ctx.get_reachable_laser_path(0, T_MAX - 1);
     assert_eq!(path_last.len(), 1);
     assert!(!path_last.contains(&pos(1, 1)));
     assert!(path_last.contains(&pos(2, 1)));
-    assert_eq!(ctx.get_reachable_laser_path(0, t_max).len(), 0);
+    assert_eq!(ctx.get_reachable_laser_path(0, T_MAX).len(), 0);
 }
 
 #[test]

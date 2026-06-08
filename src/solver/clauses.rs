@@ -113,7 +113,7 @@ impl ClauseGenerator {
         self.ctx.update(t);
         let mut clauses = Vec::with_capacity(self.ctx.n_agents);
         for agent in 0..self.ctx.n_agents {
-            let reachable = self.ctx.reachable_positions(t, &[agent]);
+            let reachable = self.ctx.relevant_positions(t, &[agent]);
             let positions: Vec<Position> = self
                 .exits
                 .iter()
@@ -172,7 +172,7 @@ impl ClauseGenerator {
         for agent in 0..self.ctx.n_agents {
             let positions: Vec<Position> = self
                 .ctx
-                .reachable_positions(t, &[agent])
+                .relevant_positions(t, &[agent])
                 .into_iter()
                 .collect();
             if positions.len() <= 1 {
@@ -205,7 +205,7 @@ impl ClauseGenerator {
         for agent in 0..self.ctx.n_agents {
             let positions: Vec<Position> = self
                 .ctx
-                .reachable_positions(t, &[agent])
+                .relevant_positions(t, &[agent])
                 .into_iter()
                 .collect();
             for pos in positions {
@@ -228,7 +228,7 @@ impl ClauseGenerator {
             for c2 in c1 + 1..self.ctx.n_agents {
                 let positions: Vec<Position> = self
                     .ctx
-                    .reachable_positions(t, &[c1, c2])
+                    .relevant_positions(t, &[c1, c2])
                     .into_iter()
                     .collect();
                 for pos in positions {
@@ -248,15 +248,15 @@ impl ClauseGenerator {
         }
         let mut clauses = Vec::new();
         for (c1, c2) in (0..self.ctx.n_agents).tuple_combinations() {
-            let prev_c1 = self.ctx.reachable_positions(t - 1, &[c1]);
-            let cur_c2 = self.ctx.reachable_positions(t, &[c2]);
+            let prev_c1 = self.ctx.relevant_positions(t - 1, &[c1]);
+            let cur_c2 = self.ctx.relevant_positions(t, &[c2]);
             for pos in prev_c1.intersection(&cur_c2) {
                 let a2 = self.agent(c2, pos, t);
                 let a1_prev = self.agent(c1, pos, t - 1);
                 clauses.push(implies(a2, -a1_prev));
             }
-            let cur_c1 = self.ctx.reachable_positions(t, &[c1]);
-            let prev_c2 = self.ctx.reachable_positions(t - 1, &[c2]);
+            let cur_c1 = self.ctx.relevant_positions(t, &[c1]);
+            let prev_c2 = self.ctx.relevant_positions(t - 1, &[c2]);
             for pos in cur_c1.intersection(&prev_c2) {
                 let a1 = self.agent(c1, pos, t);
                 let a2_prev = self.agent(c2, pos, t - 1);
@@ -273,7 +273,7 @@ impl ClauseGenerator {
         }
         let mut clauses = Vec::new();
         for agent in 0..self.ctx.n_agents {
-            let reachable = self.ctx.reachable_positions(t - 1, &[agent]);
+            let reachable = self.ctx.relevant_positions(t - 1, &[agent]);
             let exit_positions: Vec<Position> = self
                 .exits
                 .iter()
@@ -307,7 +307,7 @@ impl ClauseGenerator {
             .map(|s| (s.agent_id, s.laser_id, s.path.clone()))
             .collect();
         for (agent_id, laser_id, path) in sources {
-            let blockable = self.ctx.reachable_positions(t, &[agent_id]);
+            let blockable = self.ctx.relevant_positions(t, &[agent_id]);
             let mut prev_active: Option<i32> = None;
             for pos in path {
                 if blockable.contains(&pos) {
@@ -346,7 +346,7 @@ impl ClauseGenerator {
             .map(|s| (s.agent_id, s.laser_id, s.path.clone()))
             .collect();
         for agent in 0..self.ctx.n_agents {
-            let reachable = self.ctx.reachable_positions(t, &[agent]);
+            let reachable = self.ctx.relevant_positions(t, &[agent]);
             for &(source_agent_id, laser_id, ref path) in &sources {
                 if source_agent_id == agent {
                     continue;

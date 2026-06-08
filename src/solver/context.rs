@@ -70,11 +70,11 @@ pub struct ConstraintContext {
     /// + t` (dense, since every `(agent, t)` in `0..n_agents x 0..=t_max` is eventually
     /// populated in increasing order of `t`). Bitsets here turn the per-agent intersections in
     /// `reachable_positions` into word-at-a-time ANDs instead of per-element hashing.
-    reachable_positions_cache: Vec<PositionSet>,
+    relevant_positions: Vec<PositionSet>,
 
     /// Cache for reachable laser paths per laser source and time step, flattened the same way
-    /// as `reachable_positions_cache` (`laser_idx * (t_max + 1) + t`).
-    reachable_laser_paths_cache: Vec<Vec<Position>>,
+    /// as `reachable_positions` (`laser_idx * (t_max + 1) + t`).
+    relevant_laser_paths: Vec<Vec<Position>>,
 }
 
 impl ConstraintContext {
@@ -163,19 +163,19 @@ impl ConstraintContext {
         // avoids hashing `(usize, usize)` keys on every lookup in the hot constraint-generation
         // loop. Seed the `t = 0` slots here; `update` fills in the rest.
         let stride = t_max + 1;
-        let mut reachable_positions_cache =
-            vec![PositionSet::empty(height, width); n_agents * stride];
+        let mut relevant_positions = vec![PositionSet::empty(height, width); n_agents * stride];
         for agent in 0..n_agents {
-            reachable_positions_cache[agent * stride] =
-                PositionSet::singleton(height, width, start_pos[agent]);
+            // No position is relevant to consider at t=0 since no exit is reachable in 0 time steps
+            relevant_positions[agent * stride] = PositionSet::empty(height, width);
+            // PositionSet::singleton(height, width, start_pos[agent]);
         }
         // Seed the `t = 0` laser-path slots from the `t = 0` reachable-positions seed above
         // (mirroring `update_reachable_laser_path`); `update` only fills in `t >= 1`, since its
         // loop range `(updated_until + 1)..=t` is empty for `t = 0`.
-        let mut reachable_laser_paths_cache = vec![Vec::new(); laser_sources.len() * stride];
+        let mut relevant_laser_paths = vec![Vec::new(); laser_sources.len() * stride];
         for (laser_idx, source) in laser_sources.iter().enumerate() {
-            let blockable = &reachable_positions_cache[source.agent_id * stride];
-            reachable_laser_paths_cache[laser_idx * stride] = source
+            let blockable = &relevant_positions[source.agent_id * stride];
+            relevant_laser_paths[laser_idx * stride] = source
                 .path
                 .iter()
                 .filter(|p| blockable.contains(p))
@@ -196,8 +196,8 @@ impl ConstraintContext {
             distance_buckets,
             updated_until: 0,
             exit_reachable,
-            reachable_positions_cache,
-            reachable_laser_paths_cache,
+            relevant_positions,
+            relevant_laser_paths,
         }
     }
 
@@ -230,31 +230,49 @@ impl ConstraintContext {
         }
     }
 
-    /// Compute and cache `reachable_positions_cache[agent, t]` from the `t - 1` entry.
-    fn update_reachable_positions(&mut self, agent: usize, t: usize) {
-        let mut result = PositionSet::empty(self.height, self.width);
-        for pos in &self.reachable_positions_cache[self.pos_cache_idx(agent, t - 1)] {
-            for &n in &self.neighbours[self.flat_index(&pos)] {
-                result.insert(n);
+    /// Update the relevant positions for each agent at time step t.
+    /// # Details
+    /// A position is relevant to a given agent at time step t if:
+    ///     - the agent can reach it at time step t
+    ///     - the agent can still access the exit within `t_max - t` steps
+    ///
+    /// # Assumptions
+    /// This function assumes that `update_exit_reachable` has already been called for `t`.
+    fn update_relevant_positions(&mut self, t: usize) {
+        for agent in 0..self.n_agents {
+            let mut result = PositionSet::empty(self.height, self.width);
+            for pos in &self.relevant_positions[self.pos_cache_idx(agent, t - 1)] {
+                for &n in &self.neighbours[self.flat_index(&pos)] {
+                    result.insert(n);
+                }
             }
+            result.intersect_with(&self.exit_reachable);
+            let idx = self.pos_cache_idx(agent, t);
+            self.relevant_positions[idx] = result;
         }
-        result.intersect_with(&self.exit_reachable);
-        let idx = self.pos_cache_idx(agent, t);
-        self.reachable_positions_cache[idx] = result;
     }
 
-    /// Compute and cache `reachable_laser_paths_cache[laser_idx, t]`.
-    fn update_reachable_laser_path(&mut self, laser_idx: usize, t: usize) {
-        let agent_id = self.laser_sources[laser_idx].agent_id;
-        let blockable = &self.reachable_positions_cache[self.pos_cache_idx(agent_id, t)];
-        let result: Vec<Position> = self.laser_sources[laser_idx]
-            .path
-            .iter()
-            .copied()
-            .filter(|p| blockable.contains(p))
-            .collect();
-        let idx = self.laser_path_cache_idx(laser_idx, t);
-        self.reachable_laser_paths_cache[idx] = result;
+    /// Compute and cache `relevant_laser_paths_cache[..., t]`.
+    ///
+    /// # Details
+    /// The relevant laser path for a given laser source at time `t` is the subset of its path that
+    /// is still blockable by the agent that is using it.
+    ///
+    /// # Assumptions
+    /// This function assumes that `update_relevant_positions` has already been called for `t`.
+    fn update_relevant_laser_paths(&mut self, t: usize) {
+        for laser_idx in 0..self.laser_sources.len() {
+            let agent_id = self.laser_sources[laser_idx].agent_id;
+            let blockable = &self.relevant_positions[self.pos_cache_idx(agent_id, t)];
+            let result: Vec<Position> = self.laser_sources[laser_idx]
+                .path
+                .iter()
+                .copied()
+                .filter(|p| blockable.contains(p))
+                .collect();
+            let idx = self.laser_path_cache_idx(laser_idx, t);
+            self.relevant_laser_paths[idx] = result;
+        }
     }
 
     /// Pre-compute (and cache) every piece of on-demand data needed to generate constraints
@@ -265,32 +283,29 @@ impl ConstraintContext {
         }
         for tt in (self.updated_until + 1)..=t {
             self.update_exit_reachable(tt);
-            for agent in 0..self.n_agents {
-                self.update_reachable_positions(agent, tt);
-            }
-            for laser_idx in 0..self.laser_sources.len() {
-                self.update_reachable_laser_path(laser_idx, tt);
-            }
+            self.update_relevant_positions(tt);
+            self.update_relevant_laser_paths(tt);
         }
         self.updated_until = t;
     }
 
-    /// Reachable positions for a single agent at time `t`, returning a reference to the cached
-    /// set (no cloning). Assumes `update` has already been called for this `t`.
-    pub fn reachable_positions_for_agent(&self, agent: usize, t: usize) -> &PositionSet {
-        &self.reachable_positions_cache[self.pos_cache_idx(agent, t)]
+    /// Relevant positions for a single agent at time `t`, i.e. positions that the agent
+    /// can reach and from which it can still access the exit within due time.
+    pub fn relevant_positions_for_agent(&self, agent: usize, t: usize) -> &PositionSet {
+        &self.relevant_positions[self.pos_cache_idx(agent, t)]
     }
 
-    /// Positions reachable by *all* the given agents exactly at time `t` (already filtered by
-    /// exit-reachability). Mirrors `ConstraintContext.reachable_positions`. Assumes `update` has
-    /// already been called for this `t`.
-    pub fn reachable_positions(&self, t: usize, agents: &[usize]) -> PositionSet {
+    /// Positions relevant to *all* the given agents exactly at time `t` (already filtered by
+    /// exit-reachability), i.e. intersection of the positions relevant to each agent individually.
+    ///
+    /// See `relevant_positions_for_agent` for more details.
+    pub fn relevant_positions(&self, t: usize, agents: &[usize]) -> PositionSet {
         if agents.is_empty() {
             return PositionSet::empty(self.height, self.width);
         }
-        let mut reachable = self.reachable_positions_for_agent(agents[0], t).clone();
+        let mut reachable = self.relevant_positions_for_agent(agents[0], t).clone();
         for &agent in &agents[1..] {
-            reachable.intersect_with(self.reachable_positions_for_agent(agent, t));
+            reachable.intersect_with(self.relevant_positions_for_agent(agent, t));
         }
         reachable
     }
@@ -301,7 +316,7 @@ impl ConstraintContext {
         if t == 0 {
             return Vec::new();
         }
-        let reachable = &self.reachable_positions_cache[self.pos_cache_idx(agent, t - 1)];
+        let reachable = &self.relevant_positions[self.pos_cache_idx(agent, t - 1)];
         self.predecessors[self.flat_index(pos)]
             .iter()
             .copied()
@@ -312,10 +327,12 @@ impl ConstraintContext {
     /// The reachable laser path for a given laser source at time `t`: the beam tiles that can
     /// still be blocked. Assumes `update` has already been called for this `t`.
     pub fn get_reachable_laser_path(&self, laser_idx: usize, t: usize) -> &Vec<Position> {
-        &self.reachable_laser_paths_cache[self.laser_path_cache_idx(laser_idx, t)]
+        &self.relevant_laser_paths[self.laser_path_cache_idx(laser_idx, t)]
     }
+}
 
-    #[cfg(test)]
+#[cfg(test)]
+impl ConstraintContext {
     /// ONLY USE THIS FOR TESTING PURPOSES
     fn get_exit_distance(&self, pos: &Position) -> usize {
         for (bucket, dist) in self.distance_buckets.iter().enumerate() {
@@ -323,7 +340,12 @@ impl ConstraintContext {
                 return bucket;
             }
         }
-        usize::MAX
+        panic!("{pos:?} is not in the PositionSet !")
+    }
+
+    /// ONLY USE THIS FOR TESTING PURPOSES
+    fn is_exit_reachable(&self, pos: &Position) -> bool {
+        self.exit_reachable.contains(pos)
     }
 }
 
