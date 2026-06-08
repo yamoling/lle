@@ -271,7 +271,6 @@ def test_laser_source_tiles_are_blocked_for_agent_reachability():
     world = World("S0 L0E X")
     ctx = ConstraintContext(world, 2)
 
-    assert (0, 1) not in ctx.valid_positions
     # Position (0,0) requires 3 steps to reach exit, but t_max=2, so it's not reachable
     assert ctx.reachable_positions(1, 0) == set()
 

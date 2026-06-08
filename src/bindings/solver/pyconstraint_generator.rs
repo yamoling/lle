@@ -3,7 +3,7 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use crate::{
     bindings::{PyAction, PyWorld},
-    solver::ConstraintGenerator,
+    solver::{Clause, ClauseGenerator},
 };
 
 /// Generates the SAT clauses (CNF, as lists of signed integer literals) used by
@@ -27,9 +27,9 @@ use crate::{
 ///         plan = gen.decode_plan(solver.get_model(), gen.t_max)
 /// ```
 #[gen_stub_pyclass]
-#[pyclass(name = "ConstraintGenerator", module = "lle.solver.constraints")]
-pub struct PyConstraintGenerator {
-    inner: ConstraintGenerator,
+#[pyclass(name = "ClauseGenerator", module = "lle.solver.constraints")]
+pub struct PyClauseGenerator {
+    inner: ClauseGenerator,
     /// The maximum time step considered by this generator.
     #[pyo3(get)]
     t_max: usize,
@@ -41,13 +41,13 @@ pub struct PyConstraintGenerator {
 
 #[gen_stub_pymethods]
 #[pymethods]
-impl PyConstraintGenerator {
+impl PyClauseGenerator {
     /// Build a constraint generator for `world`, considering plans of length up to `t_max`.
     #[new]
     fn new(world: &PyWorld, t_max: usize) -> Self {
-        let inner = world.with_world(|world| ConstraintGenerator::new(world, t_max));
+        let inner = world.with_world(|world| ClauseGenerator::new(world, t_max));
         let solution_lower_bound = inner.solution_lower_bound();
-        PyConstraintGenerator {
+        Self {
             inner,
             t_max,
             solution_lower_bound,
@@ -57,13 +57,13 @@ impl PyConstraintGenerator {
     /// Generate every clause (initialization, movement and laser constraints) that applies
     /// at time step `t`. Clauses are returned as lists of signed integer literals (CNF),
     /// ready to be fed to a `pysat` solver.
-    fn generate(&mut self, t: usize) -> Vec<Vec<i32>> {
+    fn generate(&mut self, t: usize) -> Vec<Clause> {
         self.inner.generate(t)
     }
 
     /// Generate the objective clauses for time step `t`: every agent must be on an exit.
     /// Intended to be appended to the formula of the solver instance considering `t_end = t`.
-    fn objective(&mut self, t: usize) -> Vec<Vec<i32>> {
+    fn objective(&mut self, t: usize) -> Vec<Clause> {
         self.inner.objective(t)
     }
 
@@ -72,7 +72,7 @@ impl PyConstraintGenerator {
     /// Adding these clauses for every `t` in `[0, t_max]` is logically equivalent to
     /// forbidding cooperation altogether: the resulting formula is UNSAT iff laser
     /// blocking is required to solve the level within the horizon.
-    fn no_blocking_clauses(&mut self, t: usize) -> Vec<Vec<i32>> {
+    fn no_blocking_clauses(&mut self, t: usize) -> Vec<Clause> {
         self.inner.no_blocking_clauses(t)
     }
 

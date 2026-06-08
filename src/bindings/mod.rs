@@ -10,7 +10,7 @@ mod world;
 pub use pyexceptions::{
     InvalidActionError, InvalidLevelError, InvalidWorldStateError, ParsingError,
 };
-pub use solver::PyConstraintGenerator;
+pub use solver::PyClauseGenerator;
 pub use tiles::{PyLaser, PyLaserSource};
 pub use world::{PyAction, PyEventType, PyPosition, PyWorld, PyWorldEvent, PyWorldState};
 
@@ -40,7 +40,7 @@ fn make_world_submodule<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyModule>> 
 /// finds it already present in `sys.modules` when it does `from .constraints import ...`.
 fn register_constraints_submodule(py: Python<'_>) -> PyResult<()> {
     let constraints = PyModule::new(py, "constraints")?;
-    constraints.add_class::<solver::PyConstraintGenerator>()?;
+    constraints.add_class::<solver::PyClauseGenerator>()?;
     py.import("sys")?
         .getattr("modules")?
         .set_item("lle.solver.constraints", &constraints)

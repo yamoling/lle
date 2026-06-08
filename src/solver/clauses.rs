@@ -2,8 +2,9 @@ use std::collections::HashMap;
 
 use itertools::Itertools;
 
+use crate::solver::VarKey;
 use crate::tiles::LaserId;
-use crate::{AgentId, Position};
+use crate::{Action, AgentId, Position, World};
 
 use super::context::ConstraintContext;
 use super::var_pool::VarPool;
@@ -49,18 +50,24 @@ fn at_most_one_sequential(vars: &[i32], pool: &mut VarPool) -> Vec<Clause> {
 /// `InitializationConstraints`, `MovementConstraints` and `LaserConstraints` combined.
 pub struct ClauseGenerator {
     ctx: ConstraintContext,
-    pub pool: VarPool,
+    pool: VarPool,
     exits: std::collections::HashSet<Position>,
 }
 
 impl ClauseGenerator {
-    pub fn new(ctx: ConstraintContext) -> Self {
+    pub fn new(world: &World, t_max: usize) -> Self {
         Self {
-            exits: ctx.exits.clone(),
-            ctx,
+            exits: world.exits_positions().into_iter().collect(),
+            ctx: ConstraintContext::new(world, t_max),
             pool: VarPool::new(),
         }
     }
+
+    #[inline]
+    pub fn decode_plan(&self, literals: &[i32], t_end: usize) -> Result<Vec<Vec<Action>>, String> {
+        self.pool.decode_plan(literals, t_end)
+    }
+
     #[inline]
     pub fn t_max(&self) -> usize {
         self.ctx.t_max
@@ -79,6 +86,10 @@ impl ClauseGenerator {
     #[inline]
     fn laser(&mut self, laser_id: LaserId, pos: Position, t: usize) -> i32 {
         self.pool.laser(laser_id, pos, t)
+    }
+
+    pub fn exists(&self, key: &VarKey) -> bool {
+        self.pool.exists(&key)
     }
 
     /// All clauses for time step `t`: initialization (t == 0), movement and laser constraints.
@@ -355,3 +366,7 @@ impl ClauseGenerator {
         clauses
     }
 }
+
+#[cfg(test)]
+#[path = "../unit_tests/test_individual_clauses.rs"]
+mod tests;

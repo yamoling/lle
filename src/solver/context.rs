@@ -43,7 +43,6 @@ pub struct ConstraintContext {
     pub t_max: usize,
     pub n_agents: usize,
     pub start_pos: Vec<Position>,
-    pub exits: HashSet<Position>,
     /// `predecessors[i * width + j]` = positions from which an agent can move into `(i, j)`.
     pub predecessors: Vec<Vec<Position>>,
     pub solution_lower_bound: usize,
@@ -171,13 +170,24 @@ impl ConstraintContext {
             reachable_positions_cache[agent * stride] =
                 PositionSet::singleton(height, width, start_pos[agent]);
         }
-        let reachable_laser_paths_cache = vec![Vec::new(); laser_sources.len() * stride];
+        // Seed the `t = 0` laser-path slots from the `t = 0` reachable-positions seed above
+        // (mirroring `update_reachable_laser_path`); `update` only fills in `t >= 1`, since its
+        // loop range `(updated_until + 1)..=t` is empty for `t = 0`.
+        let mut reachable_laser_paths_cache = vec![Vec::new(); laser_sources.len() * stride];
+        for (laser_idx, source) in laser_sources.iter().enumerate() {
+            let blockable = &reachable_positions_cache[source.agent_id * stride];
+            reachable_laser_paths_cache[laser_idx * stride] = source
+                .path
+                .iter()
+                .filter(|p| blockable.contains(p))
+                .copied()
+                .collect();
+        }
 
         ConstraintContext {
             t_max,
             n_agents,
             start_pos,
-            exits,
             predecessors,
             solution_lower_bound,
             laser_sources,
@@ -325,3 +335,7 @@ fn compute_exit_distance(
     }
     dist
 }
+
+#[cfg(test)]
+#[path = "../unit_tests/test_context.rs"]
+mod tests;

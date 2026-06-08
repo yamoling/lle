@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{AgentId, Position};
+use crate::{Action, AgentId, Position};
 
 /// Semantic key for a SAT variable, mirroring the Python `VariableFactory` pool.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -96,5 +96,54 @@ impl VarPool {
 
     pub fn exists(&self, key: &VarKey) -> bool {
         self.ids.contains_key(key)
+    }
+
+    /// Every generated variable id, paired with its semantic key, in order of creation.
+    pub fn iter(&self) -> impl Iterator<Item = (i32, VarKey)> + '_ {
+        self.keys
+            .iter()
+            .enumerate()
+            .map(|(i, &key)| ((i + 1) as i32, key))
+    }
+
+    /// Decode a SAT model (list of signed literals) into a joint action plan of length `t_end`.
+    pub fn decode_plan(&self, literals: &[i32], t_end: usize) -> Result<Vec<Vec<Action>>, String> {
+        let mut positions: HashMap<usize, HashMap<usize, Position>> = HashMap::new();
+        for &lit in literals {
+            if lit <= 0 {
+                continue;
+            }
+            if let Some(VarKey::Agent { agent_id, pos, t }) = self.key(lit) {
+                positions.entry(agent_id).or_default().insert(t, pos);
+            }
+        }
+        let mut agent_ids: Vec<usize> = positions.keys().copied().collect();
+        agent_ids.sort_unstable();
+
+        let mut plan = Vec::with_capacity(t_end);
+        for t in 0..t_end {
+            let mut row = Vec::with_capacity(agent_ids.len());
+            for &agent in &agent_ids {
+                let Position { i: y1, j: x1 } = positions[&agent][&t];
+                let Position { i: y2, j: x2 } = positions[&agent][&(t + 1)];
+                let (dx, dy) = (x2 as i64 - x1 as i64, y2 as i64 - y1 as i64);
+                let action = match (dx, dy) {
+                    (0, 0) => Action::Stay,
+                    (0, -1) => Action::North,
+                    (0, 1) => Action::South,
+                    (1, 0) => Action::East,
+                    (-1, 0) => Action::West,
+                    _ => {
+                        return Err(format!(
+                            "Invalid movement for agent {agent} at t={t}->{}: delta=({dx}, {dy})",
+                            t + 1
+                        ));
+                    }
+                };
+                row.push(action);
+            }
+            plan.push(row);
+        }
+        Ok(plan)
     }
 }
