@@ -22,6 +22,7 @@ pub enum VarKey {
 }
 
 impl VarKey {
+    #[inline]
     pub fn agent(id: AgentId, pos: Position, t: usize) -> Self {
         VarKey::Agent {
             agent_id: id,
@@ -30,6 +31,7 @@ impl VarKey {
         }
     }
 
+    #[inline]
     pub fn laser(id: AgentId, pos: Position, t: usize) -> Self {
         VarKey::Laser {
             laser_id: id,
@@ -38,6 +40,7 @@ impl VarKey {
         }
     }
 
+    #[inline]
     pub fn aux(id: i32) -> Self {
         VarKey::Aux(id)
     }
