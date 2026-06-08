@@ -16,8 +16,7 @@ purposes:
    about *who helps whom*, enabling both post-solve extraction of the
    cooperation structure and pre-solve enforcement of a target level.
 
-Variable semantics
-------------------
+# Variable semantics
 ``laser_blocked(laser_id, t)``
     True iff the same-colour agent stands on (and therefore blocks) laser
     ``laser_id``'s beam at time ``t``.
@@ -109,10 +108,6 @@ class CooperationConstraints(ConstraintGenerator):
             for av in agent_vars:
                 yield [-av, blocked_var]
 
-    # ------------------------------------------------------------------
-    # Cooperation-event indicators
-    # ------------------------------------------------------------------
-
     def _coop_event_definitions(self, t: int) -> Iterator[list[int]]:
         r"""Define ``coop_event(helper, beneficiary, laser_id, t)``.
 
@@ -162,10 +157,6 @@ class CooperationConstraints(ConstraintGenerator):
 
                 # coop_event → OR(terms)  [close the iff]
                 yield [-coop_var, *term_vars]
-
-    # ------------------------------------------------------------------
-    # depends_on  (aggregated over the full horizon)
-    # ------------------------------------------------------------------
 
     def finalize_depends_on(self, t_end: int) -> Iterator[list[int]]:
         """Define ``depends_on(beneficiary, helper)`` over the horizon ``[0, t_end]``.

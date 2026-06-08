@@ -2,7 +2,8 @@ use std::collections::HashMap;
 
 use itertools::Itertools;
 
-use crate::Position;
+use crate::tiles::LaserId;
+use crate::{AgentId, Position};
 
 use super::context::ConstraintContext;
 use super::var_pool::VarPool;
@@ -71,13 +72,13 @@ impl ClauseGenerator {
     }
 
     #[inline]
-    fn agent(&mut self, agent: usize, pos: Position, t: usize) -> i32 {
-        self.pool.agent(agent, pos.i, pos.j, t)
+    fn agent(&mut self, agent: AgentId, pos: Position, t: usize) -> i32 {
+        self.pool.agent(agent, pos, t)
     }
 
     #[inline]
-    fn laser(&mut self, laser_id: usize, pos: Position, t: usize) -> i32 {
-        self.pool.laser(laser_id, pos.i, pos.j, t)
+    fn laser(&mut self, laser_id: LaserId, pos: Position, t: usize) -> i32 {
+        self.pool.laser(laser_id, pos, t)
     }
 
     /// All clauses for time step `t`: initialization (t == 0), movement and laser constraints.

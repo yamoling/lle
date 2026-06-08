@@ -4,8 +4,7 @@ The analyser replays a sequence of joint actions on a copy of the world and, at
 every state the world passes through (the initial state and the state after each
 action), records which agents help which others.
 
-Dependency detection (per state)
---------------------------------
+# Dependency detection (per state)
 For every enabled laser beam of colour ``c``:
 
 * the beam is *blocked* iff agent ``c`` stands on one of its tiles (only an

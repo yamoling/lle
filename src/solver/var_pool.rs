@@ -1,12 +1,22 @@
 use std::collections::HashMap;
 
+use crate::{AgentId, Position};
+
 /// Semantic key for a SAT variable, mirroring the Python `VariableFactory` pool.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum VarKey {
-    /// (agent, i, j, t)
-    Agent(usize, usize, usize, usize),
+    /// Whether the specified agent is located at `pos` at time step `t`.
+    Agent {
+        agent_id: AgentId,
+        pos: Position,
+        t: usize,
+    },
     /// (laser_id, i, j, t)
-    Laser(usize, usize, usize, usize),
+    Laser {
+        laser_id: AgentId,
+        pos: Position,
+        t: usize,
+    },
     /// Auxiliary variable used internally by cardinality encodings; carries a unique counter.
     Aux(i32),
 }
@@ -34,12 +44,12 @@ impl VarPool {
         id
     }
 
-    pub fn agent(&mut self, agent: usize, i: usize, j: usize, t: usize) -> i32 {
-        self.id(VarKey::Agent(agent, i, j, t))
+    pub fn agent(&mut self, agent_id: AgentId, pos: Position, t: usize) -> i32 {
+        self.id(VarKey::Agent { agent_id, pos, t })
     }
 
-    pub fn laser(&mut self, laser: usize, i: usize, j: usize, t: usize) -> i32 {
-        self.id(VarKey::Laser(laser, i, j, t))
+    pub fn laser(&mut self, laser_id: usize, pos: Position, t: usize) -> i32 {
+        self.id(VarKey::Laser { laser_id, pos, t })
     }
 
     fn next_id(&self) -> i32 {

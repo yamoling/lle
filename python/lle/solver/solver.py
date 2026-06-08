@@ -18,8 +18,7 @@ def solve(world: World, *min_max):
     """
     Find the shortest plan within the time range [t_min, t_max] (both ends included).
 
-    Arguments:
-    ---------
+    # Arguments:
         - `t_min`: The minimum time step to consider.
         - `t_max`: The maximum time step to consider. Defaults to (width * height) // 2.
     """

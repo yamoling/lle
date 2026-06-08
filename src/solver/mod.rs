@@ -60,11 +60,8 @@ impl ConstraintGenerator {
             if lit <= 0 {
                 continue;
             }
-            if let Some(VarKey::Agent(agent, i, j, t)) = self.generator.pool.key(lit) {
-                positions
-                    .entry(agent)
-                    .or_default()
-                    .insert(t, Position { i, j });
+            if let Some(VarKey::Agent { agent_id, pos, t }) = self.generator.pool.key(lit) {
+                positions.entry(agent_id).or_default().insert(t, pos);
             }
         }
         let mut agent_ids: Vec<usize> = positions.keys().copied().collect();

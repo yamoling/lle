@@ -28,8 +28,7 @@ def generate(
     """
     Build a solvable `World` on demand using a SAT-verified procedural generator.
 
-    Parameters:
-    ----------
+    # Parameters:
     - `kind`: the kind of generator to use. Refer to generator classes in the `lle.generator` module for more information.
     - `cooperation`: `None`: any cooperation level is accepted, including non-cooperative maps; `True` for any cooperative level, `False` for no cooperation;
     - `n_walls`: the number of walls to place. If `"auto"`, 10% of the grid is filled with walls.
@@ -43,8 +42,7 @@ def generate(
     - `n_jobs`: the number jobs to run in parallel. When `auto`, spawns `n_cpus - 1` jobs if `n` > 1 or spawns 1 job is `n` = 1.
     - `quiet`: whether to remove the progress bar when `n` > 1.
 
-    Returns:
-    --------
+    # Returns:
         - When `max_attempts` is not provided (default):
             - A single `World` if `n=1`;
             - A Generator of `n` `World` if `n` > 1.
@@ -57,8 +55,7 @@ def generate(
         - `ValueError` if arguments are invalid;
         - `ValueError` if there is no default argument value for the given combination.
 
-    Examples:
-    --------
+    # Examples:
     ```python
     import lle
     world = lle.generate("level6_style", n_agents=4, n_lasers=3)
