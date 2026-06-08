@@ -10,7 +10,7 @@ def _default_t_max(world: World) -> int:
 
 def test_solve_simple_world_returns_shortest_plan():
     world = World("S0 . . X")
-    plan = lle.solve(world, t_max=5)
+    plan = lle.solve(world, 5)
     assert plan is not None
     assert len(plan) == 3
     assert all(isinstance(row, tuple) for row in plan)
@@ -19,7 +19,7 @@ def test_solve_simple_world_returns_shortest_plan():
 
 def test_solve_fixed_length():
     world = World("S0 . . X")
-    plan = lle.solve(world, t_min=5, t_max=5)
+    plan = lle.solve(world, 5, 5)
     assert plan is not None
     assert len(plan) == 5
 
@@ -27,7 +27,7 @@ def test_solve_fixed_length():
 def test_solve_unsolvable_returns_none():
     # Agent walled off from the exit.
     world = World("S0 @ X")
-    assert lle.solve(world, t_max=10) is None
+    assert lle.solve(world, 10) is None
 
 
 def test_solve_default_t_max():
@@ -40,7 +40,7 @@ def test_solve_default_t_max():
 
 def test_incremental_solver_returns_shortest_plan():
     world = World("S0 . . X")
-    plan = lle.solve(world, t_max=15)
+    plan = lle.solve(world, 15)
     assert plan is not None
     assert len(plan) == 3  # Should find the shortest plan
 
@@ -59,7 +59,7 @@ def assert_agents_are_on_exit(world: World):
 
 def test_solve_plan_is_executable():
     world = World("S0 . . X")
-    plan = lle.solve(world, t_max=4)
+    plan = lle.solve(world, 4)
     assert plan is not None
     world.reset()
     for joint in plan:
@@ -77,7 +77,7 @@ S0 .  .  . .
 S1 .  .  . .
 . .  .  . X
 """)
-    plan = lle.solve(world, t_max=10)
+    plan = lle.solve(world, 10)
     assert plan is not None
     world.reset()
     for joint in plan:
@@ -87,7 +87,7 @@ S1 .  .  . .
 
 def test_solve_level_6_world_is_executable():
     world = World.level(6)
-    plan = lle.solve(world, t_max=21)
+    plan = lle.solve(world, 21)
     assert plan is not None
     world.reset()
     for joint in plan:
@@ -111,7 +111,7 @@ def test_standard_levels_solvable():
     T_MAX = [10, 10, 10, 10, 21, 21]
     for level, t_max in zip((1, 2, 3, 4, 5, 6), T_MAX):
         world = World.level(level)
-        path = lle.solve(world, t_max=t_max)
+        path = lle.solve(world, t_max)
         assert path is not None
         if level >= 3:
             assert lle.is_cooperative(world, t_max)
@@ -127,7 +127,7 @@ S1  .   .  X
     ]
     for ws in worlds:
         world = World(ws)
-        assert lle.solve(world, t_max=10) is None
+        assert lle.solve(world, 10) is None
 
 
 # ==========================================================
@@ -150,7 +150,7 @@ def test_two_same_colour_lasers_blocking_distinct_routes_is_unsat():
 L0S @  L0S @ S0
  X  S1  X  @ X
 """)
-    assert lle.solve(world, t_max=6) is None
+    assert lle.solve(world, 6) is None
 
 
 def test_two_same_colour_same_direction_lasers_with_clear_lanes_is_solvable():
@@ -161,7 +161,7 @@ S1 L0S L0S S0
 .  .   .   .
 X  .   .   X
 """)
-    assert lle.solve(world, t_max=6) is not None
+    assert lle.solve(world, 6) is not None
 
 
 def test_two_same_colour_crossing_lasers_keep_independent_beams():
@@ -177,7 +177,7 @@ S0  .   .   .   .
 S1  .   .   .   L0N
 .   .   .   .   X
 """)
-    # solver = WorldSolver(world, t_max=14)
+    # solver = WorldSolver(world, 14)
     # laser_sources = [(laser.color, laser.direction, src) for laser, src in solver.ctx.lasers]
     # directions = {(c, d) for c, d, _ in laser_sources}
     # assert len(laser_sources) == 5
@@ -190,4 +190,4 @@ S1  .   .   .   L0N
     # for crossing in [(1, 1), (1, 2), (1, 3), (1, 4)]:
     #     beams_here = {(key[1], key[2]) for key in solver.ctx.beam_var if key[3:6] == (*crossing, 0)}
     #     assert len(beams_here) >= 2
-    assert lle.solve(world, t_max=14) is not None
+    assert lle.solve(world, 14) is not None

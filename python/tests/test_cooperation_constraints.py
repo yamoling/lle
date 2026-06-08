@@ -11,8 +11,8 @@ Covers:
 from __future__ import annotations
 
 import pytest
-from lle import World
-from lle.solver.constraints import (
+from lle import Action, World
+from lle.solver.constraints_old import (
     ConstraintContext,
     CooperationConstraints,
     InitializationConstraints,
@@ -20,9 +20,38 @@ from lle.solver.constraints import (
     MovementConstraints,
     ObjectiveGenerator,
 )
-from lle.solver.solver import extract_plan, solve_no_cooperation
+from lle.solver.solver import solve_no_cooperation
 from lle.solver.variable_factory import VariableFactory
 from pysat.solvers import Minisat22
+
+
+def extract_plan(var: VariableFactory, model: list[int], t_end: int) -> list[tuple[Action, ...]]:
+    """Decode a SAT model produced by the (Python) `constraints_old` pipeline into a joint-action plan."""
+    positions = dict[int, dict[int, tuple[int, int]]]()
+    for lit in model:
+        if lit <= 0:
+            continue
+        obj = var.pool.obj(lit)
+        if not obj:
+            continue
+        if obj[0] == "agent":
+            _, color, x, y, t = obj
+            positions.setdefault(color, {})[t] = (x, y)
+    agent_colors = sorted(positions.keys())
+    plan: list[tuple[Action, ...]] = []
+    for t in range(t_end):
+        row: list[Action] = []
+        for color in agent_colors:
+            y1, x1 = positions[color][t]
+            y2, x2 = positions[color][t + 1]
+            dx, dy = x2 - x1, y2 - y1
+            try:
+                a = Action.from_delta(dx, dy)
+            except ValueError as e:
+                raise ValueError(f"Invalid movement for agent {color} at t={t}->{t + 1}") from e
+            row.append(a)
+        plan.append(tuple(row))
+    return plan
 
 
 # ---------------------------------------------------------------------------

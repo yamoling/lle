@@ -3,12 +3,14 @@ use pyo3_stub_gen::define_stub_info_gatherer;
 
 mod pyagent;
 mod pyexceptions;
+mod solver;
 mod tiles;
 mod world;
 
 pub use pyexceptions::{
     InvalidActionError, InvalidLevelError, InvalidWorldStateError, ParsingError,
 };
+pub use solver::PyClauseGenerator;
 pub use tiles::{PyLaser, PyLaserSource};
 pub use world::{PyAction, PyEventType, PyPosition, PyWorld, PyWorldEvent, PyWorldState};
 
@@ -29,6 +31,19 @@ fn make_world_submodule<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyModule>> 
     world.add_class::<world::PyWorldEvent>()?;
     world.add_class::<world::PyAction>()?;
     Ok(world)
+}
+
+/// `lle.solver` is a regular Python package (`python/lle/solver/__init__.py`), so unlike
+/// `make_tiles_submodule` and friends we must not register a native module at `lle.solver`
+/// (that would shadow the package). Instead we register the `ConstraintGenerator` class
+/// directly at the fully qualified name `lle.solver.constraints`: the Python package then
+/// finds it already present in `sys.modules` when it does `from .constraints import ...`.
+fn register_constraints_submodule(py: Python<'_>) -> PyResult<()> {
+    let constraints = PyModule::new(py, "constraints")?;
+    constraints.add_class::<solver::PyClauseGenerator>()?;
+    py.import("sys")?
+        .getattr("modules")?
+        .set_item("lle.solver.constraints", &constraints)
 }
 
 fn make_exceptions_submodule<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyModule>> {
@@ -89,6 +104,7 @@ fn lle(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     add_submodule(py, m, tiles)?;
     add_submodule(py, m, world)?;
     add_submodule(py, m, exceptions)?;
+    register_constraints_submodule(py)?;
 
     let agent = PyModule::new(py, "agent")?;
     agent.add_class::<pyagent::PyAgent>()?;

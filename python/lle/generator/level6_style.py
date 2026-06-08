@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from lle.tiles import Direction
 
-from ._base import CooperationSpec
 from ._candidates import CandidateLayout
 from .constructive import ConstructiveGenerator
 
@@ -39,7 +38,7 @@ class Level6StyleGenerator(ConstructiveGenerator):
         n_walls: int | None = None,
         t_max: int | None = None,
         t_min: int | None = None,
-        cooperation: CooperationSpec | None = None,
+        cooperation: bool | None = None,
     ):
         if n_lasers < 1:
             raise ValueError(f"kind='level6_style' requires lasers >= 1; got {n_lasers}.")

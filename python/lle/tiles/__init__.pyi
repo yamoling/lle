@@ -139,6 +139,10 @@ class LaserSource:
         Equality is based on the agent ID, direction, laser ID, and position.
         Whether a laser source is enabled is not considered.
         """
+    def __hash__(self) -> builtins.int:
+        r"""
+        Hash based on the `laser_id`.
+        """
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...
 

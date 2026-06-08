@@ -6,7 +6,6 @@ from lle.observations import AgentZeroPerspective, Layered, ObservationTypeLiter
 
 
 def test_typing_observation_type_literal():
-    # Every variant of CooperationLevelStr matches one CooperationLevel
     for s in get_args(ObservationTypeLiteral):
         ok = False
         for o in ObservationType:
@@ -14,7 +13,6 @@ def test_typing_observation_type_literal():
                 ok = True
                 break
         assert ok, f"{s} is not a valid ObservationType"
-    # Every CooperationLevel is a valid CooperationLevelStr
     for o in ObservationType:
         assert o in get_args(ObservationTypeLiteral)
 

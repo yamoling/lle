@@ -11,7 +11,7 @@ of the laser, in which case they can block the beam and let others pass safely.
 LLE gives you two complementary ways to work with a world:
 - `World` for low-level, deterministic control of maps, states, and steps.
 - `LLE` for a higher-level MARL environment compatible with `marlenv`.
-- `generate`, `solve`, `solve_hybrid`, `solve_sat`, `is_cooperative`, and `cooperation_level` for SAT-based generation and analysis.
+- `generate`, `solve`, `solve_hybrid`, `solve_sat`, and `is_cooperative` for SAT-based generation and analysis.
 
 ## Quick start
 Create a simple world, run a step, then restore the previous state:
@@ -94,22 +94,18 @@ assert lle.is_cooperative(World.level(6))
   kind defaults to an exactly mutual cooperative configuration.
 
 The `cooperation` argument lets you constrain the requested cooperation
-behaviour. You can pass `True`, `False`, a `CooperationLevel`, a string such
-as `"mutual"`, or a tuple such as `("at-least", "mutual")`. See
-`CooperationLevel` for the exact ordering. Use `cooperation=True` when you
-want any cooperative world rather than a specific profile.
+behaviour. You can pass `True`, `False`, or `None`.
 
 Examples:
 
 ```python
 import lle
-from lle import CooperationLevel
 
 lle.generate(kind="random", height=5, width=5, n_agents=2)
 lle.generate(kind="random", height=6, width=6, n_agents=2, n_lasers=2, cooperation=True)
 lle.generate(kind="level6_style", n_agents=4, n_lasers=3, t_max=21)
-lle.generate(kind="constructive", n_lasers=2, cooperation=("at-least", CooperationLevel.ASYMMETRIC))
-lle.generate(kind="constructive", n_lasers=3, cooperation=("exactly", "asymmetric"))
+lle.generate(kind="constructive", n_lasers=2, cooperation=True)
+lle.generate(kind="constructive", n_lasers=3, cooperation=None)
 ```
 
 ## Custom maps
@@ -152,14 +148,16 @@ from .lle import __version__, agent, exceptions, tiles, world  # noqa # prevent 
 
 
 from .agent import Agent
-from .env import LLE, make_pool
+from .cooperation import (
+    CooperationProfile,
+    DependencyEdge,
+    TemporalDependencyGraph,
+    analyse_cooperation,
+)
+from .env import LLE
 from .generator import generate
 from .observations import ObservationType
 from .solver import (
-    CooperationLevel,
-    CooperationLevelStr,
-    cooperation_level,
-    cooperation_level_trajectory,
     is_cooperative,
     solve,
 )
@@ -194,10 +192,9 @@ __all__ = [
     "level",
     "solve",
     "is_cooperative",
-    "cooperation_level",
-    "cooperation_level_trajectory",
-    "CooperationLevel",
     "generate",
-    "make_pool",
-    "CooperationLevelStr",
+    "analyse_cooperation",
+    "CooperationProfile",
+    "TemporalDependencyGraph",
+    "DependencyEdge",
 ]

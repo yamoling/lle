@@ -1,150 +1,11 @@
-"""Procedural world generation helpers.
-
-Use `generate` to build a solvable `World` on demand. The module exposes
-three generator families:
-
-- `random`: samples arbitrary layouts and validates them with the SAT solver.
-- `constructive`: builds a layout with an explicit constructive solution.
-- `level6_style`: builds a Level-6-inspired cooperative layout. It defaults to an exactly mutual cooperative configuration.
-
-The `cooperation` argument accepts either a boolean, a `CooperationLevel`, a
-string such as `"mutual"`, or a tuple like `("at-least", "cooperative")`.
-See `CooperationLevel` for the ordering used by the solver. Use
-`cooperation=True` when you want any cooperative world rather than a specific
-profile.
-"""
-
 from __future__ import annotations
 
-from typing import Any, Generator, Literal, overload
+from typing import Literal
 
-from ..solver.cooperation_level import CooperationLevel, CooperationLevelStr
-from ..world import World
-from ._args import _GenerateArgs
-from ._base import CooperationSpec
+from ._args import GenerateArgs
 from .constructive import ConstructiveGenerator
 from .level6_style import Level6StyleGenerator
 from .random import RandomGenerator
-
-LooseCooperationSpec = (
-    CooperationSpec | CooperationLevel | CooperationLevelStr | tuple[Literal["exactly", "at-least"], CooperationLevelStr] | bool
-)
-
-
-@overload
-def generate(
-    kind: Literal["level6_style"] = "level6_style",
-    *,
-    n: Literal[1] = 1,
-    max_attempts: Literal[None] = None,
-    height: int = 12,
-    width: int = 13,
-    n_agents: int = 4,
-    n_lasers: int = 3,
-    cooperation: LooseCooperationSpec | None = ("exactly", "mutual"),
-    t_min: int = 0,
-    t_max: int = 21,
-    n_walls: int | Literal["auto"] = "auto",
-    seed: int | None = None,
-    n_jobs: int | Literal["auto"] = 1,
-) -> World: ...
-
-
-@overload
-def generate(
-    kind: Literal["level6_style"],
-    *,
-    max_attempts: int,
-    n: Literal[1] = 1,
-    height: int = 12,
-    width: int = 13,
-    n_agents: int = 4,
-    n_lasers: int = 3,
-    cooperation: LooseCooperationSpec | None = ("exactly", "mutual"),
-    t_min: int = 0,
-    t_max: int = 21,
-    n_walls: int | Literal["auto"] = "auto",
-    seed: int | None = None,
-    n_jobs: int | Literal["auto"] = "auto",
-) -> World | None: ...
-
-
-@overload
-def generate(
-    kind: Literal["level6_style"],
-    *,
-    n: int,
-    max_attempts: int | None = None,
-    height: int = 12,
-    width: int = 13,
-    n_agents: int = 4,
-    n_lasers: int = 3,
-    cooperation: LooseCooperationSpec | None = ("exactly", "mutual"),
-    t_min: int = 0,
-    t_max: int = 21,
-    n_walls: int | Literal["auto"] = "auto",
-    seed: int | None = None,
-    n_jobs: int | Literal["auto"] = "auto",
-    quiet: bool = False,
-) -> Generator[World, Any, None]: ...
-
-
-@overload
-def generate(
-    kind: Literal["random", "constructive"],
-    *,
-    n: Literal[1] = 1,
-    max_attempts: Literal[None] = None,
-    height: int = 5,
-    width: int = 5,
-    n_agents: int = 2,
-    n_lasers: int | Literal["auto"] = "auto",
-    cooperation: LooseCooperationSpec | None = None,
-    n_walls: int | Literal["auto"] = "auto",
-    t_min: int = 0,
-    t_max: int | Literal["auto"] = "auto",
-    seed: int | None = None,
-    n_jobs: int | Literal["auto"] = 1,
-) -> World: ...
-
-
-@overload
-def generate(
-    kind: Literal["random", "constructive"],
-    *,
-    max_attempts: int,
-    n: Literal[1] = 1,
-    height: int = 5,
-    width: int = 5,
-    n_agents: int = 2,
-    n_lasers: int | Literal["auto"] = "auto",
-    cooperation: LooseCooperationSpec | None = None,
-    n_walls: int | Literal["auto"] = "auto",
-    t_min: int = 0,
-    t_max: int | Literal["auto"] = "auto",
-    seed: int | None = None,
-    n_jobs: int | Literal["auto"] = 1,
-) -> World | None: ...
-
-
-@overload
-def generate(
-    kind: Literal["random", "constructive"],
-    *,
-    n: int,
-    max_attempts: int | None = None,
-    height: int = 5,
-    width: int = 5,
-    n_agents: int = 2,
-    n_lasers: int | Literal["auto"] = "auto",
-    cooperation: LooseCooperationSpec | None = None,
-    n_walls: int | Literal["auto"] = "auto",
-    t_min: int = 0,
-    t_max: int | Literal["auto"] = "auto",
-    seed: int | None = None,
-    n_jobs: int | Literal["auto"] = "auto",
-    quiet: bool = False,
-) -> Generator[World, Any, None]: ...
 
 
 def generate(
@@ -155,7 +16,7 @@ def generate(
     width: int | None = None,
     n_agents: int | None = None,
     n_lasers: int | Literal["auto"] = "auto",
-    cooperation: LooseCooperationSpec | None = None,
+    cooperation: bool | None = None,
     t_min: int = 0,
     t_max: int | Literal["auto"] = "auto",
     n_walls: int | Literal["auto"] = "auto",
@@ -167,14 +28,9 @@ def generate(
     """
     Build a solvable `World` on demand using a SAT-verified procedural generator.
 
-    Parameters:
-    ----------
+    # Parameters:
     - `kind`: the kind of generator to use. Refer to generator classes in the `lle.generator` module for more information.
-    - `cooperation`: The required level of cooperation. Can be specified as:
-        - `None`: any cooperation level is accepted, including non-cooperative maps;
-        - a boolean: `True` for any cooperative level, `False` for no cooperation;
-        - a `CooperationLevel` or a `CooperationLevelStr` (e.g. `CooperationLevel.MUTUAL` or `"mutual"` for exactly mutual);
-        - a tuple `(constraint, level)` where `constraint` is either `"exactly"` or `"at-least"` and `level` is a `CooperationLevel` or a `CooperationLevelStr`.
+    - `cooperation`: `None`: any cooperation level is accepted, including non-cooperative maps; `True` for any cooperative level, `False` for no cooperation;
     - `n_walls`: the number of walls to place. If `"auto"`, 10% of the grid is filled with walls.
     - `t_min`: a guaranteed lower bound on the solution length. The generator only accepts
       levels that are *not* solvable in fewer than `t_min` steps (and still solvable within
@@ -186,8 +42,7 @@ def generate(
     - `n_jobs`: the number jobs to run in parallel. When `auto`, spawns `n_cpus - 1` jobs if `n` > 1 or spawns 1 job is `n` = 1.
     - `quiet`: whether to remove the progress bar when `n` > 1.
 
-    Returns:
-    --------
+    # Returns:
         - When `max_attempts` is not provided (default):
             - A single `World` if `n=1`;
             - A Generator of `n` `World` if `n` > 1.
@@ -200,18 +55,16 @@ def generate(
         - `ValueError` if arguments are invalid;
         - `ValueError` if there is no default argument value for the given combination.
 
-    Examples:
-    --------
+    # Examples:
     ```python
     import lle
     world = lle.generate("level6_style", n_agents=4, n_lasers=3)
     world = lle.generate("random", n=10, width=5, height=7, n_agents=2, seed=0)
     world = lle.generate("random", cooperation=("at-least", "mutual"))
-    world = lle.generate("random", cooperation=CooperationLevel.FULLY_COUPLED, seed=0)
     world_or_none = lle.genrate("random", max_attempts=10, cooperation="mutual")
     ```
     """
-    args = _GenerateArgs(
+    args = GenerateArgs(
         kind=kind,
         height=height,
         width=width,

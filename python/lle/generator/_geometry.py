@@ -7,8 +7,7 @@ basic grid logic without importing the SAT machinery.
 from __future__ import annotations
 
 from lle.tiles import Direction
-
-Position = tuple[int, int]
+from lle.types import Position
 
 
 def direction_delta(direction: Direction) -> tuple[int, int]:

@@ -16,8 +16,7 @@ purposes:
    about *who helps whom*, enabling both post-solve extraction of the
    cooperation structure and pre-solve enforcement of a target level.
 
-Variable semantics
-------------------
+# Variable semantics
 ``laser_blocked(laser_id, t)``
     True iff the same-colour agent stands on (and therefore blocks) laser
     ``laser_id``'s beam at time ``t``.
@@ -109,10 +108,6 @@ class CooperationConstraints(ConstraintGenerator):
             for av in agent_vars:
                 yield [-av, blocked_var]
 
-    # ------------------------------------------------------------------
-    # Cooperation-event indicators
-    # ------------------------------------------------------------------
-
     def _coop_event_definitions(self, t: int) -> Iterator[list[int]]:
         r"""Define ``coop_event(helper, beneficiary, laser_id, t)``.
 
@@ -163,10 +158,6 @@ class CooperationConstraints(ConstraintGenerator):
                 # coop_event → OR(terms)  [close the iff]
                 yield [-coop_var, *term_vars]
 
-    # ------------------------------------------------------------------
-    # depends_on  (aggregated over the full horizon)
-    # ------------------------------------------------------------------
-
     def finalize_depends_on(self, t_end: int) -> Iterator[list[int]]:
         """Define ``depends_on(beneficiary, helper)`` over the horizon ``[0, t_end]``.
 
@@ -206,10 +197,7 @@ class CooperationConstraints(ConstraintGenerator):
     # ------------------------------------------------------------------
 
     def require_cooperation(self):
-        """Assert at least one blocking event: the plan is not independent.
-
-        Equivalent to requiring the plan to have ``CooperationLevel ≥ COOPERATIVE``.
-        """
+        """Assert at least one blocking event: the plan is not independent."""
         blocked_vars = [
             self.var.laser_blocked(source.laser_id, t)
             for source in self.ctx.laser_paths
@@ -222,7 +210,6 @@ class CooperationConstraints(ConstraintGenerator):
     def require_asymmetric(self):
         """Assert at least one directed dependency edge: ∃(helper, beneficiary).
 
-        Equivalent to requiring ``CooperationLevel ≥ ASYMMETRIC``.
         Yields an empty (UNSAT) clause when no cooperation event is achievable.
         """
         dep_vars = [
@@ -240,7 +227,6 @@ class CooperationConstraints(ConstraintGenerator):
         """Assert at least one mutual pair: ∃(a < b): dep(a,b) ∧ dep(b,a).
 
         Introduces ``mutual(a, b)`` auxiliary variables for each eligible pair.
-        Equivalent to requiring ``CooperationLevel ≥ MUTUAL``.
         Yields an empty (UNSAT) clause when no mutual pair is achievable.
         """
         mutual_vars: list[int] = []
@@ -267,7 +253,6 @@ class CooperationConstraints(ConstraintGenerator):
     def require_distributed(self) -> Iterator[list[int]]:
         """Assert that some beneficiary depends on ≥ 2 distinct helpers.
 
-        Equivalent to requiring ``CooperationLevel ≥ DISTRIBUTED``.
         Meaningful only with ≥ 3 agents (otherwise equivalent to ``require_mutual``).
         """
         has_two_vars: list[int] = []
@@ -301,7 +286,6 @@ class CooperationConstraints(ConstraintGenerator):
     def require_fully_coupled(self) -> Iterator[list[int]]:
         """Assert that every pair (a, b) with a ≠ b satisfies depends_on(a, b).
 
-        Equivalent to requiring ``CooperationLevel = FULLY_COUPLED``.
         Requires at least 2 agents; yields an empty (UNSAT) clause otherwise.
         """
         if self.n_agents < 2:
