@@ -68,7 +68,7 @@ class ClauseGenerator:
         Adding these clauses for every `t` in `[0, t_max]` makes the formula UNSAT iff laser
         blocking (cooperation) is required to solve the level within the horizon.
         """
-    def assume_no_cooperation(self, t_min: builtins.int, t_max: builtins.int) -> builtins.list[builtins.list[builtins.int]]:
+    def assume_no_cooperation(self, t: builtins.int) -> builtins.list[builtins.int]:
         r"""
         Generate the unit clauses assuming no cooperation is required between agents.
         

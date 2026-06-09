@@ -9,12 +9,16 @@ from .constraints import ClauseGenerator
 
 
 @overload
-def solve(world: World, t_max: int | Literal["auto"] = "auto", /) -> list[tuple[Action, ...]] | None: ...
+def solve(
+    world: World, t_max: int | Literal["auto"] = "auto", *, assumptions: list[int] | None = None
+) -> list[tuple[Action, ...]] | None: ...
 @overload
-def solve(world: World, t_min: int, t_max: int | Literal["auto"] = "auto", /) -> list[tuple[Action, ...]] | None: ...
+def solve(
+    world: World, t_min: int, t_max: int | Literal["auto"] = "auto", *, assumptions: list[int] | None = None
+) -> list[tuple[Action, ...]] | None: ...
 
 
-def solve(world: World, *min_max):
+def solve(world: World, *min_max, assumptions: list[int] | None = None):
     """
     Find the shortest plan within the time range [t_min, t_max] (both ends included).
 
@@ -24,16 +28,16 @@ def solve(world: World, *min_max):
     """
     match min_max:
         case ():
-            return _solve(world, 0, "auto")
+            return _solve(world, 0, "auto", assumptions=assumptions)
         case (t_max,):
-            return _solve(world, 0, t_max)
+            return _solve(world, 0, t_max, assumptions=assumptions)
         case (t_min, t_max):
-            return _solve(world, t_min, t_max)
+            return _solve(world, t_min, t_max, assumptions=assumptions)
         case _:
             raise ValueError(f"Invalid arguments: (world, {min_max})")
 
 
-def _solve(world: World, t_min: int, t_max: int | Literal["auto"]) -> list[tuple[Action, ...]] | None:
+def _solve(world: World, t_min: int, t_max: int | Literal["auto"], assumptions: list[int] | None = None) -> list[tuple[Action, ...]] | None:
     if t_max == "auto":
         t_max = (world.width * world.height) // 2
     gen = ClauseGenerator(world, t_max)
@@ -45,13 +49,23 @@ def _solve(world: World, t_min: int, t_max: int | Literal["auto"]) -> list[tuple
     clauses = [clause for t in range(t_min) for clause in gen.generate(t)]
     for t in range(t_min, t_max + 1):
         clauses.extend(gen.generate(t))
-        with Minisat22(bootstrap_with=clauses) as solver:
-            solver.append_formula(gen.objective(t))
-            if solver.solve():
-                model = solver.get_model()
-                assert model is not None
-                return _to_plan(gen.decode_plan(model, t))
+        objective = gen.objective(t)
+        model = solve_model(clauses + objective, assumptions=assumptions)
+        if model is not None:
+            return _to_plan(gen.decode_plan(model, t))
     return None
+
+
+def solve_model(clauses: list[list[int]], *, assumptions: list[int] | None = None) -> list[int] | None:
+    """
+    Solve the SAT problem with the given clauses and assumptions, returning the literals' values
+    if a solution is found, or `None` if the clauses are unsatisfyiable.
+    """
+    with Minisat22(bootstrap_with=clauses) as solver:
+        if solver.solve(assumptions=assumptions):
+            model = solver.get_model()
+            assert model is not None
+            return model
 
 
 def solve_no_cooperation(

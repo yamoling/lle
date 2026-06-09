@@ -227,8 +227,8 @@ impl ConstraintContext {
 
     /// Flat index into `reachable_laser_paths_cache` for `(laser_idx, t)`.
     #[inline]
-    fn laser_path_cache_idx(&self, laser_idx: usize, t: usize) -> usize {
-        laser_idx * (self.t_max + 1) + t
+    fn laser_path_cache_idx(&self, laser_id: usize, t: usize) -> usize {
+        laser_id * (self.t_max + 1) + t
     }
 
     /// Compute and cache `exit_reachable[t]` from `exit_reachable[t - 1]`: as `t` grows by one,
@@ -337,8 +337,8 @@ impl ConstraintContext {
 
     /// The reachable laser path for a given laser source at time `t`: the beam tiles that can
     /// still be blocked. Assumes `update` has already been called for this `t`.
-    pub fn get_reachable_laser_path(&self, laser_idx: usize, t: usize) -> &Vec<Position> {
-        &self.relevant_laser_paths[self.laser_path_cache_idx(laser_idx, t)]
+    pub fn get_relevant_laser_path(&self, laser_id: usize, t: usize) -> &Vec<Position> {
+        &self.relevant_laser_paths[self.laser_path_cache_idx(laser_id, t)]
     }
 }
 

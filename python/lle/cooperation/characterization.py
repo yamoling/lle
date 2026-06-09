@@ -42,6 +42,7 @@ See ``plan-cooperation.md`` for the full design rationale.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 from pysat.solvers import Minisat22
 
@@ -123,7 +124,7 @@ class WorldCharacterization:
         return self.chain_free_threshold is None or t < self.chain_free_threshold
 
 
-def characterize(world: World, t_max: int) -> WorldCharacterization:
+def characterize(world: World, t_max: int | Literal["auto"] = "auto") -> WorldCharacterization:
     """Compute the universal cooperation properties of ``world`` for plans of length ≤ ``t_max``.
 
     For every ordered agent pair ``(beneficiary, helper)``, this finds the shortest
@@ -164,11 +165,10 @@ def characterize(world: World, t_max: int) -> WorldCharacterization:
     Returns:
         A :class:`WorldCharacterization` summarising the dependency thresholds.
     """
-    n = world.n_agents
     gen = ClauseGenerator(world, t_max)
     t_min = max(gen.solution_lower_bound, 0)
 
-    pairs = [(b, h) for b in range(n) for h in range(n) if b != h]
+    pairs = [(b, h) for b in range(world.n_agents) for h in range(world.n_agents) if b != h]
     threshold: dict[tuple[AgentId, AgentId], int | None] = {p: None for p in pairs}
     unresolved: set[tuple[AgentId, AgentId]] = set(pairs)
     first_solvable_length: int | None = None

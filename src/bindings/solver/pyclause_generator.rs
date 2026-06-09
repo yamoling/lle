@@ -3,7 +3,7 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use crate::{
     bindings::{PyAction, PyWorld, pyexceptions::solver_error_to_exception},
-    solver::{Clause, ClauseGenerator},
+    solver::{Clause, ClauseGenerator, Literal},
 };
 
 /// Generates the SAT clauses (CNF, as lists of signed integer literals) used by
@@ -78,13 +78,14 @@ impl PyClauseGenerator {
         self.inner.no_blocking_clauses(t)
     }
 
-    /// Generate the unit clauses assuming no cooperation is required between agents.
+    /// Generate the literal values assignments that corresponds to the assumption that no cooperation
+    /// ever occurs at time step `t`.
     ///
     /// # Raises
     ///     - `SolverError` if the cooperation variables are not yet created.
-    fn assume_no_cooperation(&mut self, t_min: usize, t_max: usize) -> PyResult<Vec<Clause>> {
+    fn assume_no_cooperation(&mut self, t: usize) -> PyResult<Vec<Literal>> {
         self.inner
-            .assume_no_cooperation(t_min, t_max)
+            .assume_no_cooperation(t)
             .map_err(solver_error_to_exception)
     }
 

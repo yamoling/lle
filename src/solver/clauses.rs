@@ -9,7 +9,8 @@ use crate::{Action, AgentId, Position, World};
 use super::context::ConstraintContext;
 use super::var_pool::VarPool;
 
-pub type Clause = Vec<i32>;
+pub type Literal = i32;
+pub type Clause = Vec<Literal>;
 
 /// At-most-one encoding crossover: for small variable sets, the naive pairwise encoding
 /// (n(n-1)/2 binary clauses, no auxiliary variables) uses fewer-or-equal clauses *and* zero
@@ -183,25 +184,23 @@ impl ClauseGenerator {
 
     /// Return the clauses that encode the assumption that there is no cooperation,
     /// i.e. for every laser l and every time step t, `¬laser_blocked(id, t)`.
-    pub fn assume_no_cooperation(
-        &mut self,
-        t_min: usize,
-        t_max: usize,
-    ) -> Result<Vec<Clause>, SolverError> {
-        let mut clauses = Vec::new();
-        for t in t_min..=t_max {
-            self.ctx.update(t);
-            for idx in 0..self.ctx.laser_sources.len() {
-                let laser_id = self.ctx.laser_sources[idx].laser_id;
+    pub fn assume_no_cooperation(&mut self, t: usize) -> Result<Vec<Literal>, SolverError> {
+        self.ctx.update(t);
+        let mut assumptions = Vec::with_capacity(self.ctx.laser_sources.len());
+        for idx in 0..self.ctx.laser_sources.len() {
+            let laser_id = self.ctx.laser_sources[idx].laser_id;
+            // If at least one laser tile is in reach of an agent that can block it
+            if !self.ctx.get_relevant_laser_path(laser_id, t).is_empty() {
                 let key = VarKey::LaserBlocked { laser_id, t };
                 let var = self.pool.get(&key).ok_or(SolverError::InvalidAssumption {
                     var: key,
                     reason: format!("variable does not exist"),
                 })?;
-                clauses.push(vec![-var]);
+                // Assume that the laser is not blocked
+                assumptions.push(-var);
             }
         }
-        Ok(clauses)
+        Ok(assumptions)
     }
 
     /// Define `laser_blocked(laser_id, t) ↔ ∃ blockable (x, y): agent(colour, x, y, t)`.
@@ -211,7 +210,7 @@ impl ClauseGenerator {
         for idx in 0..self.ctx.laser_sources.len() {
             let agent_id = self.ctx.laser_sources[idx].agent_id;
             let laser_id = self.ctx.laser_sources[idx].laser_id;
-            let blockable = self.ctx.get_reachable_laser_path(idx, t);
+            let blockable = self.ctx.get_relevant_laser_path(idx, t);
             if blockable.is_empty() {
                 continue;
             }
@@ -242,7 +241,7 @@ impl ClauseGenerator {
             let path = self.ctx.laser_sources[idx].path.clone();
             let blockable: std::collections::HashSet<Position> = self
                 .ctx
-                .get_reachable_laser_path(idx, t)
+                .get_relevant_laser_path(idx, t)
                 .iter()
                 .copied()
                 .collect();
