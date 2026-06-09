@@ -68,15 +68,17 @@ def _solve(
     t_min = max(gen.solution_lower_bound, t_min)
     if t_min > t_max:
         return None
-
+    print(t_min, t_max)
     # Generate the clauses for t in [0, t_min)
-    clauses = [clause for t in range(t_min) for clause in gen.generate(t)]
-    if not allow_cooperation:
-        clauses = clauses + [clause for t in range(t_min) for clause in gen.cooperation_clauses(t)]
+    clauses = list[list[int]]()
+    raw_assumptions = list[int]()
+    for t in range(t_min):
+        clauses.extend(gen.generate(t))
+        if not allow_cooperation:
+            raw_assumptions.extend(gen.assume_no_cooperation(t))
     for t in range(t_min, t_max + 1):
         clauses.extend(gen.generate(t))
         if not allow_cooperation:
-            clauses.extend(gen.cooperation_clauses(t))
             raw_assumptions.extend(gen.assume_no_cooperation(t))
         objective = gen.objective(t)
         model = solve_model(clauses + objective, assumptions=raw_assumptions)

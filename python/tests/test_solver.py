@@ -199,6 +199,6 @@ def test_solve_no_cooperation():
      .   .   .   .  .   .
      X   X   .   .  .   .
     """)
-    # Starting from 10 time steps, this level is feasible without cooperation
+    # Both agents must go around the laser via (1,5), requiring at least 12 steps
     assert lle.solve(world, 9, allow_cooperation=False) is None
     assert lle.solve(world, 10, allow_cooperation=False) is not None

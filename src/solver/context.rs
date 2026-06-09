@@ -70,7 +70,7 @@ pub struct ConstraintContext {
     relevant_positions: Vec<Vec<PositionSet>>,
 
     /// Cache for reachable laser paths per laser source and time step: `relevant_laser_paths[laser_idx][t]`.
-    relevant_laser_paths: Vec<Vec<Vec<Position>>>,
+    relevant_laser_paths: Vec<Vec<PositionSet>>,
 }
 
 impl ConstraintContext {
@@ -174,15 +174,17 @@ impl ConstraintContext {
         // Seed the `t = 0` laser-path slots from the `t = 0` reachable-positions seed above
         // (mirroring `update_reachable_laser_path`); `update` only fills in `t >= 1`, since its
         // loop range `(updated_until + 1)..=t` is empty for `t = 0`.
-        let mut relevant_laser_paths = vec![vec![Vec::new(); t_max + 1]; laser_sources.len()];
+        let mut relevant_laser_paths =
+            vec![vec![PositionSet::empty(height, width); t_max + 1]; laser_sources.len()];
         for (laser_idx, source) in laser_sources.iter().enumerate() {
             let blockable = &relevant_positions[source.agent_id][0];
-            relevant_laser_paths[laser_idx][0] = source
-                .path
-                .iter()
-                .filter(|p| blockable.contains(p))
-                .copied()
-                .collect();
+            let mut result = PositionSet::empty(height, width);
+            for &pos in &source.path {
+                if blockable.contains(&pos) {
+                    result.insert(pos);
+                }
+            }
+            relevant_laser_paths[laser_idx][0] = result;
         }
 
         ConstraintContext {
@@ -247,12 +249,12 @@ impl ConstraintContext {
         for laser_idx in 0..self.laser_sources.len() {
             let agent_id = self.laser_sources[laser_idx].agent_id;
             let blockable = &self.relevant_positions[agent_id][t];
-            let result: Vec<Position> = self.laser_sources[laser_idx]
-                .path
-                .iter()
-                .copied()
-                .filter(|p| blockable.contains(p))
-                .collect();
+            let mut result = PositionSet::empty(self.height, self.width);
+            for &pos in &self.laser_sources[laser_idx].path {
+                if blockable.contains(&pos) {
+                    result.insert(pos);
+                }
+            }
             self.relevant_laser_paths[laser_idx][t] = result;
         }
     }
@@ -308,7 +310,7 @@ impl ConstraintContext {
 
     /// The reachable laser path for a given laser source at time `t`: the beam tiles that can
     /// still be blocked. Assumes `update` has already been called for this `t`.
-    pub fn relevant_laser_path(&self, laser_id: usize, t: usize) -> &Vec<Position> {
+    pub fn relevant_laser_path(&self, laser_id: usize, t: usize) -> &PositionSet {
         &self.relevant_laser_paths[laser_id][t]
     }
 }

@@ -219,6 +219,94 @@ fn test_positions_spanning_multiple_words() {
 }
 
 #[test]
+fn test_union_with() {
+    let mut a = PositionSet::empty(4, 4);
+    let mut b = PositionSet::empty(4, 4);
+
+    a.insert(pos(0, 0));
+    a.insert(pos(1, 1));
+
+    b.insert(pos(1, 1));
+    b.insert(pos(2, 2));
+
+    a.union_with(&b);
+
+    assert!(a.contains(&pos(0, 0)));
+    assert!(a.contains(&pos(1, 1)));
+    assert!(a.contains(&pos(2, 2)));
+    assert!(!a.contains(&pos(3, 3)));
+}
+
+#[test]
+fn test_union_with_disjoint() {
+    let mut a = PositionSet::empty(4, 4);
+    let mut b = PositionSet::empty(4, 4);
+
+    a.insert(pos(0, 0));
+    b.insert(pos(3, 3));
+
+    a.union_with(&b);
+
+    assert!(a.contains(&pos(0, 0)));
+    assert!(a.contains(&pos(3, 3)));
+    assert_eq!(a.size(), 2);
+}
+
+#[test]
+fn test_union_with_empty() {
+    let mut a = PositionSet::empty(4, 4);
+    let b = PositionSet::empty(4, 4);
+
+    a.insert(pos(1, 2));
+    a.union_with(&b);
+
+    assert!(a.contains(&pos(1, 2)));
+    assert_eq!(a.size(), 1);
+}
+
+#[test]
+fn test_union_with_self_equivalent() {
+    let mut a = PositionSet::empty(4, 4);
+    a.insert(pos(0, 0));
+    a.insert(pos(2, 3));
+    let b = a.clone();
+
+    a.union_with(&b);
+
+    assert_eq!(a.size(), 2);
+    assert!(a.contains(&pos(0, 0)));
+    assert!(a.contains(&pos(2, 3)));
+}
+
+#[test]
+fn test_union_with_spanning_multiple_words() {
+    let height = 10;
+    let width = 10;
+    let mut a = PositionSet::empty(height, width);
+    let mut b = PositionSet::empty(height, width);
+    let mut expected = HashSet::new();
+
+    for i in 0..height {
+        for j in 0..width {
+            let p = pos(i, j);
+            if (i * width + j) % 3 == 0 {
+                a.insert(p);
+                expected.insert(p);
+            }
+            if (i * width + j) % 5 == 0 {
+                b.insert(p);
+                expected.insert(p);
+            }
+        }
+    }
+
+    a.union_with(&b);
+
+    let collected: HashSet<Position> = a.iter().collect();
+    assert_eq!(collected, expected);
+}
+
+#[test]
 fn set_size() {
     let mut set = PositionSet::empty(10, 10);
     let mut size = 0;

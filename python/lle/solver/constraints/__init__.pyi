@@ -66,9 +66,6 @@ class ClauseGenerator:
         walk through its own beam.
         Generate the literal values assignments that corresponds to the assumption that no cooperation
         ever occurs at time step `t`.
-        
-        Raises:
-            - `SolverError` if the cooperation variables are not yet created.
         """
     def cooperation_clauses(self, t: builtins.int) -> builtins.list[builtins.list[builtins.int]]:
         r"""

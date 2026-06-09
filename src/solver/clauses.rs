@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use itertools::Itertools;
 
 use crate::solver::VarKey;
-use crate::solver::errors::SolverError;
 use crate::{Action, AgentId, Position, World};
 
 use super::context::ConstraintContext;
@@ -122,17 +121,6 @@ impl ClauseGenerator {
         clauses
     }
 
-    // ------------------------------------------------------------------
-    // Cooperation tracking (laser_blocked / coop_event / depends_on)
-    // ------------------------------------------------------------------
-
-    /// All cooperation-tracking clauses for time step `t`: the `laser_blocked` and `coop_event`
-    /// indicator-variable definitions. Mirrors the Python `CooperationConstraints.generate`.
-    ///
-    /// These clauses are *additive* to those produced by [`Self::generate`] (they introduce new
-    /// variables that reference the same per-step agent variables) and are only needed by callers
-    /// that reason about who-helps-whom, such as `lle.cooperation.characterize`. The plain
-    /// `lle.solver.solve` path does not generate them.
     pub fn cooperation_clauses(&mut self, t: usize) -> Vec<Clause> {
         self.ctx.update(t);
         self.laser_blocked_definitions(t)
@@ -140,36 +128,32 @@ impl ClauseGenerator {
 
     /// Return the clauses that encode the assumption that there is no cooperation,
     /// i.e. for every laser l and every time step t, `¬laser_blocked(id, t)`.
-    pub fn assume_no_cooperation(&mut self, t: usize) -> Result<Vec<Literal>, SolverError> {
+    pub fn assume_no_cooperation(&mut self, t: usize) -> Vec<Literal> {
         self.ctx.update(t);
+        eprintln!("t={t}");
         let mut assumptions = Vec::with_capacity(self.ctx.laser_sources.len());
-        for idx in 0..self.ctx.laser_sources.len() {
-            let laser_id = self.ctx.laser_sources[idx].laser_id;
-            // If at least one laser tile is in reach of an agent that can block it
-            if !self.ctx.relevant_laser_path(laser_id, t).is_empty() {
-                let key = VarKey::LaserBlocked { laser_id, t };
-                let var = self.pool.get(&key).ok_or(SolverError::InvalidAssumption {
-                    var: key,
-                    reason: format!("variable does not exist"),
-                })?;
-                // Assume that the laser is not blocked
-                assumptions.push(-var);
+        for source in &self.ctx.laser_sources {
+            let path = self.ctx.relevant_laser_path(source.laser_id, t);
+            let positions_path: Vec<_> = path.iter().collect();
+            eprintln!("path={positions_path:?}");
+            for agent in 0..self.ctx.n_agents {
+                if agent == source.agent_id {
+                    continue;
+                }
+                let positions = self.ctx.relevant_positions_for_agent(agent, t);
+                for pos in path.intersection(&positions) {
+                    // The agent is not in position `pos` at time step `t`.
+                    let key = VarKey::agent(agent, pos, t);
+                    eprintln!("{key:?}");
+                    let var = self
+                        .pool
+                        .get(&key)
+                        .expect(&format!("Agent variable {key:?} does not exist."));
+                    assumptions.push(-var);
+                }
             }
         }
-        Ok(assumptions)
-    }
-
-    pub fn assume_no_mutual_cooperation(
-        &mut self,
-        t: usize,
-    ) -> Result<(Vec<Clause>, Vec<Literal>), SolverError> {
-        self.ctx.update(t);
-        let mut clauses = Vec::new();
-        let mut assumptions = Vec::new();
-        for laser_id in 0..self.ctx.laser_sources.len() {
-            let path = self.ctx.relevant_laser_path(laser_id, t);
-        }
-        Ok((clauses, assumptions))
+        assumptions
     }
 
     /// Define `laser_blocked(laser_id, t) ↔ ∃ blockable (x, y): agent(colour, x, y, t)`.
@@ -186,7 +170,7 @@ impl ClauseGenerator {
             let blocked_var = self.pool.laser_blocked(laser_id, t);
             let agent_vars: Vec<i32> = blockable
                 .into_iter()
-                .map(|&pos| self.pool.agent(agent_id, pos, t))
+                .map(|pos| self.pool.agent(agent_id, pos, t))
                 .collect();
             // each blocking-position agent → blocked
             for av in &agent_vars {

@@ -2,7 +2,7 @@ use pyo3::{exceptions::PyValueError, prelude::*};
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use crate::{
-    bindings::{PyAction, PyWorld, pyexceptions::solver_error_to_exception},
+    bindings::{PyAction, PyWorld},
     solver::{Clause, ClauseGenerator, Literal},
 };
 
@@ -74,13 +74,8 @@ impl PyClauseGenerator {
 
     /// Generate the literal values assignments that corresponds to the assumption that no cooperation
     /// ever occurs at time step `t`.
-    ///
-    /// Raises:
-    ///     - `SolverError` if the cooperation variables are not yet created.
-    fn assume_no_cooperation(&mut self, t: usize) -> PyResult<Vec<Literal>> {
-        self.inner
-            .assume_no_cooperation(t)
-            .map_err(solver_error_to_exception)
+    fn assume_no_cooperation(&mut self, t: usize) -> Vec<Literal> {
+        self.inner.assume_no_cooperation(t)
     }
 
     /// Generate the cooperation-tracking clauses for time step `t`: the `laser_blocked` and

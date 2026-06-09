@@ -88,6 +88,13 @@ impl PositionSet {
         }
     }
 
+    /// Union this set with `other` in place (`self |= other`), word at a time.
+    pub fn union_with(&mut self, other: &PositionSet) {
+        for (a, &b) in self.words.iter_mut().zip(&other.words) {
+            *a |= b;
+        }
+    }
+
     /// Remove every position in `other` from this set in place (`self -= other`).
     pub fn subtract(&mut self, other: &PositionSet) {
         for (a, &b) in self.words.iter_mut().zip(&other.words) {
