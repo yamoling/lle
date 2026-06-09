@@ -1,6 +1,6 @@
 use std::{error::Error, fmt::Display};
 
-use crate::solver::VarKey;
+use super::clauses::VarKey;
 
 #[derive(Debug)]
 pub enum SolverError {

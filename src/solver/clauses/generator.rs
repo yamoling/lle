@@ -3,8 +3,8 @@ use std::collections::HashSet;
 use crate::{Action, AgentId, Position, World};
 
 use super::super::context::ConstraintContext;
-use super::super::var_pool::{VarKey, VarPool};
 use super::Clause;
+use super::{VarKey, VarPool};
 
 /// Generates the SAT clauses for a single time step `t`, combining initialization,
 /// movement and laser constraints.

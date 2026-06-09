@@ -1,4 +1,4 @@
-use crate::solver::{ClauseGenerator, VarKey};
+use super::{ClauseGenerator, VarKey};
 
 impl ClauseGenerator {
     /// Return literals asserting no cooperation: for every laser, every non-owner agent

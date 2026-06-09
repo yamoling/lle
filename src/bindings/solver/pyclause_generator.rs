@@ -78,16 +78,6 @@ impl PyClauseGenerator {
         self.inner.assume_no_cooperation(t)
     }
 
-    /// Generate the cooperation-tracking clauses for time step `t`: the `laser_blocked` and
-    /// `coop_event` indicator-variable definitions.
-    ///
-    /// These are additive to `generate(t)` (they introduce new variables referencing the same
-    /// per-step agent variables) and are only needed when reasoning about who helps whom, e.g.
-    /// by `lle.cooperation.characterize`.
-    fn cooperation_clauses(&mut self, t: usize) -> Vec<Clause> {
-        self.inner.cooperation_clauses(t)
-    }
-
     /// Decode a SAT model (as returned by `solver.get_model()`) into a joint-action plan
     /// of length `t_end`, i.e. a list of `t_end` joint actions (one action per agent).
     ///

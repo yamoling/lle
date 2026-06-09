@@ -1,6 +1,6 @@
 use crate::solver::Clause;
 
-use super::super::var_pool::VarPool;
+use super::VarPool;
 
 /// At-most-one encoding crossover: for small variable sets, the naive pairwise encoding
 /// (n(n-1)/2 binary clauses, no auxiliary variables) uses fewer-or-equal clauses *and* zero

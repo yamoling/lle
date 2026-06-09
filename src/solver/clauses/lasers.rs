@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use crate::Position;
 
-use super::super::var_pool::VarKey;
 use super::Clause;
+use super::VarKey;
 use super::generator::ClauseGenerator;
 use super::utils::{equals, implies};
 
@@ -79,42 +79,5 @@ impl ClauseGenerator {
             }
         }
         clauses
-    }
-
-    /// Define `laser_blocked(laser_id, t) ↔ ∃ blockable (x, y): agent(colour, x, y, t)`.
-    /// Decomposed into a double implication.
-    pub(super) fn laser_blocked_definitions(&mut self, t: usize) -> Vec<Clause> {
-        let mut clauses = Vec::new();
-        for idx in 0..self.ctx.laser_sources.len() {
-            let agent_id = self.ctx.laser_sources[idx].agent_id;
-            let laser_id = self.ctx.laser_sources[idx].laser_id;
-            // Only the tiles the owner can actually reach define where it blocks its own beam.
-            let owner_reachable = self.ctx.relevant_positions_for_agent(agent_id, t);
-            let blockable: Vec<Position> = self.ctx.laser_sources[idx]
-                .path
-                .iter()
-                .copied()
-                .filter(|p| owner_reachable.contains(p))
-                .collect();
-            if blockable.is_empty() {
-                continue;
-            }
-            let blocked_var = self.pool.laser_blocked(laser_id, t);
-            let agent_vars: Vec<i32> = blockable
-                .into_iter()
-                .map(|pos| self.pool.agent(agent_id, pos, t))
-                .collect();
-            for av in &agent_vars {
-                clauses.push(implies(*av, blocked_var));
-            }
-            clauses.push([vec![-blocked_var], agent_vars].concat())
-        }
-        clauses
-    }
-
-    /// Cooperation clauses: `laser_blocked` definitions for time `t`.
-    pub fn cooperation_clauses(&mut self, t: usize) -> Vec<Clause> {
-        self.ctx.update(t);
-        self.laser_blocked_definitions(t)
     }
 }
