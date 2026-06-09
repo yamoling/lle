@@ -162,7 +162,8 @@ impl ConstraintContext {
         // Cache for reachable positions per agent and time step.
         // Every slot is eventually populated (in increasing order of `t`).
         // Seed the `t = 0` slots here; `update` fills in the rest.
-        let mut relevant_positions = vec![vec![PositionSet::empty(height, width); t_max + 1]; n_agents];
+        let mut relevant_positions =
+            vec![vec![PositionSet::empty(height, width); t_max + 1]; n_agents];
         for agent in 0..n_agents {
             // Only the initial positions are relevant to consider at t=0
             let agent_start = start_pos[agent];
@@ -172,19 +173,19 @@ impl ConstraintContext {
             }
         }
         // Seed the `t = 0` laser-path slots from the `t = 0` reachable-positions seed above
-        // (mirroring `update_reachable_laser_path`); `update` only fills in `t >= 1`, since its
+        // (mirroring `update_relevant_laser_paths`); `update` only fills in `t >= 1`, since its
         // loop range `(updated_until + 1)..=t` is empty for `t = 0`.
         let mut relevant_laser_paths =
             vec![vec![PositionSet::empty(height, width); t_max + 1]; laser_sources.len()];
         for (laser_idx, source) in laser_sources.iter().enumerate() {
-            let blockable = &relevant_positions[source.agent_id][0];
-            let mut result = PositionSet::empty(height, width);
-            for &pos in &source.path {
-                if blockable.contains(&pos) {
-                    result.insert(pos);
-                }
-            }
-            relevant_laser_paths[laser_idx][0] = result;
+            relevant_laser_paths[laser_idx][0] = compute_relevant_laser_path(
+                &source.path,
+                &relevant_positions,
+                0,
+                source.agent_id,
+                height,
+                width,
+            );
         }
 
         ConstraintContext {
@@ -204,7 +205,6 @@ impl ConstraintContext {
             relevant_laser_paths,
         }
     }
-
 
     /// Compute and cache `exit_reachable[t]` from `exit_reachable[t - 1]`: as `t` grows by one,
     /// the remaining horizon `t_max - t` shrinks by one, so exactly the positions at distance
@@ -237,25 +237,17 @@ impl ConstraintContext {
         }
     }
 
-    /// Compute and cache `relevant_laser_paths[..., t]`.
-    ///
-    /// # Details
-    /// The relevant laser path for a given laser source at time `t` is the subset of its path that
-    /// is still blockable by the agent that is using it.
-    ///
-    /// # Assumptions
-    /// This function assumes that `update_relevant_positions` has already been called for `t`.
+    /// See [`ConstraintContext::compute_relevant_laser_path`] for the semantics.
     fn update_relevant_laser_paths(&mut self, t: usize) {
         for laser_idx in 0..self.laser_sources.len() {
-            let agent_id = self.laser_sources[laser_idx].agent_id;
-            let blockable = &self.relevant_positions[agent_id][t];
-            let mut result = PositionSet::empty(self.height, self.width);
-            for &pos in &self.laser_sources[laser_idx].path {
-                if blockable.contains(&pos) {
-                    result.insert(pos);
-                }
-            }
-            self.relevant_laser_paths[laser_idx][t] = result;
+            self.relevant_laser_paths[laser_idx][t] = compute_relevant_laser_path(
+                &self.laser_sources[laser_idx].path,
+                &self.relevant_positions,
+                t,
+                self.laser_sources[laser_idx].agent_id,
+                self.height,
+                self.width,
+            );
         }
     }
 
@@ -308,9 +300,9 @@ impl ConstraintContext {
             .collect()
     }
 
-    /// The reachable laser path for a given laser source at time `t`: the beam tiles that can
-    /// still be blocked. Assumes `update` has already been called for this `t`.
-    pub fn relevant_laser_path(&self, laser_id: usize, t: usize) -> &PositionSet {
+    /// The reachable laser tiles positions for a given laser source at time `t`: the beam tiles
+    /// that can still be blocked. Assumes `update` has already been called for this `t`.
+    pub fn relevant_laser_tiles(&self, laser_id: usize, t: usize) -> &PositionSet {
         &self.relevant_laser_paths[laser_id][t]
     }
 }
@@ -335,6 +327,47 @@ impl ConstraintContext {
     fn is_exit_reachable(&self, pos: &Position, t: usize) -> bool {
         self.exit_reachable[t].contains(pos)
     }
+}
+
+/// Compute laser tiles that are relevant to consider at time step t.
+///
+/// # Details
+/// The relevant laser path for a given laser source at time `t` is the subset of its beam tiles
+/// worth reasoning about. A tile is relevant if either:
+///   - the owning agent can reach it at time `t` (it can block the beam there), or
+///   - it lies downstream of such a blockable tile *and* some other agent can reach it at time
+///     `t`. Because the owner could block the beam upstream, the tile may become safe for that
+///     other agent — so it is a tile where cooperation matters.
+///
+/// # Assumptions
+/// This function assumes that `update_relevant_positions` has already been called for `t`.
+/// Compute the relevant beam tiles for one laser source at time `t`.
+///
+fn compute_relevant_laser_path(
+    path: &[Position],
+    relevant_positions: &[Vec<PositionSet>],
+    t: usize,
+    owner_id: usize,
+    height: usize,
+    width: usize,
+) -> PositionSet {
+    let n_agents = relevant_positions.len();
+    let owner_reachable = &relevant_positions[owner_id][t];
+    let mut result = PositionSet::empty(height, width);
+    // Whether an upstream tile can be blocked by the owner: once true, every downstream tile can
+    // be made safe by blocking the beam upstream.
+    let mut blockable_upstream = false;
+    for &pos in path {
+        if owner_reachable.contains(&pos) {
+            result.insert(pos);
+            blockable_upstream = true;
+        } else if blockable_upstream
+            && (0..n_agents).any(|a| a != owner_id && relevant_positions[a][t].contains(&pos))
+        {
+            result.insert(pos);
+        }
+    }
+    result
 }
 
 fn compute_exit_distance(

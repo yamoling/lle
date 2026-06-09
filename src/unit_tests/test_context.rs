@@ -58,11 +58,11 @@ fn test_laser_path_accessibility() {
     let _source = &sources[0].1;
 
     // At t=0, agent 0 is at (0,0), cannot block the laser
-    let path_t0 = ctx.relevant_laser_path(0, 0);
+    let path_t0 = ctx.relevant_laser_tiles(0, 0);
     assert_eq!(path_t0.size(), 0, "Agent cannot reach laser path at t=0");
 
     // At t=1, agent 0 might have moved, check what's blockable
-    let path_t1 = ctx.relevant_laser_path(0, 1);
+    let path_t1 = ctx.relevant_laser_tiles(0, 1);
     // Path depends on agent movement
     assert!(
         path_t1.is_empty() || path_t1.size() > 0,
@@ -294,19 +294,19 @@ fn reachable_laser_paths_simple_world() {
     for t in 0..=t_max {
         ctx.update(t);
     }
-    assert_eq!(ctx.relevant_laser_path(0, 0).size(), 0);
-    assert_eq!(ctx.relevant_laser_path(0, 1).size(), 0);
-    assert_eq!(ctx.relevant_laser_path(0, 2).size(), 1);
-    assert!(ctx.relevant_laser_path(0, 2).contains(&pos(1, 1)));
+    assert_eq!(ctx.relevant_laser_tiles(0, 0).size(), 0);
+    assert_eq!(ctx.relevant_laser_tiles(0, 1).size(), 0);
+    assert_eq!(ctx.relevant_laser_tiles(0, 2).size(), 1);
+    assert!(ctx.relevant_laser_tiles(0, 2).contains(&pos(1, 1)));
 
     for t in 3..(t_max - 1) {
-        let path = ctx.relevant_laser_path(0, t);
+        let path = ctx.relevant_laser_tiles(0, t);
         assert_eq!(path.size(), 2, "t={t}");
         assert!(path.contains(&pos(1, 1)));
         assert!(path.contains(&pos(2, 1)));
     }
 
-    let path_last = ctx.relevant_laser_path(0, t_max - 1);
+    let path_last = ctx.relevant_laser_tiles(0, t_max - 1);
     assert_eq!(path_last.size(), 1);
     assert!(path_last.contains(&pos(2, 1)));
     assert!(!path_last.contains(&pos(1, 1)));
@@ -324,7 +324,7 @@ fn reachable_laser_paths_unblockable() {
     let mut ctx = ConstraintContext::new(&world, t_max);
     for t in 0..t_max {
         ctx.update(t);
-        assert!(ctx.relevant_laser_path(0, t).is_empty(), "t={t}");
+        assert!(ctx.relevant_laser_tiles(0, t).is_empty(), "t={t}");
     }
 }
 
@@ -342,27 +342,31 @@ fn reachable_laser_paths_two_agents() {
 
     for t in 0..DISTANCE_TO_LASER {
         ctx.update(t);
-        assert_eq!(ctx.relevant_laser_path(0, t).size(), 0, "t={t}");
+        assert_eq!(ctx.relevant_laser_tiles(0, t).size(), 0, "t={t}");
     }
+    // At t=15 the owner (agent 1) can first reach (1, 1) and block its own beam there. That makes
+    // the downstream tile (2, 1) — reachable by the non-owner agent 0 — a relevant cooperation tile
+    // since it is accessible by agent 0.
     ctx.update(DISTANCE_TO_LASER);
-    let path_d = ctx.relevant_laser_path(0, DISTANCE_TO_LASER);
-    assert_eq!(path_d.size(), 1);
+    let path_d = ctx.relevant_laser_tiles(0, DISTANCE_TO_LASER);
+    assert_eq!(path_d.size(), 2);
     assert!(path_d.contains(&pos(1, 1)));
+    assert!(path_d.contains(&pos(2, 1)));
 
     for t in (DISTANCE_TO_LASER + 1)..(T_MAX - 1) {
         ctx.update(t);
-        let path = ctx.relevant_laser_path(0, t);
+        let path = ctx.relevant_laser_tiles(0, t);
         assert_eq!(path.size(), 2, "t={t}");
         assert!(path.contains(&pos(1, 1)));
         assert!(path.contains(&pos(2, 1)));
     }
 
     ctx.update(T_MAX - 1);
-    let path_last = ctx.relevant_laser_path(0, T_MAX - 1);
+    let path_last = ctx.relevant_laser_tiles(0, T_MAX - 1);
     assert_eq!(path_last.size(), 1);
     assert!(!path_last.contains(&pos(1, 1)));
     assert!(path_last.contains(&pos(2, 1)));
-    assert_eq!(ctx.relevant_laser_path(0, T_MAX).size(), 0);
+    assert_eq!(ctx.relevant_laser_tiles(0, T_MAX).size(), 0);
 }
 
 #[test]
@@ -378,10 +382,10 @@ fn reachable_laser_paths_increase_then_decrease_over_time() {
     ctx.update(t_max);
 
     for t in 0..13 {
-        assert_eq!(ctx.relevant_laser_path(0, t).size(), t + 1, "t={t}");
+        assert_eq!(ctx.relevant_laser_tiles(0, t).size(), t + 1, "t={t}");
     }
     for i in 0..14 {
-        assert_eq!(ctx.relevant_laser_path(0, t_max - i).size(), i, "i={i}");
+        assert_eq!(ctx.relevant_laser_tiles(0, t_max - i).size(), i, "i={i}");
     }
 }
 
@@ -394,7 +398,7 @@ fn reachable_laser_paths_are_subsets_of_full_path(level: usize) {
     for (idx, info) in ctx.laser_sources.iter().enumerate() {
         let full_path: HashSet<Position> = info.path.iter().copied().collect();
         for t in 0..=ctx.t_max {
-            for p in ctx.relevant_laser_path(idx, t) {
+            for p in ctx.relevant_laser_tiles(idx, t) {
                 assert!(
                     full_path.contains(&p),
                     "level {level}: laser {idx} reachable position {p:?} at t={t} is not part of its full path"
@@ -418,9 +422,9 @@ fn relevant_laser_tiles() {
     .expect("Failed to parse world");
     let mut ctx = ConstraintContext::new(&world, 10);
     ctx.update(0);
-    assert!(ctx.relevant_laser_path(0, 0).is_empty());
+    assert!(ctx.relevant_laser_tiles(0, 0).is_empty());
     ctx.update(1);
-    let relevant_t1 = ctx.relevant_laser_path(0, 1);
+    let relevant_t1 = ctx.relevant_laser_tiles(0, 1);
     assert_eq!(
         relevant_t1.size(),
         2,

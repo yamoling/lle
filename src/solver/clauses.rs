@@ -133,7 +133,7 @@ impl ClauseGenerator {
         eprintln!("t={t}");
         let mut assumptions = Vec::with_capacity(self.ctx.laser_sources.len());
         for source in &self.ctx.laser_sources {
-            let path = self.ctx.relevant_laser_path(source.laser_id, t);
+            let path = self.ctx.relevant_laser_tiles(source.laser_id, t);
             let positions_path: Vec<_> = path.iter().collect();
             eprintln!("path={positions_path:?}");
             for agent in 0..self.ctx.n_agents {
@@ -163,7 +163,14 @@ impl ClauseGenerator {
         for idx in 0..self.ctx.laser_sources.len() {
             let agent_id = self.ctx.laser_sources[idx].agent_id;
             let laser_id = self.ctx.laser_sources[idx].laser_id;
-            let blockable = self.ctx.relevant_laser_path(idx, t);
+            // Only the tiles the owner can actually reach define where it blocks its own beam.
+            let owner_reachable = self.ctx.relevant_positions_for_agent(agent_id, t);
+            let blockable: Vec<Position> = self.ctx.laser_sources[idx]
+                .path
+                .iter()
+                .copied()
+                .filter(|p| owner_reachable.contains(p))
+                .collect();
             if blockable.is_empty() {
                 continue;
             }
