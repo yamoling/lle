@@ -61,6 +61,8 @@ def solve_model(clauses: list[list[int]], *, assumptions: list[int] | None = Non
     Solve the SAT problem with the given clauses and assumptions, returning the literals' values
     if a solution is found, or `None` if the clauses are unsatisfyiable.
     """
+    if assumptions is None:
+        assumptions = []
     with Minisat22(bootstrap_with=clauses) as solver:
         if solver.solve(assumptions=assumptions):
             model = solver.get_model()

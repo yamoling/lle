@@ -166,49 +166,6 @@ impl VarPool {
         self.id(VarKey::LaserBlocked { laser_id, t })
     }
 
-    pub fn coop_event(
-        &mut self,
-        helper: AgentId,
-        beneficiary: AgentId,
-        laser_id: usize,
-        t: usize,
-    ) -> i32 {
-        self.id(VarKey::CoopEvent {
-            helper,
-            beneficiary,
-            laser_id,
-            t,
-        })
-    }
-
-    pub fn depends_on(&mut self, beneficiary: AgentId, helper: AgentId) -> i32 {
-        self.id(VarKey::DependsOn {
-            beneficiary,
-            helper,
-        })
-    }
-
-    pub fn first_helped_by_time(&mut self, helper: AgentId, beneficiary: AgentId, t: usize) -> i32 {
-        self.id(VarKey::FirstHelpedByTime {
-            helper,
-            beneficiary,
-            t,
-        })
-    }
-
-    pub fn chain_event(&mut self, a: AgentId, b: AgentId, c: AgentId, t: usize) -> i32 {
-        self.id(VarKey::ChainEvent { a, b, c, t })
-    }
-
-    pub fn chain_var(&mut self, a: AgentId, b: AgentId, c: AgentId) -> i32 {
-        self.id(VarKey::Chain { a, b, c })
-    }
-
-    pub fn mutual(&mut self, a: AgentId, b: AgentId) -> i32 {
-        let (lo, hi) = if a < b { (a, b) } else { (b, a) };
-        self.id(VarKey::Mutual { a: lo, b: hi })
-    }
-
     /// Variable id already assigned to `key`, or `None` if it was never created.
     ///
     /// Unlike the factory methods above, this never *creates* a variable, so it is safe to use

@@ -95,67 +95,8 @@ impl PyClauseGenerator {
     /// These are additive to `generate(t)` (they introduce new variables referencing the same
     /// per-step agent variables) and are only needed when reasoning about who helps whom, e.g.
     /// by `lle.cooperation.characterize`.
-    fn coop_clauses(&mut self, t: usize) -> Vec<Clause> {
-        self.inner.coop_clauses(t)
-    }
-
-    /// Generate the `depends_on(beneficiary, helper)` definition clauses over the horizon
-    /// `[0, t_end]`.
-    ///
-    /// Call this once per candidate horizon, after `coop_clauses(t)` has been generated for every
-    /// `t` in `[0, t_end]`. The clauses depend on `t_end`, so feed them to the solver for that
-    /// horizon only; do not accumulate them across horizons.
-    fn finalize_depends_on(&mut self, t_end: usize) -> Vec<Clause> {
-        self.inner.finalize_depends_on(t_end)
-    }
-
-    /// The SAT literal for `depends_on(beneficiary, helper)`, or `None` when no such variable
-    /// exists (the dependency can never occur within the horizon last passed to
-    /// `finalize_depends_on`). Never creates a variable, so the returned literal is safe to use as
-    /// a solver assumption.
-    fn depends_on_lit(&self, beneficiary: usize, helper: usize) -> Option<i32> {
-        self.inner.depends_on_lit(beneficiary, helper)
-    }
-
-    /// Generate the temporal chain-tracking clauses for time step `t`.
-    ///
-    /// Must be called after `coop_clauses(t)` for the same `t`. Defines:
-    ///
-    /// - `first_helped_by_time(a, b, t)` — "a has helped b at any time ≤ t" (running OR)
-    /// - `chain_event(a, b, c, t)` — "a helped b at some time ≤ t-1 AND b helps c at t"
-    ///
-    /// These are used by `finalize_chain` to define the per-horizon `chain(a, b, c)` variables.
-    fn chain_clauses(&mut self, t: usize) -> Vec<Clause> {
-        self.inner.chain_clauses(t)
-    }
-
-    /// Generate `chain(a, b, c)` definition clauses over the horizon `[0, t_end]`.
-    ///
-    /// Call once per candidate horizon, after `chain_clauses(t)` has been called for every
-    /// `t ≤ t_end`. Feed the result to the solver for that horizon only.
-    fn finalize_chain(&mut self, t_end: usize) -> Vec<Clause> {
-        self.inner.finalize_chain(t_end)
-    }
-
-    /// The SAT literal for `chain(a, b, c)` — "a helped b strictly before b helped c" — or
-    /// `None` if no such chain can occur within the horizon last passed to `finalize_chain`.
-    fn chain_lit(&self, a: usize, b: usize, c: usize) -> Option<i32> {
-        self.inner.chain_lit(a, b, c)
-    }
-
-    /// Generate `mutual(a, b)` definition clauses for the current horizon.
-    ///
-    /// Must be called after `finalize_depends_on(t_end)` for the same horizon (it reads the
-    /// `depends_on` variables created by that call). Feed the result to the solver together
-    /// with the `finalize_depends_on` output.
-    fn finalize_mutual(&mut self, t_end: usize) -> Vec<Clause> {
-        self.inner.finalize_mutual(t_end)
-    }
-
-    /// The SAT literal for `mutual(a, b)` — "agents a and b mutually depend on each other" —
-    /// or `None` if at least one direction of help is impossible within the current horizon.
-    fn mutual_lit(&self, a: usize, b: usize) -> Option<i32> {
-        self.inner.mutual_lit(a, b)
+    fn cooperation_clauses(&mut self, t: usize) -> Vec<Clause> {
+        self.inner.cooperation_clauses(t)
     }
 
     /// Decode a SAT model (as returned by `solver.get_model()`) into a joint-action plan
