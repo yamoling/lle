@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use crate::Position;
 
 use super::super::var_pool::VarKey;
+use super::Clause;
 use super::generator::ClauseGenerator;
 use super::utils::{equals, implies};
-use super::{Clause, Literal};
 
 impl ClauseGenerator {
     /// Defines, for each beam tile, the literal denoting "this beam tile is active at time `t`",
@@ -110,35 +110,6 @@ impl ClauseGenerator {
             clauses.push([vec![-blocked_var], agent_vars].concat())
         }
         clauses
-    }
-
-    /// Return literals asserting no cooperation: for every laser, every non-owner agent
-    /// that could stand on a relevant beam tile is assumed not to be there.
-    pub fn assume_no_cooperation(&mut self, t: usize) -> Vec<Literal> {
-        self.ctx.update(t);
-        eprintln!("t={t}");
-        let mut assumptions = Vec::with_capacity(self.ctx.laser_sources.len());
-        for source in &self.ctx.laser_sources {
-            let path = self.ctx.relevant_laser_tiles(source.laser_id, t);
-            let positions_path: Vec<_> = path.iter().collect();
-            eprintln!("path={positions_path:?}");
-            for agent in 0..self.ctx.n_agents {
-                if agent == source.agent_id {
-                    continue;
-                }
-                let positions = self.ctx.relevant_positions_for_agent(agent, t);
-                for pos in path.intersection(&positions) {
-                    let key = VarKey::agent(agent, pos, t);
-                    eprintln!("{key:?}");
-                    let var = self
-                        .pool
-                        .get(&key)
-                        .expect(&format!("Agent variable {key:?} does not exist."));
-                    assumptions.push(-var);
-                }
-            }
-        }
-        assumptions
     }
 
     /// Cooperation clauses: `laser_blocked` definitions for time `t`.

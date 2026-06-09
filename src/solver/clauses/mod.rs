@@ -1,3 +1,4 @@
+mod assumptions;
 mod generator;
 mod lasers;
 mod movement;
