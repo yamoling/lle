@@ -1,39 +1,40 @@
 use crate::{ParseError, RuntimeWorldError};
 use pyo3::{
-    PyErr, create_exception,
+    PyErr,
     exceptions::{self, PyValueError},
 };
+use pyo3_stub_gen::create_exception;
 
 create_exception!(
-    "lle.exceptions",
+    lle.exceptions,
     InvalidWorldStateError,
     PyValueError,
     "Raised when the state of the world is invalid."
 );
 
 create_exception!(
-    "lle.exceptions",
+    lle.exceptions,
     InvalidActionError,
     PyValueError,
     "Raised when the action taken by an agent is invalid or when the number of actions provided is different from the number of agents."
 );
 
 create_exception!(
-    "lle.exceptions",
+    lle.exceptions,
     ParsingError,
     PyValueError,
     "Raised when there is a problem while parsing a world string."
 );
 
 create_exception!(
-    "lle.exceptions",
+    lle.exceptions,
     InvalidLevelError,
     PyValueError,
     "Raised when the level asked does not exist."
 );
 
 create_exception!(
-    "lle.exceptions",
+    lle.exceptions,
     SolverError,
     PyValueError,
     "Raised when the solver encounters an illegal state."
