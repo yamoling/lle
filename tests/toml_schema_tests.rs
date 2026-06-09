@@ -1,7 +1,5 @@
-use jsonschema::Validator;
+use boon::{Compiler, SchemaIndex, Schemas};
 use serde_json::Value;
-
-const SCHEMA_STR: &str = include_str!("../resources/lle_toml_schema.json");
 
 fn toml_to_json_value(toml_str: &str) -> Value {
     let toml_value: toml::Value = toml::from_str(toml_str).expect("Failed to parse TOML");
@@ -10,20 +8,20 @@ fn toml_to_json_value(toml_str: &str) -> Value {
     serde_json::from_str(&json_str).expect("Failed to parse JSON")
 }
 
-fn schema_validator() -> Validator {
-    let schema: Value = serde_json::from_str(SCHEMA_STR).expect("Failed to parse schema JSON");
-    Validator::new(&schema).expect("Failed to compile schema")
+fn schema_validator() -> (SchemaIndex, Schemas) {
+    let mut schema = Schemas::new();
+    let mut compiler = Compiler::new();
+    let index = compiler
+        .compile("resources/lle_toml_schema.json", &mut schema)
+        .unwrap();
+    (index, schema)
 }
 
 fn assert_valid(toml_str: &str) {
-    let validator = schema_validator();
+    let (idx, validator) = schema_validator();
     let value = toml_to_json_value(toml_str);
-    let errors: Vec<_> = validator.iter_errors(&value).collect();
-    if !errors.is_empty() {
-        let msgs: Vec<String> = errors
-            .iter()
-            .map(|e| format!("  - {} at {}", e, e.instance_path()))
-            .collect();
+    if let Err(e) = validator.validate(&value, idx) {
+        let msgs: Vec<String> = e.causes.iter().map(|c| format!("{c:?}")).collect();
         panic!(
             "TOML should be valid according to schema but got errors:\n{}",
             msgs.join("\n")
@@ -32,10 +30,10 @@ fn assert_valid(toml_str: &str) {
 }
 
 fn assert_invalid(toml_str: &str) {
-    let validator = schema_validator();
+    let (idx, validator) = schema_validator();
     let value = toml_to_json_value(toml_str);
     assert!(
-        !validator.is_valid(&value),
+        !validator.validate(&value, idx).is_ok(),
         "TOML should be invalid according to schema but was accepted"
     );
 }
