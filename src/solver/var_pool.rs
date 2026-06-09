@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{Action, AgentId, Position};
 
-/// Semantic key for a SAT variable, mirroring the Python `VariableFactory` pool.
+/// Semantic key for a SAT variable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum VarKey {
     /// Whether the specified agent is located at `pos` at time step `t`.
@@ -18,6 +18,7 @@ pub enum VarKey {
         t: usize,
     },
     /// Whether laser `laser_id`'s beam is blocked by its same-colour agent at time `t`.
+    /// This variable is used to identify cooperation, not to enforce domain consistency.
     LaserBlocked { laser_id: usize, t: usize },
     /// Whether `helper` blocks laser `laser_id` while `beneficiary` occupies a protected
     /// downstream beam position at time `t` (a single concrete cooperation event).
@@ -32,6 +33,26 @@ pub enum VarKey {
         beneficiary: AgentId,
         helper: AgentId,
     },
+    /// Whether `helper` has helped `beneficiary` at any time step ≤ `t` (running OR over
+    /// `coop_event` at steps 0..=t). Used as the "left side" of a temporal chain.
+    FirstHelpedByTime {
+        helper: AgentId,
+        beneficiary: AgentId,
+        t: usize,
+    },
+    /// Whether a temporal chain `a → b → c` exists: `a` helped `b` at time `t-1` or earlier
+    /// and `b` helped `c` at exactly time `t`. Auxiliary; only `Chain` is exposed externally.
+    ChainEvent {
+        a: AgentId,
+        b: AgentId,
+        c: AgentId,
+        t: usize,
+    },
+    /// Whether a temporal chain `a → b → c` exists across the whole horizon: `a` helped `b`
+    /// at some time strictly before `b` helped `c`.
+    Chain { a: AgentId, b: AgentId, c: AgentId },
+    /// Whether agents `a` and `b` mutually depend on each other (canonical: `a < b`).
+    Mutual { a: AgentId, b: AgentId },
     /// Auxiliary variable used internally by cardinality encodings; carries a unique counter.
     Aux(i32),
 }
@@ -76,6 +97,32 @@ impl VarKey {
             beneficiary,
             helper,
         }
+    }
+
+    #[inline]
+    pub fn first_helped_by_time(helper: AgentId, beneficiary: AgentId, t: usize) -> Self {
+        VarKey::FirstHelpedByTime {
+            helper,
+            beneficiary,
+            t,
+        }
+    }
+
+    #[inline]
+    pub fn chain_event(a: AgentId, b: AgentId, c: AgentId, t: usize) -> Self {
+        VarKey::ChainEvent { a, b, c, t }
+    }
+
+    #[inline]
+    pub fn chain(a: AgentId, b: AgentId, c: AgentId) -> Self {
+        VarKey::Chain { a, b, c }
+    }
+
+    /// Canonical (min < max) mutual-dependency key for the unordered pair `{a, b}`.
+    #[inline]
+    pub fn mutual(a: AgentId, b: AgentId) -> Self {
+        let (lo, hi) = if a < b { (a, b) } else { (b, a) };
+        VarKey::Mutual { a: lo, b: hi }
     }
 
     #[inline]
@@ -139,6 +186,27 @@ impl VarPool {
             beneficiary,
             helper,
         })
+    }
+
+    pub fn first_helped_by_time(&mut self, helper: AgentId, beneficiary: AgentId, t: usize) -> i32 {
+        self.id(VarKey::FirstHelpedByTime {
+            helper,
+            beneficiary,
+            t,
+        })
+    }
+
+    pub fn chain_event(&mut self, a: AgentId, b: AgentId, c: AgentId, t: usize) -> i32 {
+        self.id(VarKey::ChainEvent { a, b, c, t })
+    }
+
+    pub fn chain_var(&mut self, a: AgentId, b: AgentId, c: AgentId) -> i32 {
+        self.id(VarKey::Chain { a, b, c })
+    }
+
+    pub fn mutual(&mut self, a: AgentId, b: AgentId) -> i32 {
+        let (lo, hi) = if a < b { (a, b) } else { (b, a) };
+        self.id(VarKey::Mutual { a: lo, b: hi })
     }
 
     /// Variable id already assigned to `key`, or `None` if it was never created.

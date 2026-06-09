@@ -8,6 +8,7 @@
 
 mod clauses;
 mod context;
+pub mod errors;
 pub mod position_set;
 mod var_pool;
 

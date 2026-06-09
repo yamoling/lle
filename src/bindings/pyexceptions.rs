@@ -1,9 +1,8 @@
+use crate::{ParseError, RuntimeWorldError};
 use pyo3::{
     PyErr, create_exception,
     exceptions::{self, PyValueError},
 };
-
-use crate::{ParseError, RuntimeWorldError};
 
 create_exception!(
     "lle.exceptions",
@@ -31,6 +30,13 @@ create_exception!(
     InvalidLevelError,
     PyValueError,
     "Raised when the level asked does not exist."
+);
+
+create_exception!(
+    "lle.exceptions",
+    SolverError,
+    PyValueError,
+    "Raised when the solver encounters an illegal state."
 );
 
 pub fn parse_error_to_exception(error: ParseError) -> PyErr {
@@ -165,6 +171,17 @@ pub fn runtime_error_to_pyexception(error: RuntimeWorldError) -> PyErr {
         }
         RuntimeWorldError::MutexPoisoned => {
             panic!("Mutex poisoned ! Check your code for deadlocks or exceptions.")
+        }
+    }
+}
+
+pub fn solver_error_to_exception(error: crate::solver::errors::SolverError) -> PyErr {
+    match error {
+        crate::solver::errors::SolverError::VariableNotCreated { var } => {
+            PyValueError::new_err(format!("Variable not created: {var:?}"))
+        }
+        crate::solver::errors::SolverError::InvalidAssumption { var, reason } => {
+            SolverError::new_err(format!("Invalid assumption for {var:?}: {reason}"))
         }
     }
 }

@@ -2,7 +2,9 @@
 
 Covers:
 - the proof-of-concept level: agent 1 depends on agent 0 only for short plans;
-- query-surface semantics (``depends`` / ``is_independent``) including edge cases;
+- query-surface semantics (``depends`` / ``is_independent`` / ``requires_mutual`` /
+  ``requires_chain``) including edge cases;
+- sanity checks on levels 4 and 6 (mutual cooperation thresholds);
 - internal consistency of the global ``fully_independent_threshold`` against the
   concrete ``solve`` / ``solve_no_cooperation`` solvers;
 - degenerate worlds (single agent, no lasers).
@@ -97,7 +99,6 @@ def test_depends_is_false_before_first_solvable(poc_props: WorldCharacterization
 
 def test_single_agent_has_no_pairs():
     props = characterize(World("S0 . . X"), t_max=6)
-    assert props.n_agents == 1
     assert props.independence_threshold == {}
     # Vacuously false: there are no ordered pairs to depend on.
     assert props.depends(0, 0, 5) is False
@@ -124,3 +125,81 @@ def test_unsolvable_within_horizon_reports_no_plan():
     assert props.fully_independent_threshold is None
     assert props.depends(1, 0, 2) is False
     assert props.is_independent(2) is False
+
+
+# ---------------------------------------------------------------------------
+# Mutual cooperation
+# ---------------------------------------------------------------------------
+
+
+def test_poc_no_mutual_required():
+    # The PoC level is one-directional: agent 0 helps agent 1, but not vice-versa.
+    # So no mutual pair can form → requires_mutual is always False.
+    props = characterize(World(POC_LEVEL), t_max=12)
+    assert props.mutual_free_threshold == props.first_solvable_length
+    for t in range(props.first_solvable_length or 0, props.t_max + 1):
+        assert props.requires_mutual(t) is False
+
+
+def test_level4_requires_mutual_from_first_solvable():
+    # Level 4: every plan of length >= 10 requires mutual cooperation (both agents
+    # help each other), and the level is unsolvable for t < 10.
+    props = characterize(World.level(4), t_max=15)
+    assert props.first_solvable_length == 10
+    assert props.requires_mutual(9) is False   # vacuous: no plan exists yet
+    assert props.requires_mutual(10) is True
+    assert props.requires_mutual(15) is True
+    assert props.mutual_free_threshold is None  # no mutual-free plan exists <= t_max
+
+
+def test_level6_requires_mutual_from_first_solvable():
+    # Level 6: same property with a higher horizon.
+    props = characterize(World.level(6), t_max=25)
+    assert props.first_solvable_length == 21
+    assert props.requires_mutual(20) is False
+    assert props.requires_mutual(21) is True
+    assert props.mutual_free_threshold is None
+
+
+def test_requires_mutual_false_before_first_solvable():
+    props = characterize(World.level(4), t_max=15)
+    assert props.first_solvable_length is not None
+    assert props.requires_mutual(props.first_solvable_length - 1) is False
+
+
+def test_no_laser_world_never_requires_mutual():
+    # Two independent agents with no lasers: cooperation is impossible.
+    props = characterize(World("S0 . X\nS1 . X"), t_max=6)
+    assert props.first_solvable_length is not None
+    assert props.mutual_free_threshold == props.first_solvable_length
+    for t in range(props.first_solvable_length, props.t_max + 1):
+        assert props.requires_mutual(t) is False
+
+
+# ---------------------------------------------------------------------------
+# Temporal chain
+# ---------------------------------------------------------------------------
+
+
+def test_two_agent_world_never_requires_chain():
+    # With only 2 agents there are no distinct triples (a, b, c), so no chain
+    # can ever form. chain_free_threshold equals first_solvable_length.
+    props = characterize(World.level(4), t_max=15)
+    assert props.first_solvable_length is not None
+    assert props.chain_free_threshold == props.first_solvable_length
+    for t in range(props.first_solvable_length, props.t_max + 1):
+        assert props.requires_chain(t) is False
+
+
+def test_requires_chain_false_before_first_solvable():
+    props = characterize(World.level(6), t_max=25)
+    assert props.first_solvable_length is not None
+    assert props.requires_chain(props.first_solvable_length - 1) is False
+
+
+def test_chain_semantics_independent_of_mutual():
+    # Mutual cooperation (A↔B) is not a chain (it requires a third agent C).
+    # Level 4 has 2 agents so mutual can hold without any chain.
+    props = characterize(World.level(4), t_max=15)
+    assert props.requires_mutual(10) is True
+    assert props.requires_chain(15) is False  # 2 agents → chain impossible

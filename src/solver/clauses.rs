@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use itertools::Itertools;
 
 use crate::solver::VarKey;
-use crate::tiles::LaserId;
+use crate::solver::errors::SolverError;
 use crate::{Action, AgentId, Position, World};
 
 use super::context::ConstraintContext;
@@ -17,10 +17,12 @@ pub type Clause = Vec<i32>;
 /// count from n >= 6 onward (at the cost of n-1 auxiliary variables).
 const PAIRWISE_ATMOST_MAX: usize = 5;
 
+#[inline]
 fn implies(a: i32, b: i32) -> Clause {
     vec![-a, b]
 }
 
+#[inline]
 fn equals(a: i32, b: i32) -> Vec<Clause> {
     vec![implies(a, b), implies(b, a)]
 }
@@ -35,11 +37,11 @@ fn at_most_one_sequential(vars: &[i32], pool: &mut VarPool) -> Vec<Clause> {
     for _ in 0..n - 1 {
         s.push(pool.aux());
     }
-    let mut clauses = Vec::new();
+    let mut clauses = Vec::with_capacity((n - 1) * 2 + n - 2);
     for i in 0..n - 1 {
         clauses.push(implies(vars[i], s[i])); // vars[i] -> s[i]
-        clauses.push(vec![-vars[i + 1], -s[i]]); // vars[i+1] -> ¬s[i]
-        if i + 1 < n - 1 {
+        clauses.push(implies(vars[i + 1], -s[i])); // vars[i+1] -> ¬s[i]
+        if i < n - 2 {
             clauses.push(implies(s[i], s[i + 1])); // s[i] -> s[i+1]
         }
     }
@@ -77,17 +79,6 @@ impl ClauseGenerator {
     pub fn solution_lower_bound(&self) -> usize {
         self.ctx.solution_lower_bound
     }
-
-    #[inline]
-    fn agent(&mut self, agent: AgentId, pos: Position, t: usize) -> i32 {
-        self.pool.agent(agent, pos, t)
-    }
-
-    #[inline]
-    fn laser(&mut self, laser_id: LaserId, pos: Position, t: usize) -> i32 {
-        self.pool.laser(laser_id, pos, t)
-    }
-
     pub fn exists(&self, key: &VarKey) -> bool {
         self.pool.exists(&key)
     }
@@ -123,7 +114,7 @@ impl ClauseGenerator {
             clauses.push(
                 positions
                     .into_iter()
-                    .map(|p| self.agent(agent, p, t))
+                    .map(|p| self.pool.agent(agent, p, t))
                     .collect(),
             );
         }
@@ -157,10 +148,13 @@ impl ClauseGenerator {
                 // Scope the immutable borrow of `ctx` so it ends before the `self.agent` mutation.
                 let positions: Vec<Position> = {
                     let reachable = self.ctx.relevant_positions_for_agent(agent, t);
-                    path.iter().copied().filter(|p| reachable.contains(p)).collect()
+                    path.iter()
+                        .copied()
+                        .filter(|p| reachable.contains(p))
+                        .collect()
                 };
                 for pos in positions {
-                    let agent_var = self.agent(agent, pos, t);
+                    let agent_var = self.pool.agent(agent, pos, t);
                     clauses.push(vec![-agent_var]);
                 }
             }
@@ -187,29 +181,51 @@ impl ClauseGenerator {
         clauses
     }
 
+    /// Return the clauses that encode the assumption that there is no cooperation,
+    /// i.e. for every laser l and every time step t, `¬laser_blocked(id, t)`.
+    pub fn assume_no_cooperation(
+        &mut self,
+        t_min: usize,
+        t_max: usize,
+    ) -> Result<Vec<Clause>, SolverError> {
+        let mut clauses = Vec::new();
+        for t in t_min..=t_max {
+            self.ctx.update(t);
+            for idx in 0..self.ctx.laser_sources.len() {
+                let laser_id = self.ctx.laser_sources[idx].laser_id;
+                let key = VarKey::LaserBlocked { laser_id, t };
+                let var = self.pool.get(&key).ok_or(SolverError::InvalidAssumption {
+                    var: key,
+                    reason: format!("variable does not exist"),
+                })?;
+                clauses.push(vec![-var]);
+            }
+        }
+        Ok(clauses)
+    }
+
     /// Define `laser_blocked(laser_id, t) ↔ ∃ blockable (x, y): agent(colour, x, y, t)`.
+    /// Decomposed into a double implication
     fn laser_blocked_definitions(&mut self, t: usize) -> Vec<Clause> {
         let mut clauses = Vec::new();
         for idx in 0..self.ctx.laser_sources.len() {
             let agent_id = self.ctx.laser_sources[idx].agent_id;
             let laser_id = self.ctx.laser_sources[idx].laser_id;
-            let blockable = self.ctx.get_reachable_laser_path(idx, t).clone();
+            let blockable = self.ctx.get_reachable_laser_path(idx, t);
             if blockable.is_empty() {
                 continue;
             }
             let blocked_var = self.pool.laser_blocked(laser_id, t);
             let agent_vars: Vec<i32> = blockable
                 .into_iter()
-                .map(|pos| self.agent(agent_id, pos, t))
+                .map(|&pos| self.pool.agent(agent_id, pos, t))
                 .collect();
-            // blocked → some same-colour agent is at a blocking position
-            let mut clause = vec![-blocked_var];
-            clause.extend(agent_vars.iter().copied());
-            clauses.push(clause);
             // each blocking-position agent → blocked
-            for av in agent_vars {
-                clauses.push(vec![-av, blocked_var]);
+            for av in &agent_vars {
+                clauses.push(implies(*av, blocked_var));
             }
+            // blocked → some same-colour agent is at a blocking position
+            clauses.push([vec![-blocked_var], agent_vars].concat())
         }
         clauses
     }
@@ -224,8 +240,12 @@ impl ClauseGenerator {
             let helper = self.ctx.laser_sources[idx].agent_id;
             let laser_id = self.ctx.laser_sources[idx].laser_id;
             let path = self.ctx.laser_sources[idx].path.clone();
-            let blockable: std::collections::HashSet<Position> =
-                self.ctx.get_reachable_laser_path(idx, t).iter().copied().collect();
+            let blockable: std::collections::HashSet<Position> = self
+                .ctx
+                .get_reachable_laser_path(idx, t)
+                .iter()
+                .copied()
+                .collect();
 
             for beneficiary in 0..n_agents {
                 if beneficiary == helper {
@@ -251,8 +271,8 @@ impl ClauseGenerator {
                 let coop_var = self.pool.coop_event(helper, beneficiary, laser_id, t);
                 let mut term_vars: Vec<i32> = Vec::with_capacity(pairs.len());
                 for (blocker_pos, benef_pos) in pairs {
-                    let blocker_av = self.agent(helper, blocker_pos, t);
-                    let benef_av = self.agent(beneficiary, benef_pos, t);
+                    let blocker_av = self.pool.agent(helper, blocker_pos, t);
+                    let benef_av = self.pool.agent(beneficiary, benef_pos, t);
                     let term = self.pool.aux();
                     term_vars.push(term);
                     // term ↔ blocker ∧ beneficiary_present
@@ -328,6 +348,211 @@ impl ClauseGenerator {
     }
 
     // ------------------------------------------------------------------
+    // Temporal chain tracking (first_helped_by_time / chain_event / chain)
+    // ------------------------------------------------------------------
+
+    /// All chain-tracking clauses for time step `t`.
+    ///
+    /// Must be called **after** [`Self::coop_clauses`] for the same `t`, since it references
+    /// `coop_event` variables created by that call.  Defines two families of variables:
+    ///
+    /// - `first_helped_by_time(a, b, t)` — running OR: "a has helped b at some time ≤ t"
+    /// - `chain_event(a, b, c, t)` — "a helped b at some time ≤ t-1 AND b helps c at exactly t"
+    ///   (only for t ≥ 1 and triples of distinct agents)
+    pub fn chain_clauses(&mut self, t: usize) -> Vec<Clause> {
+        self.ctx.update(t);
+        let mut clauses = Vec::new();
+        let n = self.ctx.n_agents;
+
+        // Step 1: first_helped_by_time(a, b, t) for every ordered pair (a, b).
+        for a in 0..n {
+            // Laser sources whose colour is `a`: collect laser_ids up front so we don't hold
+            // a borrow on `self.ctx` while also accessing `self.pool`.
+            let laser_ids_a: Vec<usize> = self
+                .ctx
+                .laser_sources
+                .iter()
+                .filter(|s| s.agent_id == a)
+                .map(|s| s.laser_id)
+                .collect();
+
+            for b in 0..n {
+                if a == b {
+                    continue;
+                }
+                // Collect existing coop_event vars (a helps b via any laser, at time t).
+                let coop_vars_t: Vec<i32> = laser_ids_a
+                    .iter()
+                    .filter_map(|&lid| self.pool.get(&VarKey::coop_event(a, b, lid, t)))
+                    .collect();
+                let prev_fhbt = if t > 0 {
+                    self.pool.get(&VarKey::first_helped_by_time(a, b, t - 1))
+                } else {
+                    None
+                };
+
+                if coop_vars_t.is_empty() && prev_fhbt.is_none() {
+                    continue; // nothing to constrain; skip creating the variable
+                }
+
+                let fhbt = self.pool.first_helped_by_time(a, b, t);
+
+                // fhbt → (prev_fhbt ∨ ∨coop_vars_t)
+                let mut clause = vec![-fhbt];
+                if let Some(p) = prev_fhbt {
+                    clause.push(p);
+                }
+                clause.extend(coop_vars_t.iter().copied());
+                clauses.push(clause);
+                // reverse implications: each antecedent → fhbt
+                if let Some(p) = prev_fhbt {
+                    clauses.push(vec![-p, fhbt]);
+                }
+                for &cv in &coop_vars_t {
+                    clauses.push(vec![-cv, fhbt]);
+                }
+            }
+        }
+
+        // Step 2: chain_event(a, b, c, t) for t ≥ 1 and all distinct triples (a, b, c).
+        if t > 0 {
+            for a in 0..n {
+                for b in 0..n {
+                    if a == b {
+                        continue;
+                    }
+                    let Some(prev_fhbt_ab) =
+                        self.pool.get(&VarKey::first_helped_by_time(a, b, t - 1))
+                    else {
+                        continue; // a never helped b before t → no chain starting here
+                    };
+
+                    let laser_ids_b: Vec<usize> = self
+                        .ctx
+                        .laser_sources
+                        .iter()
+                        .filter(|s| s.agent_id == b)
+                        .map(|s| s.laser_id)
+                        .collect();
+
+                    for c in 0..n {
+                        if c == a || c == b {
+                            continue;
+                        }
+                        let coop_vars_bc: Vec<i32> = laser_ids_b
+                            .iter()
+                            .filter_map(|&lid| self.pool.get(&VarKey::coop_event(b, c, lid, t)))
+                            .collect();
+                        if coop_vars_bc.is_empty() {
+                            continue; // b cannot help c at this step → no chain here
+                        }
+
+                        let chain_ev = self.pool.chain_event(a, b, c, t);
+
+                        // chain_event → prev_fhbt_ab
+                        clauses.push(vec![-chain_ev, prev_fhbt_ab]);
+                        // chain_event → ∨(coop_vars_bc)
+                        let mut clause = vec![-chain_ev];
+                        clause.extend(coop_vars_bc.iter().copied());
+                        clauses.push(clause);
+                        // prev_fhbt_ab ∧ any coop_bc → chain_event
+                        for &cv in &coop_vars_bc {
+                            clauses.push(vec![-prev_fhbt_ab, -cv, chain_ev]);
+                        }
+                    }
+                }
+            }
+        }
+
+        clauses
+    }
+
+    /// Define `chain(a, b, c) ↔ ∃ t ≤ t_end: chain_event(a, b, c, t)` for every distinct
+    /// triple `(a, b, c)` that has at least one such event within the horizon.
+    ///
+    /// Must be called once per candidate horizon, after [`Self::chain_clauses`] has been called
+    /// for every `t ≤ t_end`.  Feed the returned clauses to the solver for that horizon only.
+    pub fn finalize_chain(&mut self, t_end: usize) -> Vec<Clause> {
+        let mut clauses = Vec::new();
+        let n = self.ctx.n_agents;
+        for a in 0..n {
+            for b in 0..n {
+                if a == b {
+                    continue;
+                }
+                for c in 0..n {
+                    if c == a || c == b {
+                        continue;
+                    }
+                    let events: Vec<i32> = (1..=t_end)
+                        .filter_map(|t| self.pool.get(&VarKey::chain_event(a, b, c, t)))
+                        .collect();
+                    if events.is_empty() {
+                        continue;
+                    }
+                    let chain = self.pool.chain_var(a, b, c);
+                    // chain ↔ ∨(events)
+                    let mut clause = vec![-chain];
+                    clause.extend(events.iter().copied());
+                    clauses.push(clause);
+                    for &ev in &events {
+                        clauses.push(vec![-ev, chain]);
+                    }
+                }
+            }
+        }
+        clauses
+    }
+
+    /// The SAT literal for `chain(a, b, c)` — "a helped b strictly before b helped c" — or
+    /// `None` if no such chain can occur within the horizon last passed to
+    /// [`Self::finalize_chain`].
+    pub fn chain_lit(&self, a: AgentId, b: AgentId, c: AgentId) -> Option<i32> {
+        self.pool.get(&VarKey::chain(a, b, c))
+    }
+
+    // ------------------------------------------------------------------
+    // Mutual-dependency tracking
+    // ------------------------------------------------------------------
+
+    /// Define `mutual(a, b) ↔ depends_on(a, b) ∧ depends_on(b, a)` for every unordered pair
+    /// `{a, b}` where both `depends_on` variables exist.
+    ///
+    /// Must be called once per candidate horizon, **after** [`Self::finalize_depends_on`] for
+    /// the same `t_end` (which creates the `depends_on` variables).  Feed the returned clauses
+    /// to the solver together with the `finalize_depends_on` output.
+    pub fn finalize_mutual(&mut self, t_end: usize) -> Vec<Clause> {
+        // Suppress the unused-parameter warning: t_end is included for API symmetry with
+        // finalize_depends_on / finalize_chain, but mutual is timeless once dep vars exist.
+        let _ = t_end;
+        let mut clauses = Vec::new();
+        let n = self.ctx.n_agents;
+        for a in 0..n {
+            for b in (a + 1)..n {
+                // depends_on(a, b) = "b helps a"; depends_on(b, a) = "a helps b"
+                let dep_ba = self.pool.get(&VarKey::depends_on(a, b)); // b helps a
+                let dep_ab = self.pool.get(&VarKey::depends_on(b, a)); // a helps b
+                let (Some(dep_ba), Some(dep_ab)) = (dep_ba, dep_ab) else {
+                    continue;
+                };
+                let mutual = self.pool.mutual(a, b);
+                // mutual ↔ dep_ab ∧ dep_ba
+                clauses.push(vec![-mutual, dep_ab]);
+                clauses.push(vec![-mutual, dep_ba]);
+                clauses.push(vec![-dep_ab, -dep_ba, mutual]);
+            }
+        }
+        clauses
+    }
+
+    /// The SAT literal for `mutual(a, b)` — "a and b mutually depend on each other" — or
+    /// `None` if no such variable exists (at least one direction of help is impossible within
+    /// the horizon last passed to [`Self::finalize_mutual`]).
+    pub fn mutual_lit(&self, a: AgentId, b: AgentId) -> Option<i32> {
+        self.pool.get(&VarKey::mutual(a, b))
+    }
+
+    // ------------------------------------------------------------------
     // Initialization
     // ------------------------------------------------------------------
 
@@ -339,13 +564,9 @@ impl ClauseGenerator {
         starts
             .into_iter()
             .enumerate()
-            .map(|(agent, pos)| vec![self.agent(agent, pos, 0)])
+            .map(|(agent, pos)| vec![self.pool.agent(agent, pos, 0)])
             .collect()
     }
-
-    // ------------------------------------------------------------------
-    // Movement
-    // ------------------------------------------------------------------
 
     /// Every agent is in exactly one position at any given time step.
     fn exactly_one_position(&mut self, t: usize) -> Vec<Clause> {
@@ -361,7 +582,7 @@ impl ClauseGenerator {
             }
             let vars: Vec<i32> = positions
                 .into_iter()
-                .map(|p| self.agent(agent, p, t))
+                .map(|p| self.pool.agent(agent, p, t))
                 .collect();
             clauses.push(vars.clone());
             if vars.len() <= PAIRWISE_ATMOST_MAX {
@@ -391,10 +612,10 @@ impl ClauseGenerator {
                 .collect();
             for pos in positions {
                 let prev_positions = self.ctx.prev_neighbours(agent, &pos, t);
-                let current_var = self.agent(agent, pos, t);
+                let current_var = self.pool.agent(agent, pos, t);
                 let mut clause = vec![-current_var];
                 for prev in prev_positions {
-                    clause.push(self.agent(agent, prev, t - 1));
+                    clause.push(self.pool.agent(agent, prev, t - 1));
                 }
                 clauses.push(clause);
             }
@@ -413,8 +634,8 @@ impl ClauseGenerator {
                     .into_iter()
                     .collect();
                 for pos in positions {
-                    let v1 = self.agent(c1, pos, t);
-                    let v2 = self.agent(c2, pos, t);
+                    let v1 = self.pool.agent(c1, pos, t);
+                    let v2 = self.pool.agent(c2, pos, t);
                     clauses.push(vec![-v1, -v2]);
                 }
             }
@@ -432,15 +653,15 @@ impl ClauseGenerator {
             let prev_c1 = self.ctx.relevant_positions(t - 1, &[c1]);
             let cur_c2 = self.ctx.relevant_positions(t, &[c2]);
             for pos in prev_c1.intersection(&cur_c2) {
-                let a2 = self.agent(c2, pos, t);
-                let a1_prev = self.agent(c1, pos, t - 1);
+                let a2 = self.pool.agent(c2, pos, t);
+                let a1_prev = self.pool.agent(c1, pos, t - 1);
                 clauses.push(implies(a2, -a1_prev));
             }
             let cur_c1 = self.ctx.relevant_positions(t, &[c1]);
             let prev_c2 = self.ctx.relevant_positions(t - 1, &[c2]);
             for pos in cur_c1.intersection(&prev_c2) {
-                let a1 = self.agent(c1, pos, t);
-                let a2_prev = self.agent(c2, pos, t - 1);
+                let a1 = self.pool.agent(c1, pos, t);
+                let a2_prev = self.pool.agent(c2, pos, t - 1);
                 clauses.push(implies(a1, -a2_prev));
             }
         }
@@ -462,8 +683,8 @@ impl ClauseGenerator {
                 .filter(|p| reachable.contains(p))
                 .collect();
             for pos in exit_positions {
-                let prev = self.agent(agent, pos, t - 1);
-                let cur = self.agent(agent, pos, t);
+                let prev = self.pool.agent(agent, pos, t - 1);
+                let cur = self.pool.agent(agent, pos, t);
                 clauses.push(vec![-prev, cur]);
             }
         }
@@ -488,8 +709,8 @@ impl ClauseGenerator {
             let mut prev_active: Option<i32> = None;
             for pos in path {
                 if blockable.contains(&pos) {
-                    let agent_var = self.agent(agent_id, pos, t);
-                    let active = self.laser(laser_id, pos, t);
+                    let agent_var = self.pool.agent(agent_id, pos, t);
+                    let active = self.pool.laser(laser_id, pos, t);
                     match prev_active {
                         None => clauses.extend(equals(active, -agent_var)),
                         Some(prev) => {
@@ -532,7 +753,7 @@ impl ClauseGenerator {
                     if !reachable.contains(&pos) {
                         continue;
                     }
-                    let agent_var = self.agent(agent, pos, t);
+                    let agent_var = self.pool.agent(agent, pos, t);
                     match active_lit.get(&VarKey::laser(laser_id, pos, t)) {
                         Some(&lit) => clauses.push(vec![-agent_var, -lit]),
                         None => clauses.push(vec![-agent_var]), // constant-active beam tile

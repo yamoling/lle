@@ -43,7 +43,6 @@ def main() -> None:
 
     print("World characterization (t_max = {})".format(t_max))
     print("-" * 52)
-    print(f"agents ........................ {props.n_agents}")
     print(f"solution lower bound .......... {props.solution_lower_bound}")
     print(f"shortest valid plan ........... {props.first_solvable_length}")
     print(f"fully-independent threshold ... {props.fully_independent_threshold}")
@@ -77,9 +76,7 @@ def main() -> None:
     print(f"  shortest no-cooperation plan ......... {len(no_coop) if no_coop else None}")
     print(f"  fully-independent threshold .......... {props.fully_independent_threshold}")
     assert props.fully_independent_threshold is not None and no_coop is not None
-    assert props.fully_independent_threshold == len(no_coop), (
-        "no-cooperation solvability and full help-freedom must coincide"
-    )
+    assert props.fully_independent_threshold == len(no_coop), "no-cooperation solvability and full help-freedom must coincide"
 
 
 if __name__ == "__main__":

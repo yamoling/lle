@@ -2,7 +2,7 @@ use pyo3::{exceptions::PyValueError, prelude::*};
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use crate::{
-    bindings::{PyAction, PyWorld},
+    bindings::{PyAction, PyWorld, pyexceptions::solver_error_to_exception},
     solver::{Clause, ClauseGenerator},
 };
 
@@ -42,7 +42,7 @@ pub struct PyClauseGenerator {
 #[gen_stub_pymethods]
 #[pymethods]
 impl PyClauseGenerator {
-    /// Build a constraint generator for `world`, considering plans of length up to `t_max`.
+    /// Build a clause generator for the given `world`, considering plans of length up to `t_max`.
     #[new]
     fn new(world: &PyWorld, t_max: usize) -> Self {
         let inner = world.with_world(|world| ClauseGenerator::new(world, t_max));
@@ -78,6 +78,16 @@ impl PyClauseGenerator {
         self.inner.no_blocking_clauses(t)
     }
 
+    /// Generate the unit clauses assuming no cooperation is required between agents.
+    ///
+    /// # Raises
+    ///     - `SolverError` if the cooperation variables are not yet created.
+    fn assume_no_cooperation(&mut self, t_min: usize, t_max: usize) -> PyResult<Vec<Clause>> {
+        self.inner
+            .assume_no_cooperation(t_min, t_max)
+            .map_err(solver_error_to_exception)
+    }
+
     /// Generate the cooperation-tracking clauses for time step `t`: the `laser_blocked` and
     /// `coop_event` indicator-variable definitions.
     ///
@@ -104,6 +114,47 @@ impl PyClauseGenerator {
     /// a solver assumption.
     fn depends_on_lit(&self, beneficiary: usize, helper: usize) -> Option<i32> {
         self.inner.depends_on_lit(beneficiary, helper)
+    }
+
+    /// Generate the temporal chain-tracking clauses for time step `t`.
+    ///
+    /// Must be called after `coop_clauses(t)` for the same `t`. Defines:
+    ///
+    /// - `first_helped_by_time(a, b, t)` — "a has helped b at any time ≤ t" (running OR)
+    /// - `chain_event(a, b, c, t)` — "a helped b at some time ≤ t-1 AND b helps c at t"
+    ///
+    /// These are used by `finalize_chain` to define the per-horizon `chain(a, b, c)` variables.
+    fn chain_clauses(&mut self, t: usize) -> Vec<Clause> {
+        self.inner.chain_clauses(t)
+    }
+
+    /// Generate `chain(a, b, c)` definition clauses over the horizon `[0, t_end]`.
+    ///
+    /// Call once per candidate horizon, after `chain_clauses(t)` has been called for every
+    /// `t ≤ t_end`. Feed the result to the solver for that horizon only.
+    fn finalize_chain(&mut self, t_end: usize) -> Vec<Clause> {
+        self.inner.finalize_chain(t_end)
+    }
+
+    /// The SAT literal for `chain(a, b, c)` — "a helped b strictly before b helped c" — or
+    /// `None` if no such chain can occur within the horizon last passed to `finalize_chain`.
+    fn chain_lit(&self, a: usize, b: usize, c: usize) -> Option<i32> {
+        self.inner.chain_lit(a, b, c)
+    }
+
+    /// Generate `mutual(a, b)` definition clauses for the current horizon.
+    ///
+    /// Must be called after `finalize_depends_on(t_end)` for the same horizon (it reads the
+    /// `depends_on` variables created by that call). Feed the result to the solver together
+    /// with the `finalize_depends_on` output.
+    fn finalize_mutual(&mut self, t_end: usize) -> Vec<Clause> {
+        self.inner.finalize_mutual(t_end)
+    }
+
+    /// The SAT literal for `mutual(a, b)` — "agents a and b mutually depend on each other" —
+    /// or `None` if at least one direction of help is impossible within the current horizon.
+    fn mutual_lit(&self, a: usize, b: usize) -> Option<i32> {
+        self.inner.mutual_lit(a, b)
     }
 
     /// Decode a SAT model (as returned by `solver.get_model()`) into a joint-action plan

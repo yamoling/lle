@@ -58,8 +58,6 @@ class WorldCharacterization:
     agent pair) and :meth:`is_independent` (global).
     """
 
-    n_agents: int
-    """The number of agents in the world."""
     t_max: int
     """The largest plan length that was probed."""
     solution_lower_bound: int
@@ -74,6 +72,14 @@ class WorldCharacterization:
     fully_independent_threshold: int | None
     """Shortest plan length at which a fully cooperation-free plan (no help at all,
     by anyone, for anyone) exists, or ``None`` if none exists ≤ ``t_max``."""
+    mutual_free_threshold: int | None
+    """Shortest plan length at which a plan with *no mutual pair* exists, or ``None`` if every
+    solvable plan ≤ ``t_max`` contains at least one pair (a, b) where both a helps b and b
+    helps a.  Use :meth:`requires_mutual` to query this threshold."""
+    chain_free_threshold: int | None
+    """Shortest plan length at which a plan with *no temporal chain* exists (i.e. no triple
+    (a, b, c) where a helped b strictly before b helped c), or ``None`` if no such plan exists
+    ≤ ``t_max``.  Use :meth:`requires_chain` to query this threshold."""
 
     def depends(self, beneficiary: AgentId, helper: AgentId, t: int) -> bool:
         """Whether every valid plan of length ≤ ``t`` forces ``helper`` to help ``beneficiary``.
@@ -93,14 +99,38 @@ class WorldCharacterization:
         """Whether a fully cooperation-free plan of length ≤ ``t`` exists."""
         return self.fully_independent_threshold is not None and self.fully_independent_threshold <= t
 
+    def requires_mutual(self, t: int) -> bool:
+        """Whether every valid plan of length ≤ ``t`` contains a mutual pair.
+
+        A *mutual pair* is an unordered pair ``{a, b}`` where both ``a helps b`` and
+        ``b helps a`` in the plan.  Returns ``False`` when no valid plan of length ≤ ``t``
+        exists at all (use :attr:`first_solvable_length` to distinguish "provably non-mutual"
+        from "unsolvable").
+        """
+        if self.first_solvable_length is None or t < self.first_solvable_length:
+            return False
+        return self.mutual_free_threshold is None or t < self.mutual_free_threshold
+
+    def requires_chain(self, t: int) -> bool:
+        """Whether every valid plan of length ≤ ``t`` contains a temporal cooperation chain.
+
+        A *chain* is a triple ``(a, b, c)`` of distinct agents where ``a`` helped ``b`` at
+        some time step *strictly before* ``b`` helped ``c``.  Returns ``False`` when no valid
+        plan of length ≤ ``t`` exists at all.
+        """
+        if self.first_solvable_length is None or t < self.first_solvable_length:
+            return False
+        return self.chain_free_threshold is None or t < self.chain_free_threshold
+
 
 def characterize(world: World, t_max: int) -> WorldCharacterization:
     """Compute the universal cooperation properties of ``world`` for plans of length ≤ ``t_max``.
 
     For every ordered agent pair ``(beneficiary, helper)``, this finds the shortest
     plan length at which the ``helper``-helps-``beneficiary`` dependency stops being
-    mandatory (its *independence threshold*), plus the global threshold at which a
-    fully cooperation-free plan becomes possible.
+    mandatory (its *independence threshold*).  It also computes four global thresholds:
+    the first plan length at which a fully-independent, mutual-free, and chain-free plan
+    exists respectively.
 
     The result is queried with :meth:`WorldCharacterization.depends` and
     :meth:`WorldCharacterization.is_independent`.
@@ -143,54 +173,85 @@ def characterize(world: World, t_max: int) -> WorldCharacterization:
     unresolved: set[tuple[AgentId, AgentId]] = set(pairs)
     first_solvable_length: int | None = None
     fully_independent_threshold: int | None = None
+    mutual_free_threshold: int | None = None
+    chain_free_threshold: int | None = None
 
     if t_min <= t_max:
-        # Clauses for the unreachable horizons [0, t_min) are needed by every later
-        # solver instance, so generate them up front and never re-emit them.
+        # Clauses for horizons [0, t_min) are needed by every later solver instance.
         clauses: list[list[int]] = []
         for t in range(t_min):
             clauses.extend(gen.generate(t))
             clauses.extend(gen.coop_clauses(t))
+            clauses.extend(gen.chain_clauses(t))  # must follow coop_clauses(t)
 
         for t in range(t_min, t_max + 1):
             clauses.extend(gen.generate(t))
             clauses.extend(gen.coop_clauses(t))
-            # depends_on is defined over [0, t] and changes with the horizon, so it is
-            # passed to this horizon's solver only -- never accumulated into `clauses`.
-            finalize = gen.finalize_depends_on(t)
-            with Minisat22(bootstrap_with=clauses + finalize) as solver:
+            clauses.extend(gen.chain_clauses(t))
+
+            # Horizon-specific definitions: depends_on, mutual, chain.
+            # finalize_mutual must be called after finalize_depends_on (reads dep vars).
+            finalize_dep = gen.finalize_depends_on(t)
+            finalize_mut = gen.finalize_mutual(t)
+            finalize_chn = gen.finalize_chain(t)
+
+            with Minisat22(bootstrap_with=clauses + finalize_dep + finalize_mut + finalize_chn) as solver:
                 solver.append_formula(gen.objective(t))
                 if not solver.solve():
                     continue  # unsolvable at this length
                 if first_solvable_length is None:
                     first_solvable_length = t
 
-                # Per-pair independence probes via transient assumptions.
+                # --- Per-pair independence probes ---
                 for b, h in list(unresolved):
                     lit = gen.depends_on_lit(b, h)
                     if lit is None:
-                        # The dependency cannot even occur within this horizon, so any
-                        # plan of this length is trivially independent for (b, h).
                         threshold[(b, h)] = t
                         unresolved.discard((b, h))
                     elif solver.solve(assumptions=[-lit]):
                         threshold[(b, h)] = t
                         unresolved.discard((b, h))
 
-                # Global "fully independent" probe: a single plan with no help at all.
+                # --- Fully-independent probe ---
                 if fully_independent_threshold is None:
                     neg = [-lit for b, h in pairs if (lit := gen.depends_on_lit(b, h)) is not None]
                     if solver.solve(assumptions=neg):
                         fully_independent_threshold = t
 
-            if not unresolved and fully_independent_threshold is not None:
+                # --- Mutual-free probe: is there a plan with no mutual pair? ---
+                # Assume ¬mutual(a,b) for every pair that has a mutual variable.
+                # If SAT, a mutual-free plan exists; if UNSAT, mutual is now mandatory.
+                if mutual_free_threshold is None:
+                    neg_mut = [-m for a in range(n) for b in range(a + 1, n) if (m := gen.mutual_lit(a, b)) is not None]
+                    if solver.solve(assumptions=neg_mut):
+                        mutual_free_threshold = t
+
+                # --- Chain-free probe: is there a plan with no temporal chain? ---
+                if chain_free_threshold is None:
+                    neg_chn = [
+                        -ch
+                        for a in range(n)
+                        for b in range(n)
+                        for c in range(n)
+                        if a != b and b != c and a != c and (ch := gen.chain_lit(a, b, c)) is not None
+                    ]
+                    if solver.solve(assumptions=neg_chn):
+                        chain_free_threshold = t
+
+            if (
+                not unresolved
+                and fully_independent_threshold is not None
+                and mutual_free_threshold is not None
+                and chain_free_threshold is not None
+            ):
                 break
 
     return WorldCharacterization(
-        n_agents=n,
         t_max=t_max,
         solution_lower_bound=t_min,
         first_solvable_length=first_solvable_length,
         independence_threshold=threshold,
         fully_independent_threshold=fully_independent_threshold,
+        mutual_free_threshold=mutual_free_threshold,
+        chain_free_threshold=chain_free_threshold,
     )

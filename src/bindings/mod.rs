@@ -47,7 +47,7 @@ fn register_constraints_submodule(py: Python<'_>) -> PyResult<()> {
 }
 
 fn make_exceptions_submodule<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyModule>> {
-    let exceptions = PyModule::new(py, "exceptions")?;
+    let exceptions = PyModule::new(py, "lle.exceptions")?;
     exceptions.add(
         "InvalidWorldStateError",
         py.get_type::<pyexceptions::InvalidWorldStateError>(),
@@ -61,6 +61,7 @@ fn make_exceptions_submodule<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyModu
         "InvalidLevelError",
         py.get_type::<pyexceptions::InvalidLevelError>(),
     )?;
+    exceptions.add("SolverError", py.get_type::<pyexceptions::SolverError>())?;
     Ok(exceptions)
 }
 

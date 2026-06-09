@@ -1,3 +1,3 @@
-mod pyconstraint_generator;
+mod pyclause_generator;
 
-pub use pyconstraint_generator::PyClauseGenerator;
+pub use pyclause_generator::PyClauseGenerator;

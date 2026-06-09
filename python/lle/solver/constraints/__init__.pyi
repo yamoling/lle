@@ -45,7 +45,7 @@ class ClauseGenerator:
         """
     def __new__(cls, world: world.World, t_max: builtins.int) -> ClauseGenerator:
         r"""
-        Build a constraint generator for `world`, considering plans of length up to `t_max`.
+        Build a clause generator for the given `world`, considering plans of length up to `t_max`.
         """
     def generate(self, t: builtins.int) -> builtins.list[builtins.list[builtins.int]]:
         r"""
@@ -67,6 +67,13 @@ class ClauseGenerator:
         
         Adding these clauses for every `t` in `[0, t_max]` makes the formula UNSAT iff laser
         blocking (cooperation) is required to solve the level within the horizon.
+        """
+    def assume_no_cooperation(self, t_min: builtins.int, t_max: builtins.int) -> builtins.list[builtins.list[builtins.int]]:
+        r"""
+        Generate the unit clauses assuming no cooperation is required between agents.
+        
+        # Raises
+            - `SolverError` if the cooperation variables are not yet created.
         """
     def coop_clauses(self, t: builtins.int) -> builtins.list[builtins.list[builtins.int]]:
         r"""
@@ -92,6 +99,42 @@ class ClauseGenerator:
         exists (the dependency can never occur within the horizon last passed to
         `finalize_depends_on`). Never creates a variable, so the returned literal is safe to use as
         a solver assumption.
+        """
+    def chain_clauses(self, t: builtins.int) -> builtins.list[builtins.list[builtins.int]]:
+        r"""
+        Generate the temporal chain-tracking clauses for time step `t`.
+        
+        Must be called after `coop_clauses(t)` for the same `t`. Defines:
+        
+        - `first_helped_by_time(a, b, t)` — "a has helped b at any time ≤ t" (running OR)
+        - `chain_event(a, b, c, t)` — "a helped b at some time ≤ t-1 AND b helps c at t"
+        
+        These are used by `finalize_chain` to define the per-horizon `chain(a, b, c)` variables.
+        """
+    def finalize_chain(self, t_end: builtins.int) -> builtins.list[builtins.list[builtins.int]]:
+        r"""
+        Generate `chain(a, b, c)` definition clauses over the horizon `[0, t_end]`.
+        
+        Call once per candidate horizon, after `chain_clauses(t)` has been called for every
+        `t ≤ t_end`. Feed the result to the solver for that horizon only.
+        """
+    def chain_lit(self, a: builtins.int, b: builtins.int, c: builtins.int) -> typing.Optional[builtins.int]:
+        r"""
+        The SAT literal for `chain(a, b, c)` — "a helped b strictly before b helped c" — or
+        `None` if no such chain can occur within the horizon last passed to `finalize_chain`.
+        """
+    def finalize_mutual(self, t_end: builtins.int) -> builtins.list[builtins.list[builtins.int]]:
+        r"""
+        Generate `mutual(a, b)` definition clauses for the current horizon.
+        
+        Must be called after `finalize_depends_on(t_end)` for the same horizon (it reads the
+        `depends_on` variables created by that call). Feed the result to the solver together
+        with the `finalize_depends_on` output.
+        """
+    def mutual_lit(self, a: builtins.int, b: builtins.int) -> typing.Optional[builtins.int]:
+        r"""
+        The SAT literal for `mutual(a, b)` — "agents a and b mutually depend on each other" —
+        or `None` if at least one direction of help is impossible within the current horizon.
         """
     def decode_plan(self, model: typing.Sequence[builtins.int], t_end: builtins.int) -> builtins.list[builtins.list[world.Action]]:
         r"""
