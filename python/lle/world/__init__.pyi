@@ -140,6 +140,7 @@ class World:
         Parse the content of `filename` to create a World.
         
         The file can either be a toml or a plain text file.
+        
         Raises:
             `FileNotFoundError`: if the file does not exist.
         """

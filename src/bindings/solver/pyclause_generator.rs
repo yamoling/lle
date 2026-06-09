@@ -71,17 +71,11 @@ impl PyClauseGenerator {
     /// since beams can never be blocked, every beam tile is permanently active, so no agent of a
     /// *different* colour may ever stand on one. The laser's own colour is immune and may still
     /// walk through its own beam.
-    ///
-    /// Adding these clauses for every `t` in `[0, t_max]` makes the formula UNSAT iff laser
-    /// blocking (cooperation) is required to solve the level within the horizon.
-    fn no_blocking_clauses(&mut self, t: usize) -> Vec<Clause> {
-        self.inner.no_blocking_clauses(t)
-    }
 
     /// Generate the literal values assignments that corresponds to the assumption that no cooperation
     /// ever occurs at time step `t`.
     ///
-    /// # Raises
+    /// Raises:
     ///     - `SolverError` if the cooperation variables are not yet created.
     fn assume_no_cooperation(&mut self, t: usize) -> PyResult<Vec<Literal>> {
         self.inner

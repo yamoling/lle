@@ -15,7 +15,7 @@ from __future__ import annotations
 from typing import Literal
 
 from ..world import World
-from .solver import solve, solve_model, solve_no_cooperation
+from .solver import solve, solve_model
 
 
 def is_cooperative(world: World, t_max: int | Literal["auto"] = "auto"):
@@ -27,7 +27,7 @@ def is_cooperative(world: World, t_max: int | Literal["auto"] = "auto"):
     standard_plan = solve(world, t_max)
     if standard_plan is None:
         return False
-    strict_plan = solve_no_cooperation(world, t_max=t_max)
+    strict_plan = solve(world, t_max, allow_cooperation=False)
     return strict_plan is None
 
 
@@ -35,5 +35,4 @@ __all__ = [
     "is_cooperative",
     "solve",
     "solve_model",
-    "solve_no_cooperation",
 ]

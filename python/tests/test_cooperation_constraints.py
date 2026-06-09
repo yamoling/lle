@@ -10,6 +10,7 @@ Covers:
 
 from __future__ import annotations
 
+import lle
 import pytest
 from lle import Action, World
 from lle.solver.constraints_old import (
@@ -20,7 +21,6 @@ from lle.solver.constraints_old import (
     MovementConstraints,
     ObjectiveGenerator,
 )
-from lle.solver.solver import solve_no_cooperation
 from lle.solver.variable_factory import VariableFactory
 from pysat.solvers import Minisat22
 
@@ -135,12 +135,12 @@ def test_all_clauses_are_unit_and_negated():
 
 @pytest.mark.parametrize("level", [1, 2])
 def test_solvable_independently(level: int):
-    assert solve_no_cooperation(World.level(level), t_max=10) is not None
+    assert lle.solve(World.level(level), 10, allow_cooperation=False) is not None
 
 
 @pytest.mark.parametrize("level", [3, 4, 5, 6])
 def test_level_3_becomes_unsolvable(level: int):
-    assert solve_no_cooperation(World.level(level), t_max=21) is None
+    assert lle.solve(World.level(level), 21, allow_cooperation=False) is None
 
 
 def test_laser_blocked_references_blockable_positions_only():
@@ -338,6 +338,6 @@ def test_solve_no_cooperation_agrees_with_is_cooperative(level: int, t_max: int,
     import lle
 
     world = World.level(level)
-    no_coop = solve_no_cooperation(world, t_max=t_max)
+    no_coop = lle.solve(world, t_max, allow_cooperation=False)
     is_coop = lle.is_cooperative(world, t_max=t_max)
     assert (no_coop is None) == is_coop == expect_coop

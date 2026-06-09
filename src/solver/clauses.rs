@@ -122,47 +122,6 @@ impl ClauseGenerator {
         clauses
     }
 
-    /// Unit clauses implementing strict (no-cooperation) laser mode at time `t`.
-    ///
-    /// Since a beam can never be blocked, every beam tile is permanently active, so no agent of a
-    /// *different* colour may ever stand on one (it would die). The laser's own colour is immune
-    /// and may still walk *through* its own beam — forbidding the source agent here (as a previous
-    /// version did) was a bug: it conflated "the beam is unblockable" with "the source may not
-    /// traverse it", needlessly ruling out otherwise-valid independent plans.
-    ///
-    /// Adding these clauses for every `t` in `[0, t_max]` makes the formula UNSAT iff laser
-    /// blocking (cooperation) is required to solve the level within the horizon.
-    pub fn no_blocking_clauses(&mut self, t: usize) -> Vec<Clause> {
-        self.ctx.update(t);
-        let mut clauses = Vec::new();
-        let sources: Vec<(AgentId, Vec<Position>)> = self
-            .ctx
-            .laser_sources
-            .iter()
-            .map(|s| (s.agent_id, s.path.clone()))
-            .collect();
-        for (source_agent, path) in sources {
-            for agent in 0..self.ctx.n_agents {
-                if agent == source_agent {
-                    continue; // the laser's own colour is immune to its beam
-                }
-                // Scope the immutable borrow of `ctx` so it ends before the `self.agent` mutation.
-                let positions: Vec<Position> = {
-                    let reachable = self.ctx.relevant_positions_for_agent(agent, t);
-                    path.iter()
-                        .copied()
-                        .filter(|p| reachable.contains(p))
-                        .collect()
-                };
-                for pos in positions {
-                    let agent_var = self.pool.agent(agent, pos, t);
-                    clauses.push(vec![-agent_var]);
-                }
-            }
-        }
-        clauses
-    }
-
     // ------------------------------------------------------------------
     // Cooperation tracking (laser_blocked / coop_event / depends_on)
     // ------------------------------------------------------------------
@@ -187,7 +146,7 @@ impl ClauseGenerator {
         for idx in 0..self.ctx.laser_sources.len() {
             let laser_id = self.ctx.laser_sources[idx].laser_id;
             // If at least one laser tile is in reach of an agent that can block it
-            if !self.ctx.get_relevant_laser_path(laser_id, t).is_empty() {
+            if !self.ctx.relevant_laser_path(laser_id, t).is_empty() {
                 let key = VarKey::LaserBlocked { laser_id, t };
                 let var = self.pool.get(&key).ok_or(SolverError::InvalidAssumption {
                     var: key,
@@ -200,6 +159,19 @@ impl ClauseGenerator {
         Ok(assumptions)
     }
 
+    pub fn assume_no_mutual_cooperation(
+        &mut self,
+        t: usize,
+    ) -> Result<(Vec<Clause>, Vec<Literal>), SolverError> {
+        self.ctx.update(t);
+        let mut clauses = Vec::new();
+        let mut assumptions = Vec::new();
+        for laser_id in 0..self.ctx.laser_sources.len() {
+            let path = self.ctx.relevant_laser_path(laser_id, t);
+        }
+        Ok((clauses, assumptions))
+    }
+
     /// Define `laser_blocked(laser_id, t) ↔ ∃ blockable (x, y): agent(colour, x, y, t)`.
     /// Decomposed into a double implication
     fn laser_blocked_definitions(&mut self, t: usize) -> Vec<Clause> {
@@ -207,7 +179,7 @@ impl ClauseGenerator {
         for idx in 0..self.ctx.laser_sources.len() {
             let agent_id = self.ctx.laser_sources[idx].agent_id;
             let laser_id = self.ctx.laser_sources[idx].laser_id;
-            let blockable = self.ctx.get_relevant_laser_path(idx, t);
+            let blockable = self.ctx.relevant_laser_path(idx, t);
             if blockable.is_empty() {
                 continue;
             }

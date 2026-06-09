@@ -1,8 +1,5 @@
 import lle
 from lle import Action, World
-from lle.solver import solve_no_cooperation
-
-# from lle.solver.world_solver import WorldSolver
 
 
 def _default_t_max(world: World) -> int:
@@ -203,5 +200,5 @@ def test_solve_no_cooperation():
      X   X   .   .  .   .
     """)
     # Starting from 10 time steps, this level is feasible without cooperation
-    assert solve_no_cooperation(world, t_max=9) is None
-    assert solve_no_cooperation(world, t_max=10) is not None
+    assert lle.solve(world, 9, allow_cooperation=False) is None
+    assert lle.solve(world, 10, allow_cooperation=False) is not None
