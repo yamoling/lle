@@ -44,5 +44,10 @@ features = ["pyo3/extension-module"]
 module-name = "lle"
 python-source = "python"
 
+[tool.pytest.ini_options]
+markers = [
+    "slow: marks tests that invoke the SAT solver or full generation loops",
+]
+
 [tool.ruff]
 line-length = 140

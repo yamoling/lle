@@ -1,89 +1,129 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Generator, Literal, Unpack, overload
 
-from ._args import GenerateArgs
+from ..world import World
+from ._args import GenerateArgs, _ConfigFilter, _ConfigKW, _ConfigMultipleFilter, _ConfigMultipleKW
 from .constructive import ConstructiveGenerator
 from .level6_style import Level6StyleGenerator
 from .random import RandomGenerator
+from .world_filter import WorldFilter
+
+__all__ = ["generate", "WorldFilter"]
 
 
+@overload
 def generate(
-    kind: Literal["random", "constructive", "level6_style"] = "level6_style",
     *,
-    n: int = 1,
-    height: int | None = None,
-    width: int | None = None,
-    n_agents: int | None = None,
-    n_lasers: int | Literal["auto"] = "auto",
-    cooperation: bool | None = None,
+    n_agents: int = 3,
+    height: int = 10,
+    width: int = 10,
+    n_lasers: int = 3,
+    cooperative: bool | None = None,
+    mutual: bool | None = None,
     t_min: int = 0,
     t_max: int | Literal["auto"] = "auto",
     n_walls: int | Literal["auto"] = "auto",
     seed: int | None = None,
+    n_jobs: int | Literal["auto"] = 1,
+    kind: Literal["auto", "level6_style", "random", "constructive"] = "auto",
+    max_attempts: None = None,
+) -> World: ...
+
+
+@overload
+def generate(**args: Unpack[_ConfigFilter]) -> World: ...
+@overload
+def generate(*, max_attempts: int, **args: Unpack[_ConfigFilter]) -> World | None: ...
+@overload
+def generate(*, max_attempts: int, **args: Unpack[_ConfigKW]) -> World | None: ...
+@overload
+def generate(**args: Unpack[_ConfigMultipleKW]) -> Generator[World, Any, None]: ...
+@overload
+def generate(**args: Unpack[_ConfigMultipleFilter]) -> Generator[World, Any, None]: ...
+
+
+def generate(
+    *,
+    n: int = 1,
+    n_agents: int = 3,
+    height: int = 10,
+    width: int = 10,
+    n_lasers: int | Literal["auto"] = 3,
+    cooperative: bool | None = None,
+    mutual: bool | None = None,
+    filter: WorldFilter | None = None,
+    t_min: int = 0,
+    t_max: int | Literal["auto"] = 20,
+    n_walls: int | Literal["auto"] = "auto",
+    seed: int | None = None,
+    n_jobs: int | Literal["auto"] = 1,
+    kind: Literal["auto", "level6_style", "random", "constructive"] = "level6_style",
     max_attempts: int | None = None,
-    n_jobs: int | Literal["auto"] = "auto",
     quiet: bool = False,
 ):
     """
-    Build a solvable `World` on demand using a SAT-verified procedural generator.
+    Build solvable `World` instances using a SAT-verified procedural generator.
 
-    # Parameters:
-    - `kind`: the kind of generator to use. Refer to generator classes in the `lle.generator` module for more information.
-    - `cooperation`: `None`: any cooperation level is accepted, including non-cooperative maps; `True` for any cooperative level, `False` for no cooperation;
-    - `n_walls`: the number of walls to place. If `"auto"`, 10% of the grid is filled with walls.
-    - `t_min`: a guaranteed lower bound on the solution length. The generator only accepts
-      levels that are *not* solvable in fewer than `t_min` steps (and still solvable within
-      `t_max`). If `"auto"`, defaults to `0` (no lower bound). Must satisfy `0 <= t_min <= t_max`.
-    - `t_max`: the maximal solution path length. If `"auto"`, defaults to `width * height // 2`.
-    - `n`: the number of worlds to generate.
-    - `max_attempts`: the maximum number of attempts to generate valid worlds before stopping. If `None`, there is no limit.
-    - `n`: the number of worlds to generate
-    - `n_jobs`: the number jobs to run in parallel. When `auto`, spawns `n_cpus - 1` jobs if `n` > 1 or spawns 1 job is `n` = 1.
-    - `quiet`: whether to remove the progress bar when `n` > 1.
+    # Parameters
+    - `kind`: generator strategy — ``"random"``, ``"constructive"``, or ``"level6_style"``.
+    - `n`: number of worlds to produce.
+    - `filter`: a `WorldFilter` expressing world constraints (cooperative, mutual, ...).
+      Cannot be combined with `cooperation` or `mutual`.
+    - `cooperative`: shortcut for ``filter=WorldFilter(cooperative=...)``.
+    - `mutual`: shortcut for ``filter=WorldFilter(mutual=...)``.
+    - `n_walls`: number of walls; ``"auto"`` fills 10 % of the grid with walls.
+    - `t_min`: minimum solution path length in the solver.
+    - `t_max`: upper bound on the solution length; ``"auto"`` uses ``width * height // 2``.
+    - `n_jobs`: parallel workers; ``"auto"`` uses all CPUs minus one when ``n > 1``.
+    - `max_attempts`: budget of generation attempts before giving up.
+    - `quiet`: suppress the progress bar when ``n > 1``.
 
-    # Returns:
-        - When `max_attempts` is not provided (default):
-            - A single `World` if `n=1`;
-            - A Generator of `n` `World` if `n` > 1.
-        - When `max_attempts` is set:
-            - A `World | None` for `n` = 1;
-            - A Generator of at most `n` worlds `World`s for `n` > 1.
+    # Returns
+    - `n=1`, no `max_attempts`: a single `World`.
+    - `n=1`, `max_attempts` set: a `World` or `None`.
+    - `n>1`: a generator of up to `n` worlds.
 
-    Raises:
-    -------
-        - `ValueError` if arguments are invalid;
-        - `ValueError` if there is no default argument value for the given combination.
-
-    # Examples:
+    # Examples
     ```python
     import lle
-    world = lle.generate("level6_style", n_agents=4, n_lasers=3)
-    world = lle.generate("random", n=10, width=5, height=7, n_agents=2, seed=0)
-    world = lle.generate("random", cooperation=("at-least", "mutual"))
-    world_or_none = lle.genrate("random", max_attempts=10, cooperation="mutual")
+    from lle.generator import WorldFilter
+
+    world = lle.generate(height=5, width=5, n_agents=2, seed=0)
+    world = lle.generate(cooperative=True, n_agents=2, height=5, width=5, n_lasers=1)
+    world = lle.generate(mutual=True, kind="constructive", n_agents=4)
+    worlds = list(lle.generate(n=10, filter=WorldFilter(cooperative=True), kind="random",
+                               height=5, width=5, n_agents=2, n_lasers=1))
     ```
     """
+    if filter is not None and (cooperative is not None or mutual is not None):
+        raise ValueError(
+            "Cannot combine a WorldFilter with the 'cooperation' or 'mutual' keyword arguments. "
+            "Either pass a WorldFilter or use the keyword shortcuts, not both."
+        )
     args = GenerateArgs(
         kind=kind,
         height=height,
         width=width,
         n_agents=n_agents,
         n_lasers=n_lasers,
-        cooperation=cooperation,
+        cooperation=cooperative,
+        mutual=mutual,
+        filter=filter,
         t_max=t_max,
         t_min=t_min,
         n_walls=n_walls,
         max_attempts=max_attempts,
         n_jobs=n_jobs,
     ).resolve(n)
+
     if kind == "random":
         generator = RandomGenerator(
             height=args.height,
             width=args.width,
             n_agents=args.n_agents,
             n_lasers=args.n_lasers,
-            cooperation=args.cooperation,
+            world_filter=args.filter,
             n_walls=args.n_walls,
             t_max=args.t_max,
             t_min=args.t_min,
@@ -94,7 +134,7 @@ def generate(
             width=args.width,
             n_agents=args.n_agents,
             n_lasers=args.n_lasers,
-            cooperation=args.cooperation,
+            world_filter=args.filter,
             n_walls=args.n_walls,
             t_max=args.t_max,
             t_min=args.t_min,
@@ -108,10 +148,11 @@ def generate(
             n_walls=args.n_walls,
             t_max=args.t_max,
             t_min=args.t_min,
-            cooperation=args.cooperation,
+            world_filter=args.filter,
         )
     else:
         raise ValueError(f"Unknown kind: {kind!r}. Expected 'random', 'constructive', or 'level6_style'.")
+
     if args.n_jobs > 1:
         worlds = generator.generate_n(n, args.n_jobs, seed, args.max_attempts, quiet=quiet)
         if n == 1:

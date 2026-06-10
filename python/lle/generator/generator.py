@@ -18,6 +18,7 @@ from .. import solver
 from ..world import World
 from ._candidates import CandidateLayout
 from ._world_builder import WorldBuilder
+from .world_filter import WorldFilter
 
 
 class _LayoutRetry(Exception):
@@ -32,7 +33,7 @@ class Generator(ABC):
         height: int,
         n_agents: int = 2,
         n_lasers: int = 0,
-        cooperation: bool | None = None,
+        world_filter: WorldFilter | None = None,
         n_walls: int | None = None,
         t_max: int | None = None,
         t_min: int | None = None,
@@ -47,7 +48,6 @@ class Generator(ABC):
         if n_agents < 1:
             raise ValueError(f"agents must be >= 1. Got {n_agents}")
         self.agents = n_agents
-        self.require_cooperation = cooperation
 
         if n_lasers < 0:
             raise ValueError(f"lasers must be >= 0. Got {n_lasers}")
@@ -74,6 +74,8 @@ class Generator(ABC):
         if self.t_min > self.t_max:
             raise ValueError(f"t_min must be <= t_max. Got t_min={self.t_min}, t_max={self.t_max}")
 
+        self.world_filter = WorldFilter() if world_filter is None else world_filter
+
         total_needed = (2 * self.agents) + self.n_walls + self.n_lasers
         if total_needed > self.area:
             raise ValueError(f"layout requires {total_needed} unique cells, but grid has only {self.area}")
@@ -95,13 +97,9 @@ class Generator(ABC):
         return b.build()
 
     def _accept_world(self, world: World) -> bool:
-        is_solvable = solver.solve(world, self.t_max) is not None
-        if not is_solvable:
+        if self.t_min > 0 and solver.solve(world, self.t_min - 1) is not None:
             return False
-        if self.require_cooperation is None:
-            return is_solvable
-        cooperation_required = solver.solve(world, 0, self.t_max, mode="no-cooperation") is None
-        return cooperation_required == self.require_cooperation
+        return self.world_filter.is_satisfied_by(world, self.t_max)
 
     def _try_generate(self, seed: int | None):
         if seed is not None:

@@ -38,8 +38,10 @@ class Level6StyleGenerator(ConstructiveGenerator):
         n_walls: int | None = None,
         t_max: int | None = None,
         t_min: int | None = None,
-        cooperation: bool | None = None,
+        world_filter: "WorldFilter | None" = None,
     ):
+        from .world_filter import WorldFilter
+
         if n_lasers < 1:
             raise ValueError(f"kind='level6_style' requires lasers >= 1; got {n_lasers}.")
         super().__init__(
@@ -50,7 +52,7 @@ class Level6StyleGenerator(ConstructiveGenerator):
             n_walls=n_walls,
             t_max=t_max,
             t_min=t_min,
-            cooperation=cooperation,
+            world_filter=world_filter,
         )
 
     def _flush_offset(self, max_offset: int) -> int:

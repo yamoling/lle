@@ -15,7 +15,8 @@ class ConstructiveGenerator(RandomGenerator):
     """
 
     def _make_candidate_layout(self) -> CandidateLayout:
-        if self.require_cooperation:
+        wants_cooperation = self.world_filter.cooperative is True or self.world_filter.mutual is True
+        if wants_cooperation:
             layout = self._make_cooperative_candidate_layout()
             if layout is None:
                 return super()._make_candidate_layout()
