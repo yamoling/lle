@@ -1,5 +1,8 @@
+from typing import get_args
+
 import lle
 from lle import Action, World
+from lle.solver import SolveMode, SolveModeLiteral
 
 
 def _default_t_max(world: World) -> int:
@@ -200,15 +203,40 @@ def test_solve_no_cooperation():
      X   X   .   .  .   .
     """)
     # Both agents must go around the laser via (1,5), requiring at least 12 steps
-    assert lle.solve(world, 9, allow_cooperation=False) is None
-    assert lle.solve(world, 10, allow_cooperation=False) is not None
+    assert lle.solve(world, 9, mode="no-cooperation") is None
+    assert lle.solve(world, 10, mode="no-cooperation") is not None
 
 
-def test_solve_with_raw_assumptions():
-    # TODO: this test is not yet implemented.
-    # It should verify that if an assumption is provided, it is indeed respected in the
-    # solution.
-    # Examples:
-    # - assme that agent 0 is never at position (0, 1) while this is a mandatory position -> unsolvable
-    # - assume agent 0 is at a specific position at a specific time step, and verify that is it the case
-    world = World("S0 . X")
+def test_typing_solve_mode_literal():
+    literals = get_args(SolveModeLiteral)
+    for lit in get_args(SolveModeLiteral):
+        ok = False
+        for mode in SolveMode.variants():
+            if lit == mode.value:
+                ok = True
+                break
+        assert ok, f"{lit} is not a valid SolveMode"
+    for mode in SolveMode.variants():
+        assert mode.value in literals
+
+
+def test_rust_solve_mode_values():
+    from lle.solver.constraints import SolveMode as RustSolveMode
+
+    assert RustSolveMode.STANDARD.value == "standard"
+    assert RustSolveMode.NO_COOPERATION.value == "no-cooperation"
+    assert RustSolveMode.NO_MUTUAL_COOPERATION.value == "no-mutual-cooperation"
+    assert str(RustSolveMode.NO_COOPERATION) == "no-cooperation"
+
+
+def test_clause_generator_accepts_rust_solve_mode():
+    from lle.solver.constraints import ClauseGenerator
+    from lle.solver.constraints import SolveMode as RustSolveMode
+
+    world = World("S0 . . X")
+    modes = [RustSolveMode.STANDARD, RustSolveMode.NO_COOPERATION, RustSolveMode.NO_MUTUAL_COOPERATION]
+    for mode in modes:
+        gen = ClauseGenerator(world, 5, mode=mode)
+        clauses, assumptions = gen.generate(3)
+        assert isinstance(clauses, list)
+        assert isinstance(assumptions, list)

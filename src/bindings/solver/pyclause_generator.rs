@@ -1,6 +1,7 @@
 use pyo3::{exceptions::PyValueError, prelude::*};
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
+use super::pysolvemode::PySolveMode;
 use crate::{
     bindings::{PyAction, PyWorld},
     solver::{Clause, ClauseGenerator, Literal},
@@ -13,6 +14,12 @@ use crate::{
 /// and blocking, objective) is implemented in Rust for performance; SAT solving
 /// remains delegated to Python (e.g. `pysat.solvers.Minisat22`).
 ///
+/// The `mode` parameter controls which extra constraints are generated:
+/// - `"standard"` (default): world rules only.
+/// - `"no-cooperation"`: assumptions forbidding any non-owner agent from entering a laser span.
+/// - `"no-mutual-cooperation"`: clauses and assumptions forbidding pairs of agents from
+///   mutually helping each other.
+///
 /// ```python
 /// from pysat.solvers import Minisat22
 /// from lle import World
@@ -20,11 +27,12 @@ use crate::{
 ///
 /// world = World.level(1)
 /// gen = ClauseGenerator(world, t_max=20)
-/// clauses = [c for t in range(gen.t_max + 1) for c in gen.generate(t)]
-/// with Minisat22(bootstrap_with=clauses) as solver:
-///     solver.append_formula(gen.objective(gen.t_max))
-///     if solver.solve():
-///         plan = gen.decode_plan(solver.get_model(), gen.t_max)
+/// for t in range(gen.solution_lower_bound, gen.t_max + 1):
+///     clauses, assumptions = gen.generate(t)
+///     with Minisat22(bootstrap_with=clauses) as solver:
+///         if solver.solve(assumptions=assumptions):
+///             plan = gen.decode_plan(solver.get_model(), t)
+///             break
 /// ```
 #[gen_stub_pyclass]
 #[pyclass(name = "ClauseGenerator", module = "lle.solver.constraints")]
@@ -34,7 +42,8 @@ pub struct PyClauseGenerator {
     #[pyo3(get)]
     t_max: usize,
     /// A cheap admissible lower bound on the length of any valid plan: the maximum,
-    /// over all agents, of the shortest walkable-path distance to the nearest exit.
+    /// over all agents, of the shortest walkable-path distance to the nearest exit
+    /// regardless of lasers.
     #[pyo3(get)]
     solution_lower_bound: usize,
 }
@@ -43,67 +52,41 @@ pub struct PyClauseGenerator {
 #[pymethods]
 impl PyClauseGenerator {
     /// Build a clause generator for the given `world`, considering plans of length up to `t_max`.
+    ///
+    /// `mode` selects the solving strategy. It accepts either a `SolveMode` instance or a raw
+    /// string literal (`"standard"`, `"no-cooperation"`, `"no-mutual-cooperation"`). Defaults to
+    /// `SolveMode.STANDARD`.
     #[new]
-    fn new(world: &PyWorld, t_max: usize) -> Self {
-        let inner = world.with_world(|world| ClauseGenerator::new(world, t_max));
+    fn new(world: &PyWorld, t_max: usize, mode: PySolveMode) -> PyResult<Self> {
+        let inner = world.with_world(|world| ClauseGenerator::new(world, t_max, mode.into()));
         let solution_lower_bound = inner.solution_lower_bound();
-        Self {
+        Ok(Self {
             inner,
             t_max,
             solution_lower_bound,
-        }
+        })
     }
 
-    /// Generate every clause (initialization, movement and laser constraints) that applies
-    /// at time step `t`. Clauses are returned as lists of signed integer literals (CNF),
-    /// ready to be fed to a `pysat` solver.
-    fn generate(&mut self, t: usize) -> Vec<Clause> {
+    /// Generate all clauses and assumptions required to solve the problem at horizon `t`.
+    ///
+    /// Buffers world-enforcing clauses incrementally (each step is computed at most once),
+    /// then returns the full formula for this horizon:
+    /// - All buffered clauses for steps `0..=t`
+    /// - The objective clauses (every agent on an exit at step `t`)
+    /// - For `"no-mutual-cooperation"` mode: mutual-forbid clauses and assumptions
+    /// - For `"no-cooperation"` mode: per-step no-cooperation assumptions
+    ///
+    /// Returns `(clauses, assumptions)` ready to be fed to `solve_model`.
+    fn generate(&mut self, t: usize) -> (Vec<Clause>, Vec<Literal>) {
         self.inner.generate(t)
     }
 
-    /// Generate the objective clauses for time step `t`: every agent must be on an exit.
-    /// Intended to be appended to the formula of the solver instance considering `t_end = t`.
-    fn objective(&mut self, t: usize) -> Vec<Clause> {
-        self.inner.objective(t)
-    }
-
-    /// Generate the unit clauses implementing strict (no-cooperation) laser mode at time `t`:
-    /// since beams can never be blocked, every beam tile is permanently active, so no agent of a
-    /// *different* colour may ever stand on one. The laser's own colour is immune and may still
-    /// walk through its own beam.
-
-    /// Generate the literal values assignments that corresponds to the assumption that no cooperation
-    /// ever occurs at time step `t`.
-    fn assume_no_cooperation(&mut self, t: usize) -> Vec<Literal> {
-        self.inner.assume_no_cooperation(t)
-    }
-
-    /// Generate the additive clauses defining the per-pair *dependency* indicators at time `t`:
-    /// `agent(beneficiary, q, t) → depends_on(beneficiary, helper)` for every beam tile `q` of
-    /// `helper`'s laser that `beneficiary` could legally occupy (which, by world consistency,
-    /// requires `helper` to block that beam — i.e. a genuine help event).
+    /// Generate only the objective clauses for horizon `t` (every agent on an exit).
     ///
-    /// These are additive to `generate(t)` and must be generated for every time step before
-    /// calling `forbid_mutual_cooperation`.
-    fn dependency_clauses(&mut self, t: usize) -> Vec<Clause> {
-        self.inner.dependency_clauses(t)
-    }
-
-    /// Build the clauses and assumptions that forbid *mutual* cooperation between every pair of
-    /// agents (each pair `{a, b}` such that `a` helps `b` at some point and `b` helps `a` at some
-    /// point). Returns `(clauses, assumptions)`: add `clauses` to the formula and pass
-    /// `assumptions` to `solver.solve(assumptions=...)`. An UNSAT result then means mutual
-    /// cooperation is *required* within the explored horizon.
-    ///
-    /// Must be called after `dependency_clauses(t)` has been generated for every relevant `t`.
-    fn forbid_mutual_cooperation(&mut self) -> (Vec<Clause>, Vec<Literal>) {
-        self.inner.forbid_mutual_cooperation()
-    }
-
-    /// The SAT variable for `mutual(a, b)` — "`a` and `b` mutually depend on each other" — or
-    /// `None` if no such variable has been created (i.e. the pair cannot mutually cooperate).
-    fn mutual_lit(&self, a: usize, b: usize) -> Option<i32> {
-        self.inner.mutual_lit(a, b)
+    /// Returns `(clauses, [])`. Useful for callers that manage the SAT solver directly
+    /// and want to append the objective separately.
+    fn objective(&mut self, t: usize) -> (Vec<Clause>, Vec<Literal>) {
+        (self.inner.objective(t), vec![])
     }
 
     /// Decode a SAT model (as returned by `solver.get_model()`) into a joint-action plan

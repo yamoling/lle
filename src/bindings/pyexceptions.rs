@@ -175,14 +175,3 @@ pub fn runtime_error_to_pyexception(error: RuntimeWorldError) -> PyErr {
         }
     }
 }
-
-pub fn solver_error_to_exception(error: crate::solver::errors::SolverError) -> PyErr {
-    match error {
-        crate::solver::errors::SolverError::VariableNotCreated { var } => {
-            PyValueError::new_err(format!("Variable not created: {var:?}"))
-        }
-        crate::solver::errors::SolverError::InvalidAssumption { var, reason } => {
-            SolverError::new_err(format!("Invalid assumption for {var:?}: {reason}"))
-        }
-    }
-}

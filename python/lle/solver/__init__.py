@@ -1,10 +1,12 @@
-"""World solving and cooperation analysis helpers.
+"""World solving helpers.
 
-Use `solve` to search for a shortest joint plan, `solve_hybrid` to search for
-a shortest joint plan via incremental SAT reuse, `solve_sat` to search for a
-fixed-horizon plan of length exactly `t_max`, `is_cooperative` to test whether
-a level requires laser blocking, and `cooperation_level` to obtain the more
-precise structural classification.
+Use `solve` to search for a shortest joint plan, and `is_cooperative` to test
+whether a level requires laser blocking. The `mode` parameter on `solve` controls
+cooperation semantics:
+
+- `"standard"` (default): agents may cooperate freely.
+- `"no-cooperation"`: no non-owner agent may enter any laser span.
+- `"no-mutual-cooperation"`: no pair of agents may mutually help each other.
 
 These functions need the optional `generator` extra at runtime because they
 rely on the SAT solver backend.
@@ -15,31 +17,25 @@ from __future__ import annotations
 from typing import Literal
 
 from ..world import World
+from .constraints import SolveMode
 from .solver import (
-    requires_mutual_cooperation,
     solve,
     solve_model,
-    solve_without_mutual_cooperation,
 )
+from .types import SolveModeLiteral
 
 
 def is_cooperative(world: World, t_max: int | Literal["auto"] = "auto"):
     """
     Return `True` if the provided world requires cooperation to be solved
-    in `t_max` steps, i.e. when there exist a solution with laser blocking enabled (`LaserMode.STANDARD`)
-    but not with lasers can not be blocked (`LaserMode.STRICT`).
+    in `t_max` steps, i.e. when there exists a solution with laser blocking enabled
+    but not without laser blocking.
     """
     standard_plan = solve(world, t_max)
     if standard_plan is None:
         return False
-    strict_plan = solve(world, t_max, allow_cooperation=False)
+    strict_plan = solve(world, t_max, mode="no-cooperation")
     return strict_plan is None
 
 
-__all__ = [
-    "is_cooperative",
-    "requires_mutual_cooperation",
-    "solve",
-    "solve_model",
-    "solve_without_mutual_cooperation",
-]
+__all__ = ["is_cooperative", "solve", "solve_model", "SolveMode", "SolveModeLiteral", "SolveMode"]

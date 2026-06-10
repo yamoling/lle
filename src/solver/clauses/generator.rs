@@ -1,56 +1,103 @@
 use std::collections::HashSet;
 
-use crate::{Action, AgentId, Position, World};
+use crate::{Action, Position, World};
 
 use super::super::context::ConstraintContext;
 use super::Clause;
+use super::Literal;
 use super::{VarKey, VarPool};
 
-/// Generates the SAT clauses for a single time step `t`, combining initialization,
-/// movement and laser constraints.
+/// Determines which extra clauses/assumptions `ClauseGenerator::generate` emits.
+#[derive(Clone, Copy, Default)]
+pub enum SolveMode {
+    /// Standard world rules only.
+    #[default]
+    Standard,
+    /// No non-owner agent may enter any laser span.
+    NoCooperation,
+    /// No pair of agents may mutually cooperate (each helping the other).
+    NoMutualCooperation,
+}
+
+impl SolveMode {
+    pub fn from_str(s: &str) -> Result<Self, String> {
+        match s {
+            "standard" => Ok(SolveMode::Standard),
+            "no-cooperation" => Ok(SolveMode::NoCooperation),
+            "no-mutual-cooperation" => Ok(SolveMode::NoMutualCooperation),
+            _ => Err(format!(
+                "Unknown solve mode: '{}'. Expected one of: 'standard', 'no-cooperation', 'no-mutual-cooperation'",
+                s
+            )),
+        }
+    }
+}
+
+/// Generates the SAT clauses for a bounded planning horizon, combining initialization,
+/// movement, laser constraints, mode-specific constraints, and the objective.
 pub struct ClauseGenerator {
     pub(super) ctx: ConstraintContext,
     pub(super) pool: VarPool,
     pub(super) exits: HashSet<Position>,
+    mode: SolveMode,
+    /// `clause_buffer[t]` = world-enforcing (+ mode-specific) clauses for step `t`.
+    clause_buffer: Vec<Vec<Clause>>,
+    /// `assumption_buffer[t]` = per-step assumptions for step `t`.
+    assumption_buffer: Vec<Vec<Literal>>,
+    /// Steps 0..=generated_until have been buffered; `None` means nothing buffered yet.
+    generated_until: Option<usize>,
 }
 
 impl ClauseGenerator {
-    pub fn new(world: &World, t_max: usize) -> Self {
+    pub fn new(world: &World, t_max: usize, mode: SolveMode) -> Self {
         Self {
             exits: world.exits_positions().into_iter().collect(),
             ctx: ConstraintContext::new(world, t_max),
             pool: VarPool::new(),
+            mode,
+            clause_buffer: vec![Vec::new(); t_max + 1],
+            assumption_buffer: vec![Vec::new(); t_max + 1],
+            generated_until: None,
         }
     }
 
-    #[inline]
-    pub fn decode_plan(&self, literals: &[i32], t_end: usize) -> Result<Vec<Vec<Action>>, String> {
-        self.pool.decode_plan(literals, t_end)
+    /// Generate all clauses and assumptions required to solve the problem at step `t`.
+    ///
+    /// Fills the internal buffers for any steps not yet cached, then returns:
+    /// - All buffered world-enforcing (and mode-specific) clauses for steps `0..=t`
+    /// - The objective clauses for horizon `t` (every agent on an exit)
+    /// - For `NoMutualCooperation`: the current mutual-forbid clauses and assumptions
+    /// - For `NoCooperation`: per-step no-cooperation assumptions for steps `0..=t`
+    pub fn generate(&mut self, t: usize) -> (Vec<Clause>, Vec<Literal>) {
+        let start = self.generated_until.map_or(0, |u| u + 1);
+        for tt in start..=t {
+            self.ctx.update(tt);
+            self.fill_clauses(tt);
+            self.fill_assumptions(tt);
+        }
+        if start <= t {
+            self.generated_until = Some(t);
+        }
+
+        let mut clauses: Vec<Clause> = self.clause_buffer[..=t].iter().flatten().cloned().collect();
+        let mut assumptions: Vec<Literal> = self.assumption_buffer[..=t]
+            .iter()
+            .flatten()
+            .copied()
+            .collect();
+
+        clauses.extend(self.objective(t));
+
+        if matches!(self.mode, SolveMode::NoMutualCooperation) {
+            let (mc, ma) = self.forbid_mutual_cooperation();
+            clauses.extend(mc);
+            assumptions.extend(ma);
+        }
+
+        (clauses, assumptions)
     }
 
-    #[inline]
-    pub fn t_max(&self) -> usize {
-        self.ctx.t_max
-    }
-
-    #[inline]
-    pub fn solution_lower_bound(&self) -> usize {
-        self.ctx.solution_lower_bound
-    }
-
-    pub fn exists(&self, key: &VarKey) -> bool {
-        self.pool.exists(key)
-    }
-
-    /// The SAT literal for `mutual(a, b)` — "a and b mutually depend on each other" — or
-    /// `None` if no such variable exists.
-    pub fn mutual_lit(&self, a: AgentId, b: AgentId) -> Option<i32> {
-        self.pool.get(&VarKey::mutual(a, b))
-    }
-
-    /// All clauses for time step `t`: initialization (t == 0), movement and laser constraints.
-    pub fn generate(&mut self, t: usize) -> Vec<Clause> {
-        self.ctx.update(t);
+    fn fill_clauses(&mut self, t: usize) {
         let mut clauses = Vec::new();
         clauses.extend(self.initialization(t));
         clauses.extend(self.exactly_one_position(t));
@@ -61,10 +108,20 @@ impl ClauseGenerator {
         let (beam_clauses, active_lit) = self.beam_activation(t);
         clauses.extend(beam_clauses);
         clauses.extend(self.no_step_on_active_laser(t, &active_lit));
-        clauses
+        if matches!(self.mode, SolveMode::NoMutualCooperation) {
+            clauses.extend(self.dependency_clauses(t));
+        }
+        self.clause_buffer[t] = clauses;
     }
 
-    /// Clauses asserting that, at the final time step `t`, every agent is on an exit.
+    fn fill_assumptions(&mut self, t: usize) {
+        self.assumption_buffer[t] = match self.mode {
+            SolveMode::Standard | SolveMode::NoMutualCooperation => vec![],
+            SolveMode::NoCooperation => self.assume_no_cooperation(t),
+        };
+    }
+
+    /// Objective clauses for horizon `t`: every agent must be on an exit. Not cached.
     pub fn objective(&mut self, t: usize) -> Vec<Clause> {
         self.ctx.update(t);
         let mut clauses = Vec::with_capacity(self.ctx.n_agents);
@@ -84,5 +141,24 @@ impl ClauseGenerator {
             );
         }
         clauses
+    }
+
+    #[inline]
+    pub fn decode_plan(&self, literals: &[i32], t_end: usize) -> Result<Vec<Vec<Action>>, String> {
+        self.pool.decode_plan(literals, t_end)
+    }
+
+    #[inline]
+    pub fn t_max(&self) -> usize {
+        self.ctx.t_max
+    }
+
+    #[inline]
+    pub fn solution_lower_bound(&self) -> usize {
+        self.ctx.solution_lower_bound
+    }
+
+    pub fn exists(&self, key: &VarKey) -> bool {
+        self.pool.exists(key)
     }
 }

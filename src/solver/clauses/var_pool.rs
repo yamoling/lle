@@ -162,10 +162,6 @@ impl VarPool {
         self.id(VarKey::Laser { laser_id, pos, t })
     }
 
-    pub fn laser_blocked(&mut self, laser_id: usize, t: usize) -> i32 {
-        self.id(VarKey::LaserBlocked { laser_id, t })
-    }
-
     /// Indicator "`beneficiary` is helped by `helper` at some point over the whole horizon".
     pub fn depends_on(&mut self, beneficiary: AgentId, helper: AgentId) -> i32 {
         self.id(VarKey::depends_on(beneficiary, helper))

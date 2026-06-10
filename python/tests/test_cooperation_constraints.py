@@ -135,12 +135,12 @@ def test_all_clauses_are_unit_and_negated():
 
 @pytest.mark.parametrize("level", [1, 2])
 def test_solvable_independently(level: int):
-    assert lle.solve(World.level(level), 10, allow_cooperation=False) is not None
+    assert lle.solve(World.level(level), 10, mode="no-cooperation") is not None
 
 
 @pytest.mark.parametrize("level", [3, 4, 5, 6])
 def test_level_3_becomes_unsolvable(level: int):
-    assert lle.solve(World.level(level), 21, allow_cooperation=False) is None
+    assert lle.solve(World.level(level), 21, mode="no-cooperation") is None
 
 
 def test_laser_blocked_references_blockable_positions_only():
@@ -338,6 +338,6 @@ def test_solve_no_cooperation_agrees_with_is_cooperative(level: int, t_max: int,
     import lle
 
     world = World.level(level)
-    no_coop = lle.solve(world, t_max, allow_cooperation=False)
+    no_coop = lle.solve(world, t_max, mode="no-cooperation")
     is_coop = lle.is_cooperative(world, t_max=t_max)
     assert (no_coop is None) == is_coop == expect_coop

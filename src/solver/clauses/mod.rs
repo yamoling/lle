@@ -7,5 +7,5 @@ mod utils;
 mod var_pool;
 pub type Literal = i32;
 pub type Clause = Vec<Literal>;
-pub use generator::ClauseGenerator;
+pub use generator::{ClauseGenerator, SolveMode};
 pub use var_pool::{VarKey, VarPool};

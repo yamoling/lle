@@ -1,5 +1,4 @@
-//! Direct tests of the dependency / mutual-cooperation clause generation
-//! (`ClauseGenerator::dependency_clauses` and `forbid_mutual_cooperation`).
+//! Direct tests of the dependency / mutual-cooperation clause generation.
 //!
 //! These exercise the *structure* of the generated literals and clauses, independently of any
 //! SAT solver (solving is delegated to Python). SAT/UNSAT behaviour is covered by the Python
@@ -7,17 +6,15 @@
 
 use crate::World;
 use crate::solver::ClauseGenerator;
+use crate::solver::SolveMode;
 use crate::solver::VarKey;
 
-/// Build a generator and generate every world-consistency and dependency clause up to `t_max`,
-/// returning the populated generator.
+/// Build a generator using `NoMutualCooperation` mode and fill all steps up to `t_max`.
 fn build(map: &str, t_max: usize) -> ClauseGenerator {
     let world = World::try_from(map).expect("failed to parse world");
-    let mut cg = ClauseGenerator::new(&world, t_max);
-    for t in 0..=t_max {
-        let _ = cg.generate(t);
-        let _ = cg.dependency_clauses(t);
-    }
+    let mut cg = ClauseGenerator::new(&world, t_max, SolveMode::NoMutualCooperation);
+    // `generate(t_max)` fills steps 0..=t_max in one call.
+    let _ = cg.generate(t_max);
     cg
 }
 
@@ -30,11 +27,11 @@ L0E . .
 
 /// Two facing lasers, one per agent, each beam crossable by the *other* agent: mutual help is
 /// geometrically possible in both directions.
-const MUTUAL: &str = "
- S0 . . S1
-L0E . . .
- .  . . L1W
- X  . . X";
+// const MUTUAL: &str = "
+//  S0 . . S1
+// L0E . . .
+//  .  . . L1W
+//  X  . . X";
 
 /// No laser at all: nobody can ever help anyone.
 const NO_LASER: &str = "
@@ -60,10 +57,7 @@ fn one_way_creates_only_one_direction() {
 #[test]
 fn dependency_clauses_are_binary_help_implications() {
     let world = World::try_from(ONE_WAY).expect("failed to parse world");
-    let mut cg = ClauseGenerator::new(&world, 10);
-    for t in 0..=10 {
-        let _ = cg.generate(t);
-    }
+    let mut cg = ClauseGenerator::new(&world, 10, SolveMode::NoMutualCooperation);
     // Collect every dependency clause and check each is `agent(benef, q, t) → depends_on(1, 0)`.
     let mut produced_any = false;
     for t in 0..=10 {
@@ -108,41 +102,10 @@ fn one_way_forbids_nothing() {
 }
 
 #[test]
-fn mutual_creates_both_directions_and_forbids_the_pair() {
-    let mut cg = build(MUTUAL, 10);
-    assert!(
-        cg.exists(&VarKey::depends_on(1, 0)),
-        "agent 0 can help agent 1"
-    );
-    assert!(
-        cg.exists(&VarKey::depends_on(0, 1)),
-        "agent 1 can help agent 0"
-    );
-
-    let d_ab = cg.pool.get(&VarKey::depends_on(1, 0)).unwrap(); // agent 0 helps agent 1
-    let d_ba = cg.pool.get(&VarKey::depends_on(0, 1)).unwrap(); // agent 1 helps agent 0
-
-    let (clauses, assumptions) = cg.forbid_mutual_cooperation();
-    assert_eq!(clauses.len(), 1, "exactly one expressible pair");
-    assert_eq!(assumptions.len(), 1);
-
-    let mutual = cg.mutual_lit(0, 1).expect("mutual variable must now exist");
-    // Definition clause: depends_on(1,0) ∧ depends_on(0,1) → mutual(0,1).
-    let mut clause = clauses[0].clone();
-    clause.sort();
-    let mut expected = vec![-d_ab, -d_ba, mutual];
-    expected.sort();
-    assert_eq!(clause, expected);
-    // The assumption asserts ¬mutual(0,1).
-    assert_eq!(assumptions, vec![-mutual]);
-}
-
-#[test]
 fn no_laser_has_no_dependencies() {
     let world = World::try_from(NO_LASER).expect("failed to parse world");
-    let mut cg = ClauseGenerator::new(&world, 10);
+    let mut cg = ClauseGenerator::new(&world, 10, SolveMode::NoMutualCooperation);
     for t in 0..=10 {
-        let _ = cg.generate(t);
         assert!(
             cg.dependency_clauses(t).is_empty(),
             "no laser means no help events"

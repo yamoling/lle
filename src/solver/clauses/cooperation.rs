@@ -25,7 +25,7 @@ impl ClauseGenerator {
     /// whom. Call once per time step, after `generate(t)`.
     ///
     /// [`no_step_on_active_laser`]: Self::no_step_on_active_laser
-    pub fn dependency_clauses(&mut self, t: usize) -> Vec<Clause> {
+    pub(crate) fn dependency_clauses(&mut self, t: usize) -> Vec<Clause> {
         self.ctx.update(t);
         // Collect every (beneficiary, helper, position) help event while borrowing `ctx`
         // immutably, then materialise the variables (which borrows `pool` mutably).
@@ -78,7 +78,7 @@ impl ClauseGenerator {
     ///
     /// Call after [`dependency_clauses`](Self::dependency_clauses) has been generated for every
     /// time step of interest (it scans the dependency variables created so far).
-    pub fn forbid_mutual_cooperation(&mut self) -> (Vec<Clause>, Vec<Literal>) {
+    pub(crate) fn forbid_mutual_cooperation(&mut self) -> (Vec<Clause>, Vec<Literal>) {
         let n_agents = self.ctx.n_agents;
         let mut clauses = Vec::new();
         let mut assumptions = Vec::new();

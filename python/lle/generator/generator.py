@@ -100,7 +100,7 @@ class Generator(ABC):
             return False
         if self.require_cooperation is None:
             return is_solvable
-        cooperation_required = solver.solve_no_cooperation(world, 0, self.t_max) is None
+        cooperation_required = solver.solve(world, 0, self.t_max, mode="no-cooperation") is None
         return cooperation_required == self.require_cooperation
 
     def _try_generate(self, seed: int | None):

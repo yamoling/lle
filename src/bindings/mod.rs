@@ -11,7 +11,7 @@ mod world;
 pub use pyexceptions::{
     InvalidActionError, InvalidLevelError, InvalidWorldStateError, ParsingError,
 };
-pub use solver::PyClauseGenerator;
+pub use solver::{PyClauseGenerator, PySolveMode};
 pub use tiles::{PyLaser, PyLaserSource};
 pub use world::{PyAction, PyEventType, PyPosition, PyWorld, PyWorldEvent, PyWorldState};
 
@@ -82,6 +82,7 @@ mod lle {
         let sys_modules = py.import("sys")?.getattr("modules")?;
         let constraints = PyModule::new(py, "constraints")?;
         constraints.add_class::<super::solver::PyClauseGenerator>()?;
+        constraints.add_class::<super::solver::PySolveMode>()?;
         sys_modules.set_item("lle.solver.constraints", &constraints)
     }
 }

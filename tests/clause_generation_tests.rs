@@ -1,6 +1,6 @@
 use lle::Position;
 use lle::World;
-use lle::solver::{ClauseGenerator, VarKey};
+use lle::solver::{ClauseGenerator, SolveMode, VarKey};
 
 fn pos(i: usize, j: usize) -> Position {
     Position { i, j }
@@ -9,8 +9,8 @@ fn pos(i: usize, j: usize) -> Position {
 #[test]
 fn test_initialization_single_agent() {
     let world = World::try_from("S0 . X").expect("Failed to parse world");
-    let mut generator = ClauseGenerator::new(&world, 10);
-    let _init_clauses = generator.generate(0);
+    let mut generator = ClauseGenerator::new(&world, 10, SolveMode::Standard);
+    let (_clauses, _assumptions) = generator.generate(0);
 
     // The initialization clause should place agent 0 at its start position (0, 0)
     let start_pos = world.starts()[0];
@@ -34,10 +34,10 @@ fn test_initialization_single_agent() {
 #[test]
 fn test_initialization_multiple_agents() {
     let world = World::try_from("S0 S1 . .\n. . . .\nX X X X").expect("Failed to parse world");
-    let mut generator = ClauseGenerator::new(&world, 10);
+    let mut generator = ClauseGenerator::new(&world, 10, SolveMode::Standard);
 
-    let init_clauses = generator.generate(0);
-    assert!(!init_clauses.is_empty());
+    let (clauses, _) = generator.generate(0);
+    assert!(!clauses.is_empty());
 
     // Verify both agents are initialized at their starts
     let starts = world.starts();
@@ -49,10 +49,10 @@ fn test_initialization_multiple_agents() {
 #[test]
 fn test_exactly_one_position_single_agent() {
     let world = World::try_from("S0 . X").expect("Failed to parse world");
-    let mut generator = ClauseGenerator::new(&world, 10);
+    let mut generator = ClauseGenerator::new(&world, 10, SolveMode::Standard);
 
     // Generate constraints at t=1; agent can reach positions (0,0) and (0,1)
-    let clauses_t1 = generator.generate(1);
+    let (clauses_t1, _) = generator.generate(1);
     assert!(
         !clauses_t1.is_empty(),
         "Should have movement constraints at t=1"
@@ -81,9 +81,9 @@ fn test_exactly_one_position_single_agent() {
 #[test]
 fn test_exactly_one_position_multiple_agents() {
     let world = World::try_from("S0 S1 . .\n. . . .\nX X X X").expect("Failed to parse world");
-    let mut generator = ClauseGenerator::new(&world, 10);
+    let mut generator = ClauseGenerator::new(&world, 10, SolveMode::Standard);
 
-    let clauses = generator.generate(1);
+    let (clauses, _) = generator.generate(1);
     assert!(!clauses.is_empty());
 
     // Clauses should include constraints for both agents at t=1
@@ -94,10 +94,10 @@ fn test_exactly_one_position_multiple_agents() {
 #[test]
 fn test_no_overlap_constraint() {
     let world = World::try_from("S0 . S1 X X").expect("Failed to parse world");
-    let mut generator = ClauseGenerator::new(&world, 5);
+    let mut generator = ClauseGenerator::new(&world, 5, SolveMode::Standard);
 
     // Generate all constraints for time step 1
-    let clauses = generator.generate(1);
+    let (clauses, _) = generator.generate(1);
     assert!(!clauses.is_empty());
 
     // Verify clauses exist (actual constraint satisfaction is checked by the SAT solver)
@@ -108,10 +108,10 @@ fn test_no_overlap_constraint() {
 #[test]
 fn test_stays_on_exit() {
     let world = World::try_from("S0 . X").expect("Failed to parse world");
-    let mut generator = ClauseGenerator::new(&world, 4);
+    let mut generator = ClauseGenerator::new(&world, 4, SolveMode::Standard);
 
     // Generate at t=3, which is after agent could reach the exit
-    let clauses_t3 = generator.generate(3);
+    let (clauses_t3, _) = generator.generate(3);
     assert!(!clauses_t3.is_empty());
 
     // Exit position should be at (0, 2)
@@ -123,7 +123,7 @@ fn test_stays_on_exit() {
 #[test]
 fn test_objective_reaches_exit() {
     let world = World::try_from("S0 . X").expect("Failed to parse world");
-    let mut generator = ClauseGenerator::new(&world, 5);
+    let mut generator = ClauseGenerator::new(&world, 5, SolveMode::Standard);
 
     let objective_clauses = generator.objective(5);
     // Objective should have one clause per agent, each a disjunction of exit positions
@@ -137,7 +137,7 @@ fn test_objective_reaches_exit() {
 #[test]
 fn test_objective_multiple_agents_multiple_exits() {
     let world = World::try_from("S0 S1 . .\n. . . .\nX X X X").expect("Failed to parse world");
-    let mut generator = ClauseGenerator::new(&world, 10);
+    let mut generator = ClauseGenerator::new(&world, 10, SolveMode::Standard);
 
     let objective_clauses = generator.objective(10);
     assert_eq!(objective_clauses.len(), 2, "One objective clause per agent");
@@ -152,10 +152,10 @@ fn test_objective_multiple_agents_multiple_exits() {
 #[test]
 fn test_laser_blocking_same_colour() {
     let world = World::try_from(".   X\nS0  .\nL0N .").expect("Failed to parse world");
-    let mut generator = ClauseGenerator::new(&world, 10);
+    let mut generator = ClauseGenerator::new(&world, 10, SolveMode::Standard);
 
     // Generate clauses at t=2 to include laser constraint generation
-    let clauses = generator.generate(2);
+    let (clauses, _) = generator.generate(2);
     assert!(!clauses.is_empty());
 
     // Verify we have laser sources
@@ -177,9 +177,9 @@ fn test_laser_blocking_same_colour() {
 #[test]
 fn test_laser_blocks_different_colour_agent() {
     let world = World::try_from("L0S . X\n.   S1 X\nS0  . .").expect("Failed to parse world");
-    let mut generator = ClauseGenerator::new(&world, 2);
+    let mut generator = ClauseGenerator::new(&world, 2, SolveMode::Standard);
 
-    let clauses = generator.generate(1);
+    let (clauses, _) = generator.generate(1);
     assert!(!clauses.is_empty());
 
     // Agent 1 (colour 1) cannot step on laser 0's beam
@@ -192,11 +192,11 @@ fn test_laser_blocks_different_colour_agent() {
 #[test]
 fn test_unblockable_constant_active_laser() {
     let world = World::try_from("L0E .  .  X\nS0  @  S1 X").expect("Failed to parse world");
-    let mut generator = ClauseGenerator::new(&world, 4);
+    let mut generator = ClauseGenerator::new(&world, 4, SolveMode::Standard);
 
     // Agent 0 is walled in by the laser source at (1,0) and wall at (1,1)
     // So the laser beam along row 0 is unblockable by agent 0
-    let clauses = generator.generate(2);
+    let (clauses, _) = generator.generate(2);
     assert!(!clauses.is_empty());
     assert_eq!(world.n_agents(), 2);
     let sources = world.sources();
@@ -218,9 +218,9 @@ fn test_unblockable_constant_active_laser() {
 #[test]
 fn test_two_lasers_stop_at_each_other() {
     let world = World::try_from("L0E . L1W X X\nS0  . S1  . .").expect("Failed to parse world");
-    let mut generator = ClauseGenerator::new(&world, 10);
+    let mut generator = ClauseGenerator::new(&world, 10, SolveMode::Standard);
 
-    let clauses = generator.generate(2);
+    let (clauses, _) = generator.generate(2);
     assert!(!clauses.is_empty());
 
     // Two lasers: one going East from (0,0), one going West from (0,2)
@@ -263,9 +263,9 @@ fn test_two_lasers_stop_at_each_other() {
 fn test_multiple_same_colour_same_direction_lasers() {
     let world = World::try_from(".  L0S .  L0S .\nS0 .   .  .   S1\nX  .   .  .   X")
         .expect("Failed to parse world");
-    let mut generator = ClauseGenerator::new(&world, 10);
+    let mut generator = ClauseGenerator::new(&world, 10, SolveMode::Standard);
 
-    let clauses = generator.generate(3);
+    let (clauses, _) = generator.generate(3);
     assert!(!clauses.is_empty());
 
     // Two colour-0 south lasers in different columns
@@ -298,8 +298,8 @@ fn test_crossing_lasers_keep_independence() {
         .    .   .    X",
     )
     .expect("Failed to parse world");
-    let mut generator = ClauseGenerator::new(&world, 20);
-    let clauses = generator.generate(10);
+    let mut generator = ClauseGenerator::new(&world, 20, SolveMode::Standard);
+    let (clauses, _) = generator.generate(10);
     assert!(!clauses.is_empty());
     // Multiple colour-0 lasers in different directions that cross
     let sources = world.sources();
@@ -312,12 +312,12 @@ fn test_crossing_lasers_keep_independence() {
 #[test]
 fn test_time_wise_adjacency_constraint() {
     let world = World::try_from("S0 . . X").expect("Failed to parse world");
-    let mut generator = ClauseGenerator::new(&world, 10);
+    let mut generator = ClauseGenerator::new(&world, 10, SolveMode::Standard);
 
     // At t=0, no adjacency constraints
     let _clauses_t0 = generator.generate(0);
     // Get clauses at t=1 which should include adjacency
-    let clauses_t1 = generator.generate(1);
+    let (clauses_t1, _) = generator.generate(1);
 
     // t=1 should have clauses that enforce movement from reachable t=0 positions
     assert!(!clauses_t1.is_empty());
