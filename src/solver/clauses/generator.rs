@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use crate::solver::errors::SolverError;
 use crate::{Action, Position, World};
 
 use super::super::context::ConstraintContext;
@@ -85,9 +86,7 @@ impl ClauseGenerator {
             .flatten()
             .copied()
             .collect();
-
         clauses.extend(self.objective(t));
-
         if matches!(self.mode, SolveMode::NoMutualCooperation) {
             let (mc, ma) = self.forbid_mutual_cooperation();
             clauses.extend(mc);
@@ -144,7 +143,11 @@ impl ClauseGenerator {
     }
 
     #[inline]
-    pub fn decode_plan(&self, literals: &[i32], t_end: usize) -> Result<Vec<Vec<Action>>, String> {
+    pub fn decode_plan(
+        &self,
+        literals: &[i32],
+        t_end: usize,
+    ) -> Result<Vec<Vec<Action>>, SolverError> {
         self.pool.decode_plan(literals, t_end)
     }
 

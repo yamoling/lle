@@ -53,7 +53,7 @@ class ClauseGenerator:
         over all agents, of the shortest walkable-path distance to the nearest exit
         regardless of lasers.
         """
-    def __new__(cls, world: world.World, t_max: builtins.int, mode: SolveMode) -> ClauseGenerator:
+    def __new__(cls, world: world.World, t_max: builtins.int, mode: typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation'] | SolveMode) -> ClauseGenerator:
         r"""
         Build a clause generator for the given `world`, considering plans of length up to `t_max`.
         

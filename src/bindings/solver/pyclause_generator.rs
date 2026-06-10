@@ -1,9 +1,9 @@
-use pyo3::{exceptions::PyValueError, prelude::*};
+use pyo3::{exceptions::PyValueError, prelude::*, types::PyAny};
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use super::pysolvemode::PySolveMode;
 use crate::{
-    bindings::{PyAction, PyWorld},
+    bindings::{PyAction, PyWorld, pyexceptions::solver_error_to_exception},
     solver::{Clause, ClauseGenerator, Literal},
 };
 
@@ -57,7 +57,25 @@ impl PyClauseGenerator {
     /// string literal (`"standard"`, `"no-cooperation"`, `"no-mutual-cooperation"`). Defaults to
     /// `SolveMode.STANDARD`.
     #[new]
-    fn new(world: &PyWorld, t_max: usize, mode: PySolveMode) -> PyResult<Self> {
+    fn new(
+        py: Python,
+        world: &PyWorld,
+        t_max: usize,
+        #[gen_stub(override_type(
+            type_repr = "typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation'] | SolveMode",
+            imports = ("typing",)
+        ))]
+        mode: Py<PyAny>,
+    ) -> PyResult<Self> {
+        let mode = if let Ok(m) = mode.extract::<PySolveMode>(py) {
+            m
+        } else if let Ok(s) = mode.extract::<String>(py) {
+            PySolveMode::from_str(&s)?
+        } else {
+            return Err(PyValueError::new_err(
+                "mode must be a SolveMode enum or a string",
+            ));
+        };
         let inner = world.with_world(|world| ClauseGenerator::new(world, t_max, mode.into()));
         let solution_lower_bound = inner.solution_lower_bound();
         Ok(Self {
@@ -100,7 +118,7 @@ impl PyClauseGenerator {
                 .into_iter()
                 .map(|joint| joint.iter().map(PyAction::from).collect())
                 .collect()),
-            Err(e) => Err(PyValueError::new_err(e)),
+            Err(e) => Err(solver_error_to_exception(e)),
         }
     }
 }

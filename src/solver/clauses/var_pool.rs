@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{Action, AgentId, Position};
+use crate::{Action, AgentId, Position, solver::errors::SolverError};
 
 /// Semantic key for a SAT variable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -201,7 +201,11 @@ impl VarPool {
     }
 
     /// Decode a SAT model (list of signed literals) into a joint action plan of length `t_end`.
-    pub fn decode_plan(&self, literals: &[i32], t_end: usize) -> Result<Vec<Vec<Action>>, String> {
+    pub fn decode_plan(
+        &self,
+        literals: &[i32],
+        t_end: usize,
+    ) -> Result<Vec<Vec<Action>>, SolverError> {
         let mut positions: HashMap<usize, HashMap<usize, Position>> = HashMap::new();
         for &lit in literals {
             if lit <= 0 {
@@ -218,8 +222,9 @@ impl VarPool {
         for t in 0..t_end {
             let mut row = Vec::with_capacity(agent_ids.len());
             for &agent in &agent_ids {
-                let Position { i: y1, j: x1 } = positions[&agent][&t];
-                let Position { i: y2, j: x2 } = positions[&agent][&(t + 1)];
+                let (prev, current) = (positions[&agent][&t], positions[&agent][&(t + 1)]);
+                let Position { i: y1, j: x1 } = prev;
+                let Position { i: y2, j: x2 } = current;
                 let (dx, dy) = (x2 as i64 - x1 as i64, y2 as i64 - y1 as i64);
                 let action = match (dx, dy) {
                     (0, 0) => Action::Stay,
@@ -228,10 +233,12 @@ impl VarPool {
                     (1, 0) => Action::East,
                     (-1, 0) => Action::West,
                     _ => {
-                        return Err(format!(
-                            "Invalid movement for agent {agent} at t={t}->{}: delta=({dx}, {dy})",
-                            t + 1
-                        ));
+                        return Err(SolverError::InvalidTrajectory {
+                            prev_pos: prev,
+                            current_pos: current,
+                            agent,
+                            index: t + 1,
+                        });
                     }
                 };
                 row.push(action);

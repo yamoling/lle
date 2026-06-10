@@ -104,7 +104,7 @@ impl PySolveMode {
     }
 
     #[staticmethod]
-    fn from_str(
+    pub fn from_str(
         #[gen_stub(override_type(type_repr="typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation']", imports=("typing")))]
         value: &str,
     ) -> PyResult<Self> {
