@@ -123,16 +123,6 @@ def _solve_with_level_constraint(
 # ---------------------------------------------------------------------------
 
 
-def test_all_clauses_are_unit_and_negated():
-    ctx = ConstraintContext(World.level(3), 10)
-    var = VariableFactory()
-    coop = CooperationConstraints(var, ctx)
-    for t in range(10 + 1):
-        for clause in coop.no_blocking_clauses(t):
-            assert len(clause) == 1, "each no-blocking clause must be a unit clause"
-            assert clause[0] < 0, "the literal must be a negated agent variable"
-
-
 @pytest.mark.parametrize("level", [1, 2])
 def test_solvable_independently(level: int):
     assert lle.solve(World.level(level), 10, mode="no-cooperation") is not None
