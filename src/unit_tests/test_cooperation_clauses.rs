@@ -27,11 +27,11 @@ L0E . .
 
 /// Two facing lasers, one per agent, each beam crossable by the *other* agent: mutual help is
 /// geometrically possible in both directions.
-// const MUTUAL: &str = "
-//  S0 . . S1
-// L0E . . .
-//  .  . . L1W
-//  X  . . X";
+const MUTUAL: &str = "
+ S0 . . S1
+L0E . . .
+ .  . . L1W
+ X  . . X";
 
 /// No laser at all: nobody can ever help anyone.
 const NO_LASER: &str = "
@@ -113,4 +113,80 @@ fn no_laser_has_no_dependencies() {
     }
     let (clauses, assumptions) = cg.forbid_mutual_cooperation();
     assert!(clauses.is_empty() && assumptions.is_empty());
+}
+
+#[test]
+fn mutual_world_creates_both_directions() {
+    let world = World::try_from(MUTUAL).expect("failed to parse world");
+    let mut cg = ClauseGenerator::new(&world, 10, SolveMode::NoMutualCooperation);
+    let _ = cg.generate(10);
+    // agent 0 (L0E owner) can help agent 1 cross its east beam
+    assert!(
+        cg.exists(&VarKey::depends_on(1, 0)),
+        "agent 0 should be able to help agent 1"
+    );
+    // agent 1 (L1W owner) can help agent 0 cross its west beam
+    assert!(
+        cg.exists(&VarKey::depends_on(0, 1)),
+        "agent 1 should be able to help agent 0"
+    );
+}
+
+#[test]
+fn mutual_world_generates_forbid_clauses_and_assumptions() {
+    let world = World::try_from(MUTUAL).expect("failed to parse world");
+    let mut cg = ClauseGenerator::new(&world, 10, SolveMode::NoMutualCooperation);
+    let _ = cg.generate(10);
+    let (clauses, assumptions) = cg.forbid_mutual_cooperation();
+    assert!(!clauses.is_empty(), "mutual world must produce forbid clauses");
+    assert!(
+        !assumptions.is_empty(),
+        "mutual world must produce negative assumptions"
+    );
+    for &lit in &assumptions {
+        assert!(lit < 0, "all forbid-mutual assumptions must be negative literals");
+    }
+}
+
+#[test]
+fn level_3_dependency_is_one_directional() {
+    let world = World::get_level(3).expect("failed to load level 3");
+    let n = world.n_agents();
+    let mut cg = ClauseGenerator::new(&world, 12, SolveMode::NoMutualCooperation);
+    let _ = cg.generate(12);
+
+    let mut helper_count = 0;
+    for helper in 0..n {
+        for beneficiary in 0..n {
+            if helper != beneficiary && cg.exists(&VarKey::depends_on(beneficiary, helper)) {
+                helper_count += 1;
+            }
+        }
+    }
+    // Level 3 is strictly one-directional: only one agent can help the other.
+    assert!(helper_count >= 1, "level 3 must have at least one cooperation direction");
+    // No pair should have both directions.
+    for a in 0..n {
+        for b in (a + 1)..n {
+            assert!(
+                !(cg.exists(&VarKey::depends_on(a, b)) && cg.exists(&VarKey::depends_on(b, a))),
+                "level 3 must not have any bidirectional pair (a={a}, b={b})"
+            );
+        }
+    }
+}
+
+#[test]
+fn level_6_dependency_is_bidirectional() {
+    let world = World::get_level(6).expect("failed to load level 6");
+    let n = world.n_agents();
+    let mut cg = ClauseGenerator::new(&world, 21, SolveMode::NoMutualCooperation);
+    let _ = cg.generate(21);
+    // Level 6 requires mutual cooperation: at least one pair must have both directions.
+    let has_bidirectional = (0..n).any(|a| {
+        (0..n)
+            .filter(|&b| b != a)
+            .any(|b| cg.exists(&VarKey::depends_on(a, b)) && cg.exists(&VarKey::depends_on(b, a)))
+    });
+    assert!(has_bidirectional, "level 6 must have at least one bidirectional dependency pair");
 }

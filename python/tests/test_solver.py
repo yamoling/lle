@@ -1,6 +1,7 @@
 from typing import get_args
 
 import lle
+import pytest
 from lle import Action, World
 from lle.solver import SolveMode, SolveModeLiteral
 
@@ -205,6 +206,36 @@ def test_solve_no_cooperation():
     # Both agents must go around the laser via (1,5), requiring at least 12 steps
     assert lle.solve(world, 9, mode="no-cooperation") is None
     assert lle.solve(world, 10, mode="no-cooperation") is not None
+
+
+@pytest.mark.parametrize("level", [1, 2])
+def test_solvable_independently(level: int):
+    """Levels 1 and 2 require no cooperation: solvable without any laser blocking."""
+    assert lle.solve(World.level(level), 10, mode="no-cooperation") is not None
+
+
+@pytest.mark.parametrize("level", [3, 4, 5, 6])
+def test_cooperative_level_unsolvable_without_cooperation(level: int):
+    """Levels 3-6 require cooperation and become unsolvable when laser blocking is forbidden."""
+    assert lle.solve(World.level(level), 21, mode="no-cooperation") is None
+
+
+@pytest.mark.parametrize(
+    "level,t_max,expect_coop",
+    [
+        (1, 10, False),
+        (2, 10, False),
+        (3, 10, True),
+        (4, 10, True),
+        (6, 21, True),
+    ],
+)
+def test_no_cooperation_agrees_with_is_cooperative(level: int, t_max: int, expect_coop: bool):
+    """solve(mode='no-cooperation') must agree with is_cooperative for all canonical levels."""
+    world = World.level(level)
+    no_coop = lle.solve(world, t_max, mode="no-cooperation")
+    is_coop = lle.is_cooperative(world, t_max=t_max)
+    assert (no_coop is None) == is_coop == expect_coop
 
 
 def test_typing_solve_mode_literal():
