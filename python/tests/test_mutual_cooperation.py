@@ -13,7 +13,6 @@ two hand-built corridors.
 from __future__ import annotations
 
 import lle
-import pytest
 from lle import World
 from lle.solver import solve
 from lle.solver.constraints import ClauseGenerator
@@ -25,11 +24,11 @@ ALWAYS_MUTUAL = "S0 . . S1\nL0E . . .\n. . . L1W\nX . . X"
 # down cols 4-5 (around the wall column), so mutual help is required only below a time threshold.
 TIME_DEPENDENT = "\n".join(
     [
-        "S0 S1 . . . .",
-        "L0E . . @ . .",
-        "L1E . . @ . .",
-        "X  X  . @ . .",
-        ".  .  . . . .",
+        " S0 S1 . . .",
+        "L0E  . . @ .",
+        "L1E  . . @ .",
+        " X   X . @ .",
+        " .   . . . .",
     ]
 )
 # Empirically, mutual help is required up to t=12 and a mutual-free plan exists from t=13 on.
@@ -123,6 +122,7 @@ def test_clause_generator_no_mutual_cooperation_mode():
     world = World(ALWAYS_MUTUAL)
     gen = ClauseGenerator(world, 10, mode="no-mutual-cooperation")
     from lle.solver.solver import solve_model
+
     for t in range(gen.solution_lower_bound, gen.t_max + 1):
         clauses, assumptions = gen.generate(t)
         model = solve_model(clauses, assumptions=assumptions)

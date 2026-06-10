@@ -164,4 +164,10 @@ impl ClauseGenerator {
     pub fn exists(&self, key: &VarKey) -> bool {
         self.pool.exists(key)
     }
+
+    /// Return the SAT literal assigned to `key`, or `None` if it was never created.
+    /// Useful in tests to inspect clause literals without accessing the pool directly.
+    pub fn literal(&self, key: &VarKey) -> Option<i32> {
+        self.pool.get(key)
+    }
 }
