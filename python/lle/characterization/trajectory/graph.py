@@ -103,38 +103,26 @@ class TemporalDependencyGraph:
         """The largest fan-out over all agents (at time ``t`` if given)."""
         return max((self.fan_out(a, t) for a in range(self.n_agents)), default=0)
 
-    # ------------------------------------------------------------------
-    # Chains
-    # ------------------------------------------------------------------
-    def longest_time_agnostic_chain(self) -> int:
-        """The number of edges in the longest help chain.
-
-        A chain ``a -> b -> c -> ...`` is a simple directed path (no repeated
-        agent) in the flattened graph.  The returned value counts edges, so a
-        single help relationship has length ``1`` and ``a -> b -> c`` has length
-        ``2``.  An independent graph has length ``0``.
+    def longest_chain(self) -> int:
         """
-        adjacency = self._flattened_adjacency()
+        A chain ``(a, t0) -> (b, t1) -> (c, t2) -> ...`` is a simple directed path of at
+        least three different agents in the temporal graph. A chain encodes the idea of
+        transitivity of the cooperation: if a helps b and b helps c, then a also helps c
+        indirectly.
 
-        def dfs(node: AgentId, visited: set[AgentId]) -> int:
-            best = 0
-            for nxt in adjacency[node]:
-                if nxt in visited:
-                    continue
-                visited.add(nxt)
-                best = max(best, 1 + dfs(nxt, visited))
-                visited.remove(nxt)
-            return best
+        A chain must have a length of at least 2 edges, otherwise it is not a chain.
 
-        return max((dfs(start, {start}) for start in range(self.n_agents)), default=0)
+        # Returns
+        The returned value counts the length of the longest chain in the graph.
 
-    def longest_temporal_chain(self) -> int:
-        """
-        A chain ``(a, t0) -> (b, t1) -> (c, t2) -> ...`` is a simple directed path
-        (without repeated agent) in the temporal graph, assuming self-loop for all vertices.
-
-        The returned value counts edges, so a single help relationship has length
-        ``1`` and ``a -> b -> c`` has length ``2``. An independent graph has length ``0``.
+        For instance:
+           - a single help relationship returns 0;
+           - `a -> b -> c` returns `2`;
+           - `a -> b -> c -> a` returns `2`;
+           - `a -> b -> c -> d` returns `3`;
+           - `a -> b`, and `a -> c` returns `0`;
+           - `a -> b -> a` returns `0` because mutual help is not considered a chain;
+           - an independent graph returns `0`.
         """
         by_helper: dict[AgentId, list[tuple[AgentId, int]]] = defaultdict(list)
         for e in self._edges:
@@ -152,7 +140,10 @@ class TemporalDependencyGraph:
                 visited.remove(nxt)
             return best
 
-        return max((dfs(start, {start}, -1) for start in range(self.n_agents)), default=0)
+        max_length = max((dfs(start, {start}, -1) for start in range(self.n_agents)), default=0)
+        if max_length < 2:
+            return 0
+        return max_length
 
     # ------------------------------------------------------------------
     # Cycles

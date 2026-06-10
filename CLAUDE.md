@@ -114,3 +114,6 @@ Built-in levels 1–6 are embedded via `build.rs` and `src/core/levels.rs`.
 ### Python binding conventions
 
 Each Rust type gets a `Py*` wrapper in `src/bindings/` that derives `#[pyclass]`. Exceptions are custom PyO3 exception types in `src/bindings/pyexceptions.rs`. After changing Rust types exposed to Python, run `cargo run --bin stub-gen` to update the `.pyi` stubs.
+
+# Others
+- Unless explicitly requested, you may not create a new commit.

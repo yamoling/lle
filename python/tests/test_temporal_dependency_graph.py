@@ -366,79 +366,40 @@ class TestFanMetrics:
         assert branching_graph.max_fan_out(t=0) == 0
 
 
-# ============================================================================
-# Tests: Longest chain detection
-# ============================================================================
-class TestLongestChain:
-    """Test longest_chain method for detecting simple paths."""
-
-    def test_longest_chain_empty(self, empty_graph_5_agents: TemporalDependencyGraph):
-        """longest_chain returns 0 for an empty graph."""
-        assert empty_graph_5_agents.longest_time_agnostic_chain() == 0
-
-    def test_longest_chain_single_edge(self, single_edge_graph: TemporalDependencyGraph):
-        """longest_chain returns 1 for a single edge."""
-        assert single_edge_graph.longest_time_agnostic_chain() == 1
-
-    def test_longest_chain_linear(self, linear_chain_graph: TemporalDependencyGraph):
-        """longest_chain returns the correct length for a linear chain."""
-        # Chain: 0 -> 1 -> 2 -> 3 (3 edges)
-        assert linear_chain_graph.longest_time_agnostic_chain() == 3
-
-    def test_longest_chain_branching(self, branching_graph: TemporalDependencyGraph):
-        """longest_chain ignores multiple paths from same source."""
-        # 0 -> {1, 2, 3}: longest chain is 1 (each branch is just 1 edge)
-        assert branching_graph.longest_time_agnostic_chain() == 1
-
-    def test_longest_chain_converging(self, converging_graph: TemporalDependencyGraph):
-        """longest_chain ignores converging paths."""
-        # {1, 2, 3} -> 0: longest chain is 1
-        assert converging_graph.longest_time_agnostic_chain() == 1
-
-    def test_longest_chain_single_agent(self, single_agent_graph: TemporalDependencyGraph):
-        """longest_chain returns 0 when only one agent exists."""
-        assert single_agent_graph.longest_time_agnostic_chain() == 0
-
-    def test_longest_chain_disconnected(self, disconnected_graph: TemporalDependencyGraph):
-        """longest_chain returns the longest path among all components."""
-        # Two components: 0 -> 1 and 2 -> 3, each is 1 edge
-        assert disconnected_graph.longest_time_agnostic_chain() == 1
-
-
 class TestLongestTemporalChain:
-    """Test longest_temporal_chain method for temporal dependency chains."""
+    """Test longest_chain method for temporal dependency chains."""
 
     def test_temporal_chain_empty(self, empty_graph_5_agents: TemporalDependencyGraph):
-        """longest_temporal_chain returns 0 for an empty graph."""
-        assert empty_graph_5_agents.longest_temporal_chain() == 0
+        """longest_chain returns 0 for an empty graph."""
+        assert empty_graph_5_agents.longest_chain() == 0
 
     def test_temporal_chain_single_edge(self, single_edge_graph: TemporalDependencyGraph):
-        """longest_temporal_chain returns 1 for a single edge."""
-        assert single_edge_graph.longest_temporal_chain() == 1
+        """longest_chain returns 0 for a single edge (not enough agents for a chain)."""
+        assert single_edge_graph.longest_chain() == 0
 
     def test_temporal_chain_linear(self, linear_chain_graph: TemporalDependencyGraph):
-        """longest_temporal_chain returns the correct length for a linear chain."""
+        """longest_chain returns the correct length for a linear chain."""
         # Chain: 0 -> 1 (t=1), 1 -> 2 (t=2), 2 -> 3 (t=3): 3 edges, strictly increasing times
-        assert linear_chain_graph.longest_temporal_chain() == 3
+        assert linear_chain_graph.longest_chain() == 3
 
     def test_temporal_chain_branching(self, branching_graph: TemporalDependencyGraph):
-        """longest_temporal_chain ignores multiple paths from same source."""
-        # 0 -> {1, 2, 3} at same time: longest chain is 1
-        assert branching_graph.longest_temporal_chain() == 1
+        """longest_chain returns 0 when all paths are only 1 edge long."""
+        # 0 -> {1, 2, 3}: each branch is only 1 edge, which is not a chain
+        assert branching_graph.longest_chain() == 0
 
     def test_temporal_chain_converging(self, converging_graph: TemporalDependencyGraph):
-        """longest_temporal_chain ignores converging paths."""
-        # {1, 2, 3} -> 0 at same time: longest chain is 1
-        assert converging_graph.longest_temporal_chain() == 1
+        """longest_chain returns 0 when all paths are only 1 edge long."""
+        # {1, 2, 3} -> 0: each path is only 1 edge, which is not a chain
+        assert converging_graph.longest_chain() == 0
 
     def test_temporal_chain_single_agent(self, single_agent_graph: TemporalDependencyGraph):
-        """longest_temporal_chain returns 0 when only one agent exists."""
-        assert single_agent_graph.longest_temporal_chain() == 0
+        """longest_chain returns 0 when only one agent exists."""
+        assert single_agent_graph.longest_chain() == 0
 
     def test_temporal_chain_disconnected(self, disconnected_graph: TemporalDependencyGraph):
-        """longest_temporal_chain returns the longest path among all components."""
-        # Two components: 0 -> 1 (t=1) and 2 -> 3 (t=2), each is 1 edge
-        assert disconnected_graph.longest_temporal_chain() == 1
+        """longest_chain returns 0 when all components have only 1 edge."""
+        # Two components: 0 -> 1 (t=1) and 2 -> 3 (t=2), each is 1 edge (not a chain)
+        assert disconnected_graph.longest_chain() == 0
 
     def test_temporal_chain_strictly_increasing_times(self):
         """Chain with strictly increasing times: a -> b -> c -> d."""
@@ -448,28 +409,28 @@ class TestLongestTemporalChain:
             DependencyEdge(helper=2, beneficiary=3, t=3),
         ]
         graph = TemporalDependencyGraph(n_agents=4, edges=edges, horizon=4)
-        assert graph.longest_temporal_chain() == 3
+        assert graph.longest_chain() == 3
 
     def test_temporal_chain_same_time(self):
-        """Edges at the same time cannot form a chain longer than 1."""
+        """Edges at the same time cannot form a chain (time must be strictly increasing)."""
         edges = [
             DependencyEdge(helper=0, beneficiary=1, t=1),
             DependencyEdge(helper=1, beneficiary=2, t=1),
         ]
         graph = TemporalDependencyGraph(n_agents=3, edges=edges, horizon=2)
-        # 0 -> 1 -> 2 but both edges at t=1, so chain breaks after first edge
-        assert graph.longest_temporal_chain() == 1
+        # 0 -> 1 -> 2 but both edges at t=1, so no valid temporal chain of length >= 2
+        assert graph.longest_chain() == 0
 
     def test_temporal_chain_decreasing_times(self):
-        """Chain with decreasing times should not form long chains."""
+        """Chain with decreasing times cannot form a chain (time must be strictly increasing)."""
         edges = [
             DependencyEdge(helper=0, beneficiary=1, t=3),
             DependencyEdge(helper=1, beneficiary=2, t=2),
             DependencyEdge(helper=2, beneficiary=3, t=1),
         ]
         graph = TemporalDependencyGraph(n_agents=4, edges=edges, horizon=4)
-        # Each edge is at a lower time than the previous, so each is separate
-        assert graph.longest_temporal_chain() == 1
+        # Each edge is at a lower time than the previous, so no valid temporal chain of length >= 2
+        assert graph.longest_chain() == 0
 
     def test_temporal_chain_non_monotonic_times(self):
         """The example from prompt: a->b at t0, b->c at t2, c->d at t1."""
@@ -481,18 +442,18 @@ class TestLongestTemporalChain:
         graph = TemporalDependencyGraph(n_agents=4, edges=edges, horizon=3)
         # 0 -> 1 (t=0), 1 -> 2 (t=2): chain of length 2
         # 2 -> 3 (t=1) happens before 1 -> 2 (t=2), so cannot extend chain
-        assert graph.longest_temporal_chain() == 2
+        assert graph.longest_chain() == 2
 
     def test_temporal_chain_with_equal_times(self):
-        """Chains cannot continue when times are equal (times must be strictly increasing)."""
+        """Chains cannot form when times are equal (times must be strictly increasing)."""
         edges = [
             DependencyEdge(helper=0, beneficiary=1, t=1),
             DependencyEdge(helper=1, beneficiary=2, t=1),
             DependencyEdge(helper=2, beneficiary=3, t=1),
         ]
         graph = TemporalDependencyGraph(n_agents=4, edges=edges, horizon=2)
-        # All edges at same time, so longest chain is 1 (each edge is separate)
-        assert graph.longest_temporal_chain() == 1
+        # All edges at same time: no valid temporal chain of length >= 2
+        assert graph.longest_chain() == 0
 
     def test_temporal_chain_mixed_times(self):
         """Complex case with multiple paths at different times."""
@@ -504,14 +465,75 @@ class TestLongestTemporalChain:
         ]
         graph = TemporalDependencyGraph(n_agents=5, edges=edges, horizon=4)
         # Longest chain: 0 -> 1 -> 2 (length 2) or 0 -> 3 -> 4 (length 2)
-        assert graph.longest_temporal_chain() == 2
+        assert graph.longest_chain() == 2
 
     def test_temporal_chain_hamiltonian_cycle(self, hamiltonian_cycle_graph: TemporalDependencyGraph):
         """A Hamiltonian cycle with strictly increasing times."""
         # 0 -> 1 (t=1), 1 -> 2 (t=2), 2 -> 3 (t=3), 3 -> 0 (t=4)
         # Longest temporal chain: 0 -> 1 -> 2 -> 3 (length 3)
         # Cannot include 3 -> 0 because that would require visiting 0 twice
-        assert hamiltonian_cycle_graph.longest_temporal_chain() == 3
+        assert hamiltonian_cycle_graph.longest_chain() == 3
+
+    # --- Docstring example tests ---
+
+    def test_single_help_is_not_chain(self):
+        """Doc example: a single help relationship returns 0."""
+        edges = [DependencyEdge(helper=0, beneficiary=1, t=1)]
+        graph = TemporalDependencyGraph(n_agents=2, edges=edges, horizon=2)
+        assert graph.longest_chain() == 0
+
+    def test_three_agents_is_chain_of_length_2(self):
+        """Doc example: a -> b -> c returns 2."""
+        edges = [
+            DependencyEdge(helper=0, beneficiary=1, t=1),
+            DependencyEdge(helper=1, beneficiary=2, t=2),
+        ]
+        graph = TemporalDependencyGraph(n_agents=3, edges=edges, horizon=3)
+        assert graph.longest_chain() == 2
+
+    def test_cycle_three_agents_returns_2(self):
+        """Doc example: a -> b -> c -> a returns 2 (cannot revisit start)."""
+        # This is the temporal_cycle_graph: 0->1 (t=1), 1->2 (t=2), 2->0 (t=3)
+        edges = [
+            DependencyEdge(helper=0, beneficiary=1, t=1),
+            DependencyEdge(helper=1, beneficiary=2, t=2),
+            DependencyEdge(helper=2, beneficiary=0, t=3),
+        ]
+        graph = TemporalDependencyGraph(n_agents=3, edges=edges, horizon=4)
+        assert graph.longest_chain() == 2
+
+    def test_four_agents_returns_3(self):
+        """Doc example: a -> b -> c -> d returns 3."""
+        edges = [
+            DependencyEdge(helper=0, beneficiary=1, t=1),
+            DependencyEdge(helper=1, beneficiary=2, t=2),
+            DependencyEdge(helper=2, beneficiary=3, t=3),
+        ]
+        graph = TemporalDependencyGraph(n_agents=4, edges=edges, horizon=4)
+        assert graph.longest_chain() == 3
+
+    def test_branching_returns_0(self):
+        """Doc example: a -> b and a -> c returns 0 (only 1-edge paths)."""
+        edges = [
+            DependencyEdge(helper=0, beneficiary=1, t=1),
+            DependencyEdge(helper=0, beneficiary=2, t=2),
+        ]
+        graph = TemporalDependencyGraph(n_agents=3, edges=edges, horizon=3)
+        assert graph.longest_chain() == 0
+
+    def test_mutual_help_is_not_chain(self):
+        """Doc example: a -> b -> a returns 0 because mutual help is not a chain."""
+        edges = [
+            DependencyEdge(helper=0, beneficiary=1, t=1),
+            DependencyEdge(helper=1, beneficiary=0, t=2),
+        ]
+        graph = TemporalDependencyGraph(n_agents=2, edges=edges, horizon=3)
+        assert graph.longest_chain() == 0
+
+    def test_independent_graph_returns_0(self):
+        """Doc example: an independent graph returns 0."""
+        graph = TemporalDependencyGraph(n_agents=3, edges=[], horizon=5)
+        assert graph.longest_chain() == 0
 
 
 # ============================================================================
@@ -723,7 +745,7 @@ class TestEdgeCases:
         """Graph with zero agents."""
         graph = TemporalDependencyGraph(n_agents=0, edges=[], horizon=0)
         assert graph.is_independent is True
-        assert graph.longest_time_agnostic_chain() == 0
+        assert graph.longest_chain() == 0
         assert graph.has_temporal_cycle() is False
         assert graph.has_hamiltonian_cycle() is False
         assert len(graph.strongly_connected_components()) == 0
@@ -795,7 +817,7 @@ class TestProfileIntegration:
         profile = single_edge_graph.profile()
         assert profile.is_independent is False
         assert profile.n_dependencies == 1
-        assert profile.longest_chain == 1
+        assert profile.longest_chain == 0
 
     def test_profile_linear_chain(self, linear_chain_graph):
         """Profile of linear chain has correct longest_chain."""
@@ -813,13 +835,13 @@ class TestProfileIntegration:
         """Profile of branching graph has correct fan-out."""
         profile = branching_graph.profile()
         assert profile.max_fan_out == 3
-        assert profile.longest_chain == 1
+        assert profile.longest_chain == 0
 
     def test_profile_converging(self, converging_graph):
         """Profile of converging graph has correct fan-in."""
         profile = converging_graph.profile()
         assert profile.max_fan_in == 3
-        assert profile.longest_chain == 1
+        assert profile.longest_chain == 0
 
     def test_profile_scc(self, static_cycle_graph):
         """Profile includes non-trivial SCC information."""
@@ -940,7 +962,7 @@ class TestRealWorldPatterns:
             DependencyEdge(helper=2, beneficiary=3, t=3),
         ]
         graph = TemporalDependencyGraph(n_agents=4, edges=edges, horizon=4)
-        assert graph.longest_time_agnostic_chain() == 3
+        assert graph.longest_chain() == 3
         assert not graph.has_temporal_cycle()
 
     def test_mutual_help_at_different_times(self):
@@ -964,7 +986,7 @@ class TestRealWorldPatterns:
         graph = TemporalDependencyGraph(n_agents=5, edges=edges, horizon=2)
         assert graph.fan_out(0) == 4
         assert graph.fan_in(1) == 1
-        assert graph.longest_time_agnostic_chain() == 1
+        assert graph.longest_chain() == 0
 
     def test_relay_race_pattern(self):
         """Agents relay: 0 -> 1, then separately 1 -> 2, etc."""
@@ -974,7 +996,7 @@ class TestRealWorldPatterns:
             DependencyEdge(helper=2, beneficiary=3, t=3),
         ]
         graph = TemporalDependencyGraph(n_agents=4, edges=edges, horizon=4)
-        assert graph.longest_time_agnostic_chain() == 3
+        assert graph.longest_chain() == 3
 
     def test_diamond_pattern(self):
         """Diamond: 0 -> {1,2} and {1,2} -> 3."""
@@ -985,7 +1007,7 @@ class TestRealWorldPatterns:
             DependencyEdge(helper=2, beneficiary=3, t=2),
         ]
         graph = TemporalDependencyGraph(n_agents=4, edges=edges, horizon=3)
-        assert graph.longest_time_agnostic_chain() == 2
+        assert graph.longest_chain() == 2
         assert graph.fan_in(3) == 2
         assert graph.fan_out(0) == 2
 
@@ -1003,7 +1025,7 @@ class TestParametrized:
         """Empty graph with any number of agents is independent."""
         graph = TemporalDependencyGraph(n_agents=n_agents, edges=[], horizon=0)
         assert graph.is_independent is True
-        assert graph.longest_time_agnostic_chain() == 0
+        assert graph.longest_chain() == 0
         assert graph.max_fan_in() == 0
         assert graph.max_fan_out() == 0
 
