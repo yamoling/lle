@@ -60,7 +60,7 @@ class TrajectoryProfile:
             fan_out={a: graph.fan_out(a) for a in range(graph.n_agents)},
             max_fan_in=graph.max_fan_in(),
             max_fan_out=graph.max_fan_out(),
-            longest_chain=graph.longest_chain(),
+            longest_chain=graph.longest_temporal_chain(),
             strongly_connected_components=sccs,
             largest_scc_size=max((len(c) for c in sccs), default=0),
             has_temporal_cycle=graph.has_temporal_cycle(),

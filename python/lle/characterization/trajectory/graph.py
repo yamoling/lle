@@ -106,7 +106,7 @@ class TemporalDependencyGraph:
     # ------------------------------------------------------------------
     # Chains
     # ------------------------------------------------------------------
-    def longest_chain(self) -> int:
+    def longest_time_agnostic_chain(self) -> int:
         """The number of edges in the longest help chain.
 
         A chain ``a -> b -> c -> ...`` is a simple directed path (no repeated
@@ -127,6 +127,32 @@ class TemporalDependencyGraph:
             return best
 
         return max((dfs(start, {start}) for start in range(self.n_agents)), default=0)
+
+    def longest_temporal_chain(self) -> int:
+        """
+        A chain ``(a, t0) -> (b, t1) -> (c, t2) -> ...`` is a simple directed path
+        (without repeated agent) in the temporal graph, assuming self-loop for all vertices.
+
+        The returned value counts edges, so a single help relationship has length
+        ``1`` and ``a -> b -> c`` has length ``2``. An independent graph has length ``0``.
+        """
+        by_helper: dict[AgentId, list[tuple[AgentId, int]]] = defaultdict(list)
+        for e in self._edges:
+            by_helper[e.helper].append((e.beneficiary, e.t))
+
+        def dfs(node: AgentId, visited: set[AgentId], last_t: int) -> int:
+            best = 0
+            for nxt, t in by_helper.get(node, []):
+                if nxt in visited:
+                    continue
+                if t <= last_t:
+                    continue
+                visited.add(nxt)
+                best = max(best, 1 + dfs(nxt, visited, t))
+                visited.remove(nxt)
+            return best
+
+        return max((dfs(start, {start}, -1) for start in range(self.n_agents)), default=0)
 
     # ------------------------------------------------------------------
     # Cycles
