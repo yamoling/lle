@@ -67,14 +67,30 @@ class ClauseGenerator:
         Generate the literal values assignments that corresponds to the assumption that no cooperation
         ever occurs at time step `t`.
         """
-    def cooperation_clauses(self, t: builtins.int) -> builtins.list[builtins.list[builtins.int]]:
+    def dependency_clauses(self, t: builtins.int) -> builtins.list[builtins.list[builtins.int]]:
         r"""
-        Generate the cooperation-tracking clauses for time step `t`: the `laser_blocked` and
-        `coop_event` indicator-variable definitions.
+        Generate the additive clauses defining the per-pair *dependency* indicators at time `t`:
+        `agent(beneficiary, q, t) → depends_on(beneficiary, helper)` for every beam tile `q` of
+        `helper`'s laser that `beneficiary` could legally occupy (which, by world consistency,
+        requires `helper` to block that beam — i.e. a genuine help event).
         
-        These are additive to `generate(t)` (they introduce new variables referencing the same
-        per-step agent variables) and are only needed when reasoning about who helps whom, e.g.
-        by `lle.cooperation.characterize`.
+        These are additive to `generate(t)` and must be generated for every time step before
+        calling `forbid_mutual_cooperation`.
+        """
+    def forbid_mutual_cooperation(self) -> tuple[builtins.list[builtins.list[builtins.int]], builtins.list[builtins.int]]:
+        r"""
+        Build the clauses and assumptions that forbid *mutual* cooperation between every pair of
+        agents (each pair `{a, b}` such that `a` helps `b` at some point and `b` helps `a` at some
+        point). Returns `(clauses, assumptions)`: add `clauses` to the formula and pass
+        `assumptions` to `solver.solve(assumptions=...)`. An UNSAT result then means mutual
+        cooperation is *required* within the explored horizon.
+        
+        Must be called after `dependency_clauses(t)` has been generated for every relevant `t`.
+        """
+    def mutual_lit(self, a: builtins.int, b: builtins.int) -> typing.Optional[builtins.int]:
+        r"""
+        The SAT variable for `mutual(a, b)` — "`a` and `b` mutually depend on each other" — or
+        `None` if no such variable has been created (i.e. the pair cannot mutually cooperate).
         """
     def decode_plan(self, model: typing.Sequence[builtins.int], t_end: builtins.int) -> builtins.list[builtins.list[world.Action]]:
         r"""

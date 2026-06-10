@@ -1,4 +1,5 @@
 mod assumptions;
+mod cooperation;
 mod generator;
 mod lasers;
 mod movement;

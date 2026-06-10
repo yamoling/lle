@@ -15,7 +15,12 @@ from __future__ import annotations
 from typing import Literal
 
 from ..world import World
-from .solver import solve, solve_model
+from .solver import (
+    requires_mutual_cooperation,
+    solve,
+    solve_model,
+    solve_without_mutual_cooperation,
+)
 
 
 def is_cooperative(world: World, t_max: int | Literal["auto"] = "auto"):
@@ -33,6 +38,8 @@ def is_cooperative(world: World, t_max: int | Literal["auto"] = "auto"):
 
 __all__ = [
     "is_cooperative",
+    "requires_mutual_cooperation",
     "solve",
     "solve_model",
+    "solve_without_mutual_cooperation",
 ]

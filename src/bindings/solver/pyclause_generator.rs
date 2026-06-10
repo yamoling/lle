@@ -78,6 +78,34 @@ impl PyClauseGenerator {
         self.inner.assume_no_cooperation(t)
     }
 
+    /// Generate the additive clauses defining the per-pair *dependency* indicators at time `t`:
+    /// `agent(beneficiary, q, t) → depends_on(beneficiary, helper)` for every beam tile `q` of
+    /// `helper`'s laser that `beneficiary` could legally occupy (which, by world consistency,
+    /// requires `helper` to block that beam — i.e. a genuine help event).
+    ///
+    /// These are additive to `generate(t)` and must be generated for every time step before
+    /// calling `forbid_mutual_cooperation`.
+    fn dependency_clauses(&mut self, t: usize) -> Vec<Clause> {
+        self.inner.dependency_clauses(t)
+    }
+
+    /// Build the clauses and assumptions that forbid *mutual* cooperation between every pair of
+    /// agents (each pair `{a, b}` such that `a` helps `b` at some point and `b` helps `a` at some
+    /// point). Returns `(clauses, assumptions)`: add `clauses` to the formula and pass
+    /// `assumptions` to `solver.solve(assumptions=...)`. An UNSAT result then means mutual
+    /// cooperation is *required* within the explored horizon.
+    ///
+    /// Must be called after `dependency_clauses(t)` has been generated for every relevant `t`.
+    fn forbid_mutual_cooperation(&mut self) -> (Vec<Clause>, Vec<Literal>) {
+        self.inner.forbid_mutual_cooperation()
+    }
+
+    /// The SAT variable for `mutual(a, b)` — "`a` and `b` mutually depend on each other" — or
+    /// `None` if no such variable has been created (i.e. the pair cannot mutually cooperate).
+    fn mutual_lit(&self, a: usize, b: usize) -> Option<i32> {
+        self.inner.mutual_lit(a, b)
+    }
+
     /// Decode a SAT model (as returned by `solver.get_model()`) into a joint-action plan
     /// of length `t_end`, i.e. a list of `t_end` joint actions (one action per agent).
     ///

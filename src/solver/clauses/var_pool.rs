@@ -166,6 +166,16 @@ impl VarPool {
         self.id(VarKey::LaserBlocked { laser_id, t })
     }
 
+    /// Indicator "`beneficiary` is helped by `helper` at some point over the whole horizon".
+    pub fn depends_on(&mut self, beneficiary: AgentId, helper: AgentId) -> i32 {
+        self.id(VarKey::depends_on(beneficiary, helper))
+    }
+
+    /// Indicator "`a` and `b` mutually depend on each other" (canonical, `a < b`).
+    pub fn mutual(&mut self, a: AgentId, b: AgentId) -> i32 {
+        self.id(VarKey::mutual(a, b))
+    }
+
     /// Variable id already assigned to `key`, or `None` if it was never created.
     ///
     /// Unlike the factory methods above, this never *creates* a variable, so it is safe to use

@@ -155,7 +155,9 @@ from .generator import generate
 from .observations import ObservationType
 from .solver import (
     is_cooperative,
+    requires_mutual_cooperation,
     solve,
+    solve_without_mutual_cooperation,
 )
 from .types import AgentId, LaserId, Position
 from .world import Action, EventType, World, WorldEvent, WorldState
@@ -188,6 +190,8 @@ __all__ = [
     "level",
     "solve",
     "is_cooperative",
+    "requires_mutual_cooperation",
+    "solve_without_mutual_cooperation",
     "generate",
     "analyse_cooperation",
     "CooperationProfile",

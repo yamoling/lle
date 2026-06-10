@@ -202,3 +202,13 @@ def test_solve_no_cooperation():
     # Both agents must go around the laser via (1,5), requiring at least 12 steps
     assert lle.solve(world, 9, allow_cooperation=False) is None
     assert lle.solve(world, 10, allow_cooperation=False) is not None
+
+
+def test_solve_with_raw_assumptions():
+    # TODO: this test is not yet implemented.
+    # It should verify that if an assumption is provided, it is indeed respected in the
+    # solution.
+    # Examples:
+    # - assme that agent 0 is never at position (0, 1) while this is a mandatory position -> unsolvable
+    # - assume agent 0 is at a specific position at a specific time step, and verify that is it the case
+    world = World("S0 . X")
