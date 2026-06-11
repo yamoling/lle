@@ -243,6 +243,15 @@ impl PyWorld {
     /// Raises:
     ///    `IndexError`: if the position is out of bounds.
     ///    `ValueError`: if the agent id does not exist.
+    ///
+    /// Example:
+    /// ```python
+    /// world = World("S0 . . X")
+    /// world.reset()
+    /// events = world.set_agent_position(0, (0, 2))
+    /// events = world.step([Action.EAST])
+    /// assert events[0].event_type == EventType.AGENT_EXIT
+    /// ```
     fn set_agent_position(
         &self,
         agent_id: AgentId,
@@ -266,6 +275,16 @@ impl PyWorld {
     /// Raises:
     ///   `PyIndexError`: if the position is out of bounds.
     ///   `PyValueError`: if the tile at the given position is not a gem.
+    ///
+    /// Example:
+    /// ```python
+    /// world = World("S0 G X")
+    /// world.reset()
+    /// gem = world.gem_at((0, 1))
+    /// assert not gem.is_collected
+    /// world.step([Action.EAST])
+    /// assert world.gem_at((0, 1)).is_collected
+    /// ```
     fn gem_at(&self, position: PyPosition) -> PyResult<PyGem> {
         let world = self.world.lock().unwrap();
         let tile = match world.at(&position.into()) {
@@ -321,6 +340,16 @@ impl PyWorld {
     /// Raises:
     ///  `PyIndexError`: if the position is out of bounds.
     ///  `PyValueError`: if the tile at the given position is not a laser source.
+    ///
+    /// Example:
+    /// ```python
+    /// world = World("S0 L0E X\n.  .   X")
+    /// world.reset()
+    /// src = world.source_at((0, 1))
+    /// assert src.is_enabled
+    /// src.disable()
+    /// assert all(not laser.is_on for laser in world.lasers)
+    /// ```
     fn source_at(&self, position: PyPosition) -> PyResult<PyLaserSource> {
         let world = self.world.lock().unwrap();
         let tile = match world.at(&position.into()) {
@@ -412,6 +441,15 @@ impl PyWorld {
     /// The actions available for agent `n` are given by `world.available_actions()[n]`.
     /// Returns:
     ///    The list of available actions for each agent.
+    ///
+    /// Example:
+    /// ```python
+    /// world = World("S0 @ X")  # wall blocks East
+    /// world.reset()
+    /// actions = world.available_actions()
+    /// assert Action.EAST not in actions[0]
+    /// assert Action.STAY in actions[0]
+    /// ```
     pub fn available_actions(&self) -> Vec<Vec<PyAction>> {
         self.world
             .lock()
