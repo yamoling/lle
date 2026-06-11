@@ -14,11 +14,11 @@ use std::hash::{Hash, Hasher};
 /// w = World("S0 . X")
 /// w.reset()
 /// s1 = w.get_state()
-/// s2 = WorldState([(0, 1), [], [True]])
-/// world.set_state(s2)
+/// s2 = WorldState([(0, 1)], [], [True])
+/// w.set_state(s2)
 /// ```
 /// ## Inheritance
-/// To inherit from `WorldState`, it is required to override the `__new__` method such that you its signature
+/// To inherit from `WorldState`, it is required to override the `__new__` method such that its signature
 /// is compatible with `__init__`, i.e. it accepts the same leading arguments in the same order.
 /// Additionally, the `__new__` method **must** call the `super()` constructor with the parameters of the parent class, as shown below.
 /// ```python
