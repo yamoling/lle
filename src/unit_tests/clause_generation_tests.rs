@@ -83,9 +83,10 @@ fn possible_positions_multiple_agents() {
         check_n_possible_positions(&cg, agent, 0, 1);
     }
 
-    // t=1: three possible positions (initial, south, and east/west)
-    check_n_possible_positions(&cg, 0, 1, 3);
-    check_n_possible_positions(&cg, 1, 1, 3);
+    // t=1: two possible positions (initial and south only).
+    // Opt 2: the east/west neighbour is the other agent's start, so it is pruned.
+    check_n_possible_positions(&cg, 0, 1, 2);
+    check_n_possible_positions(&cg, 1, 1, 2);
     // t=2: 5 possible positions (all except the furthest exit)
     check_n_possible_positions(&cg, 0, 2, 5);
     check_n_possible_positions(&cg, 1, 2, 5);
@@ -215,22 +216,31 @@ fn test_no_overlap_binary_exclusion_clause() {
 /// Encoded as `[-a1@pos@t, -a0@pos@(t-1)]`.
 #[test]
 fn test_no_following_conflict_encodes_swap_prohibition() {
-    // S0 at (0,0), S1 at (0,1). At t=1, agent 1 cannot enter (0,0) that agent 0 was at t=0.
+    // S0 at (0,0), S1 at (0,1).
+    // Opt 2: (0,0) is S0's start, so agent 1 cannot be there at t=1 — the variable is pruned.
     let mut cg = build("S0 S1 X X", 5);
-    let (clauses, _) = cg.generate(1);
+    let (_, _) = cg.generate(2);
 
-    let a0_t0 = cg
-        .literal(&VarKey::agent(0, pos(0, 0), 0))
-        .expect("agent 0 at (0,0) t=0");
-    let a1_t1 = cg
-        .literal(&VarKey::agent(1, pos(0, 0), 1))
-        .expect("agent 1 at (0,0) t=1");
+    // Agent 1 cannot be at (0,0) at t=1 (Opt 2 prunes it entirely).
+    assert!(
+        !cg.exists(&VarKey::agent(1, pos(0, 0), 1)),
+        "agent(1, (0,0), 1) should be pruned by Opt 2"
+    );
 
+    // The no-following-conflict clause still applies at t=2: if agent 1 is at (0,0) at t=2
+    // (reached from (0,1) at t=1), then agent 0 was NOT at (0,0) at t=1.
+    let a0_t1 = cg
+        .literal(&VarKey::agent(0, pos(0, 0), 1))
+        .expect("agent 0 at (0,0) t=1");
+    let a1_t2 = cg
+        .literal(&VarKey::agent(1, pos(0, 0), 2))
+        .expect("agent 1 at (0,0) t=2");
+    let clauses = cg.generate(2).0;
     assert!(
         clauses
             .iter()
-            .any(|c| c.len() == 2 && c.contains(&-a1_t1) && c.contains(&-a0_t0)),
-        "no-following-conflict clause [-a1@(0,0)@1, -a0@(0,0)@0] must exist"
+            .any(|c| c.len() == 2 && c.contains(&-a1_t2) && c.contains(&-a0_t1)),
+        "no-following-conflict clause [-a1@(0,0)@2, -a0@(0,0)@1] must exist"
     );
 }
 
@@ -443,11 +453,17 @@ fn test_two_lasers_stop_at_each_other() {
         !generator.exists(&VarKey::laser(id1, pos(0, 0), 2)),
         "L1W must not extend past L0E source at (0,0)"
     );
-    // Both lasers share the middle tile (0,1) — each should have a variable there.
+    // Both lasers share the middle tile (0,1).
+    // Opt 3: (0,1) is the first tile of L0E (owner=0) AND of L1W (owner=1). Neither agent is the
+    // owner of both, so (0,1) is forbidden for both agents at all times.  Both beams are therefore
+    // constant-active at (0,1) and no laser variable is created for either.
     assert!(
-        generator.exists(&VarKey::laser(id0, pos(0, 1), 2))
-            || generator.exists(&VarKey::laser(id1, pos(0, 1), 2)),
-        "at least one laser variable must exist at shared tile (0,1)"
+        !generator.exists(&VarKey::laser(id0, pos(0, 1), 2)),
+        "L0E beam at (0,1) should be constant-active (no variable)"
+    );
+    assert!(
+        !generator.exists(&VarKey::laser(id1, pos(0, 1), 2)),
+        "L1W beam at (0,1) should be constant-active (no variable)"
     );
 }
 
@@ -487,6 +503,95 @@ fn test_multiple_same_colour_same_direction_lasers_get_independent_beams() {
     let lit0 = cg.literal(&VarKey::laser(id0, pos(1, 1), 3)).unwrap();
     let lit1 = cg.literal(&VarKey::laser(id1, pos(1, 3), 3)).unwrap();
     assert_ne!(lit0, lit1, "independent beams must have distinct literals");
+}
+
+// ─── reachability pruning optimizations ─────────────────────────────────────
+
+/// Opt 2 — Start tile pruning.
+///
+/// At t=1, no agent may occupy another agent's t=0 start position: the
+/// no-following-conflict rule already makes such an assignment unsatisfiable,
+/// so the variable can be pruned from the reachable set.
+///
+/// World:  S0 S1 X X  (1 × 4 grid)
+///   (0,0)=S0, (0,1)=S1, (0,2)=X, (0,3)=X
+///
+/// Expected at t=1:
+///   • agent(1, (0,0), 1) — agent 1 at S0's start — does NOT exist (pruned)
+///   • agent(0, (0,1), 1) — agent 0 at S1's start — does NOT exist (pruned)
+///
+/// Expected at t=2 (restriction is t=1 only):
+///   • agent(1, (0,0), 2) DOES exist  (agent 1 can reach (0,0) from (0,1))
+///   • agent(0, (0,1), 2) DOES exist  (agent 0 can reach (0,1) from (0,0))
+#[test]
+fn test_opt2_start_tile_pruned_at_t1_only() {
+    let mut cg = build("S0 S1 X X", 5);
+    cg.generate(2);
+
+    // At t=1: each agent's other-agent start is pruned.
+    assert!(
+        !cg.exists(&VarKey::agent(1, pos(0, 0), 1)),
+        "agent(1, S0-start, t=1) should be pruned"
+    );
+    assert!(
+        !cg.exists(&VarKey::agent(0, pos(0, 1), 1)),
+        "agent(0, S1-start, t=1) should be pruned"
+    );
+
+    // At t=2: the pruning no longer applies; both positions become reachable again.
+    assert!(
+        cg.exists(&VarKey::agent(1, pos(0, 0), 2)),
+        "agent(1, S0-start, t=2) must exist — Opt 2 pruning is t=1 only"
+    );
+    assert!(
+        cg.exists(&VarKey::agent(0, pos(0, 1), 2)),
+        "agent(0, S1-start, t=2) must exist — Opt 2 pruning is t=1 only"
+    );
+}
+
+/// Opt 3 — First beam tile pruning.
+///
+/// A non-owner agent can never safely stand on the first tile of a laser beam:
+/// if the owner can reach it, beam-active ↔ ¬owner, so the non-owner would require
+/// the owner present — impossible by no_overlap.  If the owner cannot reach it the
+/// beam is constant-active and the non-owner dies.  Either way the variable is pruned.
+///
+/// World:
+///   L0S .  X     row 0  — L0S source at (0,0) fires south
+///   .   S1 X     row 1  — first beam tile (1,0); S1 at (1,1), one step west of it
+///   S0  .  .     row 2  — S0 at (2,0), one step north of the first beam tile
+///
+/// Expected:
+///   • agent(1, (1,0), t) does NOT exist for any t  (non-owner at first beam tile)
+///   • agent(0, (1,0), 1) DOES exist               (owner may stand on first beam tile)
+///   • laser(laser_id, (1,0), 1) DOES exist        (beam-activation variable created
+///                                                   because owner can reach the tile)
+#[test]
+fn test_opt3_first_beam_tile_pruned_for_non_owner() {
+    let world = World::try_from("L0S . X\n. S1 X\nS0 . .").expect("Failed to parse world");
+    let laser_id = world.sources()[0].1.laser_id();
+    let mut cg = ClauseGenerator::new(&world, 10, SolveMode::Standard);
+    cg.generate(3);
+
+    // Non-owner (agent 1) must never have a variable at the first beam tile (1,0).
+    for t in 0..=3 {
+        assert!(
+            !cg.exists(&VarKey::agent(1, pos(1, 0), t)),
+            "agent(1, first-beam-tile, t={t}) must be pruned by Opt 3"
+        );
+    }
+
+    // Owner (agent 0) can still reach the first beam tile and has a variable there.
+    assert!(
+        cg.exists(&VarKey::agent(0, pos(1, 0), 1)),
+        "agent(0, first-beam-tile, t=1) must exist — owner is not pruned"
+    );
+
+    // Because the owner can reach (1,0), beam activation creates a laser variable there.
+    assert!(
+        cg.exists(&VarKey::laser(laser_id, pos(1, 0), 1)),
+        "laser variable at first beam tile t=1 must exist when owner can reach it"
+    );
 }
 
 /// When two beams of the same colour cross, each crossing cell carries one variable per

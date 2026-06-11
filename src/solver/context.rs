@@ -71,6 +71,13 @@ pub struct ConstraintContext {
 
     /// Cache for reachable laser paths per laser source and time step: `relevant_laser_paths[laser_idx][t]`.
     relevant_laser_paths: Vec<Vec<PositionSet>>,
+
+    /// `forbidden_first_beam_tiles[agent]` = first beam tiles of every laser NOT owned by `agent`.
+    /// A non-owner can never stand on the first beam tile: if the owner can reach it, the beam is
+    /// active ↔ ¬owner, so non-owner requires owner present — impossible by no_overlap; otherwise
+    /// the beam is constant-active and the non-owner dies. This is pre-computed once and applied at
+    /// every time step during `update_relevant_positions`.
+    forbidden_first_beam_tiles: Vec<Vec<Position>>,
 }
 
 impl ConstraintContext {
@@ -139,6 +146,18 @@ impl ConstraintContext {
                 path,
             });
         }
+        // Opt 3: pre-compute first beam tiles forbidden for non-owner agents.
+        let mut forbidden_first_beam_tiles: Vec<Vec<Position>> = vec![Vec::new(); n_agents];
+        for source in &laser_sources {
+            if let Some(&first_tile) = source.path.first() {
+                for agent in 0..n_agents {
+                    if agent != source.agent_id {
+                        forbidden_first_beam_tiles[agent].push(first_tile);
+                    }
+                }
+            }
+        }
+
         // Bucket positions by their exact distance to the nearest exit (capped at `t_max`,
         // since farther positions can never be exit-reachable within the horizon).
         let mut distance_buckets: Vec<Vec<Position>> = vec![Vec::new(); t_max + 1];
@@ -202,6 +221,7 @@ impl ConstraintContext {
             distance_buckets,
             exit_reachable,
             relevant_positions,
+            forbidden_first_beam_tiles,
             relevant_laser_paths,
         }
     }
@@ -233,6 +253,20 @@ impl ConstraintContext {
                 }
             }
             result.intersect_with(&self.exit_reachable[t]);
+            // Opt 2: at t=1 no agent can occupy another agent's t=0 start position.
+            // The no-following-conflict rule forbids agent A from being at start_B at t=1
+            // because B was there at t=0 (implies(-a_cur, -b_prev) ⇒ ¬A here when B was here).
+            if t == 1 {
+                for (other, &start) in self.start_pos.iter().enumerate() {
+                    if other != agent {
+                        result.remove(&start);
+                    }
+                }
+            }
+            // Opt 3: non-owner agents can never stand on the first tile of another agent's beam.
+            for &forbidden in &self.forbidden_first_beam_tiles[agent] {
+                result.remove(&forbidden);
+            }
             self.relevant_positions[agent][t] = result;
         }
     }

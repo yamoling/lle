@@ -200,6 +200,10 @@ impl VarPool {
         self.ids.contains_key(key)
     }
 
+    pub fn n_vars(&self) -> usize {
+        self.ids.len()
+    }
+
     /// Decode a SAT model (list of signed literals) into a joint action plan of length `t_end`.
     pub fn decode_plan(
         &self,

@@ -85,6 +85,12 @@ impl PyClauseGenerator {
         })
     }
 
+    /// The number of SAT variables allocated so far by this generator.
+    #[getter]
+    fn n_vars(&self) -> usize {
+        self.inner.n_vars()
+    }
+
     /// Generate all clauses and assumptions required to solve the problem at horizon `t`.
     ///
     /// Buffers world-enforcing clauses incrementally (each step is computed at most once),
