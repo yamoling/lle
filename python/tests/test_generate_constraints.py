@@ -119,7 +119,7 @@ def test_generate_n_all_satisfy_filter():
     """All worlds in a batch must satisfy the filter."""
     t_max = 5 * 5 // 2
     filter = Cooperative(t_max)
-    for w in generate(n=3, kind="random", height=5, width=5, n_agents=2, n_lasers=1, filter=filter, max_attempts=500):
+    for w in generate(n=3, n_jobs=1, kind="random", height=5, width=5, n_agents=2, n_lasers=1, filter=filter, max_attempts=500):
         assert filter.is_satisfied_by(w)
 
 

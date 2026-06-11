@@ -86,7 +86,7 @@ class WorldFilter(ABC):
         return Cooperative(t_max, t_min)
 
     @staticmethod
-    def require_mutual_cooperation(t_max: int, t_min: int | None = None):
+    def mutual(t_max: int, t_min: int | None = None):
         return Mutual(t_max, t_min)
 
 

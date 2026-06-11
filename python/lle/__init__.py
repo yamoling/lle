@@ -147,7 +147,7 @@ from .lle import __version__, agent, exceptions, tiles, world  # noqa # prevent 
 
 from .agent import Agent
 from .env import LLE
-from .generator import generate
+from .generator import generate, CustomGenerator
 from .observations import ObservationType
 from .solver import solve
 from .types import AgentId, LaserId, Position
@@ -184,4 +184,5 @@ __all__ = [
     "is_cooperative",
     "generate",
     "characterize",
+    "CustomGenerator",
 ]

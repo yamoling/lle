@@ -6,12 +6,13 @@ from typing import Literal, overload
 from ..world import World
 from ._args import GenerateArgs
 from .constructive import ConstructiveGenerator
+from .custom import CustomGenerator
 from .generator import Generator
 from .level6_style import Level6StyleGenerator
 from .random import RandomGenerator
 from .world_filter import Cooperative, GeneratorKind, Independent, Mutual, Solvable, WorldFilter
 
-__all__ = ["generate", "WorldFilter", "Solvable", "Independent", "Cooperative", "Mutual"]
+__all__ = ["generate", "WorldFilter", "Solvable", "Independent", "Cooperative", "Mutual", "CustomGenerator"]
 
 _GENERATORS: dict[GeneratorKind, type[Generator]] = {
     "random": RandomGenerator,

@@ -3,6 +3,7 @@ from __future__ import annotations
 from lle.tiles import Direction
 
 from ._candidates import CandidateLayout
+from ._shapes import WALL_SHAPES, place_wall_shapes
 from .constructive import ConstructiveGenerator
 from .world_filter import WorldFilter
 
@@ -15,19 +16,7 @@ class Level6StyleGenerator(ConstructiveGenerator):
     """
 
     _FLUSH_PROB = 0.75
-
-    _WALL_SHAPES = (
-        # (weight, offsets-from-anchor)
-        (4, ((0, 0), (0, 1))),  # bar-2 horizontal
-        (4, ((0, 0), (1, 0))),  # bar-2 vertical
-        (1, ((0, 0), (0, 1), (0, 2))),  # bar-3 horizontal
-        (1, ((0, 0), (1, 0), (2, 0))),  # bar-3 vertical
-        (1, ((0, 0), (0, 1), (1, 0))),  # L
-        (1, ((0, 0), (0, 1), (1, 1))),
-        (1, ((0, 0), (1, 0), (1, 1))),
-        (1, ((0, 1), (1, 0), (1, 1))),
-        (2, ((0, 0), (0, 1), (1, 0), (1, 1))),  # 2x2 block
-    )
+    _WALL_SHAPES = WALL_SHAPES
 
     def __init__(
         self,
@@ -174,32 +163,4 @@ class Level6StyleGenerator(ConstructiveGenerator):
         )
 
     def _place_wall_shapes(self, free_cells: list[tuple[int, int]], budget: int) -> list[tuple[int, int]]:
-        """Place walls as connected mini-shapes (bars / L / 2x2), within budget."""
-        free_set = set(free_cells)
-        anchors = list(free_cells)
-        self._rng.shuffle(anchors)
-        weights = [w for w, _ in self._WALL_SHAPES]
-        shapes = [s for _, s in self._WALL_SHAPES]
-        walls: list[tuple[int, int]] = []
-
-        for anchor in anchors:
-            if budget <= 0:
-                break
-            if anchor not in free_set:
-                continue
-            chosen_cells: list[tuple[int, int]] | None = None
-            for shape in self._rng.choices(shapes, weights=weights, k=4):
-                if len(shape) > budget:
-                    continue
-                cells = [(anchor[0] + dr, anchor[1] + dc) for dr, dc in shape]
-                if all(cell in free_set for cell in cells):
-                    chosen_cells = cells
-                    break
-            if chosen_cells is None:
-                chosen_cells = [anchor]
-            for cell in chosen_cells:
-                free_set.discard(cell)
-            walls.extend(chosen_cells)
-            budget -= len(chosen_cells)
-
-        return walls
+        return place_wall_shapes(free_cells, budget, self._rng)

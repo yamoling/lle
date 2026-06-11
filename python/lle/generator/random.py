@@ -3,7 +3,7 @@ from __future__ import annotations
 from lle.tiles import Direction
 
 from ._candidates import CandidateLayout
-from ._geometry import beam_tiles, points_out_immediately
+from ._geometry import beam_tiles, geometry_ok, points_out_immediately
 from .generator import Generator, _LayoutRetry
 
 
@@ -39,17 +39,4 @@ class RandomGenerator(Generator):
         return layout
 
     def _geometry_ok(self, layout: CandidateLayout) -> bool:
-        wall_set = set(layout.walls)
-        laser_set = {pos for _, pos, _ in layout.lasers}
-        exit_set = set(layout.exits)
-        all_beam: set[tuple[int, int]] = set()
-        for _owner, src, direction in layout.lasers:
-            if points_out_immediately(src, direction, self.rows, self.cols):
-                return False
-            tiles = beam_tiles(src, direction, wall_set, laser_set, self.rows, self.cols)
-            if not tiles:
-                return False
-            all_beam.update(tiles)
-        if exit_set & all_beam:
-            return False
-        return True
+        return geometry_ok(layout, self.rows, self.cols)
