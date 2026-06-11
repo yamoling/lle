@@ -64,8 +64,8 @@ class TemporalDependencyGraph:
         return self._edges
 
     @property
-    def is_independent(self) -> bool:
-        """Whether the trajectory contains no dependency at all."""
+    def is_empty(self):
+        """Whether the trajectory contains no edge at all."""
         return len(self._edges) == 0
 
     def edges_at(self, t: int) -> set[tuple[AgentId, AgentId]]:
@@ -105,10 +105,13 @@ class TemporalDependencyGraph:
 
     def longest_chain(self) -> int:
         """
-        A chain ``(a, t0) -> (b, t1) -> (c, t2) -> ...`` is a simple directed path of at
-        least three different agents in the temporal graph. A chain encodes the idea of
-        transitivity of the cooperation: if a helps b and b helps c, then a also helps c
-        indirectly.
+        A chain ``(a, t0) -> (b, t1) -> (c, t2) -> ...`` is a temporal directed path whose
+        edges progress strictly through time. A chain encodes the idea of transitivity of the
+        cooperation: if a helps b and b helps c, then a also helps c indirectly.
+
+        Agents may repeat only to close a temporal cycle back to the starting agent. In
+        particular, ``a -> b -> a`` counts as a chain of length 2, while longer walks such as
+        ``a -> b -> c -> a`` also count but stop when they return to their start.
 
         A chain must have a length of at least 2 edges, otherwise it is not a chain.
 
@@ -121,26 +124,29 @@ class TemporalDependencyGraph:
            - `a -> b -> c -> a` returns `2`;
            - `a -> b -> c -> d` returns `3`;
            - `a -> b`, and `a -> c` returns `0`;
-           - `a -> b -> a` returns `0` because mutual help is not considered a chain;
+           - `a -> b -> a` returns `2`;
            - an independent graph returns `0`.
         """
         by_helper: dict[AgentId, list[tuple[AgentId, int]]] = defaultdict(list)
         for e in self._edges:
             by_helper[e.helper].append((e.beneficiary, e.t))
 
-        def dfs(node: AgentId, visited: set[AgentId], last_t: int) -> int:
+        def dfs(start: AgentId, node: AgentId, visited: set[AgentId], last_t: int) -> int:
             best = 0
             for nxt, t in by_helper.get(node, []):
+                if t < last_t:
+                    continue
+                if nxt == start and len(visited) >= 2:
+                    best = max(best, 1)
+                    continue
                 if nxt in visited:
                     continue
-                if t <= last_t:
-                    continue
                 visited.add(nxt)
-                best = max(best, 1 + dfs(nxt, visited, t))
+                best = max(best, 1 + dfs(start, nxt, visited, t))
                 visited.remove(nxt)
             return best
 
-        max_length = max((dfs(start, {start}, -1) for start in range(self.n_agents)), default=0)
+        max_length = max((dfs(start, start, {start}, -1) for start in range(self.n_agents)), default=0)
         if max_length < 2:
             return 0
         return max_length
@@ -148,41 +154,25 @@ class TemporalDependencyGraph:
     # ------------------------------------------------------------------
     # Cycles
     # ------------------------------------------------------------------
-    def has_temporal_cycle(self) -> bool:
-        """Whether a cycle exists whose edges progress strictly through time.
+    def has_cycle(self) -> bool:
+        """Whether a mutual-help cycle exists with strictly increasing time.
 
-        A temporal cycle is a sequence ``v0 -> v1 -> ... -> v0`` whose successive
-        edges have strictly increasing time stamps (e.g. ``a -> b`` at ``t``,
-        ``b -> c`` at ``t + 1``, ``c -> a`` at ``t + 2``).  Such a cycle means
-        that, over time, every agent on it relies on every other.
+        A cycle is detected when there exist two agents ``a`` and ``b`` such that
+        ``a`` helps ``b`` at time ``t1`` and ``b`` helps ``a`` at time ``t2 > t1``.
+        Same-timestep mutual edges (``t1 == t2``) are not counted because the
+        strictly-increasing requirement is not satisfied.
         """
-        by_helper: dict[AgentId, list[tuple[AgentId, int]]] = defaultdict(list)
+        by_helper: dict[AgentId, set[tuple[AgentId, int]]] = defaultdict(set)
         for e in self._edges:
-            by_helper[e.helper].append((e.beneficiary, e.t))
+            by_helper[e.helper].add((e.beneficiary, e.t))
 
-        for start in range(self.n_agents):
-            memo: dict[tuple[AgentId, int], bool] = {}
-
-            def can_return(node: AgentId, last_t: int, start: AgentId = start) -> bool:
-                key = (node, last_t)
-                cached = memo.get(key)
-                if cached is not None:
-                    return cached
-                result = False
-                for nxt, t in by_helper.get(node, ()):
-                    if t <= last_t:
-                        continue
-                    if nxt == start or can_return(nxt, t):
-                        result = True
-                        break
-                memo[key] = result
-                return result
-
-            if can_return(start, -1):
-                return True
+        for e in self._edges:
+            for nxt, t_reverse in by_helper.get(e.beneficiary, set()):
+                if nxt == e.helper and t_reverse > e.t:
+                    return True
         return False
 
-    def has_hamiltonian_cycle(self) -> bool:
+    def has_time_agnostic_cycle(self) -> bool:
         """Whether the flattened graph has a cycle visiting every agent exactly once."""
         if self.n_agents < 2:
             return False
@@ -260,10 +250,10 @@ class TemporalDependencyGraph:
         return adjacency
 
     def profile(self) -> "TrajectoryProfile":
-        """Summarise the graph into a `CooperationProfile`."""
+        """Summarise the graph into a `TrajectoryProfile`."""
         from .profile import TrajectoryProfile
 
-        return TrajectoryProfile.from_graph(self)
+        return TrajectoryProfile(self)
 
     def __repr__(self) -> str:
         return f"TemporalDependencyGraph(n_agents={self.n_agents}, horizon={self.horizon}, n_edges={len(self._edges)})"

@@ -25,7 +25,7 @@ _Kind = Literal["auto", "random", "constructive", "level6_style"]
 # A single world is returned when ``n == 1`` and the attempt budget is unbounded.
 @overload
 def generate(
-    kind: _Kind = "auto",
+    kind: Literal["auto", "random", "constructive", "level6_style"] = "auto",
     *,
     n: Literal[1] = 1,
     max_attempts: None = None,
@@ -35,9 +35,27 @@ def generate(
     n_lasers: int | Literal["auto"] = "auto",
     cooperative: bool | None = None,
     mutual: bool | None = None,
-    filter: WorldFilter | None = None,
     t_min: int | None = None,
     t_max: int | Literal["auto"] = "auto",
+    n_walls: int | Literal["auto"] = "auto",
+    seed: int | None = None,
+    n_jobs: int | Literal["auto"] = 1,
+    quiet: bool = False,
+) -> World: ...
+
+
+# A single world is returned when ``n == 1`` and the attempt budget is unbounded.
+@overload
+def generate(
+    kind: Literal["auto", "random", "constructive", "level6_style"] = "auto",
+    *,
+    n: Literal[1] = 1,
+    max_attempts: None = None,
+    n_agents: int = 3,
+    height: int = 10,
+    width: int = 10,
+    n_lasers: int | Literal["auto"] = "auto",
+    filter: WorldFilter | None = None,
     n_walls: int | Literal["auto"] = "auto",
     seed: int | None = None,
     n_jobs: int | Literal["auto"] = 1,
@@ -48,7 +66,7 @@ def generate(
 # A bounded budget may fail, so a single world becomes optional.
 @overload
 def generate(
-    kind: _Kind = "auto",
+    kind: Literal["auto", "random", "constructive", "level6_style"] = "auto",
     *,
     n: Literal[1] = 1,
     max_attempts: int,
@@ -58,9 +76,26 @@ def generate(
     n_lasers: int | Literal["auto"] = "auto",
     cooperative: bool | None = None,
     mutual: bool | None = None,
-    filter: WorldFilter | None = None,
     t_min: int | None = None,
     t_max: int | Literal["auto"] = "auto",
+    n_walls: int | Literal["auto"] = "auto",
+    seed: int | None = None,
+    n_jobs: int | Literal["auto"] = 1,
+    quiet: bool = False,
+) -> World | None: ...
+
+
+@overload
+def generate(
+    kind: Literal["auto", "random", "constructive", "level6_style"] = "auto",
+    *,
+    n: Literal[1] = 1,
+    max_attempts: int,
+    n_agents: int = 3,
+    height: int = 10,
+    width: int = 10,
+    filter: WorldFilter | None = None,
+    n_lasers: int | Literal["auto"] = "auto",
     n_walls: int | Literal["auto"] = "auto",
     seed: int | None = None,
     n_jobs: int | Literal["auto"] = 1,
@@ -71,7 +106,7 @@ def generate(
 # Asking for several worlds yields a (possibly shorter than ``n``) stream.
 @overload
 def generate(
-    kind: _Kind = "auto",
+    kind: Literal["auto", "random", "constructive", "level6_style"] = "auto",
     *,
     n: int,
     max_attempts: int | None = None,
@@ -81,8 +116,7 @@ def generate(
     n_lasers: int | Literal["auto"] = "auto",
     cooperative: bool | None = None,
     mutual: bool | None = None,
-    filter: WorldFilter | None = None,
-    t_min: int = 0,
+    t_min: int | None = None,
     t_max: int | Literal["auto"] = "auto",
     n_walls: int | Literal["auto"] = "auto",
     seed: int | None = None,
@@ -91,8 +125,26 @@ def generate(
 ) -> Iterator[World]: ...
 
 
+@overload
 def generate(
-    kind: _Kind = "auto",
+    kind: Literal["auto", "random", "constructive", "level6_style"] = "auto",
+    *,
+    n: int,
+    max_attempts: int | None = None,
+    n_agents: int = 3,
+    height: int = 10,
+    width: int = 10,
+    n_lasers: int | Literal["auto"] = "auto",
+    filter: WorldFilter | None = None,
+    n_walls: int | Literal["auto"] = "auto",
+    seed: int | None = None,
+    n_jobs: int | Literal["auto"] = 1,
+    quiet: bool = False,
+) -> Iterator[World]: ...
+
+
+def generate(
+    kind: Literal["auto", "random", "constructive", "level6_style"] = "auto",
     *,
     n: int = 1,
     max_attempts: int | None = None,
@@ -107,7 +159,7 @@ def generate(
     t_max: int | Literal["auto"] = "auto",
     n_walls: int | Literal["auto"] = "auto",
     seed: int | None = None,
-    n_jobs: int | Literal["auto"] = 1,
+    n_jobs: int | Literal["auto"] = "auto",
     quiet: bool = False,
 ) -> World | Iterator[World] | None:
     """Build solvable `World` instances using a SAT-verified procedural generator.
@@ -140,9 +192,8 @@ def generate(
 
     world = lle.generate(height=5, width=5, n_agents=2, seed=0)
     world = lle.generate(cooperative=True, n_agents=2, height=5, width=5, n_lasers=1)
-    world = lle.generate("constructive", mutual=True, n_agents=4)
-    worlds = list(lle.generate(n=10, filter=Cooperative(), kind="random",
-                               height=5, width=5, n_agents=2, n_lasers=1))
+    world = lle.generate(kind="constructive", mutual=True, n_agents=4)
+    worlds = list(lle.generate(n=10, filter=Cooperative(), kind="random", height=5, width=5, n_agents=2, n_lasers=1))
     ```
     """
     args = GenerateArgs(

@@ -73,6 +73,22 @@ class WorldFilter(ABC):
         """The generator strategy that best fits this filter when ``kind='auto'``."""
         return "constructive"
 
+    @staticmethod
+    def solvable(t_max: int, t_min: int | None = None):
+        return Solvable(t_max, t_min)
+
+    @staticmethod
+    def independent(t_max: int, t_min: int | None = None):
+        return Independent(t_max, t_min)
+
+    @staticmethod
+    def cooperative(t_max: int, t_min: int | None = None):
+        return Cooperative(t_max, t_min)
+
+    @staticmethod
+    def require_mutual_cooperation(t_max: int, t_min: int | None = None):
+        return Mutual(t_max, t_min)
+
 
 @dataclass(frozen=True)
 class Solvable(WorldFilter):

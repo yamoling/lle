@@ -58,12 +58,7 @@ def detect_dependencies(world: World) -> set[tuple[AgentId, AgentId]]:
     return edges
 
 
-def profile_trajectory(
-    world: World,
-    trajectory: Trajectory,
-    *,
-    reset: bool = True,
-) -> TemporalDependencyGraph:
+def profile_trajectory(world: World, trajectory: Trajectory, *, reset: bool = True):
     """Replay ``trajectory`` and build the temporal helper graph.
 
     # Args:
@@ -77,9 +72,7 @@ def profile_trajectory(
             current state.
 
     # Returns:
-        The `TemporalDependencyGraph` whose edges are the help relationships
-        observed at the initial state (``t = 0``) and after each action
-        (``t = 1, 2, ...``).
+        The `TrajectoryProfile` summarising the graph.
     """
     world = deepcopy(world)
     if reset:
@@ -93,4 +86,4 @@ def profile_trajectory(
         for helper, beneficiary in detect_dependencies(world):
             edges.append(DependencyEdge(helper, beneficiary, t))
 
-    return TemporalDependencyGraph(world.n_agents, edges, horizon=len(trajectory))
+    return TemporalDependencyGraph(world.n_agents, edges, horizon=len(trajectory)).profile()

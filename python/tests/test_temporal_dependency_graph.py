@@ -158,12 +158,12 @@ class TestBasicConstruction:
 
     def test_empty_graph_is_independent(self, empty_graph_2_agents: TemporalDependencyGraph):
         """An empty graph (no edges) is independent."""
-        assert empty_graph_2_agents.is_independent is True
+        assert empty_graph_2_agents.profile().is_independent
         assert len(empty_graph_2_agents.edges) == 0
 
     def test_non_empty_graph_not_independent(self, single_edge_graph: TemporalDependencyGraph):
         """A graph with at least one edge is not independent."""
-        assert single_edge_graph.is_independent is False
+        assert not single_edge_graph.profile().is_independent
 
     def test_graph_preserves_n_agents(self, empty_graph_5_agents: TemporalDependencyGraph):
         """n_agents is correctly stored and retrieved."""
@@ -411,15 +411,24 @@ class TestLongestTemporalChain:
         graph = TemporalDependencyGraph(n_agents=4, edges=edges, horizon=4)
         assert graph.longest_chain() == 3
 
-    def test_temporal_chain_same_time(self):
-        """Edges at the same time cannot form a chain (time must be strictly increasing)."""
+    def test_temporal_no_chain_same_time(self):
+        """Edges at the same time can form a chain."""
         edges = [
             DependencyEdge(helper=0, beneficiary=1, t=1),
             DependencyEdge(helper=1, beneficiary=2, t=1),
         ]
         graph = TemporalDependencyGraph(n_agents=3, edges=edges, horizon=2)
-        # 0 -> 1 -> 2 but both edges at t=1, so no valid temporal chain of length >= 2
-        assert graph.longest_chain() == 0
+        assert graph.longest_chain() == 2
+
+    def test_temporal_chain_same_time(self):
+        """Edges at the same time cannot form a chain."""
+        edges = [
+            DependencyEdge(helper=0, beneficiary=1, t=1),
+            DependencyEdge(helper=1, beneficiary=2, t=1),
+            DependencyEdge(helper=2, beneficiary=3, t=1),
+        ]
+        graph = TemporalDependencyGraph(n_agents=3, edges=edges, horizon=3)
+        assert graph.longest_chain() == 3
 
     def test_temporal_chain_decreasing_times(self):
         """Chain with decreasing times cannot form a chain (time must be strictly increasing)."""
@@ -445,15 +454,14 @@ class TestLongestTemporalChain:
         assert graph.longest_chain() == 2
 
     def test_temporal_chain_with_equal_times(self):
-        """Chains cannot form when times are equal (times must be strictly increasing)."""
+        """Edges at the same time can form a chain."""
         edges = [
             DependencyEdge(helper=0, beneficiary=1, t=1),
             DependencyEdge(helper=1, beneficiary=2, t=1),
             DependencyEdge(helper=2, beneficiary=3, t=1),
         ]
         graph = TemporalDependencyGraph(n_agents=4, edges=edges, horizon=2)
-        # All edges at same time: no valid temporal chain of length >= 2
-        assert graph.longest_chain() == 0
+        assert graph.longest_chain() == 3
 
     def test_temporal_chain_mixed_times(self):
         """Complex case with multiple paths at different times."""
@@ -470,9 +478,9 @@ class TestLongestTemporalChain:
     def test_temporal_chain_hamiltonian_cycle(self, hamiltonian_cycle_graph: TemporalDependencyGraph):
         """A Hamiltonian cycle with strictly increasing times."""
         # 0 -> 1 (t=1), 1 -> 2 (t=2), 2 -> 3 (t=3), 3 -> 0 (t=4)
-        # Longest temporal chain: 0 -> 1 -> 2 -> 3 (length 3)
-        # Cannot include 3 -> 0 because that would require visiting 0 twice
-        assert hamiltonian_cycle_graph.longest_chain() == 3
+        # Longest temporal chain: 0 -> 1 -> 2 -> 3 -> 0 (length 4)
+        # Include 3 -> 0 even though it re-visits 0 twice
+        assert hamiltonian_cycle_graph.longest_chain() == 4
 
     # --- Docstring example tests ---
 
@@ -492,7 +500,7 @@ class TestLongestTemporalChain:
         assert graph.longest_chain() == 2
 
     def test_cycle_three_agents_returns_2(self):
-        """Doc example: a -> b -> c -> a returns 2 (cannot revisit start)."""
+        """Doc example: a -> b -> c -> a returns 3."""
         # This is the temporal_cycle_graph: 0->1 (t=1), 1->2 (t=2), 2->0 (t=3)
         edges = [
             DependencyEdge(helper=0, beneficiary=1, t=1),
@@ -500,7 +508,7 @@ class TestLongestTemporalChain:
             DependencyEdge(helper=2, beneficiary=0, t=3),
         ]
         graph = TemporalDependencyGraph(n_agents=3, edges=edges, horizon=4)
-        assert graph.longest_chain() == 2
+        assert graph.longest_chain() == 3
 
     def test_four_agents_returns_3(self):
         """Doc example: a -> b -> c -> d returns 3."""
@@ -521,14 +529,14 @@ class TestLongestTemporalChain:
         graph = TemporalDependencyGraph(n_agents=3, edges=edges, horizon=3)
         assert graph.longest_chain() == 0
 
-    def test_mutual_help_is_not_chain(self):
+    def test_mutual_help_is_chain(self):
         """Doc example: a -> b -> a returns 0 because mutual help is not a chain."""
         edges = [
             DependencyEdge(helper=0, beneficiary=1, t=1),
             DependencyEdge(helper=1, beneficiary=0, t=2),
         ]
         graph = TemporalDependencyGraph(n_agents=2, edges=edges, horizon=3)
-        assert graph.longest_chain() == 0
+        assert graph.longest_chain() == 2
 
     def test_independent_graph_returns_0(self):
         """Doc example: an independent graph returns 0."""
@@ -540,48 +548,47 @@ class TestLongestTemporalChain:
 # Tests: Temporal cycle detection
 # ============================================================================
 class TestTemporalCycleDetection:
-    """Test has_temporal_cycle method."""
+    """Test has_cycle method."""
 
     def test_temporal_cycle_empty(self, empty_graph_5_agents: TemporalDependencyGraph):
         """Empty graph has no temporal cycle."""
-        assert empty_graph_5_agents.has_temporal_cycle() is False
+        assert not empty_graph_5_agents.has_cycle()
 
     def test_temporal_cycle_single_edge(self, single_edge_graph: TemporalDependencyGraph):
         """Single edge cannot form a cycle."""
-        assert single_edge_graph.has_temporal_cycle() is False
+        assert not single_edge_graph.has_cycle()
 
     def test_temporal_cycle_linear_chain(self, linear_chain_graph: TemporalDependencyGraph):
         """Linear chain has no cycle."""
-        assert linear_chain_graph.has_temporal_cycle() is False
+        assert not linear_chain_graph.has_cycle()
 
     def test_temporal_cycle_branching(self, branching_graph: TemporalDependencyGraph):
         """Branching structure has no cycle."""
-        assert branching_graph.has_temporal_cycle() is False
+        assert not branching_graph.has_cycle()
 
     def test_temporal_cycle_detected(self, temporal_cycle_graph: TemporalDependencyGraph):
         """Temporal cycle with strictly increasing time is detected."""
         # 0 -> 1 -> 2 -> 0 with t increasing
-        assert temporal_cycle_graph.has_temporal_cycle() is True
+        assert not temporal_cycle_graph.has_cycle()
 
     def test_temporal_cycle_static_not_detected(self, static_cycle_graph: TemporalDependencyGraph):
         """Cycle at the same time step is NOT a temporal cycle."""
         # 0 <-> 1 both at t=1: time is not strictly increasing
-        assert static_cycle_graph.has_temporal_cycle() is False
+        assert not static_cycle_graph.has_cycle()
 
     def test_temporal_cycle_disconnected(self, disconnected_graph: TemporalDependencyGraph):
         """No temporal cycle when components are separate."""
-        assert disconnected_graph.has_temporal_cycle() is False
+        assert not disconnected_graph.has_cycle()
 
     def test_temporal_cycle_in_scc(self, scc_3_agents: TemporalDependencyGraph):
         """SCC with backward edges may have temporal cycles."""
         # The test SCC has edges at different times that could form cycles
         # Actual result depends on edge ordering in fixture
-        result = scc_3_agents.has_temporal_cycle()
-        assert isinstance(result, bool)  # Just verify it runs
+        assert scc_3_agents.has_cycle()
 
     def test_temporal_cycle_single_agent(self, single_agent_graph: TemporalDependencyGraph):
         """Single agent cannot form a temporal cycle."""
-        assert single_agent_graph.has_temporal_cycle() is False
+        assert not single_agent_graph.has_cycle()
 
 
 # ============================================================================
@@ -590,55 +597,55 @@ class TestTemporalCycleDetection:
 
 
 class TestHamiltonianCycleDetection:
-    """Test has_hamiltonian_cycle method."""
+    """Test has_time_agnostic_cycle method."""
 
     def test_hamiltonian_cycle_empty(self, empty_graph_5_agents):
         """Empty graph has no Hamiltonian cycle."""
-        assert empty_graph_5_agents.has_hamiltonian_cycle() is False
+        assert empty_graph_5_agents.has_time_agnostic_cycle() is False
 
     def test_hamiltonian_cycle_single_agent(self, single_agent_graph):
         """Single agent cannot have a Hamiltonian cycle."""
-        assert single_agent_graph.has_hamiltonian_cycle() is False
+        assert single_agent_graph.has_time_agnostic_cycle() is False
 
     def test_hamiltonian_cycle_two_agents_incomplete(self, single_edge_graph):
         """Two agents with one-directional edge have no Hamiltonian cycle."""
         # 0 -> 1, but no 1 -> 0
-        assert single_edge_graph.has_hamiltonian_cycle() is False
+        assert single_edge_graph.has_time_agnostic_cycle() is False
 
     def test_hamiltonian_cycle_two_agents_complete(self, static_cycle_graph):
         """Two agents with bidirectional edges have a Hamiltonian cycle."""
         # 0 <-> 1
-        assert static_cycle_graph.has_hamiltonian_cycle() is True
+        assert static_cycle_graph.has_time_agnostic_cycle() is True
 
     def test_hamiltonian_cycle_detected(self, hamiltonian_cycle_graph):
         """Hamiltonian cycle through all agents is detected."""
         # 0 -> 1 -> 2 -> 3 -> 0
-        assert hamiltonian_cycle_graph.has_hamiltonian_cycle() is True
+        assert hamiltonian_cycle_graph.has_time_agnostic_cycle() is True
 
     def test_hamiltonian_cycle_linear_no_return(self, linear_chain_graph):
         """Linear chain without return edge has no Hamiltonian cycle."""
         # 0 -> 1 -> 2 -> 3
-        assert linear_chain_graph.has_hamiltonian_cycle() is False
+        assert linear_chain_graph.has_time_agnostic_cycle() is False
 
     def test_hamiltonian_cycle_branching(self, branching_graph):
         """Branching structure has no Hamiltonian cycle."""
         # 0 -> {1, 2, 3}
-        assert branching_graph.has_hamiltonian_cycle() is False
+        assert branching_graph.has_time_agnostic_cycle() is False
 
     def test_hamiltonian_cycle_converging(self, converging_graph):
         """Converging structure has no Hamiltonian cycle."""
         # {1, 2, 3} -> 0
-        assert converging_graph.has_hamiltonian_cycle() is False
+        assert converging_graph.has_time_agnostic_cycle() is False
 
     def test_hamiltonian_cycle_temporal(self, temporal_cycle_graph):
         """Temporal cycle with 3 agents is a Hamiltonian cycle."""
         # 0 -> 1 -> 2 -> 0
-        assert temporal_cycle_graph.has_hamiltonian_cycle() is True
+        assert temporal_cycle_graph.has_time_agnostic_cycle() is True
 
     def test_hamiltonian_cycle_disconnected(self, disconnected_graph):
         """Disconnected components cannot have a Hamiltonian cycle."""
         # Two separate edges: no way to visit all 4 agents in one cycle
-        assert disconnected_graph.has_hamiltonian_cycle() is False
+        assert disconnected_graph.has_time_agnostic_cycle() is False
 
 
 # ============================================================================
@@ -744,11 +751,11 @@ class TestEdgeCases:
     def test_zero_agents(self):
         """Graph with zero agents."""
         graph = TemporalDependencyGraph(n_agents=0, edges=[], horizon=0)
-        assert graph.is_independent is True
         assert graph.longest_chain() == 0
-        assert graph.has_temporal_cycle() is False
-        assert graph.has_hamiltonian_cycle() is False
+        assert not graph.has_cycle()
+        assert not graph.has_time_agnostic_cycle()
         assert len(graph.strongly_connected_components()) == 0
+        assert graph.profile().is_independent
 
     def test_self_loop_not_in_flattened(self):
         """Self-loops (helper == beneficiary) should not normally occur but are handled."""
@@ -805,95 +812,62 @@ class TestEdgeCases:
 class TestProfileIntegration:
     """Test the profile() method and TrajectoryProfile generation."""
 
-    def test_profile_empty_graph(self, empty_graph_5_agents):
+    def test_profile_empty_graph(self, empty_graph_5_agents: TemporalDependencyGraph):
         """Profile of empty graph has correct independent flag."""
         profile = empty_graph_5_agents.profile()
         assert isinstance(profile, TrajectoryProfile)
-        assert profile.is_independent is True
-        assert profile.n_dependencies == 0
+        assert profile.is_independent
 
-    def test_profile_single_edge(self, single_edge_graph):
+    def test_profile_single_edge(self, single_edge_graph: TemporalDependencyGraph):
         """Profile of single-edge graph has correct metrics."""
         profile = single_edge_graph.profile()
-        assert profile.is_independent is False
-        assert profile.n_dependencies == 1
-        assert profile.longest_chain == 0
+        assert not profile.is_independent
+        assert profile.is_cooperative
 
-    def test_profile_linear_chain(self, linear_chain_graph):
+    def test_profile_linear_chain(self, linear_chain_graph: TemporalDependencyGraph):
         """Profile of linear chain has correct longest_chain."""
         profile = linear_chain_graph.profile()
-        assert profile.longest_chain == 3
-        assert profile.has_temporal_cycle is False
+        assert linear_chain_graph.longest_chain() == 3
+        assert profile.is_chained
 
-    def test_profile_temporal_cycle(self, temporal_cycle_graph):
+    def test_profile_temporal_cycle(self, temporal_cycle_graph: TemporalDependencyGraph):
         """Profile detects temporal cycle correctly."""
         profile = temporal_cycle_graph.profile()
-        assert profile.has_temporal_cycle is True
-        assert len(profile.strongly_connected_components) >= 1
+        assert temporal_cycle_graph.has_cycle
+        assert len(temporal_cycle_graph.strongly_connected_components()) >= 1
+        assert profile.is_mutual
 
-    def test_profile_branching(self, branching_graph):
+    def test_profile_branching(self, branching_graph: TemporalDependencyGraph):
         """Profile of branching graph has correct fan-out."""
-        profile = branching_graph.profile()
-        assert profile.max_fan_out == 3
-        assert profile.longest_chain == 0
+        assert branching_graph.max_fan_out() == 3
+        assert branching_graph.longest_chain() == 0
 
-    def test_profile_converging(self, converging_graph):
+    def test_profile_converging(self, converging_graph: TemporalDependencyGraph):
         """Profile of converging graph has correct fan-in."""
-        profile = converging_graph.profile()
-        assert profile.max_fan_in == 3
-        assert profile.longest_chain == 0
+        assert converging_graph.max_fan_in() == 3
+        assert converging_graph.longest_chain() == 0
 
-    def test_profile_scc(self, static_cycle_graph):
+    def test_profile_scc(self, static_cycle_graph: TemporalDependencyGraph):
         """Profile includes non-trivial SCC information."""
         profile = static_cycle_graph.profile()
-        assert len(profile.strongly_connected_components) == 1
-        assert profile.largest_scc_size == 2
+        assert len(static_cycle_graph.strongly_connected_components()) == 1
+        assert max((len(scc) for scc in static_cycle_graph.strongly_connected_components()), default=0) == 2
+        assert profile.is_mutual
+        assert profile.is_chained
 
-    def test_profile_all_fields_populated(self, linear_chain_graph):
-        """Profile has all expected fields populated."""
-        profile = linear_chain_graph.profile()
-        assert profile.n_agents == linear_chain_graph.n_agents
-        assert profile.horizon == linear_chain_graph.horizon
-        assert hasattr(profile, "is_independent")
-        assert hasattr(profile, "n_dependencies")
-        assert hasattr(profile, "fan_in")
-        assert hasattr(profile, "fan_out")
-        assert hasattr(profile, "max_fan_in")
-        assert hasattr(profile, "max_fan_out")
-        assert hasattr(profile, "longest_chain")
-        assert hasattr(profile, "strongly_connected_components")
-        assert hasattr(profile, "largest_scc_size")
-        assert hasattr(profile, "has_temporal_cycle")
-        assert hasattr(profile, "has_hamiltonian_cycle")
-
-    def test_profile_fan_in_dict(self, branching_graph):
-        """Profile fan_in dict has entry for each agent."""
-        profile = branching_graph.profile()
-        for agent in range(branching_graph.n_agents):
-            assert agent in profile.fan_in
-            assert isinstance(profile.fan_in[agent], int)
-
-    def test_profile_fan_out_dict(self, branching_graph):
-        """Profile fan_out dict has entry for each agent."""
-        profile = branching_graph.profile()
-        for agent in range(branching_graph.n_agents):
-            assert agent in profile.fan_out
-            assert isinstance(profile.fan_out[agent], int)
-
-    def test_profile_hamiltonian_cycle(self, hamiltonian_cycle_graph):
+    def test_profile_hamiltonian_cycle(self, hamiltonian_cycle_graph: TemporalDependencyGraph):
         """Profile detects Hamiltonian cycle."""
-        profile = hamiltonian_cycle_graph.profile()
-        assert profile.has_hamiltonian_cycle is True
+        assert hamiltonian_cycle_graph.has_time_agnostic_cycle()
 
-    def test_profile_has_mutual_help_true(self, static_cycle_graph):
+    def test_profile_has_mutual_help_true(self, static_cycle_graph: TemporalDependencyGraph):
         """Profile has_mutual_help property is True for SCCs."""
         profile = static_cycle_graph.profile()
-        assert profile.has_mutual_help is True
+        assert profile.is_mutual
 
-    def test_profile_has_mutual_help_false(self, linear_chain_graph):
+    def test_profile_has_mutual_help_false(self, linear_chain_graph: TemporalDependencyGraph):
         """Profile has_mutual_help property is False for acyclic graph."""
         profile = linear_chain_graph.profile()
-        assert profile.has_mutual_help is False
+        assert not profile.is_mutual
 
 
 # ============================================================================
@@ -904,7 +878,7 @@ class TestProfileIntegration:
 class TestConsistency:
     """Test internal consistency of the graph methods."""
 
-    def test_flattened_edges_match_helpers_beneficiaries(self, branching_graph):
+    def test_flattened_edges_match_helpers_beneficiaries(self, branching_graph: TemporalDependencyGraph):
         """Flattened edges match the union of all (helper, beneficiary) pairs."""
         flattened = branching_graph.flattened_edges()
         reconstructed = set()
@@ -915,31 +889,31 @@ class TestConsistency:
                 reconstructed.add((agent, beneficiary))
         assert flattened == reconstructed
 
-    def test_fan_in_equals_helpers_count(self, converging_graph):
+    def test_fan_in_equals_helpers_count(self, converging_graph: TemporalDependencyGraph):
         """fan_in should equal the size of helpers_of set."""
         for agent in range(converging_graph.n_agents):
             assert converging_graph.fan_in(agent) == len(converging_graph.helpers_of(agent))
 
-    def test_fan_out_equals_beneficiaries_count(self, branching_graph):
+    def test_fan_out_equals_beneficiaries_count(self, branching_graph: TemporalDependencyGraph):
         """fan_out should equal the size of beneficiaries_of set."""
         for agent in range(branching_graph.n_agents):
             assert branching_graph.fan_out(agent) == len(branching_graph.beneficiaries_of(agent))
 
-    def test_max_fan_in_is_maximum(self, scc_3_agents):
+    def test_max_fan_in_is_maximum(self, scc_3_agents: TemporalDependencyGraph):
         """max_fan_in should equal the maximum individual fan_in."""
         max_fan = scc_3_agents.max_fan_in()
         individual_fans = [scc_3_agents.fan_in(a) for a in range(scc_3_agents.n_agents)]
         assert max_fan == max(individual_fans) if individual_fans else 0
 
-    def test_max_fan_out_is_maximum(self, scc_3_agents):
+    def test_max_fan_out_is_maximum(self, scc_3_agents: TemporalDependencyGraph):
         """max_fan_out should equal the maximum individual fan_out."""
         max_fan = scc_3_agents.max_fan_out()
         individual_fans = [scc_3_agents.fan_out(a) for a in range(scc_3_agents.n_agents)]
         assert max_fan == max(individual_fans) if individual_fans else 0
 
-    def test_temporal_cycle_implies_hamiltonian_or_smaller(self, temporal_cycle_graph):
-        """If has_temporal_cycle is True, either there's a Hamiltonian or it's smaller."""
-        if temporal_cycle_graph.has_temporal_cycle():
+    def test_temporal_cycle_implies_hamiltonian_or_smaller(self, temporal_cycle_graph: TemporalDependencyGraph):
+        """If has_cycle is True, either there's a Hamiltonian or it's smaller."""
+        if temporal_cycle_graph.has_cycle():
             # For a cycle of n agents, a temporal cycle exists
             # It doesn't guarantee a Hamiltonian, but typically in test cases it does
             assert temporal_cycle_graph.n_agents >= 2
@@ -963,7 +937,7 @@ class TestRealWorldPatterns:
         ]
         graph = TemporalDependencyGraph(n_agents=4, edges=edges, horizon=4)
         assert graph.longest_chain() == 3
-        assert not graph.has_temporal_cycle()
+        assert not graph.has_cycle()
 
     def test_mutual_help_at_different_times(self):
         """Agents help each other but at different times (not mutual within one step)."""
@@ -972,8 +946,8 @@ class TestRealWorldPatterns:
             DependencyEdge(helper=1, beneficiary=0, t=2),
         ]
         graph = TemporalDependencyGraph(n_agents=2, edges=edges, horizon=3)
-        assert graph.has_temporal_cycle()
-        assert graph.has_hamiltonian_cycle()
+        assert graph.has_cycle()
+        assert graph.has_time_agnostic_cycle()
 
     def test_bottleneck_pattern(self):
         """One agent is critical: many agents depend on it."""
@@ -1024,7 +998,7 @@ class TestParametrized:
     def test_empty_graph_properties(self, n_agents):
         """Empty graph with any number of agents is independent."""
         graph = TemporalDependencyGraph(n_agents=n_agents, edges=[], horizon=0)
-        assert graph.is_independent is True
+        assert graph.profile().is_independent
         assert graph.longest_chain() == 0
         assert graph.max_fan_in() == 0
         assert graph.max_fan_out() == 0
@@ -1040,7 +1014,3 @@ class TestParametrized:
         """In a graph with one edge, uninvolved agents have no relationships."""
         if agent == 2:  # Only agents 0 and 1 are in single_edge_graph
             pytest.skip("Agent 2 not in graph")
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

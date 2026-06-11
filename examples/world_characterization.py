@@ -5,15 +5,8 @@ Mutual cooperation between two agents `a` and `b` is the conjunction
     "a helps b cross one of a's laser beams at some point"   AND
     "b helps a cross one of b's laser beams at some point".
 
-`lle.solve_without_mutual_cooperation(world, t_max)` searches for the shortest plan in which *no*
-pair of agents mutually cooperates, and `lle.requires_mutual_cooperation(world, t_max)` reports
-whether the world is solvable but *only* via some mutual cooperation.
-
-This is implemented on top of three Rust clause-generator primitives:
-
-    gen.dependency_clauses(t)          # agent(b, q, t) -> depends_on(b, a)  (a help event)
-    clauses, assumptions = gen.forbid_mutual_cooperation()
-    gen.mutual_lit(a, b)               # the SAT var for "a and b mutually depend"
+`lle.solve(world, t_max, "no-mutual-cooperation")` searches for the shortest plan in which *no*
+pair of agents mutually cooperates.
 
 Run with:  python python/examples/mutual_cooperation.py
 """
