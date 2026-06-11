@@ -158,7 +158,7 @@ class StateGenerator(ObservationGenerator):
 
     @property
     def shape(self):
-        """Each agent sees its position, alive flag, and gem status."""
+        """The full world state: (i, j) for each agent, each gem's collection status, and each agent's alive flag."""
         return (self._world.n_agents * 3 + self.n_gems,)
 
     @property
