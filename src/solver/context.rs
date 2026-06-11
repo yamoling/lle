@@ -42,21 +42,17 @@ pub struct ConstraintContext {
     pub t_max: usize,
     pub n_agents: usize,
     pub start_pos: Vec<Position>,
-    /// `predecessors[i * width + j]` = positions from which an agent can move into `(i, j)`.
-    pub predecessors: Vec<Vec<Position>>,
+    /// `predecessors[i][j]` = positions from which an agent can move into `(i, j)`.
+    pub predecessors: Vec<Vec<Vec<Position>>>,
     pub solution_lower_bound: usize,
     pub laser_sources: Vec<LaserSourceInfo>,
     height: usize,
     width: usize,
     updated_until: usize,
 
-    // Neighborhood and distance information (computed once at construction), flat-indexed by
-    // `i * width + j` rather than hashed by `Position`: positions are dense and bounded, so a
-    // plain array lookup beats hashing in these hot paths.
-    /// `neighbours[i * width + j]` = `[(i, j), ...reachable single-step neighbours]`.
-    neighbours: Vec<Vec<Position>>,
+    /// `neighbours[i][j]` = `[(i, j), ...reachable single-step neighbours]`.
+    neighbours: Vec<Vec<Vec<Position>>>,
 
-    // Cached on-demand data (lazily computed per time step, in increasing order of `t`).
     /// `distance_buckets[d]` = positions whose distance to the nearest exit is exactly `d`
     /// (only for `d <= t_max`, the only distances that ever matter). Used to incrementally
     /// build `exit_reachable` as `t` grows, instead of recomputing each entry from scratch.
@@ -68,15 +64,20 @@ pub struct ConstraintContext {
     /// computed.
     exit_reachable: Vec<PositionSet>,
 
-    /// Cache for reachable positions per agent and time step, flattened as `agent * (t_max + 1)
-    /// + t` (dense, since every `(agent, t)` in `0..n_agents x 0..=t_max` is eventually
-    /// populated in increasing order of `t`). Bitsets here turn the per-agent intersections in
-    /// `reachable_positions` into word-at-a-time ANDs instead of per-element hashing.
-    relevant_positions: Vec<PositionSet>,
+    /// Cache for reachable positions per agent and time step: `relevant_positions[agent][t]`.
+    /// Bitsets here turn the per-agent intersections in `reachable_positions` into
+    /// word-at-a-time ANDs instead of per-element hashing.
+    relevant_positions: Vec<Vec<PositionSet>>,
 
-    /// Cache for reachable laser paths per laser source and time step, flattened the same way
-    /// as `reachable_positions` (`laser_idx * (t_max + 1) + t`).
-    relevant_laser_paths: Vec<Vec<Position>>,
+    /// Cache for reachable laser paths per laser source and time step: `relevant_laser_paths[laser_idx][t]`.
+    relevant_laser_paths: Vec<Vec<PositionSet>>,
+
+    /// `forbidden_first_beam_tiles[agent]` = first beam tiles of every laser NOT owned by `agent`.
+    /// A non-owner can never stand on the first beam tile: if the owner can reach it, the beam is
+    /// active ↔ ¬owner, so non-owner requires owner present — impossible by no_overlap; otherwise
+    /// the beam is constant-active and the non-owner dies. This is pre-computed once and applied at
+    /// every time step during `update_relevant_positions`.
+    forbidden_first_beam_tiles: Vec<Vec<Position>>,
 }
 
 impl ConstraintContext {
@@ -99,10 +100,8 @@ impl ConstraintContext {
             }
         }
 
-        let flat_index = |pos: Position| pos.i * width + pos.j;
-
-        // neighbours[i * width + j] = [(i, j), ...reachable single-step neighbours]
-        let mut neighbours: Vec<Vec<Position>> = vec![Vec::new(); height * width];
+        // neighbours[i][j] = [(i, j), ...reachable single-step neighbours]
+        let mut neighbours: Vec<Vec<Vec<Position>>> = vec![vec![Vec::new(); width]; height];
         for &pos in &valid_positions {
             let mut succ = vec![pos];
             for n in neighbours_of(pos, &exits, height, width, &walls) {
@@ -110,18 +109,18 @@ impl ConstraintContext {
                     succ.push(n);
                 }
             }
-            neighbours[flat_index(pos)] = succ;
+            neighbours[pos.i][pos.j] = succ;
         }
 
-        // Reverse adjacency: predecessors[p] = positions from which an agent can move into p.
-        let mut predecessors: Vec<Vec<Position>> = vec![Vec::new(); height * width];
+        // Reverse adjacency: predecessors[i][j] = positions from which an agent can move into (i, j).
+        let mut predecessors: Vec<Vec<Vec<Position>>> = vec![vec![Vec::new(); width]; height];
         for &pos in &valid_positions {
-            for &succ in &neighbours[flat_index(pos)] {
-                predecessors[flat_index(succ)].push(pos);
+            for &succ in &neighbours[pos.i][pos.j] {
+                predecessors[succ.i][succ.j].push(pos);
             }
         }
 
-        let exit_distance = compute_exit_distance(&exits, &predecessors, width);
+        let exit_distance = compute_exit_distance(&exits, &predecessors);
         let solution_lower_bound = start_pos
             .iter()
             .map(|p| exit_distance.get(p).copied().unwrap_or(0))
@@ -147,6 +146,18 @@ impl ConstraintContext {
                 path,
             });
         }
+        // Opt 3: pre-compute first beam tiles forbidden for non-owner agents.
+        let mut forbidden_first_beam_tiles: Vec<Vec<Position>> = vec![Vec::new(); n_agents];
+        for source in &laser_sources {
+            if let Some(&first_tile) = source.path.first() {
+                for agent in 0..n_agents {
+                    if agent != source.agent_id {
+                        forbidden_first_beam_tiles[agent].push(first_tile);
+                    }
+                }
+            }
+        }
+
         // Bucket positions by their exact distance to the nearest exit (capped at `t_max`,
         // since farther positions can never be exit-reachable within the horizon).
         let mut distance_buckets: Vec<Vec<Position>> = vec![Vec::new(); t_max + 1];
@@ -167,32 +178,33 @@ impl ConstraintContext {
             }
         }
 
-        // Dense per-`(agent, t)` / `(laser_idx, t)` caches, flattened as `key * (t_max + 1) + t`.
-        // Every slot is eventually populated (in increasing order of `t`), so a flat `Vec`
-        // avoids hashing `(usize, usize)` keys on every lookup in the hot constraint-generation
-        // loop. Seed the `t = 0` slots here; `update` fills in the rest.
-        let stride = t_max + 1;
-        let mut relevant_positions = vec![PositionSet::empty(height, width); n_agents * stride];
+        // Cache for reachable positions per agent and time step.
+        // Every slot is eventually populated (in increasing order of `t`).
+        // Seed the `t = 0` slots here; `update` fills in the rest.
+        let mut relevant_positions =
+            vec![vec![PositionSet::empty(height, width); t_max + 1]; n_agents];
         for agent in 0..n_agents {
             // Only the initial positions are relevant to consider at t=0
             let agent_start = start_pos[agent];
             if exit_reachable[0].contains(&agent_start) {
-                relevant_positions[agent * stride] =
+                relevant_positions[agent][0] =
                     PositionSet::singleton(height, width, start_pos[agent]);
             }
         }
         // Seed the `t = 0` laser-path slots from the `t = 0` reachable-positions seed above
-        // (mirroring `update_reachable_laser_path`); `update` only fills in `t >= 1`, since its
+        // (mirroring `update_relevant_laser_paths`); `update` only fills in `t >= 1`, since its
         // loop range `(updated_until + 1)..=t` is empty for `t = 0`.
-        let mut relevant_laser_paths = vec![Vec::new(); laser_sources.len() * stride];
+        let mut relevant_laser_paths =
+            vec![vec![PositionSet::empty(height, width); t_max + 1]; laser_sources.len()];
         for (laser_idx, source) in laser_sources.iter().enumerate() {
-            let blockable = &relevant_positions[source.agent_id * stride];
-            relevant_laser_paths[laser_idx * stride] = source
-                .path
-                .iter()
-                .filter(|p| blockable.contains(p))
-                .copied()
-                .collect();
+            relevant_laser_paths[laser_idx][0] = compute_relevant_laser_path(
+                &source.path,
+                &relevant_positions,
+                0,
+                source.agent_id,
+                height,
+                width,
+            );
         }
 
         ConstraintContext {
@@ -209,26 +221,9 @@ impl ConstraintContext {
             distance_buckets,
             exit_reachable,
             relevant_positions,
+            forbidden_first_beam_tiles,
             relevant_laser_paths,
         }
-    }
-
-    /// Flat index into `neighbours` / `predecessors` for `pos`.
-    #[inline]
-    fn flat_index(&self, pos: &Position) -> usize {
-        pos.i * self.width + pos.j
-    }
-
-    /// Flat index into `reachable_positions_cache` for `(agent, t)`.
-    #[inline]
-    fn pos_cache_idx(&self, agent: usize, t: usize) -> usize {
-        agent * (self.t_max + 1) + t
-    }
-
-    /// Flat index into `reachable_laser_paths_cache` for `(laser_idx, t)`.
-    #[inline]
-    fn laser_path_cache_idx(&self, laser_idx: usize, t: usize) -> usize {
-        laser_idx * (self.t_max + 1) + t
     }
 
     /// Compute and cache `exit_reachable[t]` from `exit_reachable[t - 1]`: as `t` grows by one,
@@ -252,37 +247,41 @@ impl ConstraintContext {
     fn update_relevant_positions(&mut self, t: usize) {
         for agent in 0..self.n_agents {
             let mut result = PositionSet::empty(self.height, self.width);
-            for pos in &self.relevant_positions[self.pos_cache_idx(agent, t - 1)] {
-                for &n in &self.neighbours[self.flat_index(&pos)] {
+            for pos in &self.relevant_positions[agent][t - 1] {
+                for &n in &self.neighbours[pos.i][pos.j] {
                     result.insert(n);
                 }
             }
             result.intersect_with(&self.exit_reachable[t]);
-            let idx = self.pos_cache_idx(agent, t);
-            self.relevant_positions[idx] = result;
+            // Opt 2: at t=1 no agent can occupy another agent's t=0 start position.
+            // The no-following-conflict rule forbids agent A from being at start_B at t=1
+            // because B was there at t=0 (implies(-a_cur, -b_prev) ⇒ ¬A here when B was here).
+            if t == 1 {
+                for (other, &start) in self.start_pos.iter().enumerate() {
+                    if other != agent {
+                        result.remove(&start);
+                    }
+                }
+            }
+            // Opt 3: non-owner agents can never stand on the first tile of another agent's beam.
+            for &forbidden in &self.forbidden_first_beam_tiles[agent] {
+                result.remove(&forbidden);
+            }
+            self.relevant_positions[agent][t] = result;
         }
     }
 
-    /// Compute and cache `relevant_laser_paths_cache[..., t]`.
-    ///
-    /// # Details
-    /// The relevant laser path for a given laser source at time `t` is the subset of its path that
-    /// is still blockable by the agent that is using it.
-    ///
-    /// # Assumptions
-    /// This function assumes that `update_relevant_positions` has already been called for `t`.
+    /// See [`ConstraintContext::compute_relevant_laser_path`] for the semantics.
     fn update_relevant_laser_paths(&mut self, t: usize) {
         for laser_idx in 0..self.laser_sources.len() {
-            let agent_id = self.laser_sources[laser_idx].agent_id;
-            let blockable = &self.relevant_positions[self.pos_cache_idx(agent_id, t)];
-            let result: Vec<Position> = self.laser_sources[laser_idx]
-                .path
-                .iter()
-                .copied()
-                .filter(|p| blockable.contains(p))
-                .collect();
-            let idx = self.laser_path_cache_idx(laser_idx, t);
-            self.relevant_laser_paths[idx] = result;
+            self.relevant_laser_paths[laser_idx][t] = compute_relevant_laser_path(
+                &self.laser_sources[laser_idx].path,
+                &self.relevant_positions,
+                t,
+                self.laser_sources[laser_idx].agent_id,
+                self.height,
+                self.width,
+            );
         }
     }
 
@@ -303,7 +302,7 @@ impl ConstraintContext {
     /// Relevant positions for a single agent at time `t`, i.e. positions that the agent
     /// can reach and from which it can still access the exit within due time.
     pub fn relevant_positions_for_agent(&self, agent: usize, t: usize) -> &PositionSet {
-        &self.relevant_positions[self.pos_cache_idx(agent, t)]
+        &self.relevant_positions[agent][t]
     }
 
     /// Positions relevant to *all* the given agents exactly at time `t` (already filtered by
@@ -327,18 +326,18 @@ impl ConstraintContext {
         if t == 0 {
             return Vec::new();
         }
-        let reachable = &self.relevant_positions[self.pos_cache_idx(agent, t - 1)];
-        self.predecessors[self.flat_index(pos)]
+        let reachable = &self.relevant_positions[agent][t - 1];
+        self.predecessors[pos.i][pos.j]
             .iter()
             .copied()
             .filter(|p| reachable.contains(p))
             .collect()
     }
 
-    /// The reachable laser path for a given laser source at time `t`: the beam tiles that can
-    /// still be blocked. Assumes `update` has already been called for this `t`.
-    pub fn get_reachable_laser_path(&self, laser_idx: usize, t: usize) -> &Vec<Position> {
-        &self.relevant_laser_paths[self.laser_path_cache_idx(laser_idx, t)]
+    /// The reachable laser tiles positions for a given laser source at time `t`: the beam tiles
+    /// that can still be blocked. Assumes `update` has already been called for this `t`.
+    pub fn relevant_laser_tiles(&self, laser_id: usize, t: usize) -> &PositionSet {
+        &self.relevant_laser_paths[laser_id][t]
     }
 }
 
@@ -364,16 +363,56 @@ impl ConstraintContext {
     }
 }
 
+/// Compute laser tiles that are relevant to consider at time step t.
+///
+/// # Details
+/// The relevant laser path for a given laser source at time `t` is the subset of its beam tiles
+/// worth reasoning about. A tile is relevant if either:
+///   - the owning agent can reach it at time `t` (it can block the beam there), or
+///   - it lies downstream of such a blockable tile *and* some other agent can reach it at time
+///     `t`. Because the owner could block the beam upstream, the tile may become safe for that
+///     other agent — so it is a tile where cooperation matters.
+///
+/// # Assumptions
+/// This function assumes that `update_relevant_positions` has already been called for `t`.
+/// Compute the relevant beam tiles for one laser source at time `t`.
+///
+fn compute_relevant_laser_path(
+    path: &[Position],
+    relevant_positions: &[Vec<PositionSet>],
+    t: usize,
+    owner_id: usize,
+    height: usize,
+    width: usize,
+) -> PositionSet {
+    let n_agents = relevant_positions.len();
+    let owner_reachable = &relevant_positions[owner_id][t];
+    let mut result = PositionSet::empty(height, width);
+    // Whether an upstream tile can be blocked by the owner: once true, every downstream tile can
+    // be made safe by blocking the beam upstream.
+    let mut blockable_upstream = false;
+    for &pos in path {
+        if owner_reachable.contains(&pos) {
+            result.insert(pos);
+            blockable_upstream = true;
+        } else if blockable_upstream
+            && (0..n_agents).any(|a| a != owner_id && relevant_positions[a][t].contains(&pos))
+        {
+            result.insert(pos);
+        }
+    }
+    result
+}
+
 fn compute_exit_distance(
     exits: &HashSet<Position>,
-    predecessors: &[Vec<Position>],
-    width: usize,
+    predecessors: &[Vec<Vec<Position>>],
 ) -> HashMap<Position, usize> {
     let mut dist: HashMap<Position, usize> = exits.iter().map(|&p| (p, 0)).collect();
     let mut frontier: VecDeque<Position> = exits.iter().copied().collect();
     while let Some(current) = frontier.pop_front() {
         let current_dist = dist[&current];
-        for &pred in &predecessors[current.i * width + current.j] {
+        for &pred in &predecessors[current.i][current.j] {
             if !dist.contains_key(&pred) {
                 dist.insert(pred, current_dist + 1);
                 frontier.push_back(pred);

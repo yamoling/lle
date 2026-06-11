@@ -14,10 +14,10 @@ from abc import ABC, abstractmethod
 
 from tqdm import tqdm
 
-from .. import solver
 from ..world import World
 from ._candidates import CandidateLayout
 from ._world_builder import WorldBuilder
+from .world_filter import WorldFilter
 
 
 class _LayoutRetry(Exception):
@@ -32,10 +32,8 @@ class Generator(ABC):
         height: int,
         n_agents: int = 2,
         n_lasers: int = 0,
-        cooperation: bool | None = None,
-        n_walls: int | None = None,
-        t_max: int | None = None,
-        t_min: int | None = None,
+        n_walls: int,
+        world_filter: WorldFilter | None = None,
     ):
         if width < 1:
             raise ValueError(f"Grid width must be >= 1. Got {width}")
@@ -47,32 +45,19 @@ class Generator(ABC):
         if n_agents < 1:
             raise ValueError(f"agents must be >= 1. Got {n_agents}")
         self.agents = n_agents
-        self.require_cooperation = cooperation
 
         if n_lasers < 0:
             raise ValueError(f"lasers must be >= 0. Got {n_lasers}")
         if n_lasers > n_agents:
             raise ValueError(f"lasers must be <= agents (one laser source per colour). Got lasers={n_lasers}, agents={n_agents}.")
         self.n_lasers = n_lasers
-        self.n_walls = (self.area // 10) if n_walls is None else n_walls
+        self.n_walls = n_walls
         if self.n_walls < 0:
             raise ValueError(f"num_walls must be >= 0. Got {self.n_walls}")
         if self.n_walls >= (self.area / 2):
             raise ValueError(f"num_walls must be < size/2. Got num_walls={self.n_walls}, size={self.area}")
 
-        self.t_max = (self.area // 2) if t_max is None else t_max
-        if self.t_max < 0:
-            raise ValueError(f"t_max must be >= 0. Got {self.t_max}")
-
-        # t_min is the guaranteed lower bound on the solution length: a generated level is
-        # rejected unless it is *unsolvable* in fewer than t_min steps. 0 means no lower
-        # bound (the default). It cannot exceed t_max, otherwise no level could be both
-        # solvable within t_max and unsolvable below t_min.
-        self.t_min = 0 if t_min is None else t_min
-        if self.t_min < 0:
-            raise ValueError(f"t_min must be >= 0. Got {self.t_min}")
-        if self.t_min > self.t_max:
-            raise ValueError(f"t_min must be <= t_max. Got t_min={self.t_min}, t_max={self.t_max}")
+        self.world_filter = world_filter
 
         total_needed = (2 * self.agents) + self.n_walls + self.n_lasers
         if total_needed > self.area:
@@ -95,13 +80,9 @@ class Generator(ABC):
         return b.build()
 
     def _accept_world(self, world: World) -> bool:
-        is_solvable = solver.solve(world, self.t_max) is not None
-        if not is_solvable:
-            return False
-        if self.require_cooperation is None:
-            return is_solvable
-        cooperation_required = solver.solve_no_cooperation(world, 0, self.t_max) is None
-        return cooperation_required == self.require_cooperation
+        if self.world_filter is None:
+            return True
+        return self.world_filter.is_satisfied_by(world)
 
     def _try_generate(self, seed: int | None):
         if seed is not None:

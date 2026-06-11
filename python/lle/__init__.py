@@ -61,6 +61,8 @@ pip install laser-learning-environment[generator]
 - `lle.solve_sat(world, t_max)` searches for a joint plan of exactly `t_max` steps.
 - `lle.is_cooperative(world, t_max)` checks whether the world requires laser blocking under standard semantics.
 - `lle.cooperation_level(world, t_max)` returns the more precise cooperation classification.
+- `lle.analyse_cooperation(world, trajectory)` extracts the help graph of one concrete trajectory.
+- `lle.characterize(world, t_max)` proves, via SAT/UNSAT, which agent dependencies *every* plan of length ≤ t requires.
 
 `lle.generate(...)` and the solver helpers live in `lle.generator` and
 `lle.solver`, but `import lle` re-exports them for convenience.
@@ -102,10 +104,10 @@ Examples:
 import lle
 
 lle.generate(kind="random", height=5, width=5, n_agents=2)
-lle.generate(kind="random", height=6, width=6, n_agents=2, n_lasers=2, cooperation=True)
+lle.generate(kind="random", height=6, width=6, n_agents=2, n_lasers=2, cooperative=True)
 lle.generate(kind="level6_style", n_agents=4, n_lasers=3, t_max=21)
-lle.generate(kind="constructive", n_lasers=2, cooperation=True)
-lle.generate(kind="constructive", n_lasers=3, cooperation=None)
+lle.generate(kind="constructive", n_lasers=2, cooperative=True)
+lle.generate(kind="constructive", n_lasers=3)
 ```
 
 ## Custom maps
@@ -148,21 +150,13 @@ from .lle import __version__, agent, exceptions, tiles, world  # noqa # prevent 
 
 
 from .agent import Agent
-from .cooperation import (
-    CooperationProfile,
-    DependencyEdge,
-    TemporalDependencyGraph,
-    analyse_cooperation,
-)
 from .env import LLE
 from .generator import generate
 from .observations import ObservationType
-from .solver import (
-    is_cooperative,
-    solve,
-)
+from .solver import solve
 from .types import AgentId, LaserId, Position
 from .world import Action, EventType, World, WorldEvent, WorldState
+from .characterization import is_cooperative, characterize
 
 __version__: str
 from_file = LLE.from_file
@@ -193,8 +187,5 @@ __all__ = [
     "solve",
     "is_cooperative",
     "generate",
-    "analyse_cooperation",
-    "CooperationProfile",
-    "TemporalDependencyGraph",
-    "DependencyEdge",
+    "characterize",
 ]

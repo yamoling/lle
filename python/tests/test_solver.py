@@ -1,7 +1,9 @@
-import lle
-from lle import Action, World
+from typing import get_args
 
-# from lle.solver.world_solver import WorldSolver
+import lle
+import pytest
+from lle import Action, World
+from lle.solver import SolveMode, SolveModeLiteral
 
 
 def _default_t_max(world: World) -> int:
@@ -191,3 +193,81 @@ S1  .   .   .   L0N
     #     beams_here = {(key[1], key[2]) for key in solver.ctx.beam_var if key[3:6] == (*crossing, 0)}
     #     assert len(beams_here) >= 2
     assert lle.solve(world, 14) is not None
+
+
+def test_solve_no_cooperation():
+    world = World("""
+     .   .  S0  S1  .   .
+    L0E  .   .   .  @   .
+     .   .   .   .  .   .
+     .   .   .   .  .   .
+     X   X   .   .  .   .
+    """)
+    # Both agents must go around the laser via (1,5), requiring at least 12 steps
+    assert lle.solve(world, 9, mode="no-cooperation") is None
+    assert lle.solve(world, 10, mode="no-cooperation") is not None
+
+
+@pytest.mark.parametrize("level", [1, 2])
+def test_solvable_independently(level: int):
+    """Levels 1 and 2 require no cooperation: solvable without any laser blocking."""
+    assert lle.solve(World.level(level), 10, mode="no-cooperation") is not None
+
+
+@pytest.mark.parametrize("level", [3, 4, 5, 6])
+def test_cooperative_level_unsolvable_without_cooperation(level: int):
+    """Levels 3-6 require cooperation and become unsolvable when laser blocking is forbidden."""
+    assert lle.solve(World.level(level), 21, mode="no-cooperation") is None
+
+
+@pytest.mark.parametrize(
+    "level,t_max,expect_coop",
+    [
+        (1, 10, False),
+        (2, 10, False),
+        (3, 10, True),
+        (4, 10, True),
+        (6, 21, True),
+    ],
+)
+def test_no_cooperation_agrees_with_is_cooperative(level: int, t_max: int, expect_coop: bool):
+    """solve(mode='no-cooperation') must agree with is_cooperative for all canonical levels."""
+    world = World.level(level)
+    no_coop = lle.solve(world, t_max, mode="no-cooperation")
+    is_coop = lle.is_cooperative(world, t_max=t_max)
+    assert (no_coop is None) == is_coop == expect_coop
+
+
+def test_typing_solve_mode_literal():
+    literals = get_args(SolveModeLiteral)
+    for lit in get_args(SolveModeLiteral):
+        ok = False
+        for mode in SolveMode.variants():
+            if lit == mode.value:
+                ok = True
+                break
+        assert ok, f"{lit} is not a valid SolveMode"
+    for mode in SolveMode.variants():
+        assert mode.value in literals
+
+
+def test_rust_solve_mode_values():
+    from lle.solver.constraints import SolveMode as RustSolveMode
+
+    assert RustSolveMode.STANDARD.value == "standard"
+    assert RustSolveMode.NO_COOPERATION.value == "no-cooperation"
+    assert RustSolveMode.NO_MUTUAL_COOPERATION.value == "no-mutual-cooperation"
+    assert str(RustSolveMode.NO_COOPERATION) == "no-cooperation"
+
+
+def test_clause_generator_accepts_rust_solve_mode():
+    from lle.solver.constraints import ClauseGenerator
+    from lle.solver.constraints import SolveMode as RustSolveMode
+
+    world = World("S0 . . X")
+    modes = [RustSolveMode.STANDARD, RustSolveMode.NO_COOPERATION, RustSolveMode.NO_MUTUAL_COOPERATION]
+    for mode in modes:
+        gen = ClauseGenerator(world, 5, mode=mode)
+        clauses, assumptions = gen.generate(3)
+        assert isinstance(clauses, list)
+        assert isinstance(assumptions, list)

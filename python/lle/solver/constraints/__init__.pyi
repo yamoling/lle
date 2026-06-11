@@ -2,14 +2,16 @@
 # ruff: noqa: E501, F401, F403, F405
 
 import builtins
+import enum
 from lle import world
 import typing
 __all__ = [
-    "ConstraintGenerator",
+    "ClauseGenerator",
+    "SolveMode",
 ]
 
 @typing.final
-class ConstraintGenerator:
+class ClauseGenerator:
     r"""
     Generates the SAT clauses (CNF, as lists of signed integer literals) used by
     `lle.solver.solve` and decodes solver models back into joint-action plans.
@@ -18,18 +20,25 @@ class ConstraintGenerator:
     and blocking, objective) is implemented in Rust for performance; SAT solving
     remains delegated to Python (e.g. `pysat.solvers.Minisat22`).
     
+    The `mode` parameter controls which extra constraints are generated:
+    - `"standard"` (default): world rules only.
+    - `"no-cooperation"`: assumptions forbidding any non-owner agent from entering a laser span.
+    - `"no-mutual-cooperation"`: clauses and assumptions forbidding pairs of agents from
+      mutually helping each other.
+    
     ```python
     from pysat.solvers import Minisat22
     from lle import World
-    from lle.solver.constraints import ConstraintGenerator
+    from lle.solver.constraints import ClauseGenerator
     
     world = World.level(1)
-    gen = ConstraintGenerator(world, t_max=20)
-    clauses = [c for t in range(gen.t_max + 1) for c in gen.generate(t)]
-    with Minisat22(bootstrap_with=clauses) as solver:
-        solver.append_formula(gen.objective(gen.t_max))
-        if solver.solve():
-            plan = gen.decode_plan(solver.get_model(), gen.t_max)
+    gen = ClauseGenerator(world, t_max=20)
+    for t in range(gen.solution_lower_bound, gen.t_max + 1):
+        clauses, assumptions = gen.generate(t)
+        with Minisat22(bootstrap_with=clauses) as solver:
+            if solver.solve(assumptions=assumptions):
+                plan = gen.decode_plan(solver.get_model(), t)
+                break
     ```
     """
     @property
@@ -41,30 +50,41 @@ class ConstraintGenerator:
     def solution_lower_bound(self) -> builtins.int:
         r"""
         A cheap admissible lower bound on the length of any valid plan: the maximum,
-        over all agents, of the shortest walkable-path distance to the nearest exit.
+        over all agents, of the shortest walkable-path distance to the nearest exit
+        regardless of lasers.
         """
-    def __new__(cls, world: world.World, t_max: builtins.int) -> ConstraintGenerator:
+    @property
+    def n_vars(self) -> builtins.int:
         r"""
-        Build a constraint generator for `world`, considering plans of length up to `t_max`.
+        The number of SAT variables allocated so far by this generator.
         """
-    def generate(self, t: builtins.int) -> builtins.list[builtins.list[builtins.int]]:
+    def __new__(cls, world: world.World, t_max: builtins.int, mode: typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation'] | SolveMode) -> ClauseGenerator:
         r"""
-        Generate every clause (initialization, movement and laser constraints) that applies
-        at time step `t`. Clauses are returned as lists of signed integer literals (CNF),
-        ready to be fed to a `pysat` solver.
-        """
-    def objective(self, t: builtins.int) -> builtins.list[builtins.list[builtins.int]]:
-        r"""
-        Generate the objective clauses for time step `t`: every agent must be on an exit.
-        Intended to be appended to the formula of the solver instance considering `t_end = t`.
-        """
-    def no_blocking_clauses(self, t: builtins.int) -> builtins.list[builtins.list[builtins.int]]:
-        r"""
-        Generate unit clauses forbidding any laser-blocking event at time `t`.
+        Build a clause generator for the given `world`, considering plans of length up to `t_max`.
         
-        Adding these clauses for every `t` in `[0, t_max]` is logically equivalent to
-        forbidding cooperation altogether: the resulting formula is UNSAT iff laser
-        blocking is required to solve the level within the horizon.
+        `mode` selects the solving strategy. It accepts either a `SolveMode` instance or a raw
+        string literal (`"standard"`, `"no-cooperation"`, `"no-mutual-cooperation"`). Defaults to
+        `SolveMode.STANDARD`.
+        """
+    def generate(self, t: builtins.int) -> tuple[builtins.list[builtins.list[builtins.int]], builtins.list[builtins.int]]:
+        r"""
+        Generate all clauses and assumptions required to solve the problem at horizon `t`.
+        
+        Buffers world-enforcing clauses incrementally (each step is computed at most once),
+        then returns the full formula for this horizon:
+        - All buffered clauses for steps `0..=t`
+        - The objective clauses (every agent on an exit at step `t`)
+        - For `"no-mutual-cooperation"` mode: mutual-forbid clauses and assumptions
+        - For `"no-cooperation"` mode: per-step no-cooperation assumptions
+        
+        Returns `(clauses, assumptions)` ready to be fed to `solve_model`.
+        """
+    def objective(self, t: builtins.int) -> tuple[builtins.list[builtins.list[builtins.int]], builtins.list[builtins.int]]:
+        r"""
+        Generate only the objective clauses for horizon `t` (every agent on an exit).
+        
+        Returns `(clauses, [])`. Useful for callers that manage the SAT solver directly
+        and want to append the objective separately.
         """
     def decode_plan(self, model: typing.Sequence[builtins.int], t_end: builtins.int) -> builtins.list[builtins.list[world.Action]]:
         r"""
@@ -74,4 +94,45 @@ class ConstraintGenerator:
         Raises:
             `ValueError`: if the model does not encode a coherent sequence of moves.
         """
+
+@typing.final
+class SolveMode(enum.Enum):
+    r"""
+    The solving mode used by `ClauseGenerator`.
+    
+    Controls which extra constraints and assumptions are emitted by `generate(t)`:
+    
+    - `STANDARD` — world rules only; agents may cooperate freely.
+    - `NO_COOPERATION` — per-step unit assumptions forbidding any non-owner agent from occupying
+      a laser span. Equivalent to treating every beam as permanently active.
+    - `NO_MUTUAL_COOPERATION` — dependency indicator clauses plus horizon-level mutual-forbid
+      clauses and assumptions, ruling out plans where two agents each help the other.
+    
+    ```python
+    from lle.solver.constraints import ClauseGenerator, SolveMode
+    from lle import World
+    
+    gen = ClauseGenerator(World.level(6), t_max=21, mode=SolveMode.NO_MUTUAL_COOPERATION)
+    for t in range(gen.solution_lower_bound, gen.t_max + 1):
+        clauses, assumptions = gen.generate(t)
+        ...
+    ```
+    """
+    STANDARD = ...
+    NO_COOPERATION = ...
+    NO_MUTUAL_COOPERATION = ...
+
+    @property
+    def value(self) -> typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation']:
+        r"""
+        The canonical string representation, e.g. `"no-cooperation"`.
+        Matches the string literals accepted by `ClauseGenerator` and `solve`.
+        """
+    @staticmethod
+    def variants() -> builtins.list[SolveMode]: ...
+    def __str__(self) -> builtins.str: ...
+    def __repr__(self) -> builtins.str: ...
+    def __hash__(self) -> builtins.int: ...
+    @staticmethod
+    def from_str(value: typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation']) -> SolveMode: ...
 

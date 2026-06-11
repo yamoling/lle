@@ -4,6 +4,7 @@ from lle.tiles import Direction
 
 from ._candidates import CandidateLayout
 from .constructive import ConstructiveGenerator
+from .world_filter import WorldFilter
 
 
 class Level6StyleGenerator(ConstructiveGenerator):
@@ -35,10 +36,8 @@ class Level6StyleGenerator(ConstructiveGenerator):
         height: int,
         n_agents: int = 2,
         n_lasers: int = 3,
-        n_walls: int | None = None,
-        t_max: int | None = None,
-        t_min: int | None = None,
-        cooperation: bool | None = None,
+        n_walls: int,
+        world_filter: WorldFilter | None = None,
     ):
         if n_lasers < 1:
             raise ValueError(f"kind='level6_style' requires lasers >= 1; got {n_lasers}.")
@@ -48,9 +47,7 @@ class Level6StyleGenerator(ConstructiveGenerator):
             n_agents=n_agents,
             n_lasers=n_lasers,
             n_walls=n_walls,
-            t_max=t_max,
-            t_min=t_min,
-            cooperation=cooperation,
+            world_filter=world_filter,
         )
 
     def _flush_offset(self, max_offset: int) -> int:
