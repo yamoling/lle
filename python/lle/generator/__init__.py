@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from typing import Literal, overload
 
 from ..world import World
-from ._args import GenerateArgs, build_filter
+from ._args import GenerateArgs
 from .constructive import ConstructiveGenerator
 from .generator import Generator
 from .level6_style import Level6StyleGenerator
@@ -36,7 +36,7 @@ def generate(
     cooperative: bool | None = None,
     mutual: bool | None = None,
     filter: WorldFilter | None = None,
-    t_min: int = 0,
+    t_min: int | None = None,
     t_max: int | Literal["auto"] = "auto",
     n_walls: int | Literal["auto"] = "auto",
     seed: int | None = None,
@@ -59,7 +59,7 @@ def generate(
     cooperative: bool | None = None,
     mutual: bool | None = None,
     filter: WorldFilter | None = None,
-    t_min: int = 0,
+    t_min: int | None = None,
     t_max: int | Literal["auto"] = "auto",
     n_walls: int | Literal["auto"] = "auto",
     seed: int | None = None,
@@ -103,7 +103,7 @@ def generate(
     cooperative: bool | None = None,
     mutual: bool | None = None,
     filter: WorldFilter | None = None,
-    t_min: int = 0,
+    t_min: int | None = None,
     t_max: int | Literal["auto"] = "auto",
     n_walls: int | Literal["auto"] = "auto",
     seed: int | None = None,
@@ -122,7 +122,7 @@ def generate(
     - `mutual`: shortcut — ``True`` → `Mutual()`.
     - `n_lasers`: number of laser sources; ``"auto"`` picks a sensible count for the filter.
     - `n_walls`: number of walls; ``"auto"`` fills ~10% of the grid.
-    - `t_min`: reject worlds solvable in fewer than ``t_min`` steps.
+    - `t_min`: if provided, reject worlds solvable in fewer than ``t_min`` steps.
     - `t_max`: upper bound on the solution length; ``"auto"`` uses ``width * height // 2``.
     - `n_jobs`: parallel workers; ``"auto"`` uses all CPUs minus one when ``n > 1``.
     - `max_attempts`: budget of generation attempts before giving up.
@@ -145,7 +145,6 @@ def generate(
                                height=5, width=5, n_agents=2, n_lasers=1))
     ```
     """
-    world_filter = build_filter(filter, cooperative, mutual)
     args = GenerateArgs(
         kind=kind,
         height=height,
@@ -157,7 +156,9 @@ def generate(
         n_walls=n_walls,
         max_attempts=max_attempts,
         n_jobs=n_jobs,
-        filter=world_filter,
+        filter=filter,
+        cooperative=cooperative,
+        mutual=mutual,
     ).resolve(n)
 
     generator = _GENERATORS[args.kind](
@@ -167,8 +168,6 @@ def generate(
         n_lasers=args.n_lasers,
         world_filter=args.filter,
         n_walls=args.n_walls,
-        t_max=args.t_max,
-        t_min=args.t_min,
     )
 
     if n == 1 and args.n_jobs == 1:

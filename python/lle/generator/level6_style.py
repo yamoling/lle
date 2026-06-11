@@ -36,9 +36,7 @@ class Level6StyleGenerator(ConstructiveGenerator):
         height: int,
         n_agents: int = 2,
         n_lasers: int = 3,
-        n_walls: int | None = None,
-        t_max: int | None = None,
-        t_min: int | None = None,
+        n_walls: int,
         world_filter: WorldFilter | None = None,
     ):
         if n_lasers < 1:
@@ -49,8 +47,6 @@ class Level6StyleGenerator(ConstructiveGenerator):
             n_agents=n_agents,
             n_lasers=n_lasers,
             n_walls=n_walls,
-            t_max=t_max,
-            t_min=t_min,
             world_filter=world_filter,
         )
 

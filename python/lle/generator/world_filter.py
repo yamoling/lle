@@ -40,21 +40,23 @@ class WorldFilter(ABC):
     ``generate(filter=Mutual())``.
     """
 
-    t_max: int | None = None
-    """Override the ``t_max`` used for characterisation. ``None`` reuses the generator's own ``t_max``."""
+    t_max: int
+    t_min: int | None = None
 
     @abstractmethod
     def _matches(self, c: WorldCharacterizer) -> bool:
-        """Whether a *solvable* world, characterised by ``c``, matches this filter."""
+        """Whether a *solvable* world, characterised by `c`, matches this filter."""
 
-    def is_satisfied_by(self, world: World, default_t_max: int) -> bool:
-        """Return whether ``world`` is solvable and matches this filter.
+    def is_satisfied_by(self, world: World) -> bool:
+        """Return whether `world` is solvable and matches this filter within `t_max` steps."""
+        if self.t_min is not None and self.t_min > 0:
+            from .. import solver
 
-        ``default_t_max`` is the generator's horizon; it is used unless the
-        filter carries its own ``t_max`` override.
-        """
-        effective_t_max = default_t_max if self.t_max is None else self.t_max
-        c = WorldCharacterizer(world, effective_t_max)
+            if solver.solve(world, self.t_min - 1) is not None:
+                return False
+        c = WorldCharacterizer(world, self.t_max)
+        if not c.is_solvable:
+            return False
         return self._matches(c)
 
     @property
