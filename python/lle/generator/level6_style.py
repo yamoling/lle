@@ -4,6 +4,7 @@ from lle.tiles import Direction
 
 from ._candidates import CandidateLayout
 from .constructive import ConstructiveGenerator
+from .world_filter import WorldFilter
 
 
 class Level6StyleGenerator(ConstructiveGenerator):
@@ -38,10 +39,8 @@ class Level6StyleGenerator(ConstructiveGenerator):
         n_walls: int | None = None,
         t_max: int | None = None,
         t_min: int | None = None,
-        world_filter: "WorldFilter | None" = None,
+        world_filter: WorldFilter | None = None,
     ):
-        from .world_filter import WorldFilter
-
         if n_lasers < 1:
             raise ValueError(f"kind='level6_style' requires lasers >= 1; got {n_lasers}.")
         super().__init__(

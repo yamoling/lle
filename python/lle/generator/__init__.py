@@ -1,161 +1,180 @@
 from __future__ import annotations
 
-from typing import Any, Generator, Literal, Unpack, overload
+from collections.abc import Iterator
+from typing import Literal, overload
 
 from ..world import World
-from ._args import GenerateArgs, _ConfigFilter, _ConfigKW, _ConfigMultipleFilter, _ConfigMultipleKW
+from ._args import GenerateArgs, build_filter
 from .constructive import ConstructiveGenerator
+from .generator import Generator
 from .level6_style import Level6StyleGenerator
 from .random import RandomGenerator
-from .world_filter import WorldFilter
+from .world_filter import Cooperative, GeneratorKind, Independent, Mutual, Solvable, WorldFilter
 
-__all__ = ["generate", "WorldFilter"]
+__all__ = ["generate", "WorldFilter", "Solvable", "Independent", "Cooperative", "Mutual"]
+
+_GENERATORS: dict[GeneratorKind, type[Generator]] = {
+    "random": RandomGenerator,
+    "constructive": ConstructiveGenerator,
+    "level6_style": Level6StyleGenerator,
+}
+
+_Kind = Literal["auto", "random", "constructive", "level6_style"]
 
 
+# A single world is returned when ``n == 1`` and the attempt budget is unbounded.
 @overload
 def generate(
+    kind: _Kind = "auto",
     *,
+    n: Literal[1] = 1,
+    max_attempts: None = None,
     n_agents: int = 3,
     height: int = 10,
     width: int = 10,
-    n_lasers: int = 3,
+    n_lasers: int | Literal["auto"] = "auto",
     cooperative: bool | None = None,
     mutual: bool | None = None,
+    filter: WorldFilter | None = None,
     t_min: int = 0,
     t_max: int | Literal["auto"] = "auto",
     n_walls: int | Literal["auto"] = "auto",
     seed: int | None = None,
     n_jobs: int | Literal["auto"] = 1,
-    kind: Literal["auto", "level6_style", "random", "constructive"] = "auto",
-    max_attempts: None = None,
+    quiet: bool = False,
 ) -> World: ...
 
 
+# A bounded budget may fail, so a single world becomes optional.
 @overload
-def generate(**args: Unpack[_ConfigFilter]) -> World: ...
-@overload
-def generate(*, max_attempts: int, **args: Unpack[_ConfigFilter]) -> World | None: ...
-@overload
-def generate(*, max_attempts: int, **args: Unpack[_ConfigKW]) -> World | None: ...
-@overload
-def generate(**args: Unpack[_ConfigMultipleKW]) -> Generator[World, Any, None]: ...
-@overload
-def generate(**args: Unpack[_ConfigMultipleFilter]) -> Generator[World, Any, None]: ...
-
-
 def generate(
+    kind: _Kind = "auto",
     *,
-    n: int = 1,
+    n: Literal[1] = 1,
+    max_attempts: int,
     n_agents: int = 3,
     height: int = 10,
     width: int = 10,
-    n_lasers: int | Literal["auto"] = 3,
+    n_lasers: int | Literal["auto"] = "auto",
     cooperative: bool | None = None,
     mutual: bool | None = None,
     filter: WorldFilter | None = None,
     t_min: int = 0,
-    t_max: int | Literal["auto"] = 20,
+    t_max: int | Literal["auto"] = "auto",
     n_walls: int | Literal["auto"] = "auto",
     seed: int | None = None,
     n_jobs: int | Literal["auto"] = 1,
-    kind: Literal["auto", "level6_style", "random", "constructive"] = "level6_style",
-    max_attempts: int | None = None,
     quiet: bool = False,
-):
-    """
-    Build solvable `World` instances using a SAT-verified procedural generator.
+) -> World | None: ...
+
+
+# Asking for several worlds yields a (possibly shorter than ``n``) stream.
+@overload
+def generate(
+    kind: _Kind = "auto",
+    *,
+    n: int,
+    max_attempts: int | None = None,
+    n_agents: int = 3,
+    height: int = 10,
+    width: int = 10,
+    n_lasers: int | Literal["auto"] = "auto",
+    cooperative: bool | None = None,
+    mutual: bool | None = None,
+    filter: WorldFilter | None = None,
+    t_min: int = 0,
+    t_max: int | Literal["auto"] = "auto",
+    n_walls: int | Literal["auto"] = "auto",
+    seed: int | None = None,
+    n_jobs: int | Literal["auto"] = 1,
+    quiet: bool = False,
+) -> Iterator[World]: ...
+
+
+def generate(
+    kind: _Kind = "auto",
+    *,
+    n: int = 1,
+    max_attempts: int | None = None,
+    n_agents: int = 3,
+    height: int = 10,
+    width: int = 10,
+    n_lasers: int | Literal["auto"] = "auto",
+    cooperative: bool | None = None,
+    mutual: bool | None = None,
+    filter: WorldFilter | None = None,
+    t_min: int = 0,
+    t_max: int | Literal["auto"] = "auto",
+    n_walls: int | Literal["auto"] = "auto",
+    seed: int | None = None,
+    n_jobs: int | Literal["auto"] = 1,
+    quiet: bool = False,
+) -> World | Iterator[World] | None:
+    """Build solvable `World` instances using a SAT-verified procedural generator.
 
     # Parameters
-    - `kind`: generator strategy — ``"random"``, ``"constructive"``, or ``"level6_style"``.
+    - `kind`: generator strategy — ``"random"``, ``"constructive"``, ``"level6_style"``,
+      or ``"auto"`` to let the filter pick the best fit for the provided arguments.
     - `n`: number of worlds to produce.
-    - `filter`: a `WorldFilter` expressing world constraints (cooperative, mutual, ...).
-      Cannot be combined with `cooperation` or `mutual`.
-    - `cooperative`: shortcut for ``filter=WorldFilter(cooperative=...)``.
-    - `mutual`: shortcut for ``filter=WorldFilter(mutual=...)``.
-    - `n_walls`: number of walls; ``"auto"`` fills 10 % of the grid with walls.
-    - `t_min`: minimum solution path length in the solver.
+    - `filter`: a `WorldFilter` describing the desired world (e.g. `Cooperative()`,
+      `Mutual()`, `Independent()`). Mutually exclusive with `cooperative` / `mutual`.
+    - `cooperative`: shortcut — ``True`` → `Cooperative()`, ``False`` → `Independent()`.
+    - `mutual`: shortcut — ``True`` → `Mutual()`.
+    - `n_lasers`: number of laser sources; ``"auto"`` picks a sensible count for the filter.
+    - `n_walls`: number of walls; ``"auto"`` fills ~10% of the grid.
+    - `t_min`: reject worlds solvable in fewer than ``t_min`` steps.
     - `t_max`: upper bound on the solution length; ``"auto"`` uses ``width * height // 2``.
     - `n_jobs`: parallel workers; ``"auto"`` uses all CPUs minus one when ``n > 1``.
     - `max_attempts`: budget of generation attempts before giving up.
     - `quiet`: suppress the progress bar when ``n > 1``.
 
     # Returns
-    - `n=1`, no `max_attempts`: a single `World`.
-    - `n=1`, `max_attempts` set: a `World` or `None`.
-    - `n>1`: a generator of up to `n` worlds.
+    - ``n == 1`` with no `max_attempts`: a single `World`.
+    - ``n == 1`` with `max_attempts`: a `World` or `None`.
+    - ``n > 1``: an iterator of up to `n` worlds.
 
     # Examples
     ```python
     import lle
-    from lle.generator import WorldFilter
+    from lle.generator import Cooperative, Mutual, WorldFilter
 
     world = lle.generate(height=5, width=5, n_agents=2, seed=0)
     world = lle.generate(cooperative=True, n_agents=2, height=5, width=5, n_lasers=1)
-    world = lle.generate(mutual=True, kind="constructive", n_agents=4)
-    worlds = list(lle.generate(n=10, filter=WorldFilter(cooperative=True), kind="random",
+    world = lle.generate("constructive", mutual=True, n_agents=4)
+    worlds = list(lle.generate(n=10, filter=Cooperative(), kind="random",
                                height=5, width=5, n_agents=2, n_lasers=1))
     ```
     """
-    if filter is not None and (cooperative is not None or mutual is not None):
-        raise ValueError(
-            "Cannot combine a WorldFilter with the 'cooperation' or 'mutual' keyword arguments. "
-            "Either pass a WorldFilter or use the keyword shortcuts, not both."
-        )
+    world_filter = build_filter(filter, cooperative, mutual)
     args = GenerateArgs(
         kind=kind,
         height=height,
         width=width,
         n_agents=n_agents,
         n_lasers=n_lasers,
-        cooperation=cooperative,
-        mutual=mutual,
-        filter=filter,
-        t_max=t_max,
         t_min=t_min,
+        t_max=t_max,
         n_walls=n_walls,
         max_attempts=max_attempts,
         n_jobs=n_jobs,
+        filter=world_filter,
     ).resolve(n)
 
-    if kind == "random":
-        generator = RandomGenerator(
-            height=args.height,
-            width=args.width,
-            n_agents=args.n_agents,
-            n_lasers=args.n_lasers,
-            world_filter=args.filter,
-            n_walls=args.n_walls,
-            t_max=args.t_max,
-            t_min=args.t_min,
-        )
-    elif kind == "constructive":
-        generator = ConstructiveGenerator(
-            height=args.height,
-            width=args.width,
-            n_agents=args.n_agents,
-            n_lasers=args.n_lasers,
-            world_filter=args.filter,
-            n_walls=args.n_walls,
-            t_max=args.t_max,
-            t_min=args.t_min,
-        )
-    elif kind == "level6_style":
-        generator = Level6StyleGenerator(
-            height=args.height,
-            width=args.width,
-            n_agents=args.n_agents,
-            n_lasers=args.n_lasers,
-            n_walls=args.n_walls,
-            t_max=args.t_max,
-            t_min=args.t_min,
-            world_filter=args.filter,
-        )
-    else:
-        raise ValueError(f"Unknown kind: {kind!r}. Expected 'random', 'constructive', or 'level6_style'.")
+    generator = _GENERATORS[args.kind](
+        height=args.height,
+        width=args.width,
+        n_agents=args.n_agents,
+        n_lasers=args.n_lasers,
+        world_filter=args.filter,
+        n_walls=args.n_walls,
+        t_max=args.t_max,
+        t_min=args.t_min,
+    )
 
-    if args.n_jobs > 1:
-        worlds = generator.generate_n(n, args.n_jobs, seed, args.max_attempts, quiet=quiet)
-        if n == 1:
-            return next(worlds)
-        return worlds
-    return generator.generate(seed=seed, max_attempts=max_attempts)
+    if n == 1 and args.n_jobs == 1:
+        return generator.generate(max_attempts=args.max_attempts, seed=seed)
+
+    worlds = generator.generate_n(n=n, n_jobs=args.n_jobs, seed=seed, max_attempts=args.max_attempts, quiet=quiet)
+    if n == 1:
+        return next(worlds, None)
+    return worlds

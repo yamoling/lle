@@ -18,7 +18,7 @@ from .. import solver
 from ..world import World
 from ._candidates import CandidateLayout
 from ._world_builder import WorldBuilder
-from .world_filter import WorldFilter
+from .world_filter import Solvable, WorldFilter
 
 
 class _LayoutRetry(Exception):
@@ -74,7 +74,7 @@ class Generator(ABC):
         if self.t_min > self.t_max:
             raise ValueError(f"t_min must be <= t_max. Got t_min={self.t_min}, t_max={self.t_max}")
 
-        self.world_filter = WorldFilter() if world_filter is None else world_filter
+        self.world_filter = Solvable() if world_filter is None else world_filter
 
         total_needed = (2 * self.agents) + self.n_walls + self.n_lasers
         if total_needed > self.area:

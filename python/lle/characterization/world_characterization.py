@@ -6,6 +6,10 @@ from ..world import World
 from .trajectory_characterization import is_mutual
 
 
+class NotSolvableError(ValueError):
+    """Raised when a world is not solvable."""
+
+
 @dataclass
 class WorldCharacterizer:
     """
@@ -34,8 +38,15 @@ class WorldCharacterizer:
 
     @property
     def is_cooperative(self):
+        """
+        # Returns
+        Returns whether the world is cooperative.
+
+        # Raises
+            - ``NotSolvableError`` if the world is not solvable
+        """
         if not self.is_solvable:
-            raise ValueError("World is not solvable")
+            raise NotSolvableError("World is not solvable")
         return self.shortest_independent_path is None
 
     @property
@@ -44,8 +55,12 @@ class WorldCharacterizer:
 
     @property
     def is_independent(self):
+        """
+        # Raises
+            - ``NotSolvableError`` if the world is not solvable
+        """
         if not self.is_solvable:
-            raise ValueError("World is not solvable.")
+            raise NotSolvableError("World is not solvable.")
         return self.shortest_independent_path is not None
 
     @property
@@ -54,10 +69,13 @@ class WorldCharacterizer:
         - The world is solvable
         - and there exists a mutual trajectory
         - and the world would be unsolvable without mutual help
+
+        # Raises
+            - ``NotSolvableError`` if the world is not solvable
         """
         path = self.shortest_path
         if path is None:
-            raise ValueError("Cannot determine if requires mutual cooperation if unsolvable.")
+            raise NotSolvableError("Cannot determine if requires mutual cooperation if unsolvable.")
         if not is_mutual(self.world, path):
             return False
         return self.shortest_non_mutual_path is None

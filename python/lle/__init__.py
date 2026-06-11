@@ -104,10 +104,10 @@ Examples:
 import lle
 
 lle.generate(kind="random", height=5, width=5, n_agents=2)
-lle.generate(kind="random", height=6, width=6, n_agents=2, n_lasers=2, cooperation=True)
+lle.generate(kind="random", height=6, width=6, n_agents=2, n_lasers=2, cooperative=True)
 lle.generate(kind="level6_style", n_agents=4, n_lasers=3, t_max=21)
-lle.generate(kind="constructive", n_lasers=2, cooperation=True)
-lle.generate(kind="constructive", n_lasers=3, cooperation=None)
+lle.generate(kind="constructive", n_lasers=2, cooperative=True)
+lle.generate(kind="constructive", n_lasers=3)
 ```
 
 ## Custom maps
@@ -153,12 +153,10 @@ from .agent import Agent
 from .env import LLE
 from .generator import generate
 from .observations import ObservationType
-from .solver import (
-    is_cooperative,
-    solve,
-)
+from .solver import solve
 from .types import AgentId, LaserId, Position
 from .world import Action, EventType, World, WorldEvent, WorldState
+from .characterization import is_cooperative, characterize
 
 __version__: str
 from_file = LLE.from_file
@@ -189,10 +187,5 @@ __all__ = [
     "solve",
     "is_cooperative",
     "generate",
-    "analyse_cooperation",
-    "CooperationProfile",
-    "TemporalDependencyGraph",
-    "DependencyEdge",
     "characterize",
-    "WorldCharacterization",
 ]
