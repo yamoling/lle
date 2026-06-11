@@ -10,11 +10,6 @@ from .env import LLE
 from .extras_generators import ExtraGenerator, LaserSubgoal, NoExtras
 from .reward_strategy import MultiObjective, RewardStrategy, SingleObjective
 
-# Optional import
-try:
-    from .lle_pool import make_pool
-except ImportError:
-    pass
 __all__ = [
     "LLE",
     "Builder",
@@ -24,5 +19,4 @@ __all__ = [
     "ExtraGenerator",
     "NoExtras",
     "LaserSubgoal",
-    "make_pool",
 ]

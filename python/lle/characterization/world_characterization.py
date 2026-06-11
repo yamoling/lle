@@ -1,0 +1,81 @@
+from dataclasses import dataclass
+from functools import cached_property
+
+from .. import solver
+from ..world import World
+from .trajectory_characterization import is_mutual
+
+
+class NotSolvableError(ValueError):
+    """Raised when a world is not solvable."""
+
+
+@dataclass
+class WorldCharacterizer:
+    """
+    Lazy world characterizer class. Computes the properties of the world on-demand.
+
+    # Note
+    All properties are `t_max` dependent, i.e. a world can be said to be cooperative with t_max=10, but this same
+    world may be independent for t_max=11.
+    """
+
+    world: World
+    t_max: int
+
+    @cached_property
+    def shortest_path(self):
+        return solver.solve(self.world, self.t_max)
+
+    @cached_property
+    def shortest_independent_path(self):
+        """The length of the shortest valid plan within [lower_bound, t_max] that does not involve cooperation, or None if unsolvable."""
+        return solver.solve(self.world, self.t_max, mode="no-cooperation")
+
+    @cached_property
+    def shortest_non_mutual_path(self):
+        return solver.solve(self.world, self.t_max, mode="no-mutual-cooperation")
+
+    @property
+    def is_cooperative(self):
+        """
+        # Returns
+        Returns whether the world is cooperative.
+
+        # Raises
+            - ``NotSolvableError`` if the world is not solvable
+        """
+        if not self.is_solvable:
+            raise NotSolvableError("World is not solvable")
+        return self.shortest_independent_path is None
+
+    @property
+    def is_solvable(self):
+        return self.shortest_path is not None
+
+    @property
+    def is_independent(self):
+        """
+        # Raises
+            - ``NotSolvableError`` if the world is not solvable
+        """
+        if not self.is_solvable:
+            raise NotSolvableError("World is not solvable.")
+        return self.shortest_independent_path is not None
+
+    @property
+    def is_mutual(self):
+        """
+        - The world is solvable
+        - and there exists a mutual trajectory
+        - and the world would be unsolvable without mutual help
+
+        # Raises
+            - ``NotSolvableError`` if the world is not solvable
+        """
+        path = self.shortest_path
+        if path is None:
+            raise NotSolvableError("Cannot determine if requires mutual cooperation if unsolvable.")
+        if not is_mutual(self.world, path):
+            return False
+        return self.shortest_non_mutual_path is None

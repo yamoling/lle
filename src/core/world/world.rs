@@ -214,6 +214,10 @@ impl World {
         self.exits.clone()
     }
 
+    pub fn n_exits(&self) -> usize {
+        self.exits.len()
+    }
+
     pub fn n_gems(&self) -> usize {
         self.gems_positions.len()
     }

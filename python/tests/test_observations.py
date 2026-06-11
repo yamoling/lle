@@ -6,7 +6,6 @@ from lle.observations import AgentZeroPerspective, Layered, ObservationTypeLiter
 
 
 def test_typing_observation_type_literal():
-    # Every variant of CooperationLevelStr matches one CooperationLevel
     for s in get_args(ObservationTypeLiteral):
         ok = False
         for o in ObservationType:
@@ -14,7 +13,6 @@ def test_typing_observation_type_literal():
                 ok = True
                 break
         assert ok, f"{s} is not a valid ObservationType"
-    # Every CooperationLevel is a valid CooperationLevelStr
     for o in ObservationType:
         assert o in get_args(ObservationTypeLiteral)
 
@@ -100,11 +98,11 @@ def test_observe_layered_deactivated_laser():
 @ @  @  @  @
 """
     )
-    observer = ObservationType.LAYERED.get_observation_generator(world)
+    observer = Layered(world)
     world.reset()
     layers = observer.observe()
-    LASERS_0_LAYER = world.n_agents + 1
-    LASERS_1_LAYER = LASERS_0_LAYER + 1
+    LASERS_0_LAYER = observer.LASER_0
+    LASERS_1_LAYER = observer.LASER_0 + 1
     # Laser source and laser beam in layer 0
     assert np.all(layers[:, LASERS_0_LAYER, 0, 2] == -1)
     assert np.all(layers[:, LASERS_0_LAYER, 1:4, 2] == 1)
@@ -131,14 +129,14 @@ def test_observe_layered_gems_walls():
 @ @  @  @  @
 """
     )
-    observer = ObservationType.LAYERED.get_observation_generator(world)
+    observer = Layered(world)
     world.reset()
     layers = observer.observe()
-    LASER_0_LAYER = world.n_agents + 1
-    WALL_LAYER = world.n_agents
-    VOID_LAYER = world.n_agents * 2 + 1
-    GEM_LAYER = VOID_LAYER + 1
-    EXIT_LAYER = -1
+    LASER_0_LAYER = observer.LASER_0
+    WALL_LAYER = observer.WALL
+    VOID_LAYER = observer.VOID
+    GEM_LAYER = observer.GEM
+    EXIT_LAYER = observer.EXIT
 
     for i, j in world.wall_pos:
         assert np.all(layers[:, WALL_LAYER, i, j] == 1)
@@ -187,12 +185,14 @@ def test_observe_flattened():
 """
     )
     observer = ObservationType.FLATTENED.get_observation_generator(world)
-    assert observer.shape == (5 * 5 * (world.n_agents * 2 + 4),)
+    #  4 layers: walls, gems, exits, voids
+    # +2 layer per agent: location, lasers
+    assert observer.shape == (world.width * world.height * (world.n_agents * 2 + 4),)
     world.reset()
     obs = observer.observe()
     assert obs.shape == (
         1,
-        (world.n_agents * 2 + 4) * 5 * 5,
+        (world.n_agents * 2 + 4) * world.width * world.height,
     )
 
 
@@ -330,13 +330,13 @@ def test_padded_layered():
     world = World("S0 X")
     baseline = ObservationType.LAYERED.get_observation_generator(world)
     obs = ObservationType.LAYERED_PADDED_1AGENT.get_observation_generator(world)
-    assert obs.shape[0] == baseline.shape[0] + 1
-    assert obs.shape[1:] == baseline.shape[1:]
-    obs = ObservationType.LAYERED_PADDED_2AGENTS.get_observation_generator(world)
     assert obs.shape[0] == baseline.shape[0] + 2
     assert obs.shape[1:] == baseline.shape[1:]
+    obs = ObservationType.LAYERED_PADDED_2AGENTS.get_observation_generator(world)
+    assert obs.shape[0] == baseline.shape[0] + 4
+    assert obs.shape[1:] == baseline.shape[1:]
     obs = ObservationType.LAYERED_PADDED_3AGENTS.get_observation_generator(world)
-    assert obs.shape[0] == baseline.shape[0] + 3
+    assert obs.shape[0] == baseline.shape[0] + 6
     assert obs.shape[1:] == baseline.shape[1:]
 
 
@@ -458,12 +458,6 @@ def test_extras_subgoals_extras_two_lasers_two_agents():
     _perform_tests_two_agents(env)
     env.reset()
     _perform_tests_two_agents(env)
-
-
-def test_layered_observation_laser_agent_id_gap():
-    world = World("S0 L0S L2E X")
-    generator = Layered(world)
-    assert generator.highest_laser_agent_id == 2
 
 
 def test_layered_observation_laser_source_agent_id_above_n_agents():

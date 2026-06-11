@@ -1,10 +1,10 @@
-use std::fmt::Display;
-
 use serde::{Deserialize, Serialize};
+use std::fmt::Display;
+use strum::EnumIter;
 
 use crate::ParseError;
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, EnumIter)]
 pub enum Direction {
     #[serde(alias = "N", alias = "north", alias = "n")]
     North,

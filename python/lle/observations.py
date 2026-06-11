@@ -193,14 +193,10 @@ class LayeredPadded(ObservationGenerator):
         self.width = world.width
         self.height = world.height
         self.n_agents = world.n_agents + padding_size
-        if len(world.laser_sources) > 0:
-            self.highest_laser_agent_id = max(source.agent_id for source in world.laser_sources)
-        else:
-            self.highest_laser_agent_id = 0
         self.A0 = 0
-        self.WALL = self.A0 + self.n_agents
-        self.LASER_0 = self.WALL + 1
-        self.VOID = self.LASER_0 + self.highest_laser_agent_id + 1
+        self.LASER_0 = self.A0 + self.n_agents
+        self.WALL = self.LASER_0 + self.n_agents
+        self.VOID = self.WALL + 1
         self.GEM = self.VOID + 1
         self.EXIT = self.GEM + 1
         self._shape = (self.EXIT + 1, world.height, world.width)

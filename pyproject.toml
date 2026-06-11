@@ -28,6 +28,7 @@ dev = [
   "orjson>=3.11.7",
   "pdoc>=16.0.0",
   "pip>=24.2",
+  "pyinstrument>=5.1.2",
   "pytest>=9.0.0",
 ]
 
@@ -42,6 +43,11 @@ typeCheckingMode = "standard"
 features = ["pyo3/extension-module"]
 module-name = "lle"
 python-source = "python"
+
+[tool.pytest.ini_options]
+markers = [
+    "slow: marks tests that invoke the SAT solver or full generation loops",
+]
 
 [tool.ruff]
 line-length = 140
