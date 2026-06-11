@@ -1,36 +1,43 @@
+use crate::{ParseError, RuntimeWorldError};
 use pyo3::{
-    PyErr, create_exception,
+    PyErr,
     exceptions::{self, PyValueError},
 };
-
-use crate::{ParseError, RuntimeWorldError};
+use pyo3_stub_gen::create_exception;
 
 create_exception!(
-    "lle.exceptions",
+    lle.exceptions,
     InvalidWorldStateError,
     PyValueError,
     "Raised when the state of the world is invalid."
 );
 
 create_exception!(
-    "lle.exceptions",
+    lle.exceptions,
     InvalidActionError,
     PyValueError,
     "Raised when the action taken by an agent is invalid or when the number of actions provided is different from the number of agents."
 );
 
 create_exception!(
-    "lle.exceptions",
+    lle.exceptions,
     ParsingError,
     PyValueError,
     "Raised when there is a problem while parsing a world string."
 );
 
 create_exception!(
-    "lle.exceptions",
+    lle.exceptions,
     InvalidLevelError,
     PyValueError,
     "Raised when the level asked does not exist."
+);
+
+create_exception!(
+    lle.exceptions,
+    SolverError,
+    PyValueError,
+    "Raised when the solver encounters an illegal state."
 );
 
 pub fn parse_error_to_exception(error: ParseError) -> PyErr {
@@ -166,5 +173,24 @@ pub fn runtime_error_to_pyexception(error: RuntimeWorldError) -> PyErr {
         RuntimeWorldError::MutexPoisoned => {
             panic!("Mutex poisoned ! Check your code for deadlocks or exceptions.")
         }
+    }
+}
+
+pub fn solver_error_to_exception(error: crate::solver::errors::SolverError) -> PyErr {
+    match error {
+        crate::solver::errors::SolverError::VariableNotCreated { var } => {
+            PyValueError::new_err(format!("Variable not created: {var:?}"))
+        }
+        crate::solver::errors::SolverError::InvalidAssumption { var, reason } => {
+            SolverError::new_err(format!("Invalid assumption for {var:?}: {reason}"))
+        }
+        crate::solver::errors::SolverError::InvalidTrajectory {
+            prev_pos,
+            current_pos,
+            agent,
+            index,
+        } => SolverError::new_err(format!(
+            "Invalid trajectory: prev_pos={prev_pos:?}, current_pos={current_pos:?}, agent={agent}, index={index}"
+        )),
     }
 }

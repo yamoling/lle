@@ -252,7 +252,6 @@ class StatusThread(Thread):
         self.status = StatusThread.INITIAL
 
     def run(self):
-        print(self.data)
         self.status = StatusThread.FINISHED
 
 

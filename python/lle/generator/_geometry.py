@@ -7,19 +7,7 @@ basic grid logic without importing the SAT machinery.
 from __future__ import annotations
 
 from lle.tiles import Direction
-
-Position = tuple[int, int]
-
-
-def direction_delta(direction: Direction) -> tuple[int, int]:
-    """Return the (di, dj) delta for a Direction."""
-    if direction == Direction.NORTH:
-        return -1, 0
-    if direction == Direction.SOUTH:
-        return 1, 0
-    if direction == Direction.WEST:
-        return 0, -1
-    return 0, 1  # EAST
+from lle.types import Position
 
 
 def in_bounds(pos: Position, rows: int, cols: int) -> bool:
@@ -28,7 +16,7 @@ def in_bounds(pos: Position, rows: int, cols: int) -> bool:
 
 
 def points_out_immediately(src: Position, direction: Direction, rows: int, cols: int) -> bool:
-    dr, dc = direction_delta(direction)
+    dr, dc = direction.delta
     nr, nc = src[0] + dr, src[1] + dc
     return not in_bounds((nr, nc), rows, cols)
 
@@ -42,7 +30,7 @@ def beam_tiles(
     cols: int,
 ) -> list[Position]:
     """Tiles a laser beam would cover from src going direction, stopping at walls/lasers."""
-    dr, dc = direction_delta(direction)
+    dr, dc = direction.delta
     r, c = src[0] + dr, src[1] + dc
     tiles: list[Position] = []
     while in_bounds((r, c), rows, cols):

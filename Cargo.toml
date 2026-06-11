@@ -22,16 +22,18 @@ name = "stub-gen"
 path = "src/stub_gen.rs"
 
 [dependencies]
-image = "0.25.5"
+image = { version = "0.25.5", default-features = false, features = ["png"] }
 itertools = "0.14.0"
-lazy_static = "1.5.0"
 numpy = "0.28.0"
 pyo3 = { version = "0.28.0", features = ["generate-import-lib"] }
 pyo3-stub-gen = "0.22.0"
 rand = "0.10.0"
 serde = "1.0.217"
+strum = { version = "0.27.0", features = ["derive"] }
 toml = "1.1.0"
 
 [dev-dependencies]
-jsonschema = "0.45"
+boon = "0.6.1"
+rstest = "0.26.1"
+rstest_reuse = "0.7.0"
 serde_json = "1.0"

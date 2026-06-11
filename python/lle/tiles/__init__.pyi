@@ -139,6 +139,10 @@ class LaserSource:
         Equality is based on the agent ID, direction, laser ID, and position.
         Whether a laser source is enabled is not considered.
         """
+    def __hash__(self) -> builtins.int:
+        r"""
+        Hash based on the `laser_id`.
+        """
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...
 
@@ -149,6 +153,11 @@ class Direction(enum.Enum):
     SOUTH = ...
     WEST = ...
 
+    @property
+    def delta(self) -> tuple[builtins.int, builtins.int]:
+        r"""
+        The delta of this direction (di, dj).
+        """
     @property
     def is_horizontal(self) -> builtins.bool: ...
     @property
@@ -172,10 +181,6 @@ class Direction(enum.Enum):
         
         Raises:
           ValueError: If the string is not a valid cardinal direction.
-        """
-    def delta(self) -> tuple[builtins.int, builtins.int]:
-        r"""
-        The delta of this direction (di, dj).
         """
     def opposite(self) -> Direction:
         r"""

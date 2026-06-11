@@ -194,9 +194,9 @@ class LayeredPadded(ObservationGenerator):
         self.height = world.height
         self.n_agents = world.n_agents + padding_size
         self.A0 = 0
-        self.WALL = self.A0 + self.n_agents
-        self.LASER_0 = self.WALL + 1
-        self.VOID = self.LASER_0 + self.n_agents + 1
+        self.LASER_0 = self.A0 + self.n_agents
+        self.WALL = self.LASER_0 + self.n_agents
+        self.VOID = self.WALL + 1
         self.GEM = self.VOID + 1
         self.EXIT = self.GEM + 1
         self._shape = (self.EXIT + 1, world.height, world.width)

@@ -11,7 +11,7 @@ of the laser, in which case they can block the beam and let others pass safely.
 LLE gives you two complementary ways to work with a world:
 - `World` for low-level, deterministic control of maps, states, and steps.
 - `LLE` for a higher-level MARL environment compatible with `marlenv`.
-- `generate`, `solve`, `is_cooperative`, and `cooperation_level` for SAT-based generation and analysis.
+- `generate`, `solve`, `solve_hybrid`, `solve_sat`, and `is_cooperative` for SAT-based generation and analysis.
 
 ## Quick start
 Create a simple world, run a step, then restore the previous state:
@@ -56,9 +56,13 @@ pip install laser-learning-environment[generator]
 ```
 
 - `lle.generate(...)` builds a solvable world on demand.
-- `lle.solve(world, t_max)` searches for a joint plan that reaches all exits.
+- `lle.solve(world, t_max)` searches for the shortest joint plan that reaches all exits within the time bound.
+- `lle.solve_hybrid(world, t_max)` searches for the shortest joint plan using incremental SAT clause reuse.
+- `lle.solve_sat(world, t_max)` searches for a joint plan of exactly `t_max` steps.
 - `lle.is_cooperative(world, t_max)` checks whether the world requires laser blocking under standard semantics.
 - `lle.cooperation_level(world, t_max)` returns the more precise cooperation classification.
+- `lle.analyse_cooperation(world, trajectory)` extracts the help graph of one concrete trajectory.
+- `lle.characterize(world, t_max)` proves, via SAT/UNSAT, which agent dependencies *every* plan of length ≤ t requires.
 
 `lle.generate(...)` and the solver helpers live in `lle.generator` and
 `lle.solver`, but `import lle` re-exports them for convenience.
@@ -92,22 +96,18 @@ assert lle.is_cooperative(World.level(6))
   kind defaults to an exactly mutual cooperative configuration.
 
 The `cooperation` argument lets you constrain the requested cooperation
-behaviour. You can pass `True`, `False`, a `CooperationLevel`, a string such
-as `"mutual"`, or a tuple such as `("at-least", "mutual")`. See
-`CooperationLevel` for the exact ordering. Use `cooperation=True` when you
-want any cooperative world rather than a specific profile.
+behaviour. You can pass `True`, `False`, or `None`.
 
 Examples:
 
 ```python
 import lle
-from lle import CooperationLevel
 
 lle.generate(kind="random", height=5, width=5, n_agents=2)
-lle.generate(kind="random", height=6, width=6, n_agents=2, n_lasers=2, cooperation=True)
+lle.generate(kind="random", height=6, width=6, n_agents=2, n_lasers=2, cooperative=True)
 lle.generate(kind="level6_style", n_agents=4, n_lasers=3, t_max=21)
-lle.generate(kind="constructive", n_lasers=2, cooperation=("at-least", CooperationLevel.ASYMMETRIC))
-lle.generate(kind="constructive", n_lasers=3, cooperation=("exactly", "asymmetric"))
+lle.generate(kind="constructive", n_lasers=2, cooperative=True)
+lle.generate(kind="constructive", n_lasers=3)
 ```
 
 ## Custom maps
@@ -150,12 +150,13 @@ from .lle import __version__, agent, exceptions, tiles, world  # noqa # prevent 
 
 
 from .agent import Agent
-from .env import LLE, make_pool
+from .env import LLE
 from .generator import generate
 from .observations import ObservationType
-from .solver import CooperationLevel, CooperationLevelStr, cooperation_level, is_cooperative, solve
+from .solver import solve
 from .types import AgentId, LaserId, Position
 from .world import Action, EventType, World, WorldEvent, WorldState
+from .characterization import is_cooperative, characterize
 
 __version__: str
 from_file = LLE.from_file
@@ -185,9 +186,6 @@ __all__ = [
     "level",
     "solve",
     "is_cooperative",
-    "cooperation_level",
-    "CooperationLevel",
     "generate",
-    "make_pool",
-    "CooperationLevelStr",
+    "characterize",
 ]
