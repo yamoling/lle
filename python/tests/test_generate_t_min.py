@@ -116,6 +116,7 @@ def test_generate_multiple_worlds_all_respect_t_min():
             t_min=t_min,
             t_max=t_max,
             max_attempts=1000,
+            n_jobs=1,
         )
     )
     assert len(worlds) > 0, "generator produced no worlds within the attempt budget"

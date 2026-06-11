@@ -56,6 +56,7 @@ class GenerateArgs:
     depends on whether the filter requires cooperation.
     """
 
+    n: int
     kind: Literal["auto", "random", "constructive", "level6_style"] = "auto"
     height: int = 10
     width: int = 10
@@ -97,16 +98,16 @@ class GenerateArgs:
             raise ValueError("Mutual cooperation are impossible with less than two lasers.")
         return n_lasers
 
-    def _resolve_n_jobs(self, n: int) -> int:
+    def _resolve_n_jobs(self) -> int:
         if self.n_jobs == "auto":
-            if n > 1:
+            if self.n > 1:
                 from multiprocessing import cpu_count
 
                 return max(1, cpu_count() - 1)
             return 1
         return self.n_jobs
 
-    def resolve(self, n: int = 1) -> SanitizedArgs:
+    def resolve(self) -> SanitizedArgs:
         if self.n_agents < 1:
             raise ValueError(f"n_agents must be >= 1. Got {self.n_agents}")
         t_max = self._resolve_t_max()
@@ -122,7 +123,7 @@ class GenerateArgs:
             n_lasers=self._resolve_n_lasers(kind, world_filter),
             n_walls=self._resolve_n_walls(),
             max_attempts=self.max_attempts,
-            n_jobs=self._resolve_n_jobs(n),
+            n_jobs=self._resolve_n_jobs(),
             filter=world_filter,
         )
 

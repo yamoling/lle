@@ -28,11 +28,11 @@ from lle import World
 # 4-5 (reached over the top row, around the wall column `@`). So mutual cooperation is *required*
 # only while the time budget is too small to take the detour.
 TIME_DEPENDENT = """
- S0 S1 . . . .
+ . S0 S1 . . .
 L0E .  . @ . .
 L1E .  . @ . .
- X  X  . @ . .
- .  .  . . . .
+ .  .  . @ . .
+ .  X  X . . .
 """
 
 # Two facing beams spanning the whole corridor: there is no detour, so mutual cooperation is
@@ -50,10 +50,10 @@ def report(name: str, world: World, t_max: int) -> None:
     for t in range(t_max + 1):
         if lle.solve(world, t) is None:
             continue  # no plan of this length at all
-        free = lle.solve_without_mutual_cooperation(world, t) is not None
+        free = lle.solve(world, t, mode="no-mutual-cooperation") is not None
         verdict = "free of mutual help" if free else "MUTUAL HELP REQUIRED"
         print(f"  t={t:2}: solvable, shortest plan is {verdict}")
-    print(f"  -> requires_mutual_cooperation(t_max={t_max}) = {lle.requires_mutual_cooperation(world, t_max)}")
+    print(f"  -> requires_mutual_cooperation(t_max={t_max}) = {lle.characterize(world, t_max).is_mutual}")
 
 
 def main() -> None:

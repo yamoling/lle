@@ -592,8 +592,12 @@ impl PyWorld {
 
     pub fn __repr__(&self) -> String {
         let mut res = format!(
-            "World(height={}, width={}, n_gems={}, n_agents={})",
-            self.height, self.width, self.n_gems, self.n_agents
+            "World(height={}, width={}, n_gems={}, n_agents={}, world_string={})",
+            self.height,
+            self.width,
+            self.n_gems,
+            self.n_agents,
+            self.world_string()
         );
         let w = self.world.lock().unwrap();
         res.push_str(

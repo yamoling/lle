@@ -116,27 +116,27 @@ class Generator(ABC):
                 return maybe_world
         return None
 
-    def generate_n(self, n: int, n_jobs: int, seed: int | None = None, max_attempts: int | None = None, quiet: bool = False):
-        if seed is not None:
-            self._rng.seed(seed)
-        if n_jobs < 1:
-            raise ValueError("Invalid argument in 'generate_n': n_jobs must be >=1")
-        show_attemps = max_attempts is not None
-        if max_attempts is None:
-            max_attempts = sys.maxsize
+    def _generate_n_single(self, n: int, max_attempts: int):
+        """Yield (attempt_index, world_or_None) for each attempt, stopping after n successes."""
+        n_generated = 0
+        for i in range(max_attempts):
+            result = self._try_generate(None)
+            yield i, result
+            if result is not None:
+                n_generated += 1
+                if n_generated >= n:
+                    return
+
+    def _generate_n_multi(self, n: int, n_jobs: int, max_attempts: int):
+        """Yield (attempt_index, world_or_None) using a process pool, stopping after n successes."""
         n_generated = 0
         try:
-            with mp.Pool(n_jobs) as pool, tqdm(total=n, disable=quiet) as pbar:
-                # Worker seeds are 0, 1, 2, ...
+            with mp.Pool(n_jobs) as pool:
                 results = pool.imap_unordered(self._try_generate, range(max_attempts))
                 for i, result in enumerate(results):
-                    if show_attemps and not quiet:
-                        budget_percent = 100 * (i + 1) / max_attempts
-                        pbar.set_description(f"{budget_percent:.2f}% budget elapsed")
+                    yield i, result
                     if result is not None:
                         n_generated += 1
-                        pbar.update(1)
-                        yield result
                         if n_generated >= n:
                             pool.terminate()
                             return
@@ -144,4 +144,24 @@ class Generator(ABC):
             raise RuntimeError(
                 "Error in the processing pool. Do you have an \"if __name__ == '__main__':\" guard around the entry of the main script?"
             ) from e
-        return
+
+    def generate_n(self, n: int, n_jobs: int, seed: int | None = None, max_attempts: int | None = None, quiet: bool = False):
+        if seed is not None:
+            self._rng.seed(seed)
+        if n_jobs < 1:
+            raise ValueError("Invalid argument in 'generate_n': n_jobs must be >=1")
+        show_attempts = max_attempts is not None
+        if max_attempts is None:
+            max_attempts = sys.maxsize
+        if n_jobs == 1:
+            generator = self._generate_n_single(n, max_attempts)
+        else:
+            generator = self._generate_n_multi(n, n_jobs, max_attempts)
+        with tqdm(total=n, disable=quiet) as pbar:
+            for i, result in generator:
+                if show_attempts and not quiet:
+                    budget_percent = 100 * (i + 1) / max_attempts
+                    pbar.set_description(f"{budget_percent:.2f}% budget elapsed")
+                if result is not None:
+                    pbar.update(1)
+                    yield result

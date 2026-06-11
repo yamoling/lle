@@ -146,6 +146,7 @@ def generate(
     ```
     """
     args = GenerateArgs(
+        n,
         kind=kind,
         height=height,
         width=width,
@@ -159,7 +160,7 @@ def generate(
         filter=filter,
         cooperative=cooperative,
         mutual=mutual,
-    ).resolve(n)
+    ).resolve()
 
     generator = _GENERATORS[args.kind](
         height=args.height,
