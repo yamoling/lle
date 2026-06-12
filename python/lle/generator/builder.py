@@ -33,7 +33,7 @@ from typing import Literal, overload
 
 from ..world import World
 from .generator import WorldGenerator
-from .world_filter import Cooperative, Independent, Mutual, Solvable, WorldFilter
+from .world_filter import Chained, Cooperative, Independent, Mutual, Solvable, WorldFilter
 
 StartsMode = Literal["random", "edge", "clustered"]
 ExitsMode = Literal["random", "edge", "cluster", "opposite"]
@@ -177,6 +177,18 @@ class GeneratorBuilder:
         )
         return self
 
+    def chained(
+        self,
+        t_max: int | None = None,
+        t_min: int | None = None,
+    ) -> GeneratorBuilder:
+        """Require *chained* cooperation: a helped b, then b helped c (chain length ≥ 2)."""
+        self._world_filter = Chained(
+            t_max if t_max is not None else self._world_filter.t_max,
+            t_min if t_min is not None else self._world_filter.t_min,
+        )
+        return self
+
     def mutual(
         self,
         t_max: int | None = None,
@@ -215,19 +227,24 @@ class GeneratorBuilder:
     # ------------------------------------------------------------------
     # Terminals
     # ------------------------------------------------------------------
-
     @overload
-    def build(self, *, seed: int | None = None) -> World: ...
+    def build(self, *, seed: int | None = None, n_jobs: int = 1) -> World: ...
     @overload
-    def build(self, *, seed: int | None = None, max_attempts: int) -> World | None: ...
-    def build(self, *, seed: int | None = None, max_attempts: int | None = None) -> World | None:
+    def build(self, *, seed: int | None = None, max_attempts: int, n_jobs: int = 1) -> World | None: ...
+    def build(self, *, seed: int | None = None, max_attempts: int | None = None, n_jobs: int = 1):
         """Generate a single world.
 
         With no `max_attempts` the search runs until it succeeds and always
         returns a `World`. With a bounded `max_attempts` it returns the world,
         or ``None`` if the budget is exhausted.
         """
-        return self._make_generator().generate(max_attempts=max_attempts, seed=seed)
+        generator = self._make_generator()
+        if n_jobs == 1:
+            return generator.generate(max_attempts=max_attempts, seed=seed)
+        try:
+            return next(generator.generate_n(1, n_jobs=n_jobs, seed=seed, max_attempts=max_attempts))
+        except StopIteration:
+            return None
 
     def take(
         self,
@@ -311,6 +328,8 @@ class GeneratorBuilder:
             n_lasers = 0
         if world_filter.requires_cooperation and n_lasers == 0:
             raise ValueError("Cooperative worlds are impossible with 0 lasers.")
+        if world_filter.requires_chained_cooperation and n_lasers < 2:
+            raise ValueError("Chained cooperation requires at least 2 lasers.")
         if world_filter.requires_mutual_cooperation and n_lasers < 2:
             raise ValueError("Mutual cooperation is impossible with fewer than 2 lasers.")
         return n_lasers

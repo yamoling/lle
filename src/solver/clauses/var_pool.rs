@@ -172,6 +172,21 @@ impl VarPool {
         self.id(VarKey::mutual(a, b))
     }
 
+    /// Indicator "`helper` has helped `beneficiary` at any time step ≤ `t`".
+    pub fn first_helped_by_time(&mut self, helper: AgentId, beneficiary: AgentId, t: usize) -> i32 {
+        self.id(VarKey::first_helped_by_time(helper, beneficiary, t))
+    }
+
+    /// Indicator "temporal chain `a → b → c` exists: `a` helped `b` by time `t`, `b` helps `c` at time `t`".
+    pub fn chain_event(&mut self, a: AgentId, b: AgentId, c: AgentId, t: usize) -> i32 {
+        self.id(VarKey::chain_event(a, b, c, t))
+    }
+
+    /// Indicator "temporal chain `a → b → c` exists across the whole horizon".
+    pub fn chain(&mut self, a: AgentId, b: AgentId, c: AgentId) -> i32 {
+        self.id(VarKey::chain(a, b, c))
+    }
+
     /// Variable id already assigned to `key`, or `None` if it was never created.
     ///
     /// Unlike the factory methods above, this never *creates* a variable, so it is safe to use

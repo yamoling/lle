@@ -19,6 +19,8 @@ use crate::{
 /// - `"no-cooperation"`: assumptions forbidding any non-owner agent from entering a laser span.
 /// - `"no-mutual-cooperation"`: clauses and assumptions forbidding pairs of agents from
 ///   mutually helping each other.
+/// - `"no-chained-cooperation"`: clauses and assumptions forbidding any temporal chain
+///   `a → b → c` (a helped b, then b helped c). Subsumes `"no-mutual-cooperation"`.
 ///
 /// ```python
 /// from pysat.solvers import Minisat22
@@ -62,7 +64,7 @@ impl PyClauseGenerator {
         world: &PyWorld,
         t_max: usize,
         #[gen_stub(override_type(
-            type_repr = "typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation'] | SolveMode",
+            type_repr = "typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation', 'no-chained-cooperation'] | SolveMode",
             imports = ("typing",)
         ))]
         mode: Py<PyAny>,
@@ -98,6 +100,7 @@ impl PyClauseGenerator {
     /// - All buffered clauses for steps `0..=t`
     /// - The objective clauses (every agent on an exit at step `t`)
     /// - For `"no-mutual-cooperation"` mode: mutual-forbid clauses and assumptions
+    /// - For `"no-chained-cooperation"` mode: chain-forbid assumptions
     /// - For `"no-cooperation"` mode: per-step no-cooperation assumptions
     ///
     /// Returns `(clauses, assumptions)` ready to be fed to `solve_model`.

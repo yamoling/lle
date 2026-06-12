@@ -25,6 +25,8 @@ class ClauseGenerator:
     - `"no-cooperation"`: assumptions forbidding any non-owner agent from entering a laser span.
     - `"no-mutual-cooperation"`: clauses and assumptions forbidding pairs of agents from
       mutually helping each other.
+    - `"no-chained-cooperation"`: clauses and assumptions forbidding any temporal chain
+      `a → b → c` (a helped b, then b helped c). Subsumes `"no-mutual-cooperation"`.
     
     ```python
     from pysat.solvers import Minisat22
@@ -58,7 +60,7 @@ class ClauseGenerator:
         r"""
         The number of SAT variables allocated so far by this generator.
         """
-    def __new__(cls, world: world.World, t_max: builtins.int, mode: typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation'] | SolveMode) -> ClauseGenerator:
+    def __new__(cls, world: world.World, t_max: builtins.int, mode: typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation', 'no-chained-cooperation'] | SolveMode) -> ClauseGenerator:
         r"""
         Build a clause generator for the given `world`, considering plans of length up to `t_max`.
         
@@ -75,6 +77,7 @@ class ClauseGenerator:
         - All buffered clauses for steps `0..=t`
         - The objective clauses (every agent on an exit at step `t`)
         - For `"no-mutual-cooperation"` mode: mutual-forbid clauses and assumptions
+        - For `"no-chained-cooperation"` mode: chain-forbid assumptions
         - For `"no-cooperation"` mode: per-step no-cooperation assumptions
         
         Returns `(clauses, assumptions)` ready to be fed to `solve_model`.
@@ -107,6 +110,9 @@ class SolveMode(enum.Enum):
       a laser span. Equivalent to treating every beam as permanently active.
     - `NO_MUTUAL_COOPERATION` — dependency indicator clauses plus horizon-level mutual-forbid
       clauses and assumptions, ruling out plans where two agents each help the other.
+    - `NO_CHAINED_COOPERATION` — chain indicator clauses plus horizon-level chain-forbid
+      assumptions, ruling out plans where a temporal chain `a → b → c` exists (a helped b, then
+      b helped c). Subsumes `NO_MUTUAL_COOPERATION` (cycles are a special case of chains).
     
     ```python
     from lle.solver.constraints import ClauseGenerator, SolveMode
@@ -121,9 +127,10 @@ class SolveMode(enum.Enum):
     STANDARD = ...
     NO_COOPERATION = ...
     NO_MUTUAL_COOPERATION = ...
+    NO_CHAINED_COOPERATION = ...
 
     @property
-    def value(self) -> typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation']:
+    def value(self) -> typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation', 'no-chained-cooperation']:
         r"""
         The canonical string representation, e.g. `"no-cooperation"`.
         Matches the string literals accepted by `ClauseGenerator` and `solve`.
@@ -134,5 +141,5 @@ class SolveMode(enum.Enum):
     def __repr__(self) -> builtins.str: ...
     def __hash__(self) -> builtins.int: ...
     @staticmethod
-    def from_str(value: typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation']) -> SolveMode: ...
+    def from_str(value: typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation', 'no-chained-cooperation']) -> SolveMode: ...
 

@@ -12,8 +12,8 @@ The taxonomy mirrors the cooperation lattice computed by `WorldCharacterizer`:
     WorldFilter (any solvable world)
     ├── Independent          – solvable without any cooperation
     └── Cooperative          – cooperation is required
+        └── Chained          – cooperation forms a chain (a helps b, then b helps c)
         └── Mutual           – every agent both helps and is helped
-        (future: FullyCoupled, Chained, Distributed …)
 
 Every filter is a frozen dataclass so it pickles cleanly into worker processes.
 """
@@ -65,6 +65,10 @@ class WorldFilter(ABC):
         return False
 
     @property
+    def requires_chained_cooperation(self) -> bool:
+        return False
+
+    @property
     def requires_mutual_cooperation(self) -> bool:
         return False
 
@@ -84,6 +88,10 @@ class WorldFilter(ABC):
     @staticmethod
     def cooperative(t_max: int, t_min: int | None = None):
         return Cooperative(t_max, t_min)
+
+    @staticmethod
+    def chained(t_max: int, t_min: int | None = None):
+        return Chained(t_max, t_min)
 
     @staticmethod
     def mutual(t_max: int, t_min: int | None = None):
@@ -129,14 +137,35 @@ class Cooperative(WorldFilter):
 
 
 @dataclass
-class Mutual(Cooperative):
-    """Matches worlds that require *mutual* cooperation: every agent both helps and is helped.
+class Chained(Cooperative):
+    """Matches worlds that require *chained* cooperation: a helped b, then b helped c.
 
-    Mutual cooperation implies cooperation, hence this is a refinement of `Cooperative`.
+    A chain of length ≥ 2 in the temporal dependency graph is required — no non-chained
+    plan exists within ``t_max``. Mutual cooperation (a→b→a cycle) is a special case of
+    chaining, so `Mutual` is a refinement of this class.
     """
 
     def _matches(self, c: WorldCharacterizer) -> bool:
-        # ``is_mutual`` already entails ``is_cooperative``.
+        try:
+            return c.is_chained
+        except NotSolvableError:
+            return False
+
+    @property
+    def requires_chained_cooperation(self) -> bool:
+        return True
+
+
+@dataclass
+class Mutual(Chained):
+    """Matches worlds that require *mutual* cooperation: every agent both helps and is helped.
+
+    Mutual cooperation implies chained cooperation (a→b→a is a chain of length 2), hence
+    this is a refinement of `Chained`.
+    """
+
+    def _matches(self, c: WorldCharacterizer) -> bool:
+        # ``is_mutual`` already entails ``is_chained`` and ``is_cooperative``.
         try:
             return c.is_mutual
         except NotSolvableError:

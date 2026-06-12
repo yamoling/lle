@@ -18,6 +18,9 @@ pub enum SolveMode {
     NoCooperation,
     /// No pair of agents may mutually cooperate (each helping the other).
     NoMutualCooperation,
+    /// No temporal chain `a → b → c` (a helped b, then b helped c) may appear; also rules out
+    /// mutual cycles. This is strictly stronger than `NoMutualCooperation`.
+    NoChainedCooperation,
 }
 
 impl SolveMode {
@@ -26,8 +29,9 @@ impl SolveMode {
             "standard" => Ok(SolveMode::Standard),
             "no-cooperation" => Ok(SolveMode::NoCooperation),
             "no-mutual-cooperation" => Ok(SolveMode::NoMutualCooperation),
+            "no-chained-cooperation" => Ok(SolveMode::NoChainedCooperation),
             _ => Err(format!(
-                "Unknown solve mode: '{}'. Expected one of: 'standard', 'no-cooperation', 'no-mutual-cooperation'",
+                "Unknown solve mode: '{}'. Expected one of: 'standard', 'no-cooperation', 'no-mutual-cooperation', 'no-chained-cooperation'",
                 s
             )),
         }
@@ -87,10 +91,18 @@ impl ClauseGenerator {
             .copied()
             .collect();
         clauses.extend(self.objective(t));
-        if matches!(self.mode, SolveMode::NoMutualCooperation) {
-            let (mc, ma) = self.forbid_mutual_cooperation();
-            clauses.extend(mc);
-            assumptions.extend(ma);
+        match self.mode {
+            SolveMode::NoMutualCooperation => {
+                let (mc, ma) = self.forbid_mutual_cooperation();
+                clauses.extend(mc);
+                assumptions.extend(ma);
+            }
+            SolveMode::NoChainedCooperation => {
+                let (cc, ca) = self.forbid_chained_cooperation();
+                clauses.extend(cc);
+                assumptions.extend(ca);
+            }
+            _ => {}
         }
 
         (clauses, assumptions)
@@ -107,15 +119,22 @@ impl ClauseGenerator {
         let (beam_clauses, active_lit) = self.beam_activation(t);
         clauses.extend(beam_clauses);
         clauses.extend(self.no_step_on_active_laser(t, &active_lit));
-        if matches!(self.mode, SolveMode::NoMutualCooperation) {
-            clauses.extend(self.dependency_clauses(t));
+        match self.mode {
+            SolveMode::NoMutualCooperation => {
+                clauses.extend(self.dependency_clauses(t));
+            }
+            SolveMode::NoChainedCooperation => {
+                clauses.extend(self.dependency_clauses(t));
+                clauses.extend(self.chain_clauses(t));
+            }
+            _ => {}
         }
         self.clause_buffer[t] = clauses;
     }
 
     fn fill_assumptions(&mut self, t: usize) {
         self.assumption_buffer[t] = match self.mode {
-            SolveMode::Standard | SolveMode::NoMutualCooperation => vec![],
+            SolveMode::Standard | SolveMode::NoMutualCooperation | SolveMode::NoChainedCooperation => vec![],
             SolveMode::NoCooperation => self.assume_no_cooperation(t),
         };
     }

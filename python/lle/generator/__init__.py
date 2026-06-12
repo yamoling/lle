@@ -13,9 +13,9 @@ worlds = list(lle.generate(width=8, height=8, n_agents=3).walls(4, style="shapes
 ```
 
 `WorldFilter` and its subclasses (`Solvable`, `Independent`, `Cooperative`,
-`Mutual`) describe behavioural constraints and are accepted by
-`GeneratorBuilder.require(...)`; the named methods (`cooperative()`, `mutual()`,
-…) cover the common cases without constructing a filter by hand.
+`Chained`, `Mutual`) describe behavioural constraints and are accepted by
+`GeneratorBuilder.require(...)`; the named methods (`cooperative()`, `chained()`,
+`mutual()`, …) cover the common cases without constructing a filter by hand.
 
 `CustomGenerator` remains available for advanced or direct use, but
 `generate(...)` is the recommended path.
@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from .builder import GeneratorBuilder
 from .generator import WorldGenerator
-from .world_filter import Cooperative, Independent, Mutual, Solvable, WorldFilter
+from .world_filter import Chained, Cooperative, Independent, Mutual, Solvable, WorldFilter
 
 __all__ = [
     "generate",
@@ -34,6 +34,7 @@ __all__ = [
     "Solvable",
     "Independent",
     "Cooperative",
+    "Chained",
     "Mutual",
     "WorldGenerator",
 ]
@@ -50,7 +51,7 @@ def generate(width: int = 10, height: int = 10, n_agents: int = 3) -> GeneratorB
       `starts(...)` / `exits(...)`.
     - Lasers and walls: `lasers(...)`, `walls(...)`.
     - Behaviour: `solvable()` (default), `independent()`, `cooperative(...)`,
-      `mutual(...)`, or `require(filter)`.
+      `chained(...)`, `mutual(...)`, or `require(filter)`.
     - Terminals: `build(...)` for a single `World`, `take(n, ...)` for an
       iterator of worlds.
 

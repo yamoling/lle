@@ -73,12 +73,24 @@ class WorldCharacterizer:
     @property
     def is_chained(self):
         """
+        Whether the world requires chained cooperation:
         - The world is solvable
-        - and there exists a mutual trajectory
-        - and the world would be unsolvable without mutual help
+        - and the optimal trajectory exhibits a chain (a helped b, then b helped c)
+        - and no non-chained trajectory exists within `t_max`
+
+        Chained cooperation subsumes mutual cooperation: a mutual cycle `a → b → a` is a
+        chain of length 2.
+
+        # Raises
+            - ``NotSolvableError`` if the world is not solvable
         """
-        # TODO
-        raise NotImplementedError()
+        path = self.shortest_path
+        if path is None:
+            raise NotSolvableError("World is not solvable")
+        profile = profile_trajectory(self.world, path)
+        if not profile.is_chained:
+            return False
+        return self.shortest_non_chained_path is None
 
     @cached_property
     def shortest_path(self):
@@ -92,3 +104,7 @@ class WorldCharacterizer:
     @cached_property
     def shortest_non_mutual_path(self):
         return solver.solve(self.world, self.t_max, mode="no-mutual-cooperation")
+
+    @cached_property
+    def shortest_non_chained_path(self):
+        return solver.solve(self.world, self.t_max, mode="no-chained-cooperation")

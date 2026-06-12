@@ -66,7 +66,6 @@ def _solve(
     if t_min > t_max:
         return None
     for t in range(t_min, t_max + 1):
-        print(t)
         clauses, assumptions = gen.generate(t)
         model = solve_model(clauses, assumptions=assumptions)
         if model is not None:

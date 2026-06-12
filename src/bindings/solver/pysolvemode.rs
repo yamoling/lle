@@ -12,6 +12,9 @@ use crate::solver::SolveMode;
 ///   a laser span. Equivalent to treating every beam as permanently active.
 /// - `NO_MUTUAL_COOPERATION` — dependency indicator clauses plus horizon-level mutual-forbid
 ///   clauses and assumptions, ruling out plans where two agents each help the other.
+/// - `NO_CHAINED_COOPERATION` — chain indicator clauses plus horizon-level chain-forbid
+///   assumptions, ruling out plans where a temporal chain `a → b → c` exists (a helped b, then
+///   b helped c). Subsumes `NO_MUTUAL_COOPERATION` (cycles are a special case of chains).
 ///
 /// ```python
 /// from lle.solver.constraints import ClauseGenerator, SolveMode
@@ -38,6 +41,8 @@ pub enum PySolveMode {
     NoCooperation,
     #[pyo3(name = "NO_MUTUAL_COOPERATION")]
     NoMutualCooperation,
+    #[pyo3(name = "NO_CHAINED_COOPERATION")]
+    NoChainedCooperation,
 }
 
 impl From<&PySolveMode> for SolveMode {
@@ -46,6 +51,7 @@ impl From<&PySolveMode> for SolveMode {
             PySolveMode::Standard => SolveMode::Standard,
             PySolveMode::NoCooperation => SolveMode::NoCooperation,
             PySolveMode::NoMutualCooperation => SolveMode::NoMutualCooperation,
+            PySolveMode::NoChainedCooperation => SolveMode::NoChainedCooperation,
         }
     }
 }
@@ -60,23 +66,25 @@ impl From<PySolveMode> for SolveMode {
 #[pymethods]
 impl PySolveMode {
     #[staticmethod]
-    const fn variants() -> [PySolveMode; 3] {
+    const fn variants() -> [PySolveMode; 4] {
         [
             PySolveMode::Standard,
             PySolveMode::NoCooperation,
             PySolveMode::NoMutualCooperation,
+            PySolveMode::NoChainedCooperation,
         ]
     }
 
     /// The canonical string representation, e.g. `"no-cooperation"`.
     /// Matches the string literals accepted by `ClauseGenerator` and `solve`.
     #[getter]
-    #[gen_stub(override_return_type(type_repr="typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation']", imports=("typing")))]
+    #[gen_stub(override_return_type(type_repr="typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation', 'no-chained-cooperation']", imports=("typing")))]
     pub fn value(&self) -> &'static str {
         match self {
             Self::Standard => "standard",
             Self::NoCooperation => "no-cooperation",
             Self::NoMutualCooperation => "no-mutual-cooperation",
+            Self::NoChainedCooperation => "no-chained-cooperation",
         }
     }
 
@@ -91,6 +99,7 @@ impl PySolveMode {
                 Self::Standard => "STANDARD",
                 Self::NoCooperation => "NO_COOPERATION",
                 Self::NoMutualCooperation => "NO_MUTUAL_COOPERATION",
+                Self::NoChainedCooperation => "NO_CHAINED_COOPERATION",
             }
         )
     }
@@ -100,18 +109,20 @@ impl PySolveMode {
             Self::Standard => 0,
             Self::NoCooperation => 1,
             Self::NoMutualCooperation => 2,
+            Self::NoChainedCooperation => 3,
         }
     }
 
     #[staticmethod]
     pub fn from_str(
-        #[gen_stub(override_type(type_repr="typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation']", imports=("typing")))]
+        #[gen_stub(override_type(type_repr="typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation', 'no-chained-cooperation']", imports=("typing")))]
         value: &str,
     ) -> PyResult<Self> {
         match value {
             "standard" => Ok(Self::Standard),
             "no-cooperation" => Ok(Self::NoCooperation),
             "no-mutual-cooperation" => Ok(Self::NoMutualCooperation),
+            "no-chained-cooperation" => Ok(Self::NoChainedCooperation),
             _ => Err(PyValueError::new_err(format!(
                 "invalid solve mode: {value}"
             ))),
