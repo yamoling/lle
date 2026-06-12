@@ -39,8 +39,8 @@ class Generator(ABC):
             raise ValueError(f"Grid width must be >= 1. Got {width}")
         if height < 1:
             raise ValueError(f"Grid height must be >= 1. Got {height}")
-        self.rows, self.cols = height, width
-        self.area = self.rows * self.cols
+        self.height, self.width = height, width
+        area = height * width
 
         if n_agents < 1:
             raise ValueError(f"agents must be >= 1. Got {n_agents}")
@@ -54,21 +54,21 @@ class Generator(ABC):
         self.n_walls = n_walls
         if self.n_walls < 0:
             raise ValueError(f"num_walls must be >= 0. Got {self.n_walls}")
-        if self.n_walls >= (self.area / 2):
-            raise ValueError(f"num_walls must be < size/2. Got num_walls={self.n_walls}, size={self.area}")
+        if self.n_walls >= (area / 2):
+            raise ValueError(f"num_walls must be < size/2. Got num_walls={self.n_walls}, size={area}")
 
         self.world_filter = world_filter
 
         total_needed = (2 * self.agents) + self.n_walls + self.n_lasers
-        if total_needed > self.area:
-            raise ValueError(f"layout requires {total_needed} unique cells, but grid has only {self.area}")
+        if total_needed > area:
+            raise ValueError(f"layout requires {total_needed} unique cells, but grid has only {area}")
         self._rng = random.Random()
 
     @abstractmethod
     def _make_candidate_layout(self) -> CandidateLayout: ...
 
     def _build_world(self, layout: CandidateLayout):
-        b = WorldBuilder(self.cols, self.rows)
+        b = WorldBuilder(self.width, self.height)
         for agent_id, pos in enumerate(layout.agents):
             b.add_agent(agent_id, pos)
         for pos in layout.exits:

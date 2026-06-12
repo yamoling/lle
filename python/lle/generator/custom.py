@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass
 from typing import Literal
 
 from lle.tiles import Direction
+from lle.types import Position
 
 from ._candidates import CandidateLayout
-from ._geometry import beam_tiles, geometry_ok, points_out_immediately
+from ._geometry import beam_tiles, points_out_immediately
 from ._shapes import place_wall_shapes
 from .generator import Generator, _LayoutRetry
 from .world_filter import WorldFilter
@@ -28,13 +30,17 @@ _ALL_DIRS = [Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST]
 
 
 def _cluster_shape(n_agents: int) -> tuple[int, int]:
-    if n_agents >= 4:
-        return (2, 2)
-    if n_agents == 3:
-        return (1, 3)
-    if n_agents == 2:
-        return (1, 2)
-    return (1, 1)
+    match n_agents:
+        case 1:
+            return (1, 1)
+        case 2:
+            return random.choice([(1, 2), (2, 1)])
+        case 3:
+            return random.choice([(1, 3), (3, 1)])
+        case 4:
+            return random.choice([(2, 2), (1, 4), (4, 1)])
+        case _:
+            raise NotImplementedError()
 
 
 @dataclass
@@ -163,8 +169,8 @@ class CustomGenerator(Generator):
         exits, reserved = self._place_exits(reserved, ctx)
         lasers, reserved = self._place_lasers(reserved, ctx)
         walls = self._place_walls(reserved)
-        layout = CandidateLayout(agents=agents, exits=exits, walls=walls, lasers=lasers)
-        if not geometry_ok(layout, self.rows, self.cols):
+        layout = CandidateLayout(self.height, self.width, agents=agents, exits=exits, walls=walls, lasers=lasers)
+        if not layout.is_geometry_valid():
             raise _LayoutRetry()
         return layout
 
@@ -176,33 +182,33 @@ class CustomGenerator(Generator):
         mode = self._agent_cfg.mode
 
         if mode == "random":
-            all_pos = [(r, c) for r in range(self.rows) for c in range(self.cols)]
+            all_pos = [(r, c) for r in range(self.height) for c in range(self.width)]
             agents = self._rng.sample(all_pos, self.agents)
 
         elif mode == "edge":
             edge = self._rng.choice(("left", "right", "top", "bottom"))
             ctx.edge = edge
             if edge in ("left", "right"):
-                col = 0 if edge == "left" else self.cols - 1
-                if self.rows < self.agents:
+                col = 0 if edge == "left" else self.width - 1
+                if self.height < self.agents:
                     raise _LayoutRetry()
-                lane_ids = sorted(self._rng.sample(range(self.rows), self.agents))
+                lane_ids = sorted(self._rng.sample(range(self.height), self.agents))
                 ctx.lane_ids = lane_ids
                 agents = [(r, col) for r in lane_ids]
             else:  # top / bottom
-                row = 0 if edge == "top" else self.rows - 1
-                if self.cols < self.agents:
+                row = 0 if edge == "top" else self.height - 1
+                if self.width < self.agents:
                     raise _LayoutRetry()
-                lane_ids = sorted(self._rng.sample(range(self.cols), self.agents))
+                lane_ids = sorted(self._rng.sample(range(self.width), self.agents))
                 ctx.lane_ids = lane_ids
                 agents = [(row, c) for c in lane_ids]
 
         elif mode == "clustered":
             cluster_h, cluster_w = _cluster_shape(self.agents)
-            if cluster_h > self.rows or cluster_w > self.cols:
+            if cluster_h > self.height or cluster_w > self.width:
                 raise _LayoutRetry()
-            anchor_r = self._rng.randint(0, self.rows - cluster_h)
-            anchor_c = self._rng.randint(0, self.cols - cluster_w)
+            anchor_r = self._rng.randint(0, self.height - cluster_h)
+            anchor_c = self._rng.randint(0, self.width - cluster_w)
             ctx.agent_anchor = (anchor_r, anchor_c)
             cells = [(anchor_r + dr, anchor_c + dc) for dr in range(cluster_h) for dc in range(cluster_w)]
             agents = cells[: self.agents]
@@ -225,7 +231,7 @@ class CustomGenerator(Generator):
         mode = self._exit_cfg.mode
 
         if mode == "random":
-            free = [(r, c) for r in range(self.rows) for c in range(self.cols) if (r, c) not in reserved]
+            free = [(r, c) for r in range(self.height) for c in range(self.width) if (r, c) not in reserved]
             if len(free) < self.agents:
                 raise _LayoutRetry()
             exits = self._rng.sample(free, self.agents)
@@ -261,22 +267,22 @@ class CustomGenerator(Generator):
         lane_ids: list[int] | None = None,
     ) -> list[tuple[int, int]]:
         if edge in ("left", "right"):
-            col = 0 if edge == "left" else self.cols - 1
+            col = 0 if edge == "left" else self.width - 1
             if lane_ids is not None:
                 exits = [(r, col) for r in lane_ids]
             else:
-                if self.rows < self.agents:
+                if self.height < self.agents:
                     raise _LayoutRetry()
-                ids = sorted(self._rng.sample(range(self.rows), self.agents))
+                ids = sorted(self._rng.sample(range(self.height), self.agents))
                 exits = [(r, col) for r in ids]
         else:
-            row = 0 if edge == "top" else self.rows - 1
+            row = 0 if edge == "top" else self.height - 1
             if lane_ids is not None:
                 exits = [(row, c) for c in lane_ids]
             else:
-                if self.cols < self.agents:
+                if self.width < self.agents:
                     raise _LayoutRetry()
-                ids = sorted(self._rng.sample(range(self.cols), self.agents))
+                ids = sorted(self._rng.sample(range(self.width), self.agents))
                 exits = [(row, c) for c in ids]
         return exits
 
@@ -286,11 +292,11 @@ class CustomGenerator(Generator):
         ctx: _PlacementCtx,
     ) -> list[tuple[int, int]]:
         cluster_h, cluster_w = _cluster_shape(self.agents)
-        if cluster_h > self.rows or cluster_w > self.cols:
+        if cluster_h > self.height or cluster_w > self.width:
             raise _LayoutRetry()
         for _ in range(64):
-            anchor_r = self._rng.randint(0, self.rows - cluster_h)
-            anchor_c = self._rng.randint(0, self.cols - cluster_w)
+            anchor_r = self._rng.randint(0, self.height - cluster_h)
+            anchor_c = self._rng.randint(0, self.width - cluster_w)
             cells = [(anchor_r + dr, anchor_c + dc) for dr in range(cluster_h) for dc in range(cluster_w)]
             exit_cells = cells[: self.agents]
             if not any(c in reserved for c in exit_cells):
@@ -305,8 +311,8 @@ class CustomGenerator(Generator):
     ) -> list[tuple[int, int]]:
         cluster_h, cluster_w = _cluster_shape(self.agents)
         agent_r, agent_c = ctx.agent_anchor  # type: ignore[misc]
-        anchor_r = max(0, min(self.rows - cluster_h - agent_r, self.rows - cluster_h))
-        anchor_c = max(0, min(self.cols - cluster_w - agent_c, self.cols - cluster_w))
+        anchor_r = max(0, min(self.height - cluster_h - agent_r, self.height - cluster_h))
+        anchor_c = max(0, min(self.width - cluster_w - agent_c, self.width - cluster_w))
         ctx.exit_anchor = (anchor_r, anchor_c)
         cells = [(anchor_r + dr, anchor_c + dc) for dr in range(cluster_h) for dc in range(cluster_w)]
         exits = cells[: self.agents]
@@ -328,7 +334,7 @@ class CustomGenerator(Generator):
         if span == "any":
             return len(tiles) >= 2
         if span == "across":
-            full = beam_tiles(src, direction, set(), set(), self.rows, self.cols)
+            full = beam_tiles(src, direction, set(), set(), self.height, self.width)
             return len(tiles) == len(full)
         return len(tiles) >= span  # int minimum
 
@@ -355,15 +361,15 @@ class CustomGenerator(Generator):
     ) -> tuple[list[tuple[int, tuple[int, int], Direction]], set[tuple[int, int]]]:
         """Greedy free-placement: any valid position outside reserved cells."""
         candidates: list[tuple[tuple[int, int], Direction, list[tuple[int, int]]]] = []
-        for r in range(self.rows):
-            for c in range(self.cols):
+        for r in range(self.height):
+            for c in range(self.width):
                 pos = (r, c)
                 if pos in reserved:
                     continue
                 for direction in _ALL_DIRS:
-                    if points_out_immediately(pos, direction, self.rows, self.cols):
+                    if points_out_immediately(pos, direction, self.height, self.width):
                         continue
-                    tiles = beam_tiles(pos, direction, set(), set(), self.rows, self.cols)
+                    tiles = beam_tiles(pos, direction, set(), set(), self.height, self.width)
                     if len(tiles) < 2:
                         continue
                     if any(t in reserved for t in tiles):
@@ -412,14 +418,14 @@ class CustomGenerator(Generator):
 
         if edge in ("left", "right"):
             # Lanes are rows; laser fires SOUTH/NORTH through a column
-            before_band = [r for r in range(self.rows) if r not in lane_set and r < min_lane]
-            after_band = [r for r in range(self.rows) if r not in lane_set and r > max_lane]
+            before_band = [r for r in range(self.height) if r not in lane_set and r < min_lane]
+            after_band = [r for r in range(self.height) if r not in lane_set and r > max_lane]
             for row in before_band:
-                for col in range(self.cols):
+                for col in range(self.width):
                     pos = (row, col)
                     if pos in reserved:
                         continue
-                    tiles = beam_tiles(pos, Direction.SOUTH, set(), set(), self.rows, self.cols)
+                    tiles = beam_tiles(pos, Direction.SOUTH, set(), set(), self.height, self.width)
                     if not self._beam_satisfies_span(tiles, pos, Direction.SOUTH):
                         continue
                     if not lane_set.issubset(t[0] for t in tiles):
@@ -428,11 +434,11 @@ class CustomGenerator(Generator):
                         continue
                     candidates.append((pos, Direction.SOUTH, tiles))
             for row in after_band:
-                for col in range(self.cols):
+                for col in range(self.width):
                     pos = (row, col)
                     if pos in reserved:
                         continue
-                    tiles = beam_tiles(pos, Direction.NORTH, set(), set(), self.rows, self.cols)
+                    tiles = beam_tiles(pos, Direction.NORTH, set(), set(), self.height, self.width)
                     if not self._beam_satisfies_span(tiles, pos, Direction.NORTH):
                         continue
                     if not lane_set.issubset(t[0] for t in tiles):
@@ -442,14 +448,14 @@ class CustomGenerator(Generator):
                     candidates.append((pos, Direction.NORTH, tiles))
         else:
             # Lanes are cols; laser fires EAST/WEST through a row
-            before_band = [c for c in range(self.cols) if c not in lane_set and c < min_lane]
-            after_band = [c for c in range(self.cols) if c not in lane_set and c > max_lane]
+            before_band = [c for c in range(self.width) if c not in lane_set and c < min_lane]
+            after_band = [c for c in range(self.width) if c not in lane_set and c > max_lane]
             for col in before_band:
-                for row in range(self.rows):
+                for row in range(self.height):
                     pos = (row, col)
                     if pos in reserved:
                         continue
-                    tiles = beam_tiles(pos, Direction.EAST, set(), set(), self.rows, self.cols)
+                    tiles = beam_tiles(pos, Direction.EAST, set(), set(), self.height, self.width)
                     if not self._beam_satisfies_span(tiles, pos, Direction.EAST):
                         continue
                     if not lane_set.issubset(t[1] for t in tiles):
@@ -458,11 +464,11 @@ class CustomGenerator(Generator):
                         continue
                     candidates.append((pos, Direction.EAST, tiles))
             for col in after_band:
-                for row in range(self.rows):
+                for row in range(self.height):
                     pos = (row, col)
                     if pos in reserved:
                         continue
-                    tiles = beam_tiles(pos, Direction.WEST, set(), set(), self.rows, self.cols)
+                    tiles = beam_tiles(pos, Direction.WEST, set(), set(), self.height, self.width)
                     if not self._beam_satisfies_span(tiles, pos, Direction.WEST):
                         continue
                     if not lane_set.issubset(t[1] for t in tiles):
@@ -503,7 +509,7 @@ class CustomGenerator(Generator):
         self,
         reserved: set[tuple[int, int]],
         ctx: _PlacementCtx,
-    ) -> tuple[list[tuple[int, tuple[int, int], Direction]], set[tuple[int, int]]]:
+    ) -> tuple[list[tuple[int, Position, Direction]], set[Position]]:
         """Corridor lasers alternating from opposite sides between the two clusters."""
         cluster_h, cluster_w = _cluster_shape(self.agents)
         agent_anchor = ctx.agent_anchor
@@ -525,13 +531,11 @@ class CustomGenerator(Generator):
             self._rng.shuffle(corridor_rows)
             chosen = sorted(corridor_rows[: self._laser_cfg.n])
             return self._corridor_lasers_horizontal(chosen, reserved)
-
         if col_gap >= self._laser_cfg.n:
             corridor_cols = list(range(agent_right + 1, exit_left))
             self._rng.shuffle(corridor_cols)
             chosen = sorted(corridor_cols[: self._laser_cfg.n])
             return self._corridor_lasers_vertical(chosen, reserved)
-
         raise _LayoutRetry()
 
     def _corridor_lasers_horizontal(
@@ -547,11 +551,11 @@ class CustomGenerator(Generator):
                 pos: tuple[int, int] = (row, 0)
                 direction = Direction.EAST
             else:
-                pos = (row, self.cols - 1)
+                pos = (row, self.width - 1)
                 direction = Direction.WEST
             if pos in new_reserved:
                 raise _LayoutRetry()
-            tiles = beam_tiles(pos, direction, set(), set(), self.rows, self.cols)
+            tiles = beam_tiles(pos, direction, set(), set(), self.height, self.width)
             if not self._beam_satisfies_span(tiles, pos, direction):
                 raise _LayoutRetry()
             lasers.append((i, pos, direction))
@@ -572,11 +576,11 @@ class CustomGenerator(Generator):
                 pos: tuple[int, int] = (0, col)
                 direction = Direction.SOUTH
             else:
-                pos = (self.rows - 1, col)
+                pos = (self.height - 1, col)
                 direction = Direction.NORTH
             if pos in new_reserved:
                 raise _LayoutRetry()
-            tiles = beam_tiles(pos, direction, set(), set(), self.rows, self.cols)
+            tiles = beam_tiles(pos, direction, set(), set(), self.height, self.width)
             if not self._beam_satisfies_span(tiles, pos, direction):
                 raise _LayoutRetry()
             lasers.append((i, pos, direction))
@@ -587,9 +591,8 @@ class CustomGenerator(Generator):
     # ------------------------------------------------------------------
     # Wall placement
     # ------------------------------------------------------------------
-
     def _place_walls(self, reserved: set[tuple[int, int]]) -> list[tuple[int, int]]:
-        free = [(r, c) for r in range(self.rows) for c in range(self.cols) if (r, c) not in reserved]
+        free = [(r, c) for r in range(self.height) for c in range(self.width) if (r, c) not in reserved]
         if self._wall_cfg.style == "shapes":
             return place_wall_shapes(free, self._wall_cfg.n, self._rng)
         # "individual"
