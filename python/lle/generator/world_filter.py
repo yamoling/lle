@@ -31,7 +31,7 @@ GeneratorKind = Literal["random", "constructive", "level6_style"]
 """The procedural generators a filter can recommend when ``kind='auto'``."""
 
 
-@dataclass(frozen=True)
+@dataclass
 class WorldFilter(ABC):
     """Base filter: matches every *solvable* world and imposes no further constraint.
 
@@ -90,7 +90,7 @@ class WorldFilter(ABC):
         return Mutual(t_max, t_min)
 
 
-@dataclass(frozen=True)
+@dataclass
 class Solvable(WorldFilter):
     """Matches any solvable world. This is the default when no constraint is given."""
 
@@ -98,7 +98,7 @@ class Solvable(WorldFilter):
         return c.is_solvable
 
 
-@dataclass(frozen=True)
+@dataclass
 class Independent(WorldFilter):
     """Matches worlds that are solvable *without* cooperation (no laser blocking required)."""
 
@@ -113,7 +113,7 @@ class Independent(WorldFilter):
         return "random"
 
 
-@dataclass(frozen=True)
+@dataclass
 class Cooperative(WorldFilter):
     """Matches worlds that *require* cooperation: no independent plan exists within ``t_max``."""
 
@@ -128,7 +128,7 @@ class Cooperative(WorldFilter):
         return True
 
 
-@dataclass(frozen=True)
+@dataclass
 class Mutual(Cooperative):
     """Matches worlds that require *mutual* cooperation: every agent both helps and is helped.
 

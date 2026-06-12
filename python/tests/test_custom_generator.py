@@ -299,5 +299,8 @@ def test_error_laser_span_too_small():
 def test_importable_from_lle():
     import lle
 
-    assert hasattr(lle, "CustomGenerator")
-    assert lle.CustomGenerator is CustomGenerator
+    # The builder is the public entry point; CustomGenerator is the engine it
+    # drives and remains reachable under lle.generator for advanced use.
+    assert hasattr(lle, "generate")
+    assert hasattr(lle, "GeneratorBuilder")
+    assert lle.generator.CustomGenerator is CustomGenerator

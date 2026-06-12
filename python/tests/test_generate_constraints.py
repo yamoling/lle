@@ -1,8 +1,7 @@
 """Tests for WorldFilter and constrained world generation.
 
 Section A: WorldFilter.is_satisfied_by — fast SAT checks against known levels.
-Section B: generate() with filter/cooperative/mutual — integration tests (slow).
-Section C: backward-compatibility — existing call patterns still work.
+Section B: the generation builder with filter shortcuts — integration tests (slow).
 """
 
 from __future__ import annotations
@@ -97,49 +96,54 @@ def test_mutual_is_a_cooperative_filter():
 
 
 @pytest.mark.slow
-def test_generate_cooperation_kwarg_produces_cooperative_world():
-    world = generate(width=5, height=5, cooperative=True, kind="constructive", n_lasers=2, n_agents=2)
+def test_generate_cooperative_shortcut_produces_cooperative_world():
+    world = generate(width=5, height=5, n_agents=2).lasers(2).cooperative().build(max_attempts=500)
     assert world is not None
     assert Cooperative(20).is_satisfied_by(world)
 
 
 @pytest.mark.slow
-def test_generate_filter_object_same_as_kwarg():
-    """A WorldFilter object and the cooperative= kwarg produce identically-filtered worlds."""
+def test_generate_filter_object_same_as_shortcut():
+    """An explicit WorldFilter via require() and the cooperative() shortcut both yield cooperative worlds."""
     t_max = 5 * 5 // 2
-    world_kw = generate(kind="random", height=5, width=5, n_agents=2, n_lasers=1, cooperative=True)
-    world_obj = generate(kind="random", height=5, width=5, n_agents=2, n_lasers=1, filter=Cooperative(t_max))
+    world_shortcut = generate(width=5, height=5, n_agents=2).random().lasers(1).cooperative().build(max_attempts=500)
+    world_obj = generate(width=5, height=5, n_agents=2).random().lasers(1).require(Cooperative(t_max)).build(max_attempts=500)
+    assert world_shortcut is not None
     assert world_obj is not None
-    assert Cooperative(t_max).is_satisfied_by(world_kw)
+    assert Cooperative(t_max).is_satisfied_by(world_shortcut)
     assert Cooperative(t_max).is_satisfied_by(world_obj)
 
 
 @pytest.mark.slow
-def test_generate_n_all_satisfy_filter():
+def test_generate_take_all_satisfy_filter():
     """All worlds in a batch must satisfy the filter."""
     t_max = 5 * 5 // 2
     filter = Cooperative(t_max)
-    for w in generate(n=3, n_jobs=1, kind="random", height=5, width=5, n_agents=2, n_lasers=1, filter=filter, max_attempts=500):
+    builder = generate(width=5, height=5, n_agents=2).random().lasers(1).require(filter)
+    for w in builder.take(3, n_jobs=1, max_attempts=500, progress=False):
         assert filter.is_satisfied_by(w)
 
 
 @pytest.mark.slow
-def test_generate_cooperation_false_produces_independent_world():
-    world = generate(cooperative=False, seed=0)
+def test_generate_independent_produces_independent_world():
+    world = generate().independent().build(seed=0, max_attempts=500)
     assert world is not None
     t_max = world.width * world.height // 2
     assert Independent(t_max).is_satisfied_by(world)
 
 
 # ---------------------------------------------------------------------------
-# Error cases
+# The builder makes contradictory constraints unreachable: there is no way to
+# ask for both an explicit filter and a shortcut at once, or for the
+# contradictory cooperative=False + mutual=True. The last filter call wins.
 # ---------------------------------------------------------------------------
-@pytest.mark.parametrize("kwargs", ({"cooperative": True, "filter": Solvable(21)}, {"mutual": False, "filter": Solvable(21)}))
-def test_combining_filter_and_shortcut_raises(kwargs: dict):
-    with pytest.raises(ValueError, match="Cannot combine"):
-        generate(**kwargs)
+def test_last_filter_call_wins():
+    builder = generate(width=5, height=5, n_agents=2).cooperative().mutual()
+    assert builder._world_filter.requires_mutual_cooperation
+    builder = generate(width=5, height=5, n_agents=2).mutual().independent()
+    assert not builder._world_filter.requires_cooperation
 
 
-def test_contradictory_shortcuts_raise():
-    with pytest.raises(ValueError, match="contradictory"):
-        generate(cooperative=False, mutual=True)
+def test_require_overrides_named_filter():
+    builder = generate(width=5, height=5, n_agents=2).cooperative().require(Solvable(21))
+    assert isinstance(builder._world_filter, Solvable)

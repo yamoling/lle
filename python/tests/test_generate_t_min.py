@@ -1,8 +1,8 @@
-"""Tests that the t_min parameter in generate() rejects worlds solvable in fewer than
+"""Tests that the t_min constraint rejects worlds solvable in fewer than
 t_min steps.
 
 Section A: unit tests for Generator._accept_world against known worlds.
-Section B: integration tests for generate() with t_min.
+Section B: integration tests for the builder's within(t_min=...) constraint.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 from lle import World
 from lle.generator import generate
-from lle.generator.random import RandomGenerator
+from lle.generator.custom import CustomGenerator
 from lle.solver import solve
 
 # ---------------------------------------------------------------------------
@@ -18,11 +18,11 @@ from lle.solver import solve
 # ---------------------------------------------------------------------------
 
 
-def _gen(t_min: int, t_max: int = 20) -> RandomGenerator:
+def _gen(t_min: int, t_max: int = 20):
     """Minimal single-agent generator for testing _accept_world."""
     from lle.generator.world_filter import Solvable
 
-    return RandomGenerator(height=5, width=5, n_agents=1, n_walls=0, n_lasers=0, world_filter=Solvable(t_max=t_max, t_min=t_min))
+    return CustomGenerator(height=5, width=5, n_agents=1, n_walls=0, n_lasers=0, filter=Solvable(t_max=t_max, t_min=t_min))
 
 
 # ---------------------------------------------------------------------------
@@ -80,24 +80,24 @@ def test_accept_world_accepts_t_min_one_for_immediately_solvable_world():
 
 
 # ---------------------------------------------------------------------------
-# B. Integration tests — generate() with t_min
+# B. Integration tests — the builder's within(t_min=...) constraint
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.slow
 def test_generate_t_min_world_not_solvable_below_t_min():
-    """generate() with t_min must return a world not solvable in fewer than t_min steps."""
+    """within(t_min=...) must return a world not solvable in fewer than t_min steps."""
     t_min = 4
-    world = generate(kind="random", height=5, width=5, n_agents=2, t_min=t_min, seed=0)
+    world = generate(width=5, height=5, n_agents=2).lanes().at_least(t_min).build(max_attempts=200)
     assert world is not None
     assert solve(world, t_min - 1) is None, "world is solvable in fewer than t_min steps"
 
 
 @pytest.mark.slow
 def test_generate_t_min_world_is_solvable_within_t_max():
-    """generate() with t_min must still return a world solvable within t_max."""
+    """within(t_min, t_max) must still return a world solvable within t_max."""
     t_min, t_max = 3, 15
-    world = generate(kind="random", height=5, width=5, n_agents=2, t_min=t_min, t_max=t_max, seed=0)
+    world = generate(width=5, height=5, n_agents=2).random().at_least(t_min).cap(t_max).build(seed=0, max_attempts=2000)
     assert world is not None
     assert solve(world, t_max) is not None, "world must be solvable within t_max"
 
@@ -107,17 +107,7 @@ def test_generate_multiple_worlds_all_respect_t_min():
     """Every world in a batch must satisfy the t_min constraint."""
     t_min, t_max = 3, 15
     worlds = list(
-        generate(
-            n=5,
-            kind="random",
-            height=5,
-            width=5,
-            n_agents=2,
-            t_min=t_min,
-            t_max=t_max,
-            max_attempts=1000,
-            n_jobs=1,
-        )
+        generate(width=5, height=5, n_agents=2).random().at_least(t_min).cap(t_max).take(5, n_jobs=1, max_attempts=2000, progress=False)
     )
     assert len(worlds) > 0, "generator produced no worlds within the attempt budget"
     for world in worlds:

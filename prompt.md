@@ -1,41 +1,79 @@
-# Constrained procedural world generation
-The objective of this feature is to enable the user to generate a series of randomly generated worlds that satisfy some property.
+## Plan: `WorldLayoutBuilder`
 
-## Details
-The user should be able to express some constraints intuitively such as: "The generated worlds must be require cooperation within a t_max steps".
+### What it is
 
-Your job is:
-- to design a user-friendly way to express the properties that the generated worlds should have
-- to implement the generation loop
-- to write tests that check that the generation function works as intended for multiple combinations of properties. 
+A standalone builder-pattern class (`WorldLayoutBuilder`) that exposes explicit control over every placement decision, producing a `CustomGenerator` internally. Unlike the existing three generators (which encode fixed strategies), the builder lets users compose placement modes freely.
 
-## World characterization
-A world characterization procedure already exists in the `lle.characterization` module. The `WorldCharacterizer` class plays this role.
+---
 
-There is probably room for improvement in the "user-friendlyness" of the implementation. 
-Notably, it is currently not possible to express the properties of a World as an object; it is only possible to compute them.
+### New parameters and their values
 
-## Glimpse at the final result
-The user should be able to write something like the following:
+| Category | Parameter | Values |
+|---|---|---|
+| **Agent starts** | `placement` | `"random"`, `"edge"`, `"clustered"` |
+| **Exits** | `placement` | `"random"`, `"edge"`, `"cluster"`, `"opposite"` |
+| **Walls** | `n` | int or `"auto"` (~10% of grid) |
+| | `style` | `"individual"` (single cells), `"shapes"` (bars/L/2×2) |
+| **Lasers** | `n` | int |
+| | `placement` | `"free"`, `"cross-agent"` (crosses all agent lanes), `"cross-cluster"` (between start/end clusters) |
+| |`span` | `"any"` (no constraint), `"across"` (the laser must span across the whole width or height), `n` (an int value with the minimal laser span) |
+
+---
+
+### Invalid placements
+- A laser source can never directly face a wall (because there is no beam and the laser is useless)
+- A laser must always span more than 1 tile, otherwise it can never be blocked for another agent.
+
+### API sketch
+
 ```python
-import lle
-
-# n = 1 by default
-world = lle.generate(mutual=True)
-
-# generator when n > 1, uses n_cpus - 1 parallel jobs
-for world in lle.generate(n=100, cooperative=True):
-    print(world)
-
-# One single world, but spawns 4 parallel jobs
-world = lle.generate(n_jobs=4, n_lasers=3, n_agents=4)
-
-world_properties = <something you have to figure out>
-worlds = list(lle.generate(properties, n=10)) # A list of 10 worlds that match the given properties
+filter = WorldFilter.cooperative(t_ax, t_min=t_min)
+generator = CustomGenerator(
+    width=8, 
+    height=8, 
+    n_agents=2, 
+    filter=filter,
+    starts="edge",
+    exits="opposite",          # auto-mirrors to right
+    n_lasers=1
+    laser_placement="free",
+    laser_span=6, # Span at least 6 tiles
+    n_walls=10,
+    walls_style="shapes",
+)
 ```
 
+---
 
-## Advices
-- You should use the world characterizer for the procedural generation.
-- Use function overloading to make the `generate` function intuitive and user-friendly
-- the current implementation of "generate" is a good starting point, but key elements of the `generator` base function may have to be updated to use the `characterize_world` function.
+### Files to create / modify
+
+| File | Action | Purpose |
+|---|---|---|
+| `generator/_shapes.py` | **Create** | Extract `_WALL_SHAPES` + `place_wall_shapes()` from `Level6StyleGenerator` into a standalone module |
+| `generator/custom.py` | **Create** | `CustomGenerator(Generator)` — dispatches to private placement methods per config |
+| `generator/level6_style.py` | **Modify** | Delegate `_place_wall_shapes` to `_shapes.py` |
+
+---
+
+### Implementation steps
+
+**Step 1 — `_shapes.py`**: Move `_WALL_SHAPES` constant and `_place_wall_shapes` logic out of `Level6StyleGenerator` into a pure module-level function `place_wall_shapes(free_cells, budget, rng)`. Update `level6_style.py` to delegate. This avoids `CustomGenerator` inheriting from `Level6StyleGenerator`.
+
+**Step 2 — `_geometry.py` refactor**: Move `_geometry_ok` from `RandomGenerator` into `_geometry.py` as a standalone function (currently it's a method that only uses `beam_tiles` and `points_out_immediately`, which already live there). `RandomGenerator` then calls the module function. `CustomGenerator` reuses it.
+
+**Step 3 — `custom.py`**: `CustomGenerator(Generator)` stores four config dataclasses (`_AgentConfig`, `_ExitConfig`, `_LaserConfig`, `_WallConfig`). Its `_make_candidate_layout()` runs:
+1. `_place_agents()` → dispatches on mode
+2. `_place_exits(reserved)` → dispatches on mode; `"opposite"` is resolved from agent config
+3. `_place_lasers(reserved)` → dispatches on placement; raises `_LayoutRetry` if no valid placement
+4. `_place_walls(reserved)` → dispatches on style
+5. Geometry validation → raises `_LayoutRetry` on failure
+
+**Step 4 — exports**: Export relevant pieces in `__init__.py`
+
+**Step 5 — tests**: Cover each placement mode (agents, exits, walls, lasers), the `"opposite"` exit resolution, filter integration, and validation errors.
+
+---
+
+### Key design decisions
+
+- **`"structural"` / `"corridor"` laser modes encode the cooperation idioms** — users don't have to know the geometry tricks; picking `structural` + cooperative filter naturally produces the right kind of world.

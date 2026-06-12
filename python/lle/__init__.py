@@ -55,7 +55,7 @@ Install the optional generator extra to use SAT-based generation and solving:
 pip install laser-learning-environment[generator]
 ```
 
-- `lle.generate(...)` builds a solvable world on demand.
+- `lle.generate(...)` returns a fluent builder for solvable worlds.
 - `lle.solve(world, t_max)` searches for the shortest joint plan that reaches all exits within the time bound.
 - `lle.is_cooperative(world)` checks whether the world requires laser blocking to be solvable.
 - `lle.characterize(world, t_max)` proves, via SAT/UNSAT, which agent dependencies *every* plan of length ≤ t requires.
@@ -64,8 +64,8 @@ pip install laser-learning-environment[generator]
 `lle.solver`, but `import lle` re-exports them for convenience.
 
 These helpers raise `ImportError` when the optional `generator` extra is not
-installed. `generate(...)` raises `ValueError` when you ask for an impossible
-or unsupported configuration.
+installed. The builder raises `ValueError` when you ask for an impossible or
+unsupported configuration.
 
 Example:
 
@@ -73,7 +73,7 @@ Example:
 import lle
 from lle import World
 
-world = lle.generate(kind="random", height=5, width=5, n_agents=2, seed=0)
+world = lle.generate(width=5, height=5, n_agents=2).build(seed=0)
 plan = lle.solve(world, 5)
 assert plan is not None
 world.reset()
@@ -84,26 +84,28 @@ assert lle.is_cooperative(World.level(6))
 
 ## Procedural generation
 
-`lle.generate(kind=..., **kwargs)` builds a world using one of three procedural generators. See `lle.generator` for the full argument matrix:
+`lle.generate(width, height, n_agents)` returns a fluent `GeneratorBuilder`.
+Chain configuration methods to describe the world, then call `build()` for a
+single `World` or `take(n)` for an iterator of worlds. See `lle.generator` for
+the full method reference.
 
-- `kind="random"` — random layout. It validates geometry and SAT-verifies solvability.
-- `kind="constructive"` — lane-based layout with an explicit constructive solution.
-- `kind="level6_style"` — Level-6-inspired clustered starts and exits. This
-  kind defaults to an exactly mutual cooperative configuration.
-
-The `cooperation` argument lets you constrain the requested cooperation
-behaviour. You can pass `True`, `False`, or `None`.
+- Layout: `random()` (scatter), `lanes()` (one lane per agent, opposite edges),
+  `clustered()` (Level-6-style clusters), or fine-grained `starts(...)` /
+  `exits(...)`.
+- Lasers and walls: `lasers(n, placement=..., span=...)`, `walls(n, style=...)`.
+- Behaviour: `solvable()` (default), `independent()`, `cooperative(...)`,
+  `mutual(...)`, or `require(filter)` for a custom `WorldFilter`.
 
 Examples:
 
 ```python
 import lle
 
-lle.generate(kind="random", height=5, width=5, n_agents=2)
-lle.generate(kind="random", height=6, width=6, n_agents=2, n_lasers=2, cooperative=True)
-lle.generate(kind="level6_style", n_agents=4, n_lasers=3, t_max=21)
-lle.generate(kind="constructive", n_lasers=2, cooperative=True)
-lle.generate(kind="constructive", n_lasers=3)
+lle.generate(width=5, height=5, n_agents=2).build()
+lle.generate(width=6, height=6, n_agents=2).lasers(2).cooperative().build()
+lle.generate(n_agents=4).clustered().mutual(t_max=21).build()
+lle.generate(width=7, height=7, n_agents=2).lanes().lasers(2).cooperative().build()
+worlds = list(lle.generate(width=5, height=5, n_agents=2).lasers(1).cooperative().take(10))
 ```
 
 ## Custom maps
@@ -147,7 +149,7 @@ from .lle import __version__, agent, exceptions, tiles, world  # noqa # prevent 
 
 from .agent import Agent
 from .env import LLE
-from .generator import generate, CustomGenerator
+from .generator import generate, GeneratorBuilder
 from .observations import ObservationType
 from .solver import solve
 from .types import AgentId, LaserId, Position
@@ -183,6 +185,6 @@ __all__ = [
     "solve",
     "is_cooperative",
     "generate",
+    "GeneratorBuilder",
     "characterize",
-    "CustomGenerator",
 ]
