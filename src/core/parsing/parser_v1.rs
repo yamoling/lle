@@ -98,7 +98,7 @@ impl TryInto<WorldConfig> for ParsingData {
 }
 
 pub fn to_v1_string(config: &WorldConfig) -> Result<String, ()> {
-    let mut res = vec![vec![String::from("."); config.width()]; config.height()];
+    let mut res = vec![vec![String::from(" . "); config.width()]; config.height()];
     for (agent_num, pos) in config.random_starts().iter().enumerate() {
         if pos.len() > 1 {
             return Err(());

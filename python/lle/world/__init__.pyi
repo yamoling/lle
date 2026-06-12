@@ -3,11 +3,12 @@
 
 import builtins
 import enum
-from lle import agent
-from lle import tiles
+import typing
+
 import numpy
 import numpy.typing
-import typing
+from lle import agent, tiles
+
 __all__ = [
     "Action",
     "EventType",
@@ -21,15 +22,15 @@ class World:
     The `World` represents the environment in which the agents evolve.
     A world is created from a string where each character represents a tile.
     There are 6 predefined levels for convenience.
-    
+
     ```python
     from lle import World
     # Create from a predefined level
     w1 = World.level(5)
-    # Create from a file
-    w2 = World.from_file("my_map.txt")
     # Create from a string
-    w3 = World("S0 X")
+    w2 = World("S0 X")
+    # From a file
+    w3 = World.from_file("resources/levels/lvl1")
     ```
     """
     @property
@@ -129,7 +130,7 @@ class World:
     def __init__(self, map_str: builtins.str) -> None:
         r"""
         Constructs a World from a string.
-        
+
         Raises:
             `RuntimeError`: if the file is not a valid level.
             `ValueError` if the file is not a valid level (inconsistent dimensions or invalid grid).
@@ -138,9 +139,9 @@ class World:
     def from_file(filename: builtins.str) -> World:
         r"""
         Parse the content of `filename` to create a World.
-        
+
         The file can either be a toml or a plain text file.
-        
+
         Raises:
             `FileNotFoundError`: if the file does not exist.
         """
@@ -158,10 +159,10 @@ class World:
     def set_agents_positions(self, agents_positions: typing.Sequence[tuple[builtins.int, builtins.int]]) -> builtins.list[WorldEvent]:
         r"""
         Set the position of each agent.
-        
+
         Returns:
             The list of events that occurred while the agents entered their new positions.
-        
+
         Raises:
             `InvalidWorldStateError`: if the number of positions is different from the number of agents.
             `IndexError`: if a position is out of bounds.
@@ -169,13 +170,22 @@ class World:
     def set_agent_position(self, agent_id: builtins.int, position: tuple[builtins.int, builtins.int]) -> builtins.list[WorldEvent]:
         r"""
         Set the position of a single agent.
-        
+
         Returns:
             The list of events that occurred while the agent entered its new position.
-        
+
         Raises:
            `IndexError`: if the position is out of bounds.
            `ValueError`: if the agent id does not exist.
+
+        Example:
+        ```python
+        world = World("S0 . . X")
+        world.reset()
+        events = world.set_agent_position(0, (0, 2))
+        events = world.step([Action.EAST])
+        assert events[0].event_type == EventType.AGENT_EXIT
+        ```
         """
     def gem_at(self, position: tuple[builtins.int, builtins.int]) -> tiles.Gem:
         r"""
@@ -183,6 +193,16 @@ class World:
         Raises:
           `PyIndexError`: if the position is out of bounds.
           `PyValueError`: if the tile at the given position is not a gem.
+
+        Example:
+        ```python
+        world = World("S0 G X")
+        world.reset()
+        gem = world.gem_at((0, 1))
+        assert not gem.is_collected
+        world.step([Action.EAST])
+        assert world.gem_at((0, 1)).is_collected
+        ```
         """
     def source_at(self, position: tuple[builtins.int, builtins.int]) -> tiles.LaserSource:
         r"""
@@ -190,23 +210,33 @@ class World:
         Raises:
          `PyIndexError`: if the position is out of bounds.
          `PyValueError`: if the tile at the given position is not a laser source.
+
+        Example:
+        ```python
+        world = World("S0 L0E X\n.  .   X")
+        world.reset()
+        src = world.source_at((0, 1))
+        assert src.is_enabled
+        src.disable()
+        assert all(not laser.is_on for laser in world.lasers)
+        ```
         """
     def seed(self, seed_value: builtins.int) -> None: ...
     def step(self, action: Action | typing.Sequence[Action]) -> builtins.list[WorldEvent]:
         r"""
         Simultaneously perform an action for each agent in the world.
         Performing a step generates events (see `WorldEvent`) to give information about the consequences of the joint action.
-        
+
         Args:
            action: The action to perform for each agent. A single action is also accepted if there is a single agent in the world.
-        
+
         Returns:
           The list of events that occurred while agents took their action.
-        
+
         Raises:
             `InvalidActionError` if an agent takes an action that is not available.
             `ValueError` if the number of actions is different from the number of agents
-        
+
         Example:
         ```python
         world = World("S1 G X S0 X")
@@ -215,7 +245,7 @@ class World:
         assert len(events) == 1
         assert events[0].agent_id == 1
         assert events[0].event_type == EventType.GEM_COLLECTED
-        
+
         events = world.step([Action.EAST, Action.EAST])
         assert len(events) == 2
         assert all(e.event_type == EventType.AGENT_EXIT for e in events)
@@ -232,6 +262,15 @@ class World:
         The actions available for agent `n` are given by `world.available_actions()[n]`.
         Returns:
            The list of available actions for each agent.
+
+        Example:
+        ```python
+        world = World("S0 @ X")  # wall blocks East
+        world.reset()
+        actions = world.available_actions()
+        assert Action.EAST not in actions[0]
+        assert Action.STAY in actions[0]
+        ```
         """
     def available_joint_actions(self) -> builtins.list[builtins.list[Action]]:
         r"""
@@ -239,7 +278,7 @@ class World:
         The result has shape (x, n_agents) where x is the number of joint actions available.
         Returns:
           The list of available joint actions.
-        
+
         Example:
         ```python
         world = World(". .  .  . .\n. S0 . S1 .\n. X  .  X .\n")
@@ -270,7 +309,7 @@ class World:
     def __deepcopy__(self, _memo: dict) -> World:
         r"""
         Returns a deep copy of the object.
-        
+
         Example:
         ```python
         from copy import deepcopy
@@ -319,11 +358,11 @@ class WorldState:
     w = World("S0 . X")
     w.reset()
     s1 = w.get_state()
-    s2 = WorldState([(0, 1), [], [True]])
-    world.set_state(s2)
+    s2 = WorldState([(0, 1)], [], [True])
+    w.set_state(s2)
     ```
     ## Inheritance
-    To inherit from `WorldState`, it is required to override the `__new__` method such that you its signature
+    To inherit from `WorldState`, it is required to override the `__new__` method such that its signature
     is compatible with `__init__`, i.e. it accepts the same leading arguments in the same order.
     Additionally, the `__new__` method **must** call the `super()` constructor with the parameters of the parent class, as shown below.
     ```python
@@ -366,15 +405,34 @@ class WorldState:
         r"""
         The status of each agent.
         """
-    def __new__(cls, agents_positions: typing.Sequence[tuple[builtins.int, builtins.int]], gems_collected: typing.Sequence[builtins.bool], agents_alive: typing.Optional[typing.Sequence[builtins.bool]] = None) -> WorldState: ...
-    def __init__(self, agents_positions: typing.Sequence[tuple[builtins.int, builtins.int]], gems_collected: typing.Sequence[builtins.bool], agents_alive: typing.Optional[typing.Sequence[builtins.bool]] = None) -> None: ...
+    def __new__(
+        cls,
+        agents_positions: typing.Sequence[tuple[builtins.int, builtins.int]],
+        gems_collected: typing.Sequence[builtins.bool],
+        agents_alive: typing.Optional[typing.Sequence[builtins.bool]] = None,
+    ) -> WorldState: ...
+    def __init__(
+        self,
+        agents_positions: typing.Sequence[tuple[builtins.int, builtins.int]],
+        gems_collected: typing.Sequence[builtins.bool],
+        agents_alive: typing.Optional[typing.Sequence[builtins.bool]] = None,
+    ) -> None: ...
     def as_array(self) -> numpy.typing.NDArray[numpy.float32]: ...
     @staticmethod
     def from_array(array: typing.Sequence[builtins.float], n_agents: builtins.int, n_gems: builtins.int) -> WorldState: ...
     def __deepcopy__(self, _memo: dict) -> WorldState: ...
-    def __getstate__(self) -> tuple[builtins.list[builtins.bool], builtins.list[tuple[builtins.int, builtins.int]], builtins.list[builtins.bool]]: ...
-    def __setstate__(self, state: tuple[typing.Sequence[builtins.bool], typing.Sequence[tuple[builtins.int, builtins.int]], typing.Sequence[builtins.bool]]) -> None: ...
-    def __getnewargs__(self) -> tuple[builtins.list[tuple[builtins.int, builtins.int]], builtins.list[builtins.bool], typing.Optional[builtins.list[builtins.bool]]]: ...
+    def __getstate__(
+        self,
+    ) -> tuple[builtins.list[builtins.bool], builtins.list[tuple[builtins.int, builtins.int]], builtins.list[builtins.bool]]: ...
+    def __setstate__(
+        self,
+        state: tuple[typing.Sequence[builtins.bool], typing.Sequence[tuple[builtins.int, builtins.int]], typing.Sequence[builtins.bool]],
+    ) -> None: ...
+    def __getnewargs__(
+        self,
+    ) -> tuple[
+        builtins.list[tuple[builtins.int, builtins.int]], builtins.list[builtins.bool], typing.Optional[builtins.list[builtins.bool]]
+    ]: ...
     def __repr__(self) -> builtins.str: ...
     def __hash__(self) -> builtins.int: ...
     def __richcmp__(self, other: WorldState, cmp: int) -> builtins.bool: ...
@@ -384,6 +442,7 @@ class Action(enum.Enum):
     r"""
     An action that can be taken in the world by the agents.
     """
+
     NORTH = ...
     SOUTH = ...
     EAST = ...
@@ -434,10 +493,10 @@ class EventType(enum.Enum):
     r"""
     An enumeration of the events that can occur in the world.
     """
+
     AGENT_EXIT = ...
     GEM_COLLECTED = ...
     AGENT_DIED = ...
 
     def __repr__(self) -> builtins.str: ...
     def __hash__(self) -> builtins.int: ...
-

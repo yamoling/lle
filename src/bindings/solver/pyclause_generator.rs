@@ -26,7 +26,7 @@ use crate::{
 /// from lle.solver.constraints import ClauseGenerator
 ///
 /// world = World.level(1)
-/// gen = ClauseGenerator(world, t_max=20)
+/// gen = ClauseGenerator(world, t_max=20, mode="standard")
 /// for t in range(gen.solution_lower_bound, gen.t_max + 1):
 ///     clauses, assumptions = gen.generate(t)
 ///     with Minisat22(bootstrap_with=clauses) as solver:

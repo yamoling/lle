@@ -34,10 +34,10 @@ use crate::{Action, AgentId, Renderer, Tile, World};
 /// from lle import World
 /// # Create from a predefined level
 /// w1 = World.level(5)
-/// # Create from a file
-/// w2 = World.from_file("my_map.txt")
 /// # Create from a string
-/// w3 = World("S0 X")
+/// w2 = World("S0 X")
+/// # From a file
+/// w3 = World.from_file("resources/levels/lvl1")
 /// ```
 #[gen_stub_pyclass]
 #[pyclass(name = "World", module = "lle.world", subclass, skip_from_py_object)]

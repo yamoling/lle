@@ -48,6 +48,7 @@ python-source = "python"
 markers = [
     "slow: marks tests that invoke the SAT solver or full generation loops",
 ]
+testpaths = ["python/tests"]
 
 [tool.ruff]
 line-length = 140

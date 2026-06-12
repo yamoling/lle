@@ -29,8 +29,6 @@ world.set_state(state)
 Build an environment for MARL experiments:
 
 ```python
-import lle
-
 env = lle.level(6).obs_type("layered").build()
 observation, state = env.reset()
 action = env.sample_action()
@@ -48,26 +46,42 @@ Use `LLE` when you want a ready-to-use MARL environment. The usual workflow is
 `lle.level(...)`, `lle.from_str(...)`, or `lle.from_file(...)`, followed by
 builder methods such as `obs_type(...)`, `state_type(...)`, and `build()`.
 
-### Generation and analysis
-
+### Solving, analysis and generation
+- `lle.solve(world, t_max)` finds the shortest joint plan (or `None`).
 - `lle.generate(width, height, n_agents)` returns a fluent `GeneratorBuilder`. Chain layout,
   laser, and behaviour methods, then call `build()` for one world or `take(n)` for many.
-- `lle.solve(world, t_max)` finds the shortest joint plan (or `None`).
 - `lle.is_cooperative(world)` checks whether laser blocking is required to solve the world.
 - `lle.characterize(world, t_max)` proves which agent dependencies *every* plan of length ≤ `t_max` requires.
 
+#### Solving a world
+`lle.solve(world, t_max)` finds the shortest joint plan (or `None`).
 
 ```python
-import lle
-from lle import World
+path = lle.solve(lle.World.level(5), 20)
+assert path is not None
+```
 
-world = lle.generate(width=5, height=5, n_agents=2).build(seed=0)
-plan = lle.solve(world, 5)
+#### Analyzing a world
+`lle.is_cooperative(world)` checks whether laser blocking is required to solve the world.
+`lle.characterize(world, t_max)` proves which agent dependencies *every* plan of length ≤ `t_max` requires.
+
+´´´python
+assert not lle.is_cooperative(World.level(1))
+assert lle.is_cooperative(World.level(3))
+assert not lle.is_mutual(World.level(3), t_max=30)
+assert lle.is_mutual(World.level(6), t_max=30)
+```
+
+
+#### Generating a world
+```python
+import lle
+world = lle.generate(width=5, height=5, n_agents=2).build()
+plan = lle.solve(world, 10)
 assert plan is not None
 world.reset()
 for joint_action in plan:
     world.step(joint_action)
-assert lle.is_cooperative(World.level(6))
 ```
 
 **Builder options** — layout: `random()`, `lanes()`, `clustered()`, `starts(...)` / `exits(...)`.
@@ -75,9 +89,10 @@ Obstacles: `lasers(n, placement=..., span=...)`, `walls(n, style=...)`.
 Behaviour: `solvable()` (default), `independent()`, `cooperative(...)`, `mutual(...)`.
 
 ```python
+import lle
 lle.generate(width=6, height=6, n_agents=2).lasers(2).cooperative().build()
 lle.generate(n_agents=4).clustered().mutual(t_max=21).build()
-worlds = list(lle.generate(width=5, height=5, n_agents=2).lasers(1).cooperative().take(10))
+five_worlds = list(lle.generate(width=5, height=5, n_agents=2).lasers(2).cooperative().take(5))
 ```
 
 See `lle.generator` for the full method reference.

@@ -62,6 +62,9 @@ assert events[0].event_type == EventType.AGENT_EXIT
 
 You can save and restore the exact state of the world:
 ```python
+import lle
+
+world = lle.World.level(1)
 state = world.get_state()
 # ...
 events = world.set_state(state)
@@ -89,10 +92,10 @@ plan = lle.solve(world, 5)
 
 # A world that *requires* cooperation, SAT-verified
 coop = lle.generate(width=6, height=6, n_agents=2).lasers(2).cooperative().build()
-assert lle.is_cooperative(coop)
+assert lle.is_cooperative(coop, t_max=15)
 
 # Prove what every short plan requires (e.g. level 6 is mutually cooperative)
-assert lle.is_cooperative(World.level(6))
+assert lle.is_cooperative(World.level(6), t_max=25)
 ```
 
 The builder controls every placement decision:
@@ -101,9 +104,11 @@ The builder controls every placement decision:
 - **Behaviour:** `solvable()` (default), `independent()`, `cooperative(...)`, `mutual(...)`.
 
 ```python
-lle.generate(width=8, height=8, n_agents=3).lanes().walls(4, style="shapes").build(seed=1)
-lle.generate(n_agents=4).clustered().mutual(t_max=21).build()
-worlds = list(lle.generate(width=5, height=5, n_agents=2).lasers(1).cooperative().take(10))
+import lle 
+
+lle.generate(width=5, height=5, n_agents=3).lanes().walls(4, style="shapes").build(seed=1)
+lle.generate(n_agents=3).clustered().lasers(3).mutual(t_max=21).build()
+worlds = list(lle.generate(width=5, height=5, n_agents=2).lasers(1).cooperative().take(5, max_attempts=10))
 ```
 
 See the [`examples/`](examples) folder for runnable scripts and the
