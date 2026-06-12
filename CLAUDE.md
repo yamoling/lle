@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository. Check out the [readme.md](readme.md) file as well.
 
 ## What this project is
 
@@ -53,50 +53,6 @@ cargo run --bin stub-gen        # regenerate python/lle/*.pyi stubs
 ```
 
 ## Architecture
-
-### Rust core (`src/`)
-
-```
-src/
-  lib.rs              – crate root; re-exports public API
-  core/               – all game logic (no Python coupling)
-    world/world.rs    – World struct: reset/step/set_state/get_state
-    tiles/tile.rs     – Tile enum (Floor, Wall, Laser, LaserSource, Gem, Exit, Void)
-    parsing/          – two parsers: parser_v1 (plain-text), toml/ (TOML v2)
-    errors.rs         – RuntimeWorldError, ParseError
-    levels.rs         – built-in levels embedded at compile time
-  bindings/           – PyO3 wrappers; one Py* struct per Rust type
-    world/pyworld.rs  – PyWorld exposes World to Python
-    tiles/            – PyLaser, PyLaserSource, PyGem, PyDirection
-  action.rs           – Action enum (North/South/East/West/Stay)
-  agent.rs            – Agent + AgentId
-  position.rs         – Position {i, j} with Add<Action>
-  rendering/          – image rendering via the `image` crate
-  stub_gen.rs         – binary that writes .pyi files via pyo3-stub-gen
-```
-
-**Map parsing flow:** `parse()` tries TOML first, falls back to v1 plain-text. Both produce a `WorldConfig`, which calls `WorldConfig::to_world()` to construct a `World`.
-
-**Step flow:** `World::step()` validates actions, computes new positions, resolves vertex conflicts (two agents targeting the same cell both stay), then calls `move_agents()` → `tile.leave()` / `tile.pre_enter()` / `tile.enter()`. Death from a laser triggers a second pass of `move_agents()` until no further deaths occur.
-
-**Tile wrapping:** A laser beam cell is represented as `Tile::Laser(Laser)` where the `Laser` can wrap another tile (e.g. `Laser` over a `Gem`). Always unwrap when querying inner state.
-
-### Python package (`python/lle/`)
-
-```
-python/lle/
-  __init__.py         – public API; re-exports World, Action, LLE, generate, solve, …
-  env/env.py          – LLE class: marlenv MARLEnv wrapper around World
-  env/builder.py      – builder DSL: lle.level(6).obs_type("layered").build()
-  observations.py     – ObservationType enum; numpy array construction
-  solver/             – SAT-based solver (pysat/Minisat22)
-    _constraints/     – clause generators: movements, lasers, objective, init
-    incremental_solver.py – incremental clause reuse
-  generator/          – procedural world generation
-    random.py         – random layout + SAT solvability check
-    constructive.py   – lane-based layout
-    level6_style.py   – level-6-inspired clustered layout
-```
 
 The Python `World` class (`python/lle/world/`) is a thin wrapper over the Rust `PyWorld`. The `LLE` class adds observation construction, reward shaping, and the `marlenv` interface on top.
 
