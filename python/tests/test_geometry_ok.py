@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from lle.generator._candidates import CandidateLayout
+from lle.generator.candidates import CandidateLayout
 from lle.tiles import Direction
 
 # Helpers to build minimal layouts

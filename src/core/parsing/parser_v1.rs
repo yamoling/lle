@@ -104,20 +104,20 @@ pub fn to_v1_string(config: &WorldConfig) -> Result<String, ()> {
             return Err(());
         }
         let pos = pos[0];
-        res[pos.i][pos.j] = format!("S{agent_num}");
+        res[pos.i][pos.j] = format!("S{agent_num} ");
     }
 
     for pos in config.gems() {
-        res[pos.i][pos.j] = "G".into();
+        res[pos.i][pos.j] = " G ".into();
     }
     for pos in config.walls() {
-        res[pos.i][pos.j] = "@".into();
+        res[pos.i][pos.j] = " @ ".into();
     }
     for pos in config.exits() {
-        res[pos.i][pos.j] = "X".into();
+        res[pos.i][pos.j] = " X ".into();
     }
     for pos in config.voids() {
-        res[pos.i][pos.j] = "V".into();
+        res[pos.i][pos.j] = " V ".into();
     }
     for (pos, config) in config.sources() {
         res[pos.i][pos.j] = config.to_string();

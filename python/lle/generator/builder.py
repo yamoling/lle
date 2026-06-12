@@ -32,7 +32,7 @@ from __future__ import annotations
 from typing import Literal, overload
 
 from ..world import World
-from .custom import CustomGenerator
+from .generator import WorldGenerator
 from .world_filter import Cooperative, Independent, Mutual, Solvable, WorldFilter
 
 StartsMode = Literal["random", "edge", "clustered"]
@@ -258,7 +258,7 @@ class GeneratorBuilder:
     # Compilation
     # ------------------------------------------------------------------
 
-    def _make_generator(self) -> CustomGenerator:
+    def _make_generator(self) -> WorldGenerator:
         """Compile the accumulated configuration into a concrete generator."""
         world_filter = self._world_filter
         if world_filter.requires_cooperation and self._n_agents < 2:
@@ -266,7 +266,7 @@ class GeneratorBuilder:
         starts, exits = self._resolve_layout(world_filter)
         placement = self._resolve_placement(world_filter, starts)
         n_lasers = self._resolve_n_lasers(world_filter, placement)
-        return CustomGenerator(
+        return WorldGenerator(
             width=self._width,
             height=self._height,
             n_agents=self._n_agents,

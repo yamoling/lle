@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 from lle import World
 from lle.generator import generate
-from lle.generator.custom import CustomGenerator
+from lle.generator.generator import WorldGenerator
 from lle.solver import solve
 
 # ---------------------------------------------------------------------------
@@ -22,7 +22,7 @@ def _gen(t_min: int, t_max: int = 20):
     """Minimal single-agent generator for testing _accept_world."""
     from lle.generator.world_filter import Solvable
 
-    return CustomGenerator(height=5, width=5, n_agents=1, n_walls=0, n_lasers=0, filter=Solvable(t_max=t_max, t_min=t_min))
+    return WorldGenerator(height=5, width=5, n_agents=1, n_walls=0, n_lasers=0, filter=Solvable(t_max=t_max, t_min=t_min))
 
 
 # ---------------------------------------------------------------------------

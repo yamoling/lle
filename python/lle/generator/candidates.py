@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from lle.tiles import Direction
 from lle.types import Position
 
-from ._geometry import beam_tiles, points_out_immediately
+from .geometry import beam_tiles, points_out_immediately
 
 
 @dataclass(frozen=True)

@@ -17,16 +17,14 @@ worlds = list(lle.generate(width=8, height=8, n_agents=3).walls(4, style="shapes
 `GeneratorBuilder.require(...)`; the named methods (`cooperative()`, `mutual()`,
 …) cover the common cases without constructing a filter by hand.
 
-The concrete `Generator` implementations (`CustomGenerator`, `RandomGenerator`,
-`ConstructiveGenerator`, `Level6StyleGenerator`) remain available for advanced or
-direct use, but `generate(...)` is the recommended path.
+`CustomGenerator` remains available for advanced or direct use, but
+`generate(...)` is the recommended path.
 """
 
 from __future__ import annotations
 
 from .builder import GeneratorBuilder
-from .custom import CustomGenerator
-from .generator import Generator
+from .generator import WorldGenerator
 from .world_filter import Cooperative, Independent, Mutual, Solvable, WorldFilter
 
 __all__ = [
@@ -37,8 +35,7 @@ __all__ = [
     "Independent",
     "Cooperative",
     "Mutual",
-    "Generator",
-    "CustomGenerator",
+    "WorldGenerator",
 ]
 
 

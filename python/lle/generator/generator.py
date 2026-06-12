@@ -1,40 +1,113 @@
-"""Shared machinery for internal world generators.
-
-Generators sample candidate layouts, build a `World`, and optionally filter
-it by solvability or cooperation profile. Subclasses only have to implement
-`_make_candidate_layout`.
-"""
+"""Customizable layout generator with explicit control over every placement decision."""
 
 from __future__ import annotations
 
 import multiprocessing as mp
 import random
 import sys
-from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Literal
 
 from tqdm import tqdm
 
 from ..world import World
-from ._candidates import CandidateLayout
-from ._world_builder import WorldBuilder
+from .candidates import CandidateLayout
+from .placements import (
+    PlacementCtx,
+    _LayoutRetry,
+    place_agents,
+    place_exits,
+    place_lasers,
+    place_walls,
+)
+from .world_builder import WorldBuilder
 from .world_filter import WorldFilter
 
 
-class _LayoutRetry(Exception):
-    """Raised by a generator when sampling produced an unusable layout."""
+@dataclass
+class AgentConfig:
+    mode: Literal["random", "edge", "clustered"]
 
 
-class Generator(ABC):
+@dataclass
+class _ExitConfig:
+    mode: Literal["random", "edge", "cluster", "opposite"]
+
+
+@dataclass
+class LaserConfig:
+    n: int
+    placement: Literal["free", "cross-agent", "cross-cluster"]
+    span: int | Literal["any", "across"]
+
+
+@dataclass
+class WallConfig:
+    n: int
+    style: Literal["individual", "shapes"]
+
+
+class WorldGenerator:
+    """Generator with explicit, composable placement strategies.
+
+    Parameters
+    ----------
+    starts:
+        Agent start placement — ``"random"`` (anywhere), ``"edge"`` (one edge,
+        random direction each attempt), or ``"clustered"`` (rectangular group,
+        random anchor each attempt).
+    exits:
+        Exit placement — same modes as ``starts``, plus ``"opposite"`` which
+        mirrors the agent edge/cluster to the far side of the grid.
+    n_lasers:
+        Number of laser sources (0 = no lasers).
+    laser_placement:
+        ``"free"`` — valid position anywhere outside reserved cells.
+        ``"cross-agent"`` — structural laser perpendicular to agent lanes,
+        crossing all of them (requires ``starts="edge"``).
+        ``"cross-cluster"`` — corridor laser between start and exit clusters
+        (requires ``starts="clustered"`` and ``exits`` in
+        ``{"opposite", "cluster"}``).
+    laser_span:
+        Minimum beam length. ``"any"`` enforces the 2-tile minimum. ``"across"``
+        requires the beam to reach the far grid boundary untruncated. An integer
+        sets an explicit minimum tile count (>= 2).
+    n_walls:
+        Number of wall tiles. ``"auto"`` uses ~10 % of the grid.
+    walls_style:
+        ``"individual"`` places single-cell walls; ``"shapes"`` groups them into
+        connected bars / L-shapes / 2×2 blocks.
+    filter:
+        A :class:`WorldFilter` applied after layout generation. ``None`` accepts
+        any geometrically valid world.
+    """
+
     def __init__(
         self,
         *,
         width: int,
         height: int,
         n_agents: int = 2,
+        starts: Literal["random", "edge", "clustered"] = "random",
+        exits: Literal["random", "edge", "cluster", "opposite"] = "random",
         n_lasers: int = 0,
-        n_walls: int,
-        world_filter: WorldFilter | None = None,
+        laser_placement: Literal["free", "cross-agent", "cross-cluster"] = "free",
+        laser_span: int | Literal["any", "across"] = "any",
+        n_walls: int | Literal["auto"] = "auto",
+        walls_style: Literal["individual", "shapes"] = "individual",
+        filter: WorldFilter | None = None,
     ):
+        if exits == "opposite" and starts == "random":
+            raise ValueError("exits='opposite' requires starts='edge' or starts='clustered', not 'random'.")
+        if laser_placement == "cross-agent" and starts != "edge":
+            raise ValueError("laser_placement='cross-agent' requires starts='edge'.")
+        if laser_placement == "cross-cluster" and starts != "clustered":
+            raise ValueError("laser_placement='cross-cluster' requires starts='clustered'.")
+        if laser_placement == "cross-cluster" and exits not in ("opposite", "cluster"):
+            raise ValueError("laser_placement='cross-cluster' requires exits='opposite' or exits='cluster'.")
+        if isinstance(laser_span, int) and laser_span < 2:
+            raise ValueError(f"laser_span must be >= 2, got {laser_span}.")
+
         if width < 1:
             raise ValueError(f"Grid width must be >= 1. Got {width}")
         if height < 1:
@@ -51,23 +124,52 @@ class Generator(ABC):
         if n_lasers > n_agents:
             raise ValueError(f"lasers must be <= agents (one laser source per colour). Got lasers={n_lasers}, agents={n_agents}.")
         self.n_lasers = n_lasers
-        self.n_walls = n_walls
+
+        resolved_n_walls = (width * height) // 10 if n_walls == "auto" else n_walls
+        self.n_walls = resolved_n_walls
         if self.n_walls < 0:
             raise ValueError(f"num_walls must be >= 0. Got {self.n_walls}")
         if self.n_walls >= (area / 2):
             raise ValueError(f"num_walls must be < size/2. Got num_walls={self.n_walls}, size={area}")
 
-        self.world_filter = world_filter
-
         total_needed = (2 * self.agents) + self.n_walls + self.n_lasers
         if total_needed > area:
             raise ValueError(f"layout requires {total_needed} unique cells, but grid has only {area}")
+
+        self.world_filter = filter
         self._rng = random.Random()
 
-    @abstractmethod
-    def _make_candidate_layout(self) -> CandidateLayout: ...
+        self._agent_cfg = AgentConfig(mode=starts)
+        self._exit_cfg = _ExitConfig(mode=exits)
+        self._laser_cfg = LaserConfig(n=n_lasers, placement=laser_placement, span=laser_span)
+        self._wall_cfg = WallConfig(n=resolved_n_walls, style=walls_style)
 
-    def _build_world(self, layout: CandidateLayout):
+    # ------------------------------------------------------------------
+    # Layout assembly
+    # ------------------------------------------------------------------
+
+    def _make_candidate_layout(self) -> CandidateLayout:
+        ctx = PlacementCtx()
+        agents, reserved = place_agents(self._agent_cfg.mode, self.agents, self.height, self.width, self._rng, ctx)
+        exits, reserved = place_exits(self._exit_cfg.mode, self.agents, self.height, self.width, self._rng, reserved, ctx)
+        lasers, reserved = place_lasers(
+            self._laser_cfg.n,
+            self._laser_cfg.placement,
+            self._laser_cfg.span,
+            self.agents,
+            self.height,
+            self.width,
+            self._rng,
+            reserved,
+            ctx,
+        )
+        walls = place_walls(self._wall_cfg.n, self._wall_cfg.style, reserved, self.height, self.width, self._rng)
+        layout = CandidateLayout(self.height, self.width, agents=agents, exits=exits, walls=walls, lasers=lasers)
+        if not layout.is_geometry_valid():
+            raise _LayoutRetry()
+        return layout
+
+    def _build_world(self, layout: CandidateLayout) -> World:
         b = WorldBuilder(self.width, self.height)
         for agent_id, pos in enumerate(layout.agents):
             b.add_agent(agent_id, pos)
@@ -84,26 +186,31 @@ class Generator(ABC):
             return True
         return self.world_filter.is_satisfied_by(world)
 
-    def _try_generate(self, seed: int | None):
+    # ------------------------------------------------------------------
+    # Generation loop
+    # ------------------------------------------------------------------
+
+    def _try_generate(self, seed: int | None) -> World | None:
         if seed is not None:
             self._rng.seed(seed)
         try:
             layout = self._make_candidate_layout()
         except _LayoutRetry:
-            return
+            return None
         if layout is None:
-            return
+            return None
         try:
             world = self._build_world(layout)
         except Exception:
-            return
+            return None
         try:
             if self._accept_world(world):
                 return world
         except Exception:
-            return
+            return None
+        return None
 
-    def generate(self, max_attempts: int | None, seed: int | None = None):
+    def generate(self, max_attempts: int | None, seed: int | None = None) -> World | None:
         if seed is not None:
             self._rng.seed(seed)
         if max_attempts is None:
@@ -117,7 +224,6 @@ class Generator(ABC):
         return None
 
     def _generate_n_single(self, n: int, max_attempts: int):
-        """Yield (attempt_index, world_or_None) for each attempt, stopping after n successes."""
         n_generated = 0
         for i in range(max_attempts):
             result = self._try_generate(None)
@@ -128,7 +234,6 @@ class Generator(ABC):
                     return
 
     def _generate_n_multi(self, n: int, n_jobs: int, max_attempts: int):
-        """Yield (attempt_index, world_or_None) using a process pool, stopping after n successes."""
         n_generated = 0
         try:
             with mp.Pool(n_jobs) as pool:
