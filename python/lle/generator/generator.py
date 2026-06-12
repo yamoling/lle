@@ -13,8 +13,8 @@ from tqdm import tqdm
 from ..world import World
 from .candidates import CandidateLayout
 from .placements import (
+    LayoutRetry,
     PlacementCtx,
-    _LayoutRetry,
     place_agents,
     place_exits,
     place_lasers,
@@ -30,7 +30,7 @@ class AgentConfig:
 
 
 @dataclass
-class _ExitConfig:
+class ExitConfig:
     mode: Literal["random", "edge", "cluster", "opposite"]
 
 
@@ -140,7 +140,7 @@ class WorldGenerator:
         self._rng = random.Random()
 
         self._agent_cfg = AgentConfig(mode=starts)
-        self._exit_cfg = _ExitConfig(mode=exits)
+        self._exit_cfg = ExitConfig(mode=exits)
         self._laser_cfg = LaserConfig(n=n_lasers, placement=laser_placement, span=laser_span)
         self._wall_cfg = WallConfig(n=resolved_n_walls, style=walls_style)
 
@@ -166,7 +166,7 @@ class WorldGenerator:
         walls = place_walls(self._wall_cfg.n, self._wall_cfg.style, reserved, self.height, self.width, self._rng)
         layout = CandidateLayout(self.height, self.width, agents=agents, exits=exits, walls=walls, lasers=lasers)
         if not layout.is_geometry_valid():
-            raise _LayoutRetry()
+            raise LayoutRetry()
         return layout
 
     def _build_world(self, layout: CandidateLayout) -> World:
@@ -195,7 +195,7 @@ class WorldGenerator:
             self._rng.seed(seed)
         try:
             layout = self._make_candidate_layout()
-        except _LayoutRetry:
+        except LayoutRetry:
             return None
         if layout is None:
             return None

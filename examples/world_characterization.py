@@ -8,7 +8,7 @@ Mutual cooperation between two agents `a` and `b` is the conjunction
 `lle.solve(world, t_max, "no-mutual-cooperation")` searches for the shortest plan in which *no*
 pair of agents mutually cooperates.
 
-Run with:  python python/examples/mutual_cooperation.py
+Run with:  python examples/world_characterization.py
 """
 
 from __future__ import annotations

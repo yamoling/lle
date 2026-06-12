@@ -6,7 +6,7 @@ multi-agent reinforcement learning. Lasers are the central mechanic:
 agents die when they enter an active beam unless their colour matches the one
 of the laser, in which case they can block the beam and let others pass safely.
 
-![pdoc logo](../../docs/lvl6-annotated.png)
+![LLE](../../docs/lvl6-annotated.png)
 
 LLE gives you two complementary ways to work with a world:
 - `World` for low-level, deterministic control of maps, states, and steps.
@@ -49,25 +49,13 @@ Use `LLE` when you want a ready-to-use MARL environment. The usual workflow is
 builder methods such as `obs_type(...)`, `state_type(...)`, and `build()`.
 
 ### Generation and analysis
-Install the optional generator extra to use SAT-based generation and solving:
 
-```bash
-pip install laser-learning-environment[generator]
-```
+- `lle.generate(width, height, n_agents)` returns a fluent `GeneratorBuilder`. Chain layout,
+  laser, and behaviour methods, then call `build()` for one world or `take(n)` for many.
+- `lle.solve(world, t_max)` finds the shortest joint plan (or `None`).
+- `lle.is_cooperative(world)` checks whether laser blocking is required to solve the world.
+- `lle.characterize(world, t_max)` proves which agent dependencies *every* plan of length ≤ `t_max` requires.
 
-- `lle.generate(...)` returns a fluent builder for solvable worlds.
-- `lle.solve(world, t_max)` searches for the shortest joint plan that reaches all exits within the time bound.
-- `lle.is_cooperative(world)` checks whether the world requires laser blocking to be solvable.
-- `lle.characterize(world, t_max)` proves, via SAT/UNSAT, which agent dependencies *every* plan of length ≤ t requires.
-
-`lle.generate(...)` and the solver helpers live in `lle.generator` and
-`lle.solver`, but `import lle` re-exports them for convenience.
-
-These helpers raise `ImportError` when the optional `generator` extra is not
-installed. The builder raises `ValueError` when you ask for an impossible or
-unsupported configuration.
-
-Example:
 
 ```python
 import lle
@@ -82,31 +70,17 @@ for joint_action in plan:
 assert lle.is_cooperative(World.level(6))
 ```
 
-## Procedural generation
-
-`lle.generate(width, height, n_agents)` returns a fluent `GeneratorBuilder`.
-Chain configuration methods to describe the world, then call `build()` for a
-single `World` or `take(n)` for an iterator of worlds. See `lle.generator` for
-the full method reference.
-
-- Layout: `random()` (scatter), `lanes()` (one lane per agent, opposite edges),
-  `clustered()` (Level-6-style clusters), or fine-grained `starts(...)` /
-  `exits(...)`.
-- Lasers and walls: `lasers(n, placement=..., span=...)`, `walls(n, style=...)`.
-- Behaviour: `solvable()` (default), `independent()`, `cooperative(...)`,
-  `mutual(...)`, or `require(filter)` for a custom `WorldFilter`.
-
-Examples:
+**Builder options** — layout: `random()`, `lanes()`, `clustered()`, `starts(...)` / `exits(...)`.
+Obstacles: `lasers(n, placement=..., span=...)`, `walls(n, style=...)`.
+Behaviour: `solvable()` (default), `independent()`, `cooperative(...)`, `mutual(...)`.
 
 ```python
-import lle
-
-lle.generate(width=5, height=5, n_agents=2).build()
 lle.generate(width=6, height=6, n_agents=2).lasers(2).cooperative().build()
 lle.generate(n_agents=4).clustered().mutual(t_max=21).build()
-lle.generate(width=7, height=7, n_agents=2).lanes().lasers(2).cooperative().build()
 worlds = list(lle.generate(width=5, height=5, n_agents=2).lasers(1).cooperative().take(10))
 ```
+
+See `lle.generator` for the full method reference.
 
 ## Custom maps
 
@@ -122,13 +96,6 @@ world = World("S0 . G X")
 
 TOML maps are useful when you want richer placement rules, such as random start
 positions.
-
-## More details
-
-The root package re-exports the most common classes and helpers so that
-`import lle` is enough for most use cases. See the module pages for
-`World`, `LLE`, `generator`, `solver`, `tiles`, `world`, and `observations`
-for the full API.
 
 ## Citing our work
 The environment has been presented at [EWRL 2023](https://openreview.net/pdf?id=IPfdjr4rIs) and at [BNAIC 2023](https://bnaic2023.tudelft.nl/static/media/BNAICBENELEARN_2023_paper_124.c9f5d29e757e5ee27c44.pdf) where it received the best paper award.
@@ -170,6 +137,11 @@ __all__ = [
     "exceptions",
     "tiles",
     "agent",
+    "env",
+    "generator",
+    "solver",
+    "characterization",
+    "observations",
     "Agent",
     "World",
     "WorldState",

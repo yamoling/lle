@@ -1,73 +1,77 @@
 # Laser Learning Environment (LLE)
-Documentation: [https://yamoling.github.io/lle/](https://yamoling.github.io/lle/)
+In LLE, agents start on start tiles, collect gems, and finish by reaching exit tiles. When an agent enters a laser of its own colour, it blocks the beam and lets the others pass; entering a laser of any other colour kills it and ends the episode. This single mechanic makes LLE a benchmark for **coordination-critical** cooperation.
 
-LLE is a fast multi-agent reinforcement learning environment written in Rust.
-Agents start on start tiles, collect gems, and finish by reaching exit tiles.
-The available actions are North, South, East, West, and Stay.
-
-When an agent enters a laser of its own colour, it blocks that beam. Otherwise, it dies and the game ends.
+📖 **Documentation:** [https://yamoling.github.io/lle/](https://yamoling.github.io/lle/)
 
 ![LLE](docs/lvl6-annotated.png)
 
-# Quick start
+## Highlights
+- ⚡ **Fast** — game logic implemented in Rust, exposed to Python.
+- 🤝 **Coordination-critical** — lasers can force agents to actively help each other to reach the exit.
+- 🎚️ **Two levels of abstraction** — a high-level `LLE` MARL environment, or a low-level `World` for full control over maps, states, and steps.
+- 🗺️ **Custom maps** — write a map as a one-line string or a richer TOML file, or use the 6 built-in levels.
+- 🟰 **SAT Solver** — retrieve solutions to LLE worlds using a SAT-based solver.
+- 🧪 **World analysis** — analyse the characteristics of a World: does it require cooperation? mutual cooperation?
+- 🐣 **Procedural world generation** — generate worlds according to your requirements (cooperative, independent, mutually cooperative, ...)
+- 🔍 **Rich observations** — layered, flattened, partial views, RGB images, and more, with optional reward shaping (PBRS) and multi-objective rewards.
+
 ## Installation
-Install the Laser Learning Environment with uv, pip, poetry, ...
+Install with `uv`, `pip`, `poetry`, …
 ```bash
-pip install laser-learning-environment # Latest stable release with pip
-pip install git+https://github.com/yamoling/lle # latest push on master
+pip install laser-learning-environment
 ```
 
-## Usage
-LLE can be used at two levels of abstraction: as an `MARLEnv` for cooperative multi-agent reinforcement learning or as a `World` for fine-grained control.
+## Quick start
+LLE can be used at two levels of abstraction: as an `MARLEnv` for cooperative multi-agent reinforcement
+learning, or as a `World` for fine-grained control.
 
-### For cooperative multi-agent reinforcement learning
-The `LLE` class wraps a `World` and implements the `MARLEnv` interface from the [marlenv](https://github.com/yamoling/multi-agent-rlenv) framework. Here is an example with the following map: ![LLE](docs/3x1.png)
+### As a MARL environment
+The `LLE` class wraps a `World` and implements the [`MARLEnv` interface](https://github.com/yamoling/multi-agent-rlenv) from the to add a reward function, observations, states, etc. Build one with `lle.level(...)`, `lle.from_str(...)`, or `lle.from_file(...)`, then chain builder methods before `build()`.
 
+Here is an example on the following map: ![LLE](docs/3x1.png)
 
 ```python
 import lle
 
-env = lle.from_str("S0 G X").build()
-done = False
+env = lle.from_str("S0 G X").obs_type("layered").build()
 obs, state = env.reset()
-while not done:
-    # env.render() # Uncomment to render
+terminal = False
+while not terminal:
+    # env.render()                 # uncomment to render
     actions = env.sample_action()
     step = env.step(actions)
-    # Access the step data with `step.obs`, `step.reward`, ...
-    done = step.is_terminal # Either done or truncated
+    # step.reward, step.obs, step.info, ...
+    terminal = step.is_terminal # truncated or done
 ```
 
-
-### For other purposes or fine grained control
-The `World` class provides fine grained control on the environment by exposing the state of the world and the events that happen when the agents move.
+### As a `World` for fine-grained control
+The `World` class exposes the state of the world and the events that happen when the agents move.
 
 ```python
 from lle import World, Action, EventType
 
-world = World("S0 G X")  # Linear world with start S0, gem G and exit X
+world = World("S0 G X")  # linear world: start S0, gem G, exit X
 world.reset()
-available_actions = world.available_actions()[0]  # [Action.STAY, Action.EAST]
+available = world.available_actions()[0]   # [Action.STAY, Action.EAST]
+
 events = world.step([Action.EAST])
 assert events[0].event_type == EventType.GEM_COLLECTED
 events = world.step([Action.EAST])
 assert events[0].event_type == EventType.AGENT_EXIT
 ```
 
-You can also access and force the state of the world:
+You can save and restore the exact state of the world:
 ```python
 state = world.get_state()
-...
+# ...
 events = world.set_state(state)
 ```
 
-You can query the world through properties such as `world.start_pos`,
-`world.exit_pos`, `world.gems`, `world.lasers`, and `world.agents`.
+Query the world through properties such as `world.start_pos`, `world.exit_pos`, `world.gems`,
+`world.lasers`, and `world.agents`.
 
-### Generation and solving
-
-The optional `generator` extra adds SAT-based generation and analysis helpers.
-The `level6_style` generator defaults to an exactly mutual cooperative configuration, and `cooperation=True` asks for any cooperative world:
+## Procedural generation, solving & analysis
+The optional `generator` module provides procedural generation of proven solvable word capabilities. Call `lle.generate(...)`, chain with other methods to describe the characteristics of your world, and end with `build()` or `take(n=...)` to generate one or multiple worlds.
 
 ```bash
 pip install laser-learning-environment[generator]
@@ -77,20 +81,40 @@ pip install laser-learning-environment[generator]
 import lle
 from lle import World
 
-world = lle.generate(kind="random", height=5, width=5, n_agents=2, seed=0)
-plan = lle.solve(world, t_max=5)
-assert plan is not None
+# A solvable 5x5 world with 2 agents
+world = lle.generate(width=5, height=5, n_agents=2).build(seed=0)
+
+# Find the shortest joint plan (or None if unsolvable within t_max steps)
+plan = lle.solve(world, 5)
+
+# A world that *requires* cooperation, SAT-verified
+coop = lle.generate(width=6, height=6, n_agents=2).lasers(2).cooperative().build()
+assert lle.is_cooperative(coop)
+
+# Prove what every short plan requires (e.g. level 6 is mutually cooperative)
 assert lle.is_cooperative(World.level(6))
-coop = lle.generate(kind="random", height=6, width=6, n_agents=2, n_lasers=2, cooperation=True, seed=0)
 ```
 
+The builder controls every placement decision:
+- **Layout:** `random()`, `lanes()`, `clustered()`, or fine-grained `starts(...)` / `exits(...)`.
+- **Lasers & walls:** `lasers(n, placement=..., span=...)`, `walls(n, style=...)`.
+- **Behaviour:** `solvable()` (default), `independent()`, `cooperative(...)`, `mutual(...)`.
 
+```python
+lle.generate(width=8, height=8, n_agents=3).lanes().walls(4, style="shapes").build(seed=1)
+lle.generate(n_agents=4).clustered().mutual(t_max=21).build()
+worlds = list(lle.generate(width=5, height=5, n_agents=2).lasers(1).cooperative().take(10))
+```
 
+See the [`examples/`](examples) folder for runnable scripts and the
+[documentation](https://yamoling.github.io/lle/) for the full API.
 
 ## Citing our work
-The environment has been presented at [EWRL 2023](https://openreview.net/pdf?id=IPfdjr4rIs) and at [BNAIC 2023](https://bnaic2023.tudelft.nl/static/media/BNAICBENELEARN_2023_paper_124.c9f5d29e757e5ee27c44.pdf) where it received the best paper award.
+The environment has been presented at [EWRL 2023](https://openreview.net/pdf?id=IPfdjr4rIs) and at
+[BNAIC 2023](https://bnaic2023.tudelft.nl/static/media/BNAICBENELEARN_2023_paper_124.c9f5d29e757e5ee27c44.pdf)
+where it received the best paper award.
 
-```
+```bibtex
 @inproceedings{molinghen2023lle,
   title={Laser Learning Environment: A new environment for coordination-critical multi-agent tasks},
   author={Molinghen, Yannick and Avalos, Raphaël and Van Achter, Mark and Nowé, Ann and Lenaerts, Tom},
@@ -101,25 +125,25 @@ The environment has been presented at [EWRL 2023](https://openreview.net/pdf?id=
 ```
 
 ## Development
-If you want to modify the environment, you can clone the repo, install the python dependencies then compile it with `maturin`. The below example assumes that you are using `uv` as package manager but it should work with `conda`, `poetry` or just `pip` as well.
-```
+Clone the repo, install the Python dependencies, then compile with `maturin`. The example below uses
+`uv`, but `conda`, `poetry`, or plain `pip` work too.
+```bash
 git clone https://github.com/yamoling/lle
-uv venv         # create a virtual environment
+uv venv                 # create a virtual environment
 source .venv/bin/activate
-uv sync         # install python dependencies
-maturin dev     # build and install lle in the venv
+uv sync                 # install python dependencies
+maturin dev             # build and install lle in the venv
 ```
 
-You can also re-generate the python bindings in the folder `python/lle` with
+Re-generate the Python bindings in `python/lle` with:
 ```bash
 cargo run --bin stub-gen
 ```
 
-
 ## Tests
-Run unit tests in rust & python with 
+Run the Rust and Python test suites with:
 ```bash
-cargo test
-maturin dev
-pytest
+cargo test      # Rust unit + integration tests
+maturin dev     # (re)build the extension
+pytest          # Python tests
 ```

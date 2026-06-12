@@ -16,7 +16,7 @@ from lle.types import Position
 from .geometry import beam_tiles, place_wall_shapes, points_out_immediately
 
 
-class _LayoutRetry(Exception):
+class LayoutRetry(Exception):
     """Raised when sampling produced an unusable layout."""
 
 
@@ -77,14 +77,14 @@ def place_agents(
         if edge in ("left", "right"):
             col = 0 if edge == "left" else width - 1
             if height < n_agents:
-                raise _LayoutRetry()
+                raise LayoutRetry()
             lane_ids = sorted(rng.sample(range(height), n_agents))
             ctx.lane_ids = lane_ids
             agents = [(r, col) for r in lane_ids]
         else:
             row = 0 if edge == "top" else height - 1
             if width < n_agents:
-                raise _LayoutRetry()
+                raise LayoutRetry()
             lane_ids = sorted(rng.sample(range(width), n_agents))
             ctx.lane_ids = lane_ids
             agents = [(row, c) for c in lane_ids]
@@ -92,7 +92,7 @@ def place_agents(
     elif mode == "clustered":
         cluster_h, cluster_w = cluster_shape(n_agents)
         if cluster_h > height or cluster_w > width:
-            raise _LayoutRetry()
+            raise LayoutRetry()
         anchor_r = rng.randint(0, height - cluster_h)
         anchor_c = rng.randint(0, width - cluster_w)
         ctx.agent_anchor = (anchor_r, anchor_c)
@@ -123,7 +123,7 @@ def place_exits(
     if mode == "random":
         free = [(r, c) for r in range(height) for c in range(width) if (r, c) not in reserved]
         if len(free) < n_agents:
-            raise _LayoutRetry()
+            raise LayoutRetry()
         exits = rng.sample(free, n_agents)
 
     elif mode == "edge":
@@ -140,13 +140,13 @@ def place_exits(
         elif ctx.agent_anchor is not None:
             exits = _exits_as_opposite_cluster(n_agents, height, width, reserved, ctx)
         else:
-            raise _LayoutRetry()
+            raise LayoutRetry()
 
     else:
         raise ValueError(f"Unknown exits mode: {mode!r}")
 
     if any(e in reserved for e in exits):
-        raise _LayoutRetry()
+        raise LayoutRetry()
     return exits, reserved | set(exits)  # type: ignore[return-value]
 
 
@@ -165,7 +165,7 @@ def _exits_on_edge(
             exits = [(r, col) for r in lane_ids]
         else:
             if height < n_agents:
-                raise _LayoutRetry()
+                raise LayoutRetry()
             ids = sorted(rng.sample(range(height), n_agents))
             exits = [(r, col) for r in ids]
     else:
@@ -174,7 +174,7 @@ def _exits_on_edge(
             exits = [(row, c) for c in lane_ids]
         else:
             if width < n_agents:
-                raise _LayoutRetry()
+                raise LayoutRetry()
             ids = sorted(rng.sample(range(width), n_agents))
             exits = [(row, c) for c in ids]
     return exits  # type: ignore[return-value]
@@ -190,7 +190,7 @@ def _exits_as_cluster(
 ) -> list[Position]:
     cluster_h, cluster_w = cluster_shape(n_agents)
     if cluster_h > height or cluster_w > width:
-        raise _LayoutRetry()
+        raise LayoutRetry()
     for _ in range(64):
         anchor_r = rng.randint(0, height - cluster_h)
         anchor_c = rng.randint(0, width - cluster_w)
@@ -199,7 +199,7 @@ def _exits_as_cluster(
         if not any(c in reserved for c in exit_cells):
             ctx.exit_anchor = (anchor_r, anchor_c)
             return exit_cells  # type: ignore[return-value]
-    raise _LayoutRetry()
+    raise LayoutRetry()
 
 
 def _exits_as_opposite_cluster(
@@ -217,7 +217,7 @@ def _exits_as_opposite_cluster(
     cells = [(anchor_r + dr, anchor_c + dc) for dr in range(cluster_h) for dc in range(cluster_w)]
     exits = cells[:n_agents]
     if any(e in reserved for e in exits):
-        raise _LayoutRetry()
+        raise LayoutRetry()
     return exits  # type: ignore[return-value]
 
 
@@ -271,7 +271,7 @@ def _select_lasers(
             new_reserved.update(tiles)
 
     if len(lasers) < n_lasers:
-        raise _LayoutRetry()
+        raise LayoutRetry()
     return lasers, new_reserved
 
 
@@ -403,7 +403,7 @@ def _place_lasers_cross_agent(
                 candidates.append((pos, Direction.WEST, tiles))
 
     if not candidates:
-        raise _LayoutRetry()
+        raise LayoutRetry()
     return _select_lasers(candidates, n_lasers, rng, reserved, reserve_beam=True)
 
 
@@ -422,7 +422,7 @@ def _place_lasers_cross_cluster(
     agent_anchor = ctx.agent_anchor
     exit_anchor = ctx.exit_anchor
     if agent_anchor is None or exit_anchor is None:
-        raise _LayoutRetry()
+        raise LayoutRetry()
 
     agent_bottom = agent_anchor[0] + cluster_h - 1
     agent_right = agent_anchor[1] + cluster_w - 1
@@ -442,7 +442,7 @@ def _place_lasers_cross_cluster(
         rng.shuffle(corridor_cols)
         chosen = sorted(corridor_cols[:n_lasers])
         return _corridor_lasers_vertical(chosen, span, height, width, reserved)
-    raise _LayoutRetry()
+    raise LayoutRetry()
 
 
 def _corridor_lasers_horizontal(
@@ -464,10 +464,10 @@ def _corridor_lasers_horizontal(
             pos = (row, width - 1)
             direction = Direction.WEST
         if pos in new_reserved:
-            raise _LayoutRetry()
+            raise LayoutRetry()
         tiles = beam_tiles(pos, direction, set(), set(), height, width)
         if not _beam_satisfies_span(tiles, pos, direction, span, height, width):
-            raise _LayoutRetry()
+            raise LayoutRetry()
         lasers.append((i, pos, direction))
         new_reserved.add(pos)
         new_reserved.update(tiles)
@@ -493,10 +493,10 @@ def _corridor_lasers_vertical(
             pos = (height - 1, col)
             direction = Direction.NORTH
         if pos in new_reserved:
-            raise _LayoutRetry()
+            raise LayoutRetry()
         tiles = beam_tiles(pos, direction, set(), set(), height, width)
         if not _beam_satisfies_span(tiles, pos, direction, span, height, width):
-            raise _LayoutRetry()
+            raise LayoutRetry()
         lasers.append((i, pos, direction))
         new_reserved.add(pos)
         new_reserved.update(tiles)
