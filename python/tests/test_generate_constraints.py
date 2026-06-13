@@ -147,3 +147,86 @@ def test_last_filter_call_wins():
 def test_require_overrides_named_filter():
     builder = generate(width=5, height=5, n_agents=2).cooperative().require(Solvable(21))
     assert isinstance(builder._world_filter, Solvable)
+
+
+# ---------------------------------------------------------------------------
+# Builder-level validation: generate().build() must raise for invalid combos
+# ---------------------------------------------------------------------------
+
+
+def test_generate_error_cooperative_n_agents_lt_2():
+    with pytest.raises(ValueError, match="agents"):
+        generate(width=5, height=5, n_agents=1).cooperative().build(max_attempts=1)
+
+
+def test_generate_error_cooperative_n_lasers_0():
+    with pytest.raises(ValueError, match="laser"):
+        generate(width=5, height=5, n_agents=2).lasers(0).cooperative().build(max_attempts=1)
+
+
+def test_generate_error_mutual_n_agents_lt_2():
+    with pytest.raises(ValueError, match="agents"):
+        generate(width=5, height=5, n_agents=1).mutual().build(max_attempts=1)
+
+
+def test_generate_error_mutual_n_lasers_lt_2():
+    with pytest.raises(ValueError, match="laser"):
+        generate(width=5, height=5, n_agents=2).lasers(1).mutual().build(max_attempts=1)
+
+
+def test_generate_error_chained_n_agents_lt_2():
+    with pytest.raises(ValueError, match="agents"):
+        generate(width=5, height=5, n_agents=1).chained().build(max_attempts=1)
+
+
+def test_generate_error_chained_n_lasers_lt_2():
+    with pytest.raises(ValueError, match="laser"):
+        generate(width=5, height=5, n_agents=2).lasers(1).chained().build(max_attempts=1)
+
+
+# ---------------------------------------------------------------------------
+# Smart defaults: unset parameters get a sensible value from the filter
+# ---------------------------------------------------------------------------
+
+
+def test_default_lasers_chained_n_agents_2():
+    """Exact example from the todo: must not raise ValueError about lasers.
+
+    generate(width=5, height=5, n_agents=2).lanes().chained().build() was
+    raising "Chained cooperation requires at least 2 lasers" because the
+    auto-resolved count was n_agents-1 = 1.  The fix defaults to min(n_agents, 2).
+    """
+    builder = generate(width=5, height=5, n_agents=2).lanes().chained()
+    placement = builder._resolve_placement(builder._starts)
+    n_lasers = builder._resolve_n_lasers(placement)
+    assert n_lasers >= 2, f"Expected auto n_lasers >= 2 for chained filter with n_agents=2, got {n_lasers}"
+
+
+def test_default_lasers_mutual_n_agents_2():
+    """Same default-value fix applies to the mutual filter (mentioned in the todo).
+
+    generate(width=5, height=5, n_agents=2).mutual().build() would also have
+    raised without the fix because mutual implies chained cooperation.
+    """
+    builder = generate(width=5, height=5, n_agents=2).mutual()
+    placement = builder._resolve_placement(builder._starts)
+    n_lasers = builder._resolve_n_lasers(placement)
+    assert n_lasers >= 2, f"Expected auto n_lasers >= 2 for mutual filter with n_agents=2, got {n_lasers}"
+
+
+def test_default_lasers_chained_does_not_raise_on_build():
+    """End-to-end: generate().lanes().chained().build() must not raise ValueError."""
+    generate(width=5, height=5, n_agents=2).lanes().chained().build(max_attempts=1)
+
+
+def test_default_lasers_mutual_does_not_raise_on_build():
+    """End-to-end: generate().mutual().build() must not raise ValueError."""
+    generate(width=5, height=5, n_agents=2).mutual().build(max_attempts=1)
+
+
+def test_explicit_laser_count_overrides_default():
+    """An explicit lasers() call must always win over the smart default."""
+    builder = generate(width=5, height=5, n_agents=3).lasers(3).chained()
+    placement = builder._resolve_placement(builder._starts)
+    n_lasers = builder._resolve_n_lasers(placement)
+    assert n_lasers == 3

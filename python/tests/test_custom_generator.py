@@ -281,6 +281,41 @@ def test_error_laser_span_too_small():
 
 
 # ---------------------------------------------------------------------------
+# Filter-specific validation errors
+# ---------------------------------------------------------------------------
+
+
+def test_error_cooperative_requires_n_agents_ge_2():
+    with pytest.raises(ValueError, match="agents"):
+        WorldGenerator(width=5, height=5, n_agents=1, n_lasers=1, filter=WorldFilter.cooperative(20))
+
+
+def test_error_cooperative_requires_lasers():
+    with pytest.raises(ValueError, match="laser"):
+        WorldGenerator(width=5, height=5, n_agents=2, n_lasers=0, filter=WorldFilter.cooperative(20))
+
+
+def test_error_mutual_requires_n_agents_ge_2():
+    with pytest.raises(ValueError, match="agents"):
+        WorldGenerator(width=5, height=5, n_agents=1, n_lasers=1, filter=WorldFilter.mutual(20))
+
+
+def test_error_mutual_requires_n_lasers_ge_2():
+    with pytest.raises(ValueError, match="laser"):
+        WorldGenerator(width=5, height=5, n_agents=2, n_lasers=1, filter=WorldFilter.mutual(20))
+
+
+def test_error_chained_requires_n_agents_ge_2():
+    with pytest.raises(ValueError, match="agents"):
+        WorldGenerator(width=5, height=5, n_agents=1, n_lasers=1, filter=WorldFilter.chained(20))
+
+
+def test_error_chained_requires_n_lasers_ge_2():
+    with pytest.raises(ValueError, match="laser"):
+        WorldGenerator(width=5, height=5, n_agents=2, n_lasers=1, filter=WorldFilter.chained(20))
+
+
+# ---------------------------------------------------------------------------
 # Import-level smoke test
 # ---------------------------------------------------------------------------
 

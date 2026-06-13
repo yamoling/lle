@@ -277,12 +277,9 @@ class GeneratorBuilder:
 
     def _make_generator(self) -> WorldGenerator:
         """Compile the accumulated configuration into a concrete generator."""
-        world_filter = self._world_filter
-        if world_filter.requires_cooperation and self._n_agents < 2:
-            raise ValueError("Cooperative worlds require at least 2 agents.")
-        starts, exits = self._resolve_layout(world_filter)
-        placement = self._resolve_placement(world_filter, starts)
-        n_lasers = self._resolve_n_lasers(world_filter, placement)
+        starts, exits = self._resolve_layout()
+        placement = self._resolve_placement(starts)
+        n_lasers = self._resolve_n_lasers(placement)
         return WorldGenerator(
             width=self._width,
             height=self._height,
@@ -294,45 +291,39 @@ class GeneratorBuilder:
             laser_span=self._laser_span,
             n_walls=self._n_walls,
             walls_style=self._walls_style,
-            filter=world_filter,
+            filter=self._world_filter,
         )
 
-    def _resolve_layout(self, world_filter: WorldFilter) -> tuple[StartsMode, ExitsMode]:
+    def _resolve_layout(self) -> tuple[StartsMode, ExitsMode]:
         """Pick a layout. An explicit layout is honoured; otherwise one is chosen
         to suit the behavioural filter (cooperation favours opposite-side layouts)."""
         if self._layout_explicit:
             return self._starts, self._exits
-        if world_filter.requires_mutual_cooperation:
+        if self._world_filter.requires_mutual_cooperation:
             return "clustered", "opposite"
-        if world_filter.requires_cooperation:
+        if self._world_filter.requires_cooperation:
             return "edge", "opposite"
         return self._starts, self._exits
 
-    def _resolve_placement(self, world_filter: WorldFilter, starts: StartsMode) -> ResolvedPlacement:
+    def _resolve_placement(self, starts: StartsMode) -> ResolvedPlacement:
         """Derive a laser placement from the layout when left on ``"auto"``."""
         if self._laser_placement != "auto":
             return self._laser_placement
-        if world_filter.requires_cooperation:
+        if self._world_filter.requires_cooperation:
             if starts == "clustered":
                 return "cross-cluster"
             if starts == "edge":
                 return "cross-agent"
         return "free"
 
-    def _resolve_n_lasers(self, world_filter: WorldFilter, placement: ResolvedPlacement) -> int:
+    def _resolve_n_lasers(self, placement: ResolvedPlacement) -> int:
         if self._n_lasers != "auto":
-            n_lasers = self._n_lasers
-        elif world_filter.requires_cooperation or placement in ("cross-agent", "cross-cluster"):
-            n_lasers = min(self._n_agents, max(1, self._n_agents - 1))
-        else:
-            n_lasers = 0
-        if world_filter.requires_cooperation and n_lasers == 0:
-            raise ValueError("Cooperative worlds are impossible with 0 lasers.")
-        if world_filter.requires_chained_cooperation and n_lasers < 2:
-            raise ValueError("Chained cooperation requires at least 2 lasers.")
-        if world_filter.requires_mutual_cooperation and n_lasers < 2:
-            raise ValueError("Mutual cooperation is impossible with fewer than 2 lasers.")
-        return n_lasers
+            return self._n_lasers
+        if self._world_filter.requires_chained_cooperation:
+            return min(self._n_agents, max(2, self._n_agents - 1))
+        if self._world_filter.requires_cooperation or placement in ("cross-agent", "cross-cluster"):
+            return min(self._n_agents, max(1, self._n_agents - 1))
+        return 0
 
     def _resolve_n_jobs(self, n_jobs: int | Literal["auto"]) -> int:
         if n_jobs != "auto":

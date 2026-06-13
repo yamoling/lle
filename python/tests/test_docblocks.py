@@ -58,8 +58,7 @@ def _all_blocks() -> list[tuple[str, str]]:
     blocks: list[tuple[str, str]] = []
     for py_file in sorted(LLE_PKG.rglob("*.py")) + sorted(LLE_PKG.rglob("*.pyi")):
         blocks.extend(_collect_from(py_file))
-    for md_file in sorted(ROOT.glob("*.md")):
-        blocks.extend(_collect_from_md(md_file))
+    blocks.extend(_collect_from_md(ROOT / "readme.md"))
     return blocks
 
 

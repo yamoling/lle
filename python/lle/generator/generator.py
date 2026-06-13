@@ -125,6 +125,15 @@ class WorldGenerator:
             raise ValueError(f"lasers must be <= agents (one laser source per colour). Got lasers={n_lasers}, agents={n_agents}.")
         self.n_lasers = n_lasers
 
+        if filter is not None:
+            if filter.requires_cooperation:
+                if n_agents < 2:
+                    raise ValueError("Cooperative worlds require at least 2 agents.")
+                if n_lasers == 0:
+                    raise ValueError("Cooperative worlds are impossible with 0 lasers.")
+            if filter.requires_chained_cooperation and n_lasers < 2:
+                raise ValueError("Chained cooperation requires at least 2 lasers.")
+
         resolved_n_walls = (width * height) // 10 if n_walls == "auto" else n_walls
         self.n_walls = resolved_n_walls
         if self.n_walls < 0:
