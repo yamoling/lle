@@ -4,7 +4,7 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use super::pysolvemode::PySolveMode;
 use crate::{
     bindings::{PyAction, PyWorld, pyexceptions::solver_error_to_exception},
-    solver::{Clause, ClauseGenerator, Literal},
+    solver::{Clause, ClauseGenerator, Literal, SolveMode},
 };
 
 /// Generates the SAT clauses (CNF, as lists of signed integer literals) used by
@@ -69,16 +69,16 @@ impl PyClauseGenerator {
         ))]
         mode: Py<PyAny>,
     ) -> PyResult<Self> {
-        let mode = if let Ok(m) = mode.extract::<PySolveMode>(py) {
-            m
+        let mode: SolveMode = if let Ok(m) = mode.extract::<PySolveMode>(py) {
+            m.into()
         } else if let Ok(s) = mode.extract::<String>(py) {
-            PySolveMode::from_str(&s)?
+            SolveMode::from_str(&s).map_err(PyValueError::new_err)?
         } else {
             return Err(PyValueError::new_err(
                 "mode must be a SolveMode enum or a string",
             ));
         };
-        let inner = world.with_world(|world| ClauseGenerator::new(world, t_max, mode.into()));
+        let inner = world.with_world(|world| ClauseGenerator::new(world, t_max, mode));
         let solution_lower_bound = inner.solution_lower_bound();
         Ok(Self {
             inner,

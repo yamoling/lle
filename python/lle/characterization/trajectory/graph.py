@@ -154,6 +154,42 @@ class TemporalDependencyGraph:
     # ------------------------------------------------------------------
     # Cycles
     # ------------------------------------------------------------------
+    def max_temporal_cycle_order(self, strict: bool = False) -> int:
+        """Size of the largest simple directed cycle in the temporal graph with non-decreasing
+        (or strictly increasing, if ``strict=True``) timestamps, or 0 if no cycle exists.
+
+        A temporal cycle of order ``k`` visits ``k`` distinct agents and returns to its start,
+        with each edge's timestamp ≥ the previous one (non-strict) or > (strict).
+        """
+        by_helper: dict[AgentId, list[tuple[AgentId, int]]] = defaultdict(list)
+        for e in self._edges:
+            by_helper[e.helper].append((e.beneficiary, e.t))
+
+        best = 0
+
+        def dfs(start: AgentId, node: AgentId, visited: set[AgentId], last_t: int) -> None:
+            nonlocal best
+            for nxt, t in by_helper.get(node, []):
+                if strict:
+                    if t <= last_t:
+                        continue
+                else:
+                    if t < last_t:
+                        continue
+                if nxt == start and len(visited) >= 2:
+                    best = max(best, len(visited))
+                    continue
+                if nxt in visited:
+                    continue
+                visited.add(nxt)
+                dfs(start, nxt, visited, t)
+                visited.remove(nxt)
+
+        for start in range(self.n_agents):
+            dfs(start, start, {start}, -1)
+
+        return best
+
     def has_cycle(self) -> bool:
         """Whether a mutual-help cycle exists with strictly increasing time.
 

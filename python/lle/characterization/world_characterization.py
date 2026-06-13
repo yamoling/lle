@@ -3,7 +3,7 @@ from functools import cached_property
 
 from .. import solver
 from ..world import World
-from .trajectory import profile_trajectory
+from .trajectory import profile_trajectory, TrajectoryProfile
 
 
 class NotSolvableError(ValueError):
@@ -91,6 +91,26 @@ class WorldCharacterizer:
         if not profile.is_chained:
             return False
         return self.shortest_non_chained_path is None
+
+    def is_interdependent(self, k: int = 2) -> bool:
+        """
+        Whether the world *requires* interdependence at level ``k``:
+        - the optimal trajectory exhibits a temporal cycle of order ≥ ``k``, and
+        - no solution within ``t_max`` avoids all such cycles.
+
+        # Raises
+            - ``NotSolvableError`` if the world is not solvable
+        """
+        path = self.shortest_path
+        if path is None:
+            raise NotSolvableError("World is not solvable")
+        profile = profile_trajectory(self.world, path)
+        if not profile.is_interdependent(k):
+            return False
+        return self._shortest_non_interdependent_path(k) is None
+
+    def _shortest_non_interdependent_path(self, k: int):
+        return solver.solve(self.world, self.t_max, mode=f"no-interdependence-{k}")
 
     @cached_property
     def shortest_path(self):

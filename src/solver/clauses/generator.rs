@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::solver::errors::SolverError;
-use crate::{Action, Position, World};
+use crate::{Action, AgentId, Position, World};
 
 use super::super::context::ConstraintContext;
 use super::Clause;
@@ -21,6 +21,9 @@ pub enum SolveMode {
     /// No temporal chain `a → b → c` (a helped b, then b helped c) may appear; also rules out
     /// mutual cycles. This is strictly stronger than `NoMutualCooperation`.
     NoChainedCooperation,
+    /// No temporal cycle of order ≥ `k` may appear in any solution. A temporal cycle of order `k`
+    /// visits `k` distinct agents and closes back to the start, with non-decreasing timestamps.
+    NoInterdependence { k: usize },
 }
 
 impl SolveMode {
@@ -30,11 +33,53 @@ impl SolveMode {
             "no-cooperation" => Ok(SolveMode::NoCooperation),
             "no-mutual-cooperation" => Ok(SolveMode::NoMutualCooperation),
             "no-chained-cooperation" => Ok(SolveMode::NoChainedCooperation),
+            s if s.starts_with("no-interdependence-") => {
+                let suffix = &s["no-interdependence-".len()..];
+                let k = suffix.parse::<usize>().map_err(|_| {
+                    format!("Invalid k in mode '{s}'. Expected 'no-interdependence-N' where N is a positive integer.")
+                })?;
+                if k < 2 {
+                    return Err(format!("Interdependence order k must be ≥ 2, got {k}."));
+                }
+                Ok(SolveMode::NoInterdependence { k })
+            }
             _ => Err(format!(
-                "Unknown solve mode: '{}'. Expected one of: 'standard', 'no-cooperation', 'no-mutual-cooperation', 'no-chained-cooperation'",
-                s
+                "Unknown solve mode: '{s}'. Expected one of: 'standard', 'no-cooperation', \
+                 'no-mutual-cooperation', 'no-chained-cooperation', 'no-interdependence-N'."
             )),
         }
+    }
+}
+
+/// Enumerate all simple directed cycles of order ≥ `min_order` over `agents`.
+///
+/// Each cycle is returned as a Vec whose first element is the lexicographically-smallest agent
+/// in the cycle (canonical form that avoids counting the same cycle under different rotations).
+pub(crate) fn enumerate_directed_cycles(agents: &[AgentId], min_order: usize) -> Vec<Vec<AgentId>> {
+    let mut cycles = Vec::new();
+    for (start_idx, &start) in agents.iter().enumerate() {
+        let available: Vec<AgentId> = agents[start_idx + 1..].to_vec();
+        cycles_dfs(start, &available, vec![start], min_order, &mut cycles);
+    }
+    cycles
+}
+
+fn cycles_dfs(
+    root: AgentId,
+    available: &[AgentId],
+    path: Vec<AgentId>,
+    min_order: usize,
+    out: &mut Vec<Vec<AgentId>>,
+) {
+    if path.len() >= min_order {
+        out.push(path.clone());
+    }
+    for (i, &next) in available.iter().enumerate() {
+        let mut new_avail = available.to_vec();
+        new_avail.remove(i);
+        let mut new_path = path.clone();
+        new_path.push(next);
+        cycles_dfs(root, &new_avail, new_path, min_order, out);
     }
 }
 
@@ -45,6 +90,9 @@ pub struct ClauseGenerator {
     pub(super) pool: VarPool,
     pub(super) exits: HashSet<Position>,
     mode: SolveMode,
+    /// Simple directed cycles considered when mode is `NoInterdependence`.
+    /// Each entry is a list of agent ids [v0, v1, ..., v_{k-1}] where v0 is the smallest.
+    pub(super) interdep_cycles: Vec<Vec<AgentId>>,
     /// `clause_buffer[t]` = world-enforcing (+ mode-specific) clauses for step `t`.
     clause_buffer: Vec<Vec<Clause>>,
     /// `assumption_buffer[t]` = per-step assumptions for step `t`.
@@ -55,11 +103,22 @@ pub struct ClauseGenerator {
 
 impl ClauseGenerator {
     pub fn new(world: &World, t_max: usize, mode: SolveMode) -> Self {
+        let ctx = ConstraintContext::new(world, t_max);
+        let interdep_cycles = if let SolveMode::NoInterdependence { k } = mode {
+            let mut agents: Vec<AgentId> =
+                ctx.laser_sources.iter().map(|s| s.agent_id).collect();
+            agents.sort_unstable();
+            agents.dedup();
+            enumerate_directed_cycles(&agents, k)
+        } else {
+            vec![]
+        };
         Self {
             exits: world.exits_positions().into_iter().collect(),
-            ctx: ConstraintContext::new(world, t_max),
+            ctx,
             pool: VarPool::new(),
             mode,
+            interdep_cycles,
             clause_buffer: vec![Vec::new(); t_max + 1],
             assumption_buffer: vec![Vec::new(); t_max + 1],
             generated_until: None,
@@ -102,6 +161,11 @@ impl ClauseGenerator {
                 clauses.extend(cc);
                 assumptions.extend(ca);
             }
+            SolveMode::NoInterdependence { .. } => {
+                let (ic, ia) = self.forbid_interdependence();
+                clauses.extend(ic);
+                assumptions.extend(ia);
+            }
             _ => {}
         }
 
@@ -127,6 +191,9 @@ impl ClauseGenerator {
                 clauses.extend(self.dependency_clauses(t));
                 clauses.extend(self.chain_clauses(t));
             }
+            SolveMode::NoInterdependence { .. } => {
+                clauses.extend(self.interdependence_clauses(t));
+            }
             _ => {}
         }
         self.clause_buffer[t] = clauses;
@@ -134,7 +201,10 @@ impl ClauseGenerator {
 
     fn fill_assumptions(&mut self, t: usize) {
         self.assumption_buffer[t] = match self.mode {
-            SolveMode::Standard | SolveMode::NoMutualCooperation | SolveMode::NoChainedCooperation => vec![],
+            SolveMode::Standard
+            | SolveMode::NoMutualCooperation
+            | SolveMode::NoChainedCooperation
+            | SolveMode::NoInterdependence { .. } => vec![],
             SolveMode::NoCooperation => self.assume_no_cooperation(t),
         };
     }

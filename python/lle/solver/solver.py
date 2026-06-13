@@ -59,8 +59,8 @@ def _solve(
 ) -> list[tuple[Action, ...]] | None:
     if t_max == "auto":
         t_max = (world.width * world.height) // 2
-    if not isinstance(mode, SolveMode):
-        mode = SolveMode.from_str(mode)
+    # ClauseGenerator accepts both SolveMode objects and raw strings (including
+    # parameterised modes like "no-interdependence-N" that have no PySolveMode variant).
     gen = ClauseGenerator(world, t_max, mode)
     t_min = max(gen.solution_lower_bound, t_min)
     if t_min > t_max:

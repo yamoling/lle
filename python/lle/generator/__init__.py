@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from .builder import GeneratorBuilder
 from .generator import WorldGenerator
-from .world_filter import Chained, Cooperative, Independent, Mutual, Solvable, WorldFilter
+from .world_filter import Chained, Cooperative, Independent, Interdependent, Mutual, Solvable, WorldFilter
 
 __all__ = [
     "generate",
@@ -36,6 +36,7 @@ __all__ = [
     "Cooperative",
     "Chained",
     "Mutual",
+    "Interdependent",
     "WorldGenerator",
 ]
 

@@ -10,10 +10,18 @@ removes the old ``cooperative=False, mutual=True`` foot-gun by construction.
 The taxonomy mirrors the cooperation lattice computed by `WorldCharacterizer`:
 
     WorldFilter (any solvable world)
-    ├── Independent          – solvable without any cooperation
-    └── Cooperative          – cooperation is required
-        └── Chained          – cooperation forms a chain (a helps b, then b helps c)
-        └── Mutual           – every agent both helps and is helped
+    +-- Independent           - solvable without any cooperation
+    +-- Cooperative           - cooperation is required
+        +-- Chained           - cooperation forms a chain (a helps b, then b helps c)
+        +-- Mutual            - some couples of agents help each other
+        +-- Interdependent(k) - temporal cycle of order >= k is required
+
+# Note on taxonomy
+For two agents, interdependent and mutual are identical: help(a, b, t) ^ help(b, a, t+1)
+meets the requirements of mutual help (it is the very definition), and it creates a
+strongly connected component, i.e. a cycle (the definition of interdependence).
+
+However, there exist mutually cooperative setups that are not mutual
 
 Every filter is a frozen dataclass so it pickles cleanly into worker processes.
 """
@@ -21,7 +29,7 @@ Every filter is a frozen dataclass so it pickles cleanly into worker processes.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 from ..characterization.world_characterization import NotSolvableError, WorldCharacterizer
@@ -73,6 +81,11 @@ class WorldFilter(ABC):
         return False
 
     @property
+    def requires_interdependence_order(self) -> int:
+        """The minimum interdependence order required (0 if not required)."""
+        return 0
+
+    @property
     def default_kind(self) -> GeneratorKind:
         """The generator strategy that best fits this filter when ``kind='auto'``."""
         return "constructive"
@@ -96,6 +109,10 @@ class WorldFilter(ABC):
     @staticmethod
     def mutual(t_max: int, t_min: int | None = None):
         return Mutual(t_max, t_min)
+
+    @staticmethod
+    def interdependent(k: int = 2, t_max: int = 50, t_min: int | None = None):
+        return Interdependent(t_max, t_min, k=k)
 
 
 @dataclass
@@ -140,8 +157,8 @@ class Cooperative(WorldFilter):
 class Chained(Cooperative):
     """Matches worlds that require *chained* cooperation: a helped b, then b helped c.
 
-    A chain of length ≥ 2 in the temporal dependency graph is required — no non-chained
-    plan exists within ``t_max``. Mutual cooperation (a→b→a cycle) is a special case of
+    A chain of length >= 2 in the temporal dependency graph is required -- no non-chained
+    plan exists within ``t_max``. Mutual cooperation (a->b->a cycle) is a special case of
     chaining, so `Mutual` is a refinement of this class.
     """
 
@@ -160,7 +177,7 @@ class Chained(Cooperative):
 class Mutual(Chained):
     """Matches worlds that require *mutual* cooperation: every agent both helps and is helped.
 
-    Mutual cooperation implies chained cooperation (a→b→a is a chain of length 2), hence
+    Mutual cooperation implies chained cooperation (a->b->a is a chain of length 2), hence
     this is a refinement of `Chained`.
     """
 
@@ -178,3 +195,32 @@ class Mutual(Chained):
     @property
     def requires_mutual_cooperation(self) -> bool:
         return True
+
+
+@dataclass
+class Interdependent(Mutual):
+    """Matches worlds that require *temporal interdependence* at level ``k``.
+
+    A world is interdependent at level ``k`` iff:
+    - its optimal trajectory contains a temporal cycle of order >= ``k`` (every agent in
+      the cycle transitively helps and is helped by every other agent, with timestamps
+      progressing in a consistent direction), **and**
+    - no solution within ``t_max`` avoids all such cycles.
+
+    ``k=2`` recovers temporal mutual cooperation (a->b then b->a in strict time order).
+    ``k=3`` requires three agents locked in a circular dependency.
+
+    Interdependence is a refinement of `Mutual`, so this is a subclass of `Mutual`.
+    """
+
+    k: int = field(default=2)
+
+    def _matches(self, c: WorldCharacterizer) -> bool:
+        try:
+            return c.is_interdependent(self.k)
+        except NotSolvableError:
+            return False
+
+    @property
+    def requires_interdependence_order(self) -> int:
+        return self.k

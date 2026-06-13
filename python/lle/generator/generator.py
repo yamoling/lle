@@ -133,6 +133,16 @@ class WorldGenerator:
                     raise ValueError("Cooperative worlds are impossible with 0 lasers.")
             if filter.requires_chained_cooperation and n_lasers < 2:
                 raise ValueError("Chained cooperation requires at least 2 lasers.")
+            k = filter.requires_interdependence_order
+            if k > 0:
+                if n_agents < k:
+                    raise ValueError(
+                        f"Interdependence at level {k} requires at least {k} agents, got {n_agents}."
+                    )
+                if n_lasers < k:
+                    raise ValueError(
+                        f"Interdependence at level {k} requires at least {k} lasers, got {n_lasers}."
+                    )
 
         resolved_n_walls = (width * height) // 10 if n_walls == "auto" else n_walls
         self.n_walls = resolved_n_walls

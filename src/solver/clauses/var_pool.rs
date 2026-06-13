@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{Action, AgentId, Position, solver::errors::SolverError};
+use crate::{Action, AgentId, Position, solver::errors::SolverError, tiles::LaserId};
 
 /// Semantic key for a SAT variable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -19,13 +19,13 @@ pub enum VarKey {
     },
     /// Whether laser `laser_id`'s beam is blocked by its same-colour agent at time `t`.
     /// This variable is used to identify cooperation, not to enforce domain consistency.
-    LaserBlocked { laser_id: usize, t: usize },
+    LaserBlocked { laser_id: LaserId, t: usize },
     /// Whether `helper` blocks laser `laser_id` while `beneficiary` occupies a protected
     /// downstream beam position at time `t` (a single concrete cooperation event).
     CoopEvent {
         helper: AgentId,
         beneficiary: AgentId,
-        laser_id: usize,
+        laser_id: LaserId,
         t: usize,
     },
     /// Whether `helper` ever helps `beneficiary` at some point across the whole horizon.
@@ -53,6 +53,11 @@ pub enum VarKey {
     Chain { a: AgentId, b: AgentId, c: AgentId },
     /// Whether agents `a` and `b` mutually depend on each other (canonical: `a < b`).
     Mutual { a: AgentId, b: AgentId },
+    /// Progress for interdependence cycle `cycle_id`: the first `step` edges have been fired
+    /// with non-decreasing timestamps, with the `step`-th edge firing at some time ≤ `t`.
+    CycleProgress { cycle_id: u16, step: u8, t: usize },
+    /// Whether interdependence cycle `cycle_id` has been fully realized (all edges fired in order).
+    CycleRealized { cycle_id: u16 },
     /// Auxiliary variable used internally by cardinality encodings; carries a unique counter.
     Aux(i32),
 }
@@ -126,6 +131,16 @@ impl VarKey {
     }
 
     #[inline]
+    pub fn cycle_progress(cycle_id: u16, step: u8, t: usize) -> Self {
+        VarKey::CycleProgress { cycle_id, step, t }
+    }
+
+    #[inline]
+    pub fn cycle_realized(cycle_id: u16) -> Self {
+        VarKey::CycleRealized { cycle_id }
+    }
+
+    #[inline]
     pub fn aux(id: i32) -> Self {
         VarKey::Aux(id)
     }
@@ -185,6 +200,16 @@ impl VarPool {
     /// Indicator "temporal chain `a → b → c` exists across the whole horizon".
     pub fn chain(&mut self, a: AgentId, b: AgentId, c: AgentId) -> i32 {
         self.id(VarKey::chain(a, b, c))
+    }
+
+    /// Progress indicator: the first `step` edges of cycle `cycle_id` have been fired by time `t`.
+    pub fn cycle_progress(&mut self, cycle_id: u16, step: u8, t: usize) -> i32 {
+        self.id(VarKey::cycle_progress(cycle_id, step, t))
+    }
+
+    /// Whether cycle `cycle_id` has been fully realized.
+    pub fn cycle_realized(&mut self, cycle_id: u16) -> i32 {
+        self.id(VarKey::cycle_realized(cycle_id))
     }
 
     /// Variable id already assigned to `key`, or `None` if it was never created.

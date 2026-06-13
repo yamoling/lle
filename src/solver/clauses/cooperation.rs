@@ -205,6 +205,146 @@ impl ClauseGenerator {
         clauses
     }
 
+    /// Additive clauses for temporal-cycle detection at time step `t` (interdependence encoding).
+    ///
+    /// For each simple directed cycle `C = [v0, v1, ..., v_{j-1}]` in `interdep_cycles`, builds:
+    ///
+    /// 1. **`CycleProgress(c, 1, t)`** — "v0 has helped v1 by time t" (seeded by agent occupancy on
+    ///    v0's beam; propagated forward in time).
+    /// 2. **`CycleProgress(c, s, t)`** for s = 2..j-1 — "first s edges done in order by time t",
+    ///    triggered by `CycleProgress(c, s-1, t) ∧ agent(v_s, q, t)`.
+    /// 3. **`CycleRealized(c)`** — fired by the closing edge
+    ///    `CycleProgress(c, j-1, t) ∧ agent(v0, q, t)` (v_{j-1} helps v0).
+    ///
+    /// Call once per time step. Call [`forbid_interdependence`](Self::forbid_interdependence) after
+    /// all time steps to obtain the assumptions `¬CycleRealized(c)`.
+    pub(crate) fn interdependence_clauses(&mut self, t: usize) -> Vec<Clause> {
+        self.ctx.update(t);
+        let mut clauses = Vec::new();
+        let n_cycles = self.interdep_cycles.len();
+
+        for c_idx in 0..n_cycles {
+            let cycle = self.interdep_cycles[c_idx].clone();
+            let j = cycle.len();
+            let c_id = c_idx as u16;
+
+            // ---- Step 1: seed and propagate CycleProgress(c, 1, t) ----
+            // Monotone propagation FIRST (independent of whether positions exist at time t).
+            if t > 0 {
+                if let Some(prev) = self.pool.get(&VarKey::cycle_progress(c_id, 1, t - 1)) {
+                    let prog = self.pool.cycle_progress(c_id, 1, t);
+                    clauses.push(vec![-prev, prog]);
+                }
+            }
+            // Seed: agent(ben, q, t) on helper's beam → CycleProgress(c, 1, t).
+            {
+                let (helper, ben) = (cycle[0], cycle[1]);
+                let laser_ids: Vec<usize> = self
+                    .ctx
+                    .laser_sources
+                    .iter()
+                    .filter(|s| s.agent_id == helper)
+                    .map(|s| s.laser_id)
+                    .collect();
+                for laser_id in laser_ids {
+                    let beam = self.ctx.relevant_laser_tiles(laser_id, t);
+                    let reachable = self.ctx.relevant_positions_for_agent(ben, t);
+                    let positions: Vec<Position> = beam.intersection(reachable).collect();
+                    if positions.is_empty() {
+                        continue;
+                    }
+                    let prog = self.pool.cycle_progress(c_id, 1, t);
+                    for pos in positions {
+                        let av = self.pool.agent(ben, pos, t);
+                        clauses.push(vec![-av, prog]);
+                    }
+                }
+            }
+
+            // ---- Steps 2..=j-1: propagate progress ----
+            for step in 2..j {
+                let (helper, ben) = (cycle[step - 1], cycle[step]);
+                let cur_step = step as u8;
+                let prev_step = (step - 1) as u8;
+
+                // Monotone FIRST (independent of positions).
+                if t > 0 {
+                    if let Some(prev_t) =
+                        self.pool.get(&VarKey::cycle_progress(c_id, cur_step, t - 1))
+                    {
+                        let prog = self.pool.cycle_progress(c_id, cur_step, t);
+                        clauses.push(vec![-prev_t, prog]);
+                    }
+                }
+
+                // Propagation: CycleProgress(c, step-1, t) ∧ agent(ben, q, t) → CycleProgress(c, step, t).
+                let Some(prev_prog) =
+                    self.pool.get(&VarKey::cycle_progress(c_id, prev_step, t))
+                else {
+                    continue;
+                };
+                let laser_ids: Vec<usize> = self
+                    .ctx
+                    .laser_sources
+                    .iter()
+                    .filter(|s| s.agent_id == helper)
+                    .map(|s| s.laser_id)
+                    .collect();
+                for laser_id in laser_ids {
+                    let beam = self.ctx.relevant_laser_tiles(laser_id, t);
+                    let reachable = self.ctx.relevant_positions_for_agent(ben, t);
+                    for pos in beam.intersection(reachable) {
+                        let av = self.pool.agent(ben, pos, t);
+                        let prog = self.pool.cycle_progress(c_id, cur_step, t);
+                        clauses.push(vec![-prev_prog, -av, prog]);
+                    }
+                }
+            }
+
+            // ---- Closing edge: v_{j-1} → v_0 after CycleProgress(c, j-1, t) ----
+            {
+                let last_step = (j - 1) as u8;
+                let Some(last_prog) =
+                    self.pool.get(&VarKey::cycle_progress(c_id, last_step, t))
+                else {
+                    continue;
+                };
+                let (helper, ben) = (cycle[j - 1], cycle[0]);
+                let laser_ids: Vec<usize> = self
+                    .ctx
+                    .laser_sources
+                    .iter()
+                    .filter(|s| s.agent_id == helper)
+                    .map(|s| s.laser_id)
+                    .collect();
+                for laser_id in laser_ids {
+                    let beam = self.ctx.relevant_laser_tiles(laser_id, t);
+                    let reachable = self.ctx.relevant_positions_for_agent(ben, t);
+                    for pos in beam.intersection(reachable) {
+                        let av = self.pool.agent(ben, pos, t);
+                        let realized = self.pool.cycle_realized(c_id);
+                        clauses.push(vec![-last_prog, -av, realized]);
+                    }
+                }
+            }
+        }
+
+        clauses
+    }
+
+    /// Assumptions that forbid every interdependence cycle from being realized.
+    ///
+    /// Returns `¬CycleRealized(c)` for every cycle whose realized variable was created by
+    /// [`interdependence_clauses`](Self::interdependence_clauses). Pass both the returned clauses
+    /// (empty) and assumptions alongside those from `generate(t)`.
+    pub(crate) fn forbid_interdependence(&self) -> (Vec<Clause>, Vec<Literal>) {
+        let assumptions = (0..self.interdep_cycles.len())
+            .filter_map(|c_idx| self.pool.get(&VarKey::cycle_realized(c_idx as u16)))
+            .map(|v| -v)
+            .collect();
+        (vec![], assumptions)
+    }
+
     /// Assumptions that forbid *any* chained cooperation across all agent triples.
     ///
     /// A chain `a → b → c` is represented by the [`VarKey::Chain`] indicator created by

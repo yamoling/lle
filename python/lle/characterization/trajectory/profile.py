@@ -26,3 +26,11 @@ class TrajectoryProfile:
         Whether the trajectory exhibits a chained help pattern, i.e. help(a, b) -> help(b, c) -> ...
         """
         return self.graph.longest_chain() >= 2 or len(self.graph.strongly_connected_components()) > 0
+
+    def interdependence_order(self) -> int:
+        """The order of the largest temporal cycle in this trajectory (0 if none)."""
+        return self.graph.max_temporal_cycle_order()
+
+    def is_interdependent(self, k: int = 2) -> bool:
+        """Whether this trajectory contains a temporal cycle of order ≥ ``k``."""
+        return self.graph.max_temporal_cycle_order() >= k
