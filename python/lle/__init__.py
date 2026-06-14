@@ -131,7 +131,8 @@ G  . . . X
 
 TOML maps are useful when you want richer placement rules, such as random start
 positions. Positions can be specified as a list of positions `{i, j}` or as rectangles `{i_min, i_max, j_min, j_max}`,
-and the `world_string` field can be used to define the map as discussed above.
+and the `world_string` field can be used to define the map as discussed above. The full list of authorized
+keys is defined by the JSON schema as shown in the below example.
 
 ```toml
 #:schema https://raw.githubusercontent.com/yamoling/lle/refs/heads/master/resources/lle_toml_schema.json

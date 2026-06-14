@@ -144,7 +144,8 @@ impl PyWorld {
     /// Raises:
     ///     `FileNotFoundError`: if the file does not exist.
     #[staticmethod]
-    fn from_file(filename: String) -> PyResult<Self> {
+    fn from_file(filename: std::path::PathBuf) -> PyResult<Self> {
+        let filename = filename.to_string_lossy();
         let world = match World::from_file(&filename) {
             Ok(world) => world,
             Err(e) => return Err(parse_error_to_exception(e)),

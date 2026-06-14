@@ -7,6 +7,8 @@ from lle import agent
 from lle import tiles
 import numpy
 import numpy.typing
+import os
+import pathlib
 import typing
 __all__ = [
     "Action",
@@ -135,7 +137,7 @@ class World:
             `ValueError` if the file is not a valid level (inconsistent dimensions or invalid grid).
         """
     @staticmethod
-    def from_file(filename: builtins.str) -> World:
+    def from_file(filename: builtins.str | os.PathLike | pathlib.Path) -> World:
         r"""
         Parse the content of `filename` to create a World.
         

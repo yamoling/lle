@@ -23,6 +23,7 @@ email = "yannick.molinghen@ulb.be"
 [dependency-groups]
 dev = [
   "basedpyright>=1.39.3",
+  "matplotlib>=3.10.9",
   "maturin>=1.7.0",
   "opencv-python>=4.13.0.92",
   "orjson>=3.11.7",
