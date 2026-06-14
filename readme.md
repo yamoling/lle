@@ -106,9 +106,8 @@ The builder controls every placement decision:
 ```python
 import lle 
 
-lle.generate(width=5, height=5, n_agents=3).lanes().walls(4, style="shapes").build(seed=1)
-lle.generate(n_agents=3).clustered().lasers(3).mutual(t_max=21).build()
-worlds = list(lle.generate(width=5, height=5, n_agents=2).lasers(1).cooperative().take(5, max_attempts=10))
+world = lle.generate(width=5, height=5, n_agents=3).lanes().walls(4, style="shapes").build()
+worlds = list(lle.generate(width=5, height=5, n_agents=2).clustered().lasers(2).mutual(t_max=10).take(5))
 ```
 
 See the [`examples/`](examples) folder for runnable scripts and the

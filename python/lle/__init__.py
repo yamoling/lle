@@ -88,9 +88,9 @@ Obstacles: `lasers(n, placement=..., span=...)`, `walls(n, style=...)`.
 Behaviour: `solvable()` (default), `independent()`, `cooperative(...)`, `mutual(...)`.
 
 ```python
-lle.generate(width=5, height=5, n_agents=2).lasers(2).cooperative().build()
-lle.generate(n_agents=2).mutual(t_max=15).build()
-five_worlds = list(lle.generate(width=5, height=5, n_agents=2).lasers(2).cooperative().take(5))
+builder = lle.generate(width=4, height=4, n_agents=2).lasers(1).cooperative(t_max=10)
+builder = lle.generate(width=4, height=4, n_agents=2).lasers(2).mutual(t_max=10)
+two_worlds = list(lle.generate(width=4, height=4, n_agents=2).lasers(1).cooperative(t_max=10).take(2))
 ```
 
 See `lle.generator` for the full method reference.

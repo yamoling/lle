@@ -6,8 +6,8 @@ terminal (`build` for one world, `take` for many):
 
 ```python
 world = lle.generate(width=5, height=5, n_agents=3).build(seed=0)
-world = lle.generate(width=7, height=8, n_agents=2).lanes().cooperative(t_max=30).build(seed=5)
-worlds = list(lle.generate(width=8, height=8, n_agents=3).walls(4, style="shapes").take(10))
+world = lle.generate(width=4, height=4, n_agents=2).lanes().cooperative(t_max=12).build(seed=5)
+worlds = list(lle.generate(width=5, height=5, n_agents=2).walls(2, style="shapes").take(3))
 ```
 
 `WorldFilter` and its subclasses (`Solvable`, `Independent`, `Cooperative`,
@@ -57,9 +57,9 @@ def generate(width: int = 10, height: int = 10, n_agents: int = 3) -> GeneratorB
     # Examples
     ```python
     world = lle.generate(width=5, height=5, n_agents=2).build(seed=0)
-    world = lle.generate(width=6, height=6, n_agents=2).lasers(2).cooperative().build()
-    world = lle.generate(n_agents=3).clustered().mutual(t_max=15).build()
-    worlds = list(lle.generate(width=5, height=5, n_agents=2).starts("edge").exits("opposite").lasers(1).cooperative().take(10))
+    world1 = lle.generate(width=5, height=5, n_agents=2).lasers(1).cooperative(t_max=10).build()
+    world2 = lle.generate(width=5, height=5, n_agents=2).clustered().lasers(2).mutual(t_max=10).build()
+    worlds = lle.generate(width=4, height=4, n_agents=2).starts("edge").exits("opposite").lasers(1).cooperative(t_max=10).take(2)
     ```
     """
     return GeneratorBuilder(width=width, height=height, n_agents=n_agents)
