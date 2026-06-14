@@ -1,8 +1,13 @@
-//! Direct tests of the dependency / mutual-cooperation clause generation.
+//! Direct tests of the `first_helped_by_time` / mutual-cooperation clause generation.
 //!
 //! These exercise the *structure* of the generated literals and clauses, independently of any
 //! SAT solver (solving is delegated to Python). SAT/UNSAT behaviour is covered by the Python
 //! tests in `python/tests/test_mutual_cooperation.py`.
+//!
+//! Note: a `first_helped_by_time` indicator is created only for `(helper, beneficiary)` pairs
+//! that can take part in a *mutual* dependency, i.e. **both** agents own a laser. A non-owner can
+//! never reciprocate help, so tracking a dependency onto it would be a dead variable. This is why
+//! the single-owner worlds below produce no indicator at all.
 
 use crate::World;
 use crate::solver::ClauseGenerator;
@@ -18,8 +23,13 @@ fn build(map: &str, t_max: usize) -> ClauseGenerator {
     cg
 }
 
-/// `S0` (laser owner) can step into beam `L0E` to protect `S1`, but `S1` owns no laser, so the
-/// dependency is strictly one-directional.
+/// True if `helper` has a `first_helped_by_time(helper, beneficiary, t)` variable at any step.
+fn can_help(cg: &ClauseGenerator, helper: usize, beneficiary: usize, t_max: usize) -> bool {
+    (0..=t_max).any(|t| cg.exists(&VarKey::first_helped_by_time(helper, beneficiary, t)))
+}
+
+/// `S0` (laser owner) can step into beam `L0E` to protect `S1`, but `S1` owns no laser, so no
+/// mutual dependency is even expressible.
 const ONE_WAY: &str = "
  S0 . S1
 L0E . .
@@ -40,64 +50,64 @@ S0 . S1
  X . X";
 
 #[test]
-fn one_way_creates_only_one_direction() {
-    let cg = build(ONE_WAY, 10);
-    // agent 0 (laser owner) can help agent 1 ...
+fn single_owner_world_tracks_no_dependency() {
+    // Only agent 0 owns a laser, so no mutual dependency is expressible: no indicator is created
+    // in either direction and nothing is forbidden.
+    let mut cg = build(ONE_WAY, 10);
+    assert!(!can_help(&cg, 0, 1, 10), "no indicator onto a non-owner");
+    assert!(!can_help(&cg, 1, 0, 10), "a non-owner can never help");
+    let (clauses, assumptions) = cg.forbid_mutual_cooperation(10);
     assert!(
-        cg.exists(&VarKey::depends_on(1, 0)),
-        "agent 0 should be able to help agent 1"
-    );
-    // ... but agent 1 owns no laser, so it can never help agent 0.
-    assert!(
-        !cg.exists(&VarKey::depends_on(0, 1)),
-        "agent 1 owns no laser and cannot help agent 0"
+        clauses.is_empty() && assumptions.is_empty(),
+        "a single-owner world cannot be mutual, so nothing is forbidden"
     );
 }
 
 #[test]
-fn dependency_clauses_are_binary_help_implications() {
-    let world = World::try_from(ONE_WAY).expect("failed to parse world");
+fn first_helped_by_time_clauses_are_binary_implications_into_fhbt() {
+    let world = World::try_from(MUTUAL).expect("failed to parse world");
     let mut cg = ClauseGenerator::new(&world, 10, SolveMode::NoMutualCooperation);
-    // Collect every dependency clause and check each is `agent(benef, q, t) → depends_on(1, 0)`.
+    // Each clause must be a binary implication whose single positive literal is some
+    // `first_helped_by_time(helper, beneficiary, t)`, and whose antecedent is either the
+    // beneficiary's agent var (a fresh help event) or the previous-step indicator (monotone
+    // carry-forward).
     let mut produced_any = false;
     for t in 0..=10 {
-        for clause in cg.dependency_clauses(t) {
+        for clause in cg.first_helped_by_time_clauses(t) {
             produced_any = true;
-            assert_eq!(
-                clause.len(),
-                2,
-                "each help implication must be a binary clause"
-            );
+            assert_eq!(clause.len(), 2, "each implication must be a binary clause");
             let (negated, positive): (Vec<i32>, Vec<i32>) =
                 clause.iter().copied().partition(|&l| l < 0);
-            assert_eq!(negated.len(), 1, "exactly one negated (agent) literal");
-            assert_eq!(
-                positive.len(),
-                1,
-                "exactly one positive (depends_on) literal"
-            );
-            // The negated literal is an agent variable for the *beneficiary* (agent 1).
+            assert_eq!(negated.len(), 1, "exactly one negated (antecedent) literal");
+            assert_eq!(positive.len(), 1, "exactly one positive (fhbt) literal");
+            // The positive literal must be a first_helped_by_time indicator at the current step.
+            let Some(VarKey::FirstHelpedByTime {
+                helper,
+                beneficiary,
+                t: fhbt_t,
+            }) = cg.pool.key(positive[0])
+            else {
+                panic!("positive literal must be a FirstHelpedByTime var");
+            };
+            assert_eq!(fhbt_t, t);
+            // The antecedent is either the beneficiary's agent var, or the previous-step indicator.
             match cg.pool.key(-negated[0]) {
-                Some(VarKey::Agent { agent_id, .. }) => assert_eq!(agent_id, 1),
-                other => panic!("expected an agent literal, got {other:?}"),
+                Some(VarKey::Agent { agent_id, .. }) => assert_eq!(agent_id, beneficiary),
+                Some(VarKey::FirstHelpedByTime {
+                    helper: h2,
+                    beneficiary: b2,
+                    t: prev_t,
+                }) => {
+                    assert_eq!((h2, b2), (helper, beneficiary));
+                    assert_eq!(prev_t, t - 1, "monotone carry must reference the previous step");
+                }
+                other => panic!("unexpected antecedent literal: {other:?}"),
             }
-            // The positive literal is exactly depends_on(beneficiary=1, helper=0).
-            assert_eq!(Some(positive[0]), cg.pool.get(&VarKey::depends_on(1, 0)));
         }
     }
     assert!(
         produced_any,
-        "a crossable beam must yield help implications"
-    );
-}
-
-#[test]
-fn one_way_forbids_nothing() {
-    let mut cg = build(ONE_WAY, 10);
-    let (clauses, assumptions) = cg.forbid_mutual_cooperation();
-    assert!(
-        clauses.is_empty() && assumptions.is_empty(),
-        "a one-directional dependency cannot be mutual, so nothing is forbidden"
+        "two crossable facing beams must yield first-helped-by-time implications"
     );
 }
 
@@ -107,37 +117,27 @@ fn no_laser_has_no_dependencies() {
     let mut cg = ClauseGenerator::new(&world, 10, SolveMode::NoMutualCooperation);
     for t in 0..=10 {
         assert!(
-            cg.dependency_clauses(t).is_empty(),
+            cg.first_helped_by_time_clauses(t).is_empty(),
             "no laser means no help events"
         );
     }
-    let (clauses, assumptions) = cg.forbid_mutual_cooperation();
+    let (clauses, assumptions) = cg.forbid_mutual_cooperation(10);
     assert!(clauses.is_empty() && assumptions.is_empty());
 }
 
 #[test]
 fn mutual_world_creates_both_directions() {
-    let world = World::try_from(MUTUAL).expect("failed to parse world");
-    let mut cg = ClauseGenerator::new(&world, 10, SolveMode::NoMutualCooperation);
-    let _ = cg.generate(10);
+    let cg = build(MUTUAL, 10);
     // agent 0 (L0E owner) can help agent 1 cross its east beam
-    assert!(
-        cg.exists(&VarKey::depends_on(1, 0)),
-        "agent 0 should be able to help agent 1"
-    );
+    assert!(can_help(&cg, 0, 1, 10), "agent 0 should be able to help agent 1");
     // agent 1 (L1W owner) can help agent 0 cross its west beam
-    assert!(
-        cg.exists(&VarKey::depends_on(0, 1)),
-        "agent 1 should be able to help agent 0"
-    );
+    assert!(can_help(&cg, 1, 0, 10), "agent 1 should be able to help agent 0");
 }
 
 #[test]
 fn mutual_world_generates_forbid_clauses_and_assumptions() {
-    let world = World::try_from(MUTUAL).expect("failed to parse world");
-    let mut cg = ClauseGenerator::new(&world, 10, SolveMode::NoMutualCooperation);
-    let _ = cg.generate(10);
-    let (clauses, assumptions) = cg.forbid_mutual_cooperation();
+    let mut cg = build(MUTUAL, 10);
+    let (clauses, assumptions) = cg.forbid_mutual_cooperation(10);
     assert!(!clauses.is_empty(), "mutual world must produce forbid clauses");
     assert!(
         !assumptions.is_empty(),
@@ -145,34 +145,6 @@ fn mutual_world_generates_forbid_clauses_and_assumptions() {
     );
     for &lit in &assumptions {
         assert!(lit < 0, "all forbid-mutual assumptions must be negative literals");
-    }
-}
-
-#[test]
-fn level_3_dependency_is_one_directional() {
-    let world = World::get_level(3).expect("failed to load level 3");
-    let n = world.n_agents();
-    let mut cg = ClauseGenerator::new(&world, 12, SolveMode::NoMutualCooperation);
-    let _ = cg.generate(12);
-
-    let mut helper_count = 0;
-    for helper in 0..n {
-        for beneficiary in 0..n {
-            if helper != beneficiary && cg.exists(&VarKey::depends_on(beneficiary, helper)) {
-                helper_count += 1;
-            }
-        }
-    }
-    // Level 3 is strictly one-directional: only one agent can help the other.
-    assert!(helper_count >= 1, "level 3 must have at least one cooperation direction");
-    // No pair should have both directions.
-    for a in 0..n {
-        for b in (a + 1)..n {
-            assert!(
-                !(cg.exists(&VarKey::depends_on(a, b)) && cg.exists(&VarKey::depends_on(b, a))),
-                "level 3 must not have any bidirectional pair (a={a}, b={b})"
-            );
-        }
     }
 }
 
@@ -186,7 +158,7 @@ fn level_6_dependency_is_bidirectional() {
     let has_bidirectional = (0..n).any(|a| {
         (0..n)
             .filter(|&b| b != a)
-            .any(|b| cg.exists(&VarKey::depends_on(a, b)) && cg.exists(&VarKey::depends_on(b, a)))
+            .any(|b| can_help(&cg, a, b, 21) && can_help(&cg, b, a, 21))
     });
     assert!(has_bidirectional, "level 6 must have at least one bidirectional dependency pair");
 }

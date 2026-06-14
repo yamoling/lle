@@ -92,10 +92,10 @@ class WorldCharacterizer:
             return False
         return self.shortest_non_chained_path is None
 
-    def is_interdependent(self, k: int = 2) -> bool:
+    def is_interdependent(self) -> bool:
         """
-        Whether the world *requires* interdependence at level ``k``:
-        - the optimal trajectory exhibits a temporal cycle of order ≥ ``k``, and
+        Whether the world *requires* interdependence:
+        - the optimal trajectory's dependency graph contains a temporal cycle, and
         - no solution within ``t_max`` avoids all such cycles.
 
         # Raises
@@ -105,12 +105,9 @@ class WorldCharacterizer:
         if path is None:
             raise NotSolvableError("World is not solvable")
         profile = profile_trajectory(self.world, path)
-        if not profile.is_interdependent(k):
+        if not profile.is_interdependent():
             return False
-        return self._shortest_non_interdependent_path(k) is None
-
-    def _shortest_non_interdependent_path(self, k: int):
-        return solver.solve(self.world, self.t_max, mode=f"no-interdependence-{k}")
+        return self.shortest_non_interdependent_path is None
 
     @cached_property
     def shortest_path(self):
@@ -128,3 +125,7 @@ class WorldCharacterizer:
     @cached_property
     def shortest_non_chained_path(self):
         return solver.solve(self.world, self.t_max, mode="no-chained-cooperation")
+
+    @cached_property
+    def shortest_non_interdependent_path(self):
+        return solver.solve(self.world, self.t_max, mode="no-interdependence")

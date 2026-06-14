@@ -248,13 +248,7 @@ impl WorldConfig {
                         if start_agent_id == source.agent_id() {
                             continue;
                         }
-                        let len_before = starts.len();
                         starts.retain(|start| *start != pos);
-                        if starts.len() != len_before {
-                            eprintln!(
-                                "[WARNING] {pos:?} is not a valid start position for agent {start_agent_id} since the agent would be killed on startup. The starting position {pos:?} has therefore been removed for agent {start_agent_id}."
-                            );
-                        }
                     }
                 }
 

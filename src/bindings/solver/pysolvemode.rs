@@ -15,6 +15,9 @@ use crate::solver::SolveMode;
 /// - `NO_CHAINED_COOPERATION` — chain indicator clauses plus horizon-level chain-forbid
 ///   assumptions, ruling out plans where a temporal chain `a → b → c` exists (a helped b, then
 ///   b helped c). Subsumes `NO_MUTUAL_COOPERATION` (cycles are a special case of chains).
+/// - `NO_INTERDEPENDENCE` — walk indicator clauses plus horizon-level forbid assumptions, ruling
+///   out plans whose dependency graph contains any temporal cycle (a closed help chain that
+///   returns to its start with non-decreasing timestamps).
 ///
 /// ```python
 /// from lle.solver.constraints import ClauseGenerator, SolveMode
@@ -43,6 +46,8 @@ pub enum PySolveMode {
     NoMutualCooperation,
     #[pyo3(name = "NO_CHAINED_COOPERATION")]
     NoChainedCooperation,
+    #[pyo3(name = "NO_INTERDEPENDENCE")]
+    NoInterdependence,
 }
 
 impl From<&PySolveMode> for SolveMode {
@@ -52,6 +57,7 @@ impl From<&PySolveMode> for SolveMode {
             PySolveMode::NoCooperation => SolveMode::NoCooperation,
             PySolveMode::NoMutualCooperation => SolveMode::NoMutualCooperation,
             PySolveMode::NoChainedCooperation => SolveMode::NoChainedCooperation,
+            PySolveMode::NoInterdependence => SolveMode::NoInterdependence,
         }
     }
 }
@@ -66,25 +72,27 @@ impl From<PySolveMode> for SolveMode {
 #[pymethods]
 impl PySolveMode {
     #[staticmethod]
-    const fn variants() -> [PySolveMode; 4] {
+    const fn variants() -> [PySolveMode; 5] {
         [
             PySolveMode::Standard,
             PySolveMode::NoCooperation,
             PySolveMode::NoMutualCooperation,
             PySolveMode::NoChainedCooperation,
+            PySolveMode::NoInterdependence,
         ]
     }
 
     /// The canonical string representation, e.g. `"no-cooperation"`.
     /// Matches the string literals accepted by `ClauseGenerator` and `solve`.
     #[getter]
-    #[gen_stub(override_return_type(type_repr="typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation', 'no-chained-cooperation']", imports=("typing")))]
+    #[gen_stub(override_return_type(type_repr="typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation', 'no-chained-cooperation', 'no-interdependence']", imports=("typing")))]
     pub fn value(&self) -> &'static str {
         match self {
             Self::Standard => "standard",
             Self::NoCooperation => "no-cooperation",
             Self::NoMutualCooperation => "no-mutual-cooperation",
             Self::NoChainedCooperation => "no-chained-cooperation",
+            Self::NoInterdependence => "no-interdependence",
         }
     }
 
@@ -100,6 +108,7 @@ impl PySolveMode {
                 Self::NoCooperation => "NO_COOPERATION",
                 Self::NoMutualCooperation => "NO_MUTUAL_COOPERATION",
                 Self::NoChainedCooperation => "NO_CHAINED_COOPERATION",
+                Self::NoInterdependence => "NO_INTERDEPENDENCE",
             }
         )
     }
@@ -110,12 +119,13 @@ impl PySolveMode {
             Self::NoCooperation => 1,
             Self::NoMutualCooperation => 2,
             Self::NoChainedCooperation => 3,
+            Self::NoInterdependence => 4,
         }
     }
 
     #[staticmethod]
     pub fn from_str(
-        #[gen_stub(override_type(type_repr="typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation', 'no-chained-cooperation']", imports=("typing")))]
+        #[gen_stub(override_type(type_repr="typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation', 'no-chained-cooperation', 'no-interdependence']", imports=("typing")))]
         value: &str,
     ) -> PyResult<Self> {
         match value {
@@ -123,6 +133,7 @@ impl PySolveMode {
             "no-cooperation" => Ok(Self::NoCooperation),
             "no-mutual-cooperation" => Ok(Self::NoMutualCooperation),
             "no-chained-cooperation" => Ok(Self::NoChainedCooperation),
+            "no-interdependence" => Ok(Self::NoInterdependence),
             _ => Err(PyValueError::new_err(format!(
                 "invalid solve mode: {value}"
             ))),

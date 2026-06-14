@@ -21,6 +21,8 @@ use crate::{
 ///   mutually helping each other.
 /// - `"no-chained-cooperation"`: clauses and assumptions forbidding any temporal chain
 ///   `a → b → c` (a helped b, then b helped c). Subsumes `"no-mutual-cooperation"`.
+/// - `"no-interdependence"`: clauses and assumptions forbidding any temporal cycle in the
+///   dependency graph (a closed help chain returning to its start).
 ///
 /// ```python
 /// from pysat.solvers import Minisat22
@@ -64,7 +66,7 @@ impl PyClauseGenerator {
         world: &PyWorld,
         t_max: usize,
         #[gen_stub(override_type(
-            type_repr = "typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation', 'no-chained-cooperation'] | SolveMode",
+            type_repr = "typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation', 'no-chained-cooperation', 'no-interdependence'] | SolveMode",
             imports = ("typing",)
         ))]
         mode: Py<PyAny>,
@@ -101,6 +103,7 @@ impl PyClauseGenerator {
     /// - The objective clauses (every agent on an exit at step `t`)
     /// - For `"no-mutual-cooperation"` mode: mutual-forbid clauses and assumptions
     /// - For `"no-chained-cooperation"` mode: chain-forbid assumptions
+    /// - For `"no-interdependence"` mode: cycle-forbid assumptions
     /// - For `"no-cooperation"` mode: per-step no-cooperation assumptions
     ///
     /// Returns `(clauses, assumptions)` ready to be fed to `solve_model`.

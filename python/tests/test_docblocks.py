@@ -14,9 +14,6 @@ LLE_PKG = ROOT / "python" / "lle"
 
 _FENCE = re.compile(r"```python\n(.*?)```", re.DOTALL)
 
-# Any block touching these symbols invokes the SAT solver and is slow.
-_SLOW_KEYWORDS = ("lle.generate(", "lle.solve(", "lle.is_cooperative(", "lle.characterize(")
-
 
 def _collect_from(path: Path) -> list[tuple[str, str]]:
     """Return (id, code) pairs for every python fenced block in path's docstrings."""
@@ -66,8 +63,7 @@ _ALL = _all_blocks()
 
 
 def _param(block_id: str, code: str):
-    marks = [pytest.mark.slow] if any(kw in code for kw in _SLOW_KEYWORDS) else []
-    return pytest.param(code, id=block_id, marks=marks)
+    return pytest.param(code, id=block_id)
 
 
 # Imports prelude, such that code examples can use the documented imports
@@ -81,5 +77,8 @@ exec(compile(_PRELUDE, "<prelude>", "exec"), GLOBALS)
 
 @pytest.mark.parametrize("code", [_param(*b) for b in _ALL])
 def test_docblock(code: str) -> None:
+    # Print the code to stderr
+    import sys
 
+    print(code, file=sys.stderr)
     exec(compile(code, "<docblock>", "exec"), GLOBALS)

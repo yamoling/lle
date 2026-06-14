@@ -21,9 +21,9 @@ pub enum SolveMode {
     /// No temporal chain `a → b → c` (a helped b, then b helped c) may appear; also rules out
     /// mutual cycles. This is strictly stronger than `NoMutualCooperation`.
     NoChainedCooperation,
-    /// No temporal cycle of order ≥ `k` may appear in any solution. A temporal cycle of order `k`
-    /// visits `k` distinct agents and closes back to the start, with non-decreasing timestamps.
-    NoInterdependence { k: usize },
+    /// No temporal cycle may appear in the dependency graph of any solution. A temporal cycle
+    /// visits ≥ 2 distinct agents and closes back to the start, with non-decreasing timestamps.
+    NoInterdependence,
 }
 
 impl SolveMode {
@@ -33,19 +33,10 @@ impl SolveMode {
             "no-cooperation" => Ok(SolveMode::NoCooperation),
             "no-mutual-cooperation" => Ok(SolveMode::NoMutualCooperation),
             "no-chained-cooperation" => Ok(SolveMode::NoChainedCooperation),
-            s if s.starts_with("no-interdependence-") => {
-                let suffix = &s["no-interdependence-".len()..];
-                let k = suffix.parse::<usize>().map_err(|_| {
-                    format!("Invalid k in mode '{s}'. Expected 'no-interdependence-N' where N is a positive integer.")
-                })?;
-                if k < 2 {
-                    return Err(format!("Interdependence order k must be ≥ 2, got {k}."));
-                }
-                Ok(SolveMode::NoInterdependence { k })
-            }
+            "no-interdependence" => Ok(SolveMode::NoInterdependence),
             _ => Err(format!(
                 "Unknown solve mode: '{s}'. Expected one of: 'standard', 'no-cooperation', \
-                 'no-mutual-cooperation', 'no-chained-cooperation', 'no-interdependence-N'."
+                 'no-mutual-cooperation', 'no-chained-cooperation', 'no-interdependence'."
             )),
         }
     }
@@ -90,9 +81,15 @@ pub struct ClauseGenerator {
     pub(super) pool: VarPool,
     pub(super) exits: HashSet<Position>,
     mode: SolveMode,
-    /// Simple directed cycles considered when mode is `NoInterdependence`.
-    /// Each entry is a list of agent ids [v0, v1, ..., v_{k-1}] where v0 is the smallest.
-    pub(super) interdep_cycles: Vec<Vec<AgentId>>,
+    /// Temporal walks the mode forbids, as vertex sequences `[u0, u1, …, um]` (edge `i` is
+    /// `u_i → u_{i+1}`). Empty unless the mode is walk-based:
+    /// - `NoChainedCooperation`: open length-2 walks `[a, b, c]` (a chain `a → b → c`).
+    /// - `NoInterdependence`: closed walks `[v0, …, v_{m-1}, v0]` (any simple cycle, order ≥ 2).
+    pub(super) walks: Vec<Vec<AgentId>>,
+    /// Ordered `(helper, beneficiary)` pairs for which a `first_helped_by_time` indicator is
+    /// actually consumed — the mutual owner-pairs (mutual mode) or each walk's first edge (walk
+    /// modes). Generating `fhbt` only for these avoids defined-but-unread indicator variables.
+    pub(super) fhbt_pairs: Vec<(AgentId, AgentId)>,
     /// `clause_buffer[t]` = world-enforcing (+ mode-specific) clauses for step `t`.
     clause_buffer: Vec<Vec<Clause>>,
     /// `assumption_buffer[t]` = per-step assumptions for step `t`.
@@ -104,21 +101,69 @@ pub struct ClauseGenerator {
 impl ClauseGenerator {
     pub fn new(world: &World, t_max: usize, mode: SolveMode) -> Self {
         let ctx = ConstraintContext::new(world, t_max);
-        let interdep_cycles = if let SolveMode::NoInterdependence { k } = mode {
-            let mut agents: Vec<AgentId> =
-                ctx.laser_sources.iter().map(|s| s.agent_id).collect();
-            agents.sort_unstable();
-            agents.dedup();
-            enumerate_directed_cycles(&agents, k)
-        } else {
-            vec![]
+        // Agents that own a laser are the only ones that can ever help (the helper of every walk
+        // edge must block a beam).
+        let mut owners: Vec<AgentId> = ctx.laser_sources.iter().map(|s| s.agent_id).collect();
+        owners.sort_unstable();
+        owners.dedup();
+        let walks = match mode {
+            // A chain `a → b → c`: `a` and `b` must each own a laser; `c` is any other agent.
+            SolveMode::NoChainedCooperation => {
+                // This is not a "permutations" nor "combinations" operator since we iterate on (owners, owners, agents).
+                let mut walks = Vec::new();
+                for &a in &owners {
+                    for &b in &owners {
+                        if a == b {
+                            continue;
+                        }
+                        for c in 0..ctx.n_agents {
+                            if c == b {
+                                continue;
+                            }
+                            walks.push(vec![a, b, c]);
+                        }
+                    }
+                }
+                walks
+            }
+            // Any simple directed cycle (order ≥ 2), expanded to a closed vertex sequence.
+            SolveMode::NoInterdependence => enumerate_directed_cycles(&owners, 2)
+                .into_iter()
+                .map(|mut cycle| {
+                    cycle.push(cycle[0]);
+                    cycle
+                })
+                .collect(),
+            _ => vec![],
+        };
+        // `first_helped_by_time` is only ever read for mutual owner-pairs and for the first edge
+        // of every walk; both endpoints are always laser owners. Restrict generation to these.
+        let fhbt_pairs: Vec<(AgentId, AgentId)> = match mode {
+            SolveMode::NoMutualCooperation => owners
+                .iter()
+                .flat_map(|&a| {
+                    owners
+                        .iter()
+                        .filter(move |&&b| b != a)
+                        .map(move |&b| (a, b))
+                })
+                .collect(),
+            SolveMode::NoChainedCooperation | SolveMode::NoInterdependence => {
+                let mut pairs: Vec<(AgentId, AgentId)> =
+                    walks.iter().map(|w| (w[0], w[1])).collect();
+                pairs.sort_unstable();
+                pairs.dedup();
+                pairs
+            }
+            _ => vec![],
         };
         Self {
             exits: world.exits_positions().into_iter().collect(),
             ctx,
             pool: VarPool::new(),
             mode,
-            interdep_cycles,
+            walks,
+            fhbt_pairs,
             clause_buffer: vec![Vec::new(); t_max + 1],
             assumption_buffer: vec![Vec::new(); t_max + 1],
             generated_until: None,
@@ -152,19 +197,14 @@ impl ClauseGenerator {
         clauses.extend(self.objective(t));
         match self.mode {
             SolveMode::NoMutualCooperation => {
-                let (mc, ma) = self.forbid_mutual_cooperation();
+                let (mc, ma) = self.forbid_mutual_cooperation(t);
                 clauses.extend(mc);
                 assumptions.extend(ma);
             }
-            SolveMode::NoChainedCooperation => {
-                let (cc, ca) = self.forbid_chained_cooperation();
-                clauses.extend(cc);
-                assumptions.extend(ca);
-            }
-            SolveMode::NoInterdependence { .. } => {
-                let (ic, ia) = self.forbid_interdependence();
-                clauses.extend(ic);
-                assumptions.extend(ia);
+            SolveMode::NoChainedCooperation | SolveMode::NoInterdependence => {
+                let (wc, wa) = self.forbid_walks();
+                clauses.extend(wc);
+                assumptions.extend(wa);
             }
             _ => {}
         }
@@ -185,14 +225,11 @@ impl ClauseGenerator {
         clauses.extend(self.no_step_on_active_laser(t, &active_lit));
         match self.mode {
             SolveMode::NoMutualCooperation => {
-                clauses.extend(self.dependency_clauses(t));
+                clauses.extend(self.first_helped_by_time_clauses(t));
             }
-            SolveMode::NoChainedCooperation => {
-                clauses.extend(self.dependency_clauses(t));
-                clauses.extend(self.chain_clauses(t));
-            }
-            SolveMode::NoInterdependence { .. } => {
-                clauses.extend(self.interdependence_clauses(t));
+            SolveMode::NoChainedCooperation | SolveMode::NoInterdependence => {
+                clauses.extend(self.first_helped_by_time_clauses(t));
+                clauses.extend(self.walk_clauses(t));
             }
             _ => {}
         }
@@ -204,7 +241,7 @@ impl ClauseGenerator {
             SolveMode::Standard
             | SolveMode::NoMutualCooperation
             | SolveMode::NoChainedCooperation
-            | SolveMode::NoInterdependence { .. } => vec![],
+            | SolveMode::NoInterdependence => vec![],
             SolveMode::NoCooperation => self.assume_no_cooperation(t),
         };
     }

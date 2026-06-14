@@ -1,7 +1,7 @@
 """Tests for WorldFilter and constrained world generation.
 
 Section A: WorldFilter.is_satisfied_by — fast SAT checks against known levels.
-Section B: the generation builder with filter shortcuts — integration tests (slow).
+Section B: the generation builder with filter shortcuts — integration tests.
 """
 
 from __future__ import annotations
@@ -95,14 +95,12 @@ def test_mutual_is_a_cooperative_filter():
     assert not Solvable(10).requires_cooperation
 
 
-@pytest.mark.slow
 def test_generate_cooperative_shortcut_produces_cooperative_world():
     world = generate(width=5, height=5, n_agents=2).lasers(2).cooperative().build(max_attempts=500)
     assert world is not None
     assert Cooperative(20).is_satisfied_by(world)
 
 
-@pytest.mark.slow
 def test_generate_filter_object_same_as_shortcut():
     """An explicit WorldFilter via require() and the cooperative() shortcut both yield cooperative worlds."""
     t_max = 5 * 5 // 2
@@ -114,7 +112,6 @@ def test_generate_filter_object_same_as_shortcut():
     assert Cooperative(t_max).is_satisfied_by(world_obj)
 
 
-@pytest.mark.slow
 def test_generate_take_all_satisfy_filter():
     """All worlds in a batch must satisfy the filter."""
     t_max = 5 * 5 // 2
@@ -124,7 +121,6 @@ def test_generate_take_all_satisfy_filter():
         assert filter.is_satisfied_by(w)
 
 
-@pytest.mark.slow
 def test_generate_independent_produces_independent_world():
     world = generate().independent().build(seed=0, max_attempts=500)
     assert world is not None

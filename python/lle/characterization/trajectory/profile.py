@@ -31,6 +31,6 @@ class TrajectoryProfile:
         """The order of the largest temporal cycle in this trajectory (0 if none)."""
         return self.graph.max_temporal_cycle_order()
 
-    def is_interdependent(self, k: int = 2) -> bool:
-        """Whether this trajectory contains a temporal cycle of order ≥ ``k``."""
-        return self.graph.max_temporal_cycle_order() >= k
+    def is_interdependent(self) -> bool:
+        """Whether this trajectory's dependency graph contains a temporal cycle."""
+        return self.graph.max_temporal_cycle_order() >= 2

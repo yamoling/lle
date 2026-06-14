@@ -68,14 +68,13 @@ assert path is not None
 ´´´python
 assert not lle.is_cooperative(World.level(1))
 assert lle.is_cooperative(World.level(3))
-assert not lle.is_mutual(World.level(3), t_max=30)
-assert lle.is_mutual(World.level(6), t_max=30)
+assert not lle.is_mutual(World.level(3), t_max=21)
+assert lle.is_mutual(World.level(6), t_max=21)
 ```
 
 
 #### Generating a world
 ```python
-import lle
 world = lle.generate(width=5, height=5, n_agents=2).build()
 plan = lle.solve(world, 10)
 assert plan is not None
@@ -89,9 +88,8 @@ Obstacles: `lasers(n, placement=..., span=...)`, `walls(n, style=...)`.
 Behaviour: `solvable()` (default), `independent()`, `cooperative(...)`, `mutual(...)`.
 
 ```python
-import lle
-lle.generate(width=6, height=6, n_agents=2).lasers(2).cooperative().build()
-lle.generate(n_agents=4).clustered().mutual(t_max=21).build()
+lle.generate(width=5, height=5, n_agents=2).lasers(2).cooperative().build()
+lle.generate(n_agents=2).mutual(t_max=15).build()
 five_worlds = list(lle.generate(width=5, height=5, n_agents=2).lasers(2).cooperative().take(5))
 ```
 
@@ -104,8 +102,6 @@ The plain-string format encodes one tile per token and uses whitespace to
 separate tiles.
 
 ```python
-from lle import World
-
 world = World("S0 . G X")
 ```
 
@@ -136,7 +132,7 @@ from .observations import ObservationType
 from .solver import solve
 from .types import AgentId, LaserId, Position
 from .world import Action, EventType, World, WorldEvent, WorldState
-from .characterization import is_cooperative, characterize
+from .characterization import is_cooperative, characterize, is_mutual, is_chained
 
 __version__: str
 from_file = LLE.from_file
@@ -171,6 +167,8 @@ __all__ = [
     "level",
     "solve",
     "is_cooperative",
+    "is_mutual",
+    "is_chained",
     "generate",
     "GeneratorBuilder",
     "characterize",

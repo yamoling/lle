@@ -27,6 +27,8 @@ class ClauseGenerator:
       mutually helping each other.
     - `"no-chained-cooperation"`: clauses and assumptions forbidding any temporal chain
       `a → b → c` (a helped b, then b helped c). Subsumes `"no-mutual-cooperation"`.
+    - `"no-interdependence"`: clauses and assumptions forbidding any temporal cycle in the
+      dependency graph (a closed help chain returning to its start).
     
     ```python
     from pysat.solvers import Minisat22
@@ -60,7 +62,7 @@ class ClauseGenerator:
         r"""
         The number of SAT variables allocated so far by this generator.
         """
-    def __new__(cls, world: world.World, t_max: builtins.int, mode: typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation', 'no-chained-cooperation'] | SolveMode) -> ClauseGenerator:
+    def __new__(cls, world: world.World, t_max: builtins.int, mode: typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation', 'no-chained-cooperation', 'no-interdependence'] | SolveMode) -> ClauseGenerator:
         r"""
         Build a clause generator for the given `world`, considering plans of length up to `t_max`.
         
@@ -78,6 +80,7 @@ class ClauseGenerator:
         - The objective clauses (every agent on an exit at step `t`)
         - For `"no-mutual-cooperation"` mode: mutual-forbid clauses and assumptions
         - For `"no-chained-cooperation"` mode: chain-forbid assumptions
+        - For `"no-interdependence"` mode: cycle-forbid assumptions
         - For `"no-cooperation"` mode: per-step no-cooperation assumptions
         
         Returns `(clauses, assumptions)` ready to be fed to `solve_model`.
@@ -113,6 +116,9 @@ class SolveMode(enum.Enum):
     - `NO_CHAINED_COOPERATION` — chain indicator clauses plus horizon-level chain-forbid
       assumptions, ruling out plans where a temporal chain `a → b → c` exists (a helped b, then
       b helped c). Subsumes `NO_MUTUAL_COOPERATION` (cycles are a special case of chains).
+    - `NO_INTERDEPENDENCE` — walk indicator clauses plus horizon-level forbid assumptions, ruling
+      out plans whose dependency graph contains any temporal cycle (a closed help chain that
+      returns to its start with non-decreasing timestamps).
     
     ```python
     from lle.solver.constraints import ClauseGenerator, SolveMode
@@ -128,9 +134,10 @@ class SolveMode(enum.Enum):
     NO_COOPERATION = ...
     NO_MUTUAL_COOPERATION = ...
     NO_CHAINED_COOPERATION = ...
+    NO_INTERDEPENDENCE = ...
 
     @property
-    def value(self) -> typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation', 'no-chained-cooperation']:
+    def value(self) -> typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation', 'no-chained-cooperation', 'no-interdependence']:
         r"""
         The canonical string representation, e.g. `"no-cooperation"`.
         Matches the string literals accepted by `ClauseGenerator` and `solve`.
@@ -141,5 +148,5 @@ class SolveMode(enum.Enum):
     def __repr__(self) -> builtins.str: ...
     def __hash__(self) -> builtins.int: ...
     @staticmethod
-    def from_str(value: typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation', 'no-chained-cooperation']) -> SolveMode: ...
+    def from_str(value: typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation', 'no-chained-cooperation', 'no-interdependence']) -> SolveMode: ...
 

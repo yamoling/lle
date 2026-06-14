@@ -84,7 +84,6 @@ def test_accept_world_accepts_t_min_one_for_immediately_solvable_world():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.slow
 def test_generate_t_min_world_not_solvable_below_t_min():
     """within(t_min=...) must return a world not solvable in fewer than t_min steps."""
     t_min = 4
@@ -93,7 +92,6 @@ def test_generate_t_min_world_not_solvable_below_t_min():
     assert solve(world, t_min - 1) is None, "world is solvable in fewer than t_min steps"
 
 
-@pytest.mark.slow
 def test_generate_t_min_world_is_solvable_within_t_max():
     """within(t_min, t_max) must still return a world solvable within t_max."""
     t_min, t_max = 3, 15
@@ -102,7 +100,6 @@ def test_generate_t_min_world_is_solvable_within_t_max():
     assert solve(world, t_max) is not None, "world must be solvable within t_max"
 
 
-@pytest.mark.slow
 def test_generate_multiple_worlds_all_respect_t_min():
     """Every world in a batch must satisfy the t_min constraint."""
     t_min, t_max = 3, 15

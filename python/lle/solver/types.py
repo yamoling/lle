@@ -5,5 +5,5 @@ SolveModeLiteral = Literal[
     "no-cooperation",
     "no-mutual-cooperation",
     "no-chained-cooperation",
+    "no-interdependence",
 ]
-# "no-interdependence-N" (N >= 2) is also accepted as a raw str by solve() and ClauseGenerator

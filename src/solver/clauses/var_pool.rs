@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{Action, AgentId, Position, solver::errors::SolverError, tiles::LaserId};
+use crate::{Action, AgentId, Position, solver::errors::SolverError};
 
 /// Semantic key for a SAT variable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -17,47 +17,26 @@ pub enum VarKey {
         pos: Position,
         t: usize,
     },
-    /// Whether laser `laser_id`'s beam is blocked by its same-colour agent at time `t`.
-    /// This variable is used to identify cooperation, not to enforce domain consistency.
-    LaserBlocked { laser_id: LaserId, t: usize },
-    /// Whether `helper` blocks laser `laser_id` while `beneficiary` occupies a protected
-    /// downstream beam position at time `t` (a single concrete cooperation event).
-    CoopEvent {
-        helper: AgentId,
-        beneficiary: AgentId,
-        laser_id: LaserId,
-        t: usize,
-    },
-    /// Whether `helper` ever helps `beneficiary` at some point across the whole horizon.
-    DependsOn {
-        beneficiary: AgentId,
-        helper: AgentId,
-    },
-    /// Whether `helper` has helped `beneficiary` at any time step ≤ `t` (running OR over
-    /// `coop_event` at steps 0..=t). Used as the "left side" of a temporal chain.
+    /// Whether `helper` has helped `beneficiary` at any time step ≤ `t` (a monotone temporal
+    /// prefix-OR over the per-step help events). This is the single shared "h has helped b"
+    /// indicator: read at the current horizon it expresses time-agnostic dependency (used by
+    /// the mutual-cooperation forbid), and it seeds the first edge of every temporal walk
+    /// (chains and interdependence cycles).
     FirstHelpedByTime {
         helper: AgentId,
         beneficiary: AgentId,
         t: usize,
     },
-    /// Whether a temporal chain `a → b → c` exists: `a` helped `b` at time `t-1` or earlier
-    /// and `b` helped `c` at exactly time `t`. Auxiliary; only `Chain` is exposed externally.
-    ChainEvent {
-        a: AgentId,
-        b: AgentId,
-        c: AgentId,
-        t: usize,
-    },
-    /// Whether a temporal chain `a → b → c` exists across the whole horizon: `a` helped `b`
-    /// at some time strictly before `b` helped `c`.
-    Chain { a: AgentId, b: AgentId, c: AgentId },
     /// Whether agents `a` and `b` mutually depend on each other (canonical: `a < b`).
     Mutual { a: AgentId, b: AgentId },
-    /// Progress for interdependence cycle `cycle_id`: the first `step` edges have been fired
-    /// with non-decreasing timestamps, with the `step`-th edge firing at some time ≤ `t`.
-    CycleProgress { cycle_id: u16, step: u8, t: usize },
-    /// Whether interdependence cycle `cycle_id` has been fully realized (all edges fired in order).
-    CycleRealized { cycle_id: u16 },
+    /// Progress for temporal walk `walk_id`: its first `step` edges have fired with
+    /// non-decreasing timestamps, the `step`-th edge firing at some time ≤ `t`. Only created for
+    /// `step ≥ 2`; the first edge is expressed directly by [`FirstHelpedByTime`]. A walk is a
+    /// chain (`a → b → c`, open) or an interdependence cycle (closed) depending on the mode.
+    WalkProgress { walk_id: u32, step: u8, t: usize },
+    /// Whether temporal walk `walk_id` has been fully realized (all its edges fired in order).
+    /// Subsumes the former `Chain` (open length-2 walk) and `CycleRealized` (closed walk).
+    WalkRealized { walk_id: u32 },
     /// Auxiliary variable used internally by cardinality encodings; carries a unique counter.
     Aux(i32),
 }
@@ -82,45 +61,12 @@ impl VarKey {
     }
 
     #[inline]
-    pub fn laser_blocked(laser_id: usize, t: usize) -> Self {
-        VarKey::LaserBlocked { laser_id, t }
-    }
-
-    #[inline]
-    pub fn coop_event(helper: AgentId, beneficiary: AgentId, laser_id: usize, t: usize) -> Self {
-        VarKey::CoopEvent {
-            helper,
-            beneficiary,
-            laser_id,
-            t,
-        }
-    }
-
-    #[inline]
-    pub fn depends_on(beneficiary: AgentId, helper: AgentId) -> Self {
-        VarKey::DependsOn {
-            beneficiary,
-            helper,
-        }
-    }
-
-    #[inline]
     pub fn first_helped_by_time(helper: AgentId, beneficiary: AgentId, t: usize) -> Self {
         VarKey::FirstHelpedByTime {
             helper,
             beneficiary,
             t,
         }
-    }
-
-    #[inline]
-    pub fn chain_event(a: AgentId, b: AgentId, c: AgentId, t: usize) -> Self {
-        VarKey::ChainEvent { a, b, c, t }
-    }
-
-    #[inline]
-    pub fn chain(a: AgentId, b: AgentId, c: AgentId) -> Self {
-        VarKey::Chain { a, b, c }
     }
 
     /// Canonical (min < max) mutual-dependency key for the unordered pair `{a, b}`.
@@ -131,13 +77,13 @@ impl VarKey {
     }
 
     #[inline]
-    pub fn cycle_progress(cycle_id: u16, step: u8, t: usize) -> Self {
-        VarKey::CycleProgress { cycle_id, step, t }
+    pub fn walk_progress(walk_id: u32, step: u8, t: usize) -> Self {
+        VarKey::WalkProgress { walk_id, step, t }
     }
 
     #[inline]
-    pub fn cycle_realized(cycle_id: u16) -> Self {
-        VarKey::CycleRealized { cycle_id }
+    pub fn walk_realized(walk_id: u32) -> Self {
+        VarKey::WalkRealized { walk_id }
     }
 
     #[inline]
@@ -177,11 +123,6 @@ impl VarPool {
         self.id(VarKey::Laser { laser_id, pos, t })
     }
 
-    /// Indicator "`beneficiary` is helped by `helper` at some point over the whole horizon".
-    pub fn depends_on(&mut self, beneficiary: AgentId, helper: AgentId) -> i32 {
-        self.id(VarKey::depends_on(beneficiary, helper))
-    }
-
     /// Indicator "`a` and `b` mutually depend on each other" (canonical, `a < b`).
     pub fn mutual(&mut self, a: AgentId, b: AgentId) -> i32 {
         self.id(VarKey::mutual(a, b))
@@ -192,24 +133,14 @@ impl VarPool {
         self.id(VarKey::first_helped_by_time(helper, beneficiary, t))
     }
 
-    /// Indicator "temporal chain `a → b → c` exists: `a` helped `b` by time `t`, `b` helps `c` at time `t`".
-    pub fn chain_event(&mut self, a: AgentId, b: AgentId, c: AgentId, t: usize) -> i32 {
-        self.id(VarKey::chain_event(a, b, c, t))
+    /// Progress indicator: the first `step` edges of walk `walk_id` have been fired by time `t`.
+    pub fn walk_progress(&mut self, walk_id: u32, step: u8, t: usize) -> i32 {
+        self.id(VarKey::walk_progress(walk_id, step, t))
     }
 
-    /// Indicator "temporal chain `a → b → c` exists across the whole horizon".
-    pub fn chain(&mut self, a: AgentId, b: AgentId, c: AgentId) -> i32 {
-        self.id(VarKey::chain(a, b, c))
-    }
-
-    /// Progress indicator: the first `step` edges of cycle `cycle_id` have been fired by time `t`.
-    pub fn cycle_progress(&mut self, cycle_id: u16, step: u8, t: usize) -> i32 {
-        self.id(VarKey::cycle_progress(cycle_id, step, t))
-    }
-
-    /// Whether cycle `cycle_id` has been fully realized.
-    pub fn cycle_realized(&mut self, cycle_id: u16) -> i32 {
-        self.id(VarKey::cycle_realized(cycle_id))
+    /// Whether temporal walk `walk_id` has been fully realized.
+    pub fn walk_realized(&mut self, walk_id: u32) -> i32 {
+        self.id(VarKey::walk_realized(walk_id))
     }
 
     /// Variable id already assigned to `key`, or `None` if it was never created.

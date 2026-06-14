@@ -2,8 +2,7 @@
 
 Verifies `is_independent`, `is_cooperative`, and `is_mutual` against the six
 standard levels and a hand-crafted world whose cooperation threshold is known
-exactly.  All tests invoke the SAT solver, so they may be slow; keep a 60-second
-budget in mind per CLAUDE.md.
+exactly.
 """
 
 from __future__ import annotations

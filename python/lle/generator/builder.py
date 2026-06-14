@@ -203,16 +203,14 @@ class GeneratorBuilder:
 
     def interdependent(
         self,
-        k: int = 2,
         t_max: int | None = None,
         t_min: int | None = None,
     ) -> GeneratorBuilder:
-        """Require *temporal interdependence* at level ``k``: a temporal cycle of order >= ``k``
-        is forced by every solution within ``t_max``.  ``k=2`` recovers mutual cooperation."""
+        """Require *temporal interdependence*: a temporal cycle in the dependency graph is forced
+        by every solution within ``t_max``. For two agents this recovers mutual cooperation."""
         self._world_filter = Interdependent(
             t_max if t_max is not None else self._world_filter.t_max,
             t_min if t_min is not None else self._world_filter.t_min,
-            k=k,
         )
         return self
 
@@ -334,9 +332,6 @@ class GeneratorBuilder:
     def _resolve_n_lasers(self, placement: ResolvedPlacement) -> int:
         if self._n_lasers != "auto":
             return self._n_lasers
-        k = self._world_filter.requires_interdependence_order
-        if k > 0:
-            return min(self._n_agents, k)
         if self._world_filter.requires_chained_cooperation:
             return min(self._n_agents, max(2, self._n_agents - 1))
         if self._world_filter.requires_cooperation or placement in ("cross-agent", "cross-cluster"):

@@ -470,17 +470,15 @@ fn test_laser_sources_have_different_laser_ids() {
 
 #[test]
 fn test_compute_world_string() {
-    let world_string = "S0 L0S X";
+    let world_string = "S0 L0S X ";
     let world = World::try_from(world_string).unwrap();
     let current_string = world.world_string();
-    let current_string = current_string.trim();
     assert_eq!(world_string, current_string);
 
-    let (_, source) = &world.sources()[0];
+    let (_, source) = world.sources()[0];
     source.set_agent_id(1);
-    let expected = "S0 L1S X";
+    let expected = "S0 L1S X ";
     let res = world.world_string();
-    let res = res.trim();
     assert_eq!(expected, res);
 }
 
