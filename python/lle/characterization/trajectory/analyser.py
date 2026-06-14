@@ -61,18 +61,15 @@ def detect_dependencies(world: World) -> set[tuple[AgentId, AgentId]]:
 def profile_trajectory(world: World, trajectory: Trajectory, *, reset: bool = True):
     """Replay ``trajectory`` and build the temporal helper graph.
 
-    # Args:
-        world: The world to analyse. It is **not** mutated; the analysis runs on
-            a deep copy.
-        trajectory: The sequence of joint actions to replay. Each element is
-            either a single `Action` (for a single-agent world) or a sequence of
-            one `Action` per agent.
-        reset: Whether to reset the copied world before replaying. Keep the
-            default unless the trajectory is meant to continue from the world's
-            current state.
+    ## Parameters
+    - **world**: The world to analyse. It is **not** mutated; the analysis runs on a deep copy.
+    - **trajectory**: The sequence of joint actions to replay. Each element is either a single
+        `Action` (for a single-agent world) or a sequence of one `Action` per agent.
+    - **reset**: Whether to reset the copied world before replaying. Keep the default unless the
+        trajectory is meant to continue from the world's current state.
 
-    # Returns:
-        The `TrajectoryProfile` summarising the graph.
+    ## Returns
+    The `TrajectoryProfile` summarising the graph.
     """
     world = deepcopy(world)
     if reset:

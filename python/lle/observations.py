@@ -9,7 +9,7 @@ Use `ObservationType.from_str(...)` when you accept user input, and use
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Literal
+from typing import Literal, Sequence
 
 import numpy as np
 import numpy.typing as npt
@@ -261,7 +261,7 @@ class Layered(LayeredPadded):
 
 
 class FlattenedLayered(ObservationGenerator):
-    def __init__(self, world):
+    def __init__(self, world: World):
         super().__init__(world)
         self.layered = Layered(world)
         size = 1
@@ -315,7 +315,7 @@ class PartialGenerator(ObservationGenerator):
     def obs_type(self) -> ObservationType:
         return ObservationType.PARTIAL_3x3
 
-    def encode_layer(self, layer: npt.NDArray[np.float32], origin: Position, positions: list[Position], fill_value: float = 1.0):
+    def encode_layer(self, layer: npt.NDArray[np.float32], origin: Position, positions: Sequence[Position], fill_value: float = 1.0):
         if len(positions) == 0:
             return
         for i, j in positions:

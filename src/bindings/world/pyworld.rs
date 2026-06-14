@@ -633,15 +633,5 @@ impl Clone for PyWorld {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::PyWorld;
-
-    #[test]
-    /// This test simulates the pickling and unpickling process of a world.
-    fn pickle() {
-        let world = PyWorld::level(1).unwrap();
-        let bin = world.__getstate__().unwrap();
-        let mut new_world = PyWorld::new("S0 X".to_string()).unwrap();
-        new_world.__setstate__(bin).unwrap();
-    }
-}
+#[path = "../../unit_tests/test_pyworld.rs"]
+mod tests;

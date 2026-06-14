@@ -628,4 +628,5 @@ impl Clone for World {
 }
 
 #[cfg(test)]
+#[path = "../../unit_tests/test_world.rs"]
 mod test;
