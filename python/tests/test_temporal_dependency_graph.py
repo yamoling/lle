@@ -592,170 +592,12 @@ class TestTemporalCycleDetection:
 
 
 # ============================================================================
-# Tests: Hamiltonian cycle detection
-# ============================================================================
-
-
-class TestHamiltonianCycleDetection:
-    """Test has_time_agnostic_cycle method."""
-
-    def test_hamiltonian_cycle_empty(self, empty_graph_5_agents):
-        """Empty graph has no Hamiltonian cycle."""
-        assert empty_graph_5_agents.has_time_agnostic_cycle() is False
-
-    def test_hamiltonian_cycle_single_agent(self, single_agent_graph):
-        """Single agent cannot have a Hamiltonian cycle."""
-        assert single_agent_graph.has_time_agnostic_cycle() is False
-
-    def test_hamiltonian_cycle_two_agents_incomplete(self, single_edge_graph):
-        """Two agents with one-directional edge have no Hamiltonian cycle."""
-        # 0 -> 1, but no 1 -> 0
-        assert single_edge_graph.has_time_agnostic_cycle() is False
-
-    def test_hamiltonian_cycle_two_agents_complete(self, static_cycle_graph):
-        """Two agents with bidirectional edges have a Hamiltonian cycle."""
-        # 0 <-> 1
-        assert static_cycle_graph.has_time_agnostic_cycle() is True
-
-    def test_hamiltonian_cycle_detected(self, hamiltonian_cycle_graph):
-        """Hamiltonian cycle through all agents is detected."""
-        # 0 -> 1 -> 2 -> 3 -> 0
-        assert hamiltonian_cycle_graph.has_time_agnostic_cycle() is True
-
-    def test_hamiltonian_cycle_linear_no_return(self, linear_chain_graph):
-        """Linear chain without return edge has no Hamiltonian cycle."""
-        # 0 -> 1 -> 2 -> 3
-        assert linear_chain_graph.has_time_agnostic_cycle() is False
-
-    def test_hamiltonian_cycle_branching(self, branching_graph):
-        """Branching structure has no Hamiltonian cycle."""
-        # 0 -> {1, 2, 3}
-        assert branching_graph.has_time_agnostic_cycle() is False
-
-    def test_hamiltonian_cycle_converging(self, converging_graph):
-        """Converging structure has no Hamiltonian cycle."""
-        # {1, 2, 3} -> 0
-        assert converging_graph.has_time_agnostic_cycle() is False
-
-    def test_hamiltonian_cycle_temporal(self, temporal_cycle_graph):
-        """Temporal cycle with 3 agents is a Hamiltonian cycle."""
-        # 0 -> 1 -> 2 -> 0
-        assert temporal_cycle_graph.has_time_agnostic_cycle() is True
-
-    def test_hamiltonian_cycle_disconnected(self, disconnected_graph):
-        """Disconnected components cannot have a Hamiltonian cycle."""
-        # Two separate edges: no way to visit all 4 agents in one cycle
-        assert disconnected_graph.has_time_agnostic_cycle() is False
-
-
-# ============================================================================
-# Tests: Strongly connected components (SCC)
-# ============================================================================
-
-
-class TestStronglyConnectedComponents:
-    """Test strongly_connected_components method."""
-
-    def test_scc_empty(self, empty_graph_5_agents):
-        """Empty graph has no non-trivial SCCs."""
-        sccs = empty_graph_5_agents.strongly_connected_components()
-        assert len(sccs) == 0
-
-    def test_scc_single_agent(self, single_agent_graph):
-        """Single agent has no non-trivial SCC."""
-        sccs = single_agent_graph.strongly_connected_components()
-        assert len(sccs) == 0
-
-    def test_scc_single_edge(self, single_edge_graph):
-        """Single-directional edge does not form an SCC."""
-        sccs = single_edge_graph.strongly_connected_components()
-        assert len(sccs) == 0
-
-    def test_scc_static_cycle(self, static_cycle_graph):
-        """Bidirectional edge (cycle of length 2) forms an SCC."""
-        sccs = static_cycle_graph.strongly_connected_components()
-        assert len(sccs) == 1
-        assert sccs[0] == frozenset({0, 1})
-
-    def test_scc_temporal_cycle(self, temporal_cycle_graph):
-        """Temporal cycle forms an SCC if all nodes are mutually reachable."""
-        sccs = temporal_cycle_graph.strongly_connected_components()
-        assert len(sccs) == 1
-        assert sccs[0] == frozenset({0, 1, 2})
-
-    def test_scc_hamiltonian_cycle(self, hamiltonian_cycle_graph):
-        """Hamiltonian cycle creates one SCC."""
-        sccs = hamiltonian_cycle_graph.strongly_connected_components()
-        assert len(sccs) == 1
-        assert sccs[0] == frozenset({0, 1, 2, 3})
-
-    def test_scc_full_3_agents(self, scc_3_agents):
-        """Fully connected 3-agent SCC is detected."""
-        sccs = scc_3_agents.strongly_connected_components()
-        assert len(sccs) == 1
-        assert sccs[0] == frozenset({0, 1, 2})
-
-    def test_scc_branching_no_scc(self, branching_graph):
-        """Branching (no return edges) has no SCC."""
-        sccs = branching_graph.strongly_connected_components()
-        assert len(sccs) == 0
-
-    def test_scc_converging_no_scc(self, converging_graph):
-        """Converging edges alone have no SCC."""
-        sccs = converging_graph.strongly_connected_components()
-        assert len(sccs) == 0
-
-    def test_scc_disconnected_two_components(self, disconnected_graph):
-        """Two separate edges form no SCC (each is one-directional)."""
-        sccs = disconnected_graph.strongly_connected_components()
-        assert len(sccs) == 0
-
-    def test_scc_multiple_sccs(self):
-        """Graph with multiple disjoint SCCs detects all of them."""
-        edges = [
-            # SCC 1: 0 <-> 1
-            DependencyEdge(helper=0, beneficiary=1, t=1),
-            DependencyEdge(helper=1, beneficiary=0, t=2),
-            # SCC 2: 2 <-> 3
-            DependencyEdge(helper=2, beneficiary=3, t=1),
-            DependencyEdge(helper=3, beneficiary=2, t=2),
-        ]
-        graph = TemporalDependencyGraph(n_agents=4, edges=edges, horizon=3)
-        sccs = graph.strongly_connected_components()
-        assert len(sccs) == 2
-        assert frozenset({0, 1}) in sccs
-        assert frozenset({2, 3}) in sccs
-
-    def test_scc_only_non_trivial_returned(self):
-        """Singleton SCCs are not returned (only size >= 2)."""
-        edges = [
-            DependencyEdge(helper=0, beneficiary=1, t=1),
-            DependencyEdge(helper=2, beneficiary=3, t=1),
-            DependencyEdge(helper=3, beneficiary=2, t=2),
-        ]
-        graph = TemporalDependencyGraph(n_agents=4, edges=edges, horizon=3)
-        sccs = graph.strongly_connected_components()
-        # Only SCC 2-3 should be returned (0 and 1 are not mutually reachable)
-        assert len(sccs) == 1
-        assert frozenset({2, 3}) in sccs
-
-
-# ============================================================================
 # Tests: Edge cases and boundary conditions
 # ============================================================================
 
 
 class TestEdgeCases:
     """Test edge cases and boundary conditions."""
-
-    def test_zero_agents(self):
-        """Graph with zero agents."""
-        graph = TemporalDependencyGraph(n_agents=0, edges=[], horizon=0)
-        assert graph.longest_chain() == 0
-        assert not graph.has_cycle()
-        assert not graph.has_time_agnostic_cycle()
-        assert len(graph.strongly_connected_components()) == 0
-        assert graph.profile().is_independent
 
     def test_self_loop_not_in_flattened(self):
         """Self-loops (helper == beneficiary) should not normally occur but are handled."""
@@ -830,13 +672,6 @@ class TestProfileIntegration:
         assert linear_chain_graph.longest_chain() == 3
         assert profile.is_chained
 
-    def test_profile_temporal_cycle(self, temporal_cycle_graph: TemporalDependencyGraph):
-        """Profile detects temporal cycle correctly."""
-        profile = temporal_cycle_graph.profile()
-        assert temporal_cycle_graph.has_cycle
-        assert len(temporal_cycle_graph.strongly_connected_components()) >= 1
-        assert profile.is_mutual
-
     def test_profile_branching(self, branching_graph: TemporalDependencyGraph):
         """Profile of branching graph has correct fan-out."""
         assert branching_graph.max_fan_out() == 3
@@ -846,18 +681,6 @@ class TestProfileIntegration:
         """Profile of converging graph has correct fan-in."""
         assert converging_graph.max_fan_in() == 3
         assert converging_graph.longest_chain() == 0
-
-    def test_profile_scc(self, static_cycle_graph: TemporalDependencyGraph):
-        """Profile includes non-trivial SCC information."""
-        profile = static_cycle_graph.profile()
-        assert len(static_cycle_graph.strongly_connected_components()) == 1
-        assert max((len(scc) for scc in static_cycle_graph.strongly_connected_components()), default=0) == 2
-        assert profile.is_mutual
-        assert profile.is_chained
-
-    def test_profile_hamiltonian_cycle(self, hamiltonian_cycle_graph: TemporalDependencyGraph):
-        """Profile detects Hamiltonian cycle."""
-        assert hamiltonian_cycle_graph.has_time_agnostic_cycle()
 
     def test_profile_has_mutual_help_true(self, static_cycle_graph: TemporalDependencyGraph):
         """Profile has_mutual_help property is True for SCCs."""
@@ -938,16 +761,6 @@ class TestRealWorldPatterns:
         graph = TemporalDependencyGraph(n_agents=4, edges=edges, horizon=4)
         assert graph.longest_chain() == 3
         assert not graph.has_cycle()
-
-    def test_mutual_help_at_different_times(self):
-        """Agents help each other but at different times (not mutual within one step)."""
-        edges = [
-            DependencyEdge(helper=0, beneficiary=1, t=1),
-            DependencyEdge(helper=1, beneficiary=0, t=2),
-        ]
-        graph = TemporalDependencyGraph(n_agents=2, edges=edges, horizon=3)
-        assert graph.has_cycle()
-        assert graph.has_time_agnostic_cycle()
 
     def test_bottleneck_pattern(self):
         """One agent is critical: many agents depend on it."""

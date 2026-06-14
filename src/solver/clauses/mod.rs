@@ -11,5 +11,5 @@ pub use generator::{ClauseGenerator, SolveMode};
 pub use var_pool::{VarKey, VarPool};
 
 #[cfg(test)]
-#[path = "../../unit_tests/clause_generation_tests.rs"]
-mod tests;
+#[path = "../../unit_tests/test_clause_generation.rs"]
+mod test_clause_generation;

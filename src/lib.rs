@@ -9,7 +9,7 @@ pub mod solver;
 mod utils;
 
 pub use action::Action;
-pub use agent::AgentId;
+pub use agent::{Agent, AgentId};
 pub use core::parsing::parse_toml as parse_v2;
 pub use core::{ParseError, RuntimeWorldError, World, WorldEvent, WorldState, tiles, tiles::Tile};
 pub use position::Position;

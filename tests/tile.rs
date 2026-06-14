@@ -1,8 +1,7 @@
 use std::rc::Rc;
 
-use crate::{
-    AgentId, Tile,
-    agent::Agent,
+use lle::{
+    Agent, AgentId, Tile,
     tiles::{Direction, Gem, Laser, LaserBeam, Void},
 };
 

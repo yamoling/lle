@@ -12,7 +12,12 @@ impl ClauseGenerator {
     /// `beam ∩ reachable` intersection that every cooperation-aware mode used to open-code.
     ///
     /// [`no_step_on_active_laser`]: Self::no_step_on_active_laser
-    fn help_edge_positions(&self, helper: AgentId, beneficiary: AgentId, t: usize) -> Vec<Position> {
+    fn help_edge_positions(
+        &self,
+        helper: AgentId,
+        beneficiary: AgentId,
+        t: usize,
+    ) -> Vec<Position> {
         let reachable = self.ctx.relevant_positions_for_agent(beneficiary, t);
         self.ctx
             .laser_sources
@@ -111,12 +116,19 @@ impl ClauseGenerator {
     /// `step 1` is expressed directly by [`first_helped_by_time`](Self::first_helped_by_time_clauses)
     /// (the walk's first edge `walk[0] → walk[1]`); deeper steps use the dedicated
     /// [`WalkProgress`](VarKey::WalkProgress) family.
-    fn walk_progress_get(&self, walk_id: u32, walk: &[AgentId], step: usize, t: usize) -> Option<i32> {
+    fn walk_progress_get(
+        &self,
+        walk_id: u32,
+        walk: &[AgentId],
+        step: usize,
+        t: usize,
+    ) -> Option<i32> {
         if step == 1 {
             self.pool
                 .get(&VarKey::first_helped_by_time(walk[0], walk[1], t))
         } else {
-            self.pool.get(&VarKey::walk_progress(walk_id, step as u8, t))
+            self.pool
+                .get(&VarKey::walk_progress(walk_id, step as u8, t))
         }
     }
 

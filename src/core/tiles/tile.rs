@@ -133,7 +133,3 @@ impl Tile {
         };
     }
 }
-
-#[cfg(test)]
-#[path = "../../unit_tests/test_tile.rs"]
-mod tests;

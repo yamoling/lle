@@ -18,14 +18,15 @@ class TrajectoryProfile:
         """
         Whether the trajectory exhibits mutual help, i.e. help(a, b) and help(b, a).
         """
-        return len(self.graph.strongly_connected_components()) > 0
+        edges = self.graph.flattened_edges()
+        return any((b, a) in edges for a, b in edges)
 
     @property
     def is_chained(self):
         """
         Whether the trajectory exhibits a chained help pattern, i.e. help(a, b) -> help(b, c) -> ...
         """
-        return self.graph.longest_chain() >= 2 or len(self.graph.strongly_connected_components()) > 0
+        return self.graph.longest_chain() >= 2
 
     def interdependence_order(self) -> int:
         """The order of the largest temporal cycle in this trajectory (0 if none)."""

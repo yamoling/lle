@@ -85,3 +85,5 @@ python/main.py
 .zed
 .qwen
 benchmarks/*
+CLAUDE.md
+claude.md
