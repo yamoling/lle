@@ -12,6 +12,44 @@ from lle import World
 from lle.characterization.world_characterization import WorldCharacterizer
 
 
+ONE_WAY_COOPERATION = """
+ .  . S0 S1 . .
+L0E .  .  . @ .
+ .  .  .  . . .
+ .  .  .  . . .
+ X  X  .  . . .
+"""
+
+
+TWO_AGENT_MUTUAL = """
+ .  . . S0 S1  .  . . .
+L0E . .  .  .  @  @ @ .
+ .  . @  .  . L1W . . .
+ .  . .  .  .  .  . . .
+ .  . .  X  X  .  . . .
+"""
+
+
+TWO_AGENT_INTERDEPENDENT_ONLY = """
+S0  .  .  .  .  @ @
+S1  .  .  .  .  @ @
+S2 L0E .  .  .  @ @
+.  .  .  @  .  . .
+.  .  .  . L1W . .
+.  @ L2E .  .  . .
+.  @  @  .  X  X X
+"""
+
+
+THREE_AGENT_INTERDEPENDENT = """
+ @ L0S L2S L1S .
+S0  .   .   .  X
+ .  .   .   .  .
+S1  .   .   .  X
+S2  .   .   .  X
+"""
+
+
 # ---------------------------------------------------------------------------
 # World with no lasers: trivially independent
 # ---------------------------------------------------------------------------
@@ -55,13 +93,7 @@ def test_poc_threshold_is_independent(t_max: int, is_cooperative: bool):
     """At t=10 the long detour becomes reachable: cooperation is no longer forced."""
     # For t < 10: every solution forces agent 0 to block its own laser for agent 1.
     # For t> = 10: agent 1 can go around via column 5, so no blocking is required.
-    world = World("""
-     .  . S0 S1 . .
-    L0E .  .  . @ .
-     .  .  .  . . .
-     .  .  .  . . .
-     X  X  .  . . .
-""")
+    world = World(ONE_WAY_COOPERATION)
     wc = WorldCharacterizer(world, t_max)
     assert wc.is_solvable
     assert wc.is_independent != is_cooperative
@@ -78,13 +110,7 @@ def test_threshold_mutual_to_cooperative(t_max: int):
         take a detour behind the left wall that blocks beam 1; but the level remains cooperative.
         - >= 12 steps, the level is independent
     """
-    world = World("""
-     .  . . S0 S1  .  . . .
-    L0E . .  .  .  @  @ @ .
-     .  . @  .  . L1W . . .
-     .  . .  .  .  .  . . .
-     .  . .  X  X  .  . . .
-""")
+    world = World(TWO_AGENT_MUTUAL)
     wc = WorldCharacterizer(world, t_max)
     is_cooperative = t_max < 12
     is_mutual = t_max < 8
@@ -94,34 +120,49 @@ def test_threshold_mutual_to_cooperative(t_max: int):
     assert wc.is_mutual == is_mutual
 
 
-def test_2_or_3_interdependent():
-    world = World("""
-    S0  .  .  .  .  @ @
-    S1  .  .  .  .  @ @
-    S2 L0E .  .  .  @ @
-    .  .  .  @  .  . .
-    .  .  .  . L1W . .
-    .  @ L2E .  .  . .
-    .  @  @  .  X  X X
-    """)
-    wc = WorldCharacterizer(world, t_max=16)
+def test_one_way_cooperation_is_not_chained_or_interdependent():
+    """A single required help edge is cooperative, but not a temporal chain or cycle."""
+    wc = WorldCharacterizer(World(ONE_WAY_COOPERATION), t_max=8)
+    assert wc.is_solvable
+    assert wc.is_cooperative
+    assert not wc.is_mutual
+    assert not wc.is_chained(2)
+    assert not wc.is_chained(3)
+    assert not wc.is_interdependent(2)
+    assert not wc.is_interdependent(3)
+
+
+def test_two_agent_mutual_is_chain_2_but_not_chain_3():
+    """A two-agent cycle is the smallest chain/interdependence case and cannot satisfy length 3."""
+    wc = WorldCharacterizer(World(TWO_AGENT_MUTUAL), t_max=6)
+    assert wc.is_solvable
+    assert wc.is_mutual
+    assert wc.is_chained(2)
+    assert not wc.is_chained(3)
     assert wc.is_interdependent(2)
     assert not wc.is_interdependent(3)
 
 
-def test_not_interdependent():
-    world = World("""
-    S0  .  .  .  .  @ @
-    S1  .  .  .  .  @ @
-    S2 L0E .  .  .  @ @
-    .  .  .  @  .  . .
-    .  .  .  . L1W . .
-    .  @ L2E .  .  . .
-    .  @  @  .  X  X X
-    """)
-    wc = WorldCharacterizer(world, t_max=16)
+def test_two_agent_cycle_in_three_agent_world_is_not_3_interdependent():
+    """The world requires a mutual cycle, but the third agent can avoid joining that cycle."""
+    wc = WorldCharacterizer(World(TWO_AGENT_INTERDEPENDENT_ONLY), t_max=16)
+    assert wc.is_solvable
+    assert wc.is_chained(2)
+    assert not wc.is_chained(3)
     assert wc.is_interdependent(2)
     assert not wc.is_interdependent(3)
+
+
+def test_three_agent_cycle_is_3_interdependent_but_not_4_interdependent():
+    """A 3-agent cycle exercises the parametrized chain/interdependence upper edge."""
+    wc = WorldCharacterizer(World(THREE_AGENT_INTERDEPENDENT), t_max=15)
+    assert wc.is_solvable
+    assert wc.is_chained(2)
+    assert wc.is_chained(3)
+    assert not wc.is_chained(4)
+    assert wc.is_interdependent(2)
+    assert wc.is_interdependent(3)
+    assert not wc.is_interdependent(4)
 
 
 # ---------------------------------------------------------------------------
