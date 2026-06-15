@@ -41,6 +41,68 @@ fn cycles_dfs(
     }
 }
 
+/// Enumerate every temporal walk whose realization is a chain of length exactly `n_edges`.
+///
+/// A chain of length `n` (counting help edges) is realized by either:
+/// - an **open** simple path `v0 → v1 → … → vn` of `n + 1` distinct agents whose `n` helpers
+///   `v0…v_{n-1}` each own a laser, the beneficiary `vn` being any other agent; or
+/// - a **closed** simple cycle `v0 → … → v_{n-1} → v0` of `n` distinct laser owners.
+///
+/// Forbidding every length-`n` chain forbids every chain of length `>= n`: a longer open chain
+/// contains a length-`n` open prefix, and a cycle of order `k > n` likewise exposes a length-`n`
+/// open prefix over its `k` distinct agents.
+pub(crate) fn enumerate_chains(
+    owners: &[AgentId],
+    n_agents: usize,
+    n_edges: usize,
+) -> Vec<Vec<AgentId>> {
+    let mut walks = Vec::new();
+    // Each chain's `n` helpers form an ordered sequence of distinct owners.
+    for helpers in ordered_owner_sequences(owners, n_edges) {
+        // Closed variant: the last helper helps the first agent, closing an order-`n` cycle.
+        let mut cycle = helpers.clone();
+        cycle.push(helpers[0]);
+        walks.push(cycle);
+        // Open variants: any agent not already on the path can be the final beneficiary.
+        for beneficiary in 0..n_agents {
+            if !helpers.contains(&beneficiary) {
+                let mut path = helpers.clone();
+                path.push(beneficiary);
+                walks.push(path);
+            }
+        }
+    }
+    walks
+}
+
+/// All ordered sequences of `len` distinct agents drawn from `owners` (partial permutations).
+fn ordered_owner_sequences(owners: &[AgentId], len: usize) -> Vec<Vec<AgentId>> {
+    fn extend(
+        owners: &[AgentId],
+        len: usize,
+        path: &mut Vec<AgentId>,
+        out: &mut Vec<Vec<AgentId>>,
+    ) {
+        if path.len() == len {
+            out.push(path.clone());
+            return;
+        }
+        for &owner in owners {
+            if !path.contains(&owner) {
+                path.push(owner);
+                extend(owners, len, path, out);
+                path.pop();
+            }
+        }
+    }
+    let mut out = Vec::new();
+    // No chain of the requested length can exist with fewer than `len` distinct owners.
+    if len <= owners.len() {
+        extend(owners, len, &mut Vec::new(), &mut out);
+    }
+    out
+}
+
 /// Generates the SAT clauses for a bounded planning horizon, combining initialization,
 /// movement, laser constraints, mode-specific constraints, and the objective.
 pub struct ClauseGenerator {
@@ -74,27 +136,11 @@ impl ClauseGenerator {
         owners.sort_unstable();
         owners.dedup();
         let walks = match mode {
-            // A chain `a → b → c`: `a` and `b` must each own a laser; `c` is any other agent.
-            SolveMode::NoChainedCooperation => {
-                // This is not a "permutations" nor "combinations" operator since we iterate on (owners, owners, agents).
-                let mut walks = Vec::new();
-                for &a in &owners {
-                    for &b in &owners {
-                        if a == b {
-                            continue;
-                        }
-                        for c in 0..ctx.n_agents {
-                            if c == b {
-                                continue;
-                            }
-                            walks.push(vec![a, b, c]);
-                        }
-                    }
-                }
-                walks
-            }
-            // Any simple directed cycle (order ≥ 2), expanded to a closed vertex sequence.
-            SolveMode::NoInterdependence => enumerate_directed_cycles(&owners, 2)
+            // Every chain of length exactly `n` (open paths and order-`n` cycles); forbidding
+            // these forbids all chains of length `>= n`.
+            SolveMode::NoChainedCooperation(n) => enumerate_chains(&owners, ctx.n_agents, n),
+            // Any simple directed cycle of order ≥ `n`, expanded to a closed vertex sequence.
+            SolveMode::NoInterdependence(n) => enumerate_directed_cycles(&owners, n)
                 .into_iter()
                 .map(|mut cycle| {
                     cycle.push(cycle[0]);
@@ -115,7 +161,7 @@ impl ClauseGenerator {
                         .map(move |&b| (a, b))
                 })
                 .collect(),
-            SolveMode::NoChainedCooperation | SolveMode::NoInterdependence => {
+            SolveMode::NoChainedCooperation(_) | SolveMode::NoInterdependence(_) => {
                 let mut pairs: Vec<(AgentId, AgentId)> =
                     walks.iter().map(|w| (w[0], w[1])).collect();
                 pairs.sort_unstable();
@@ -168,7 +214,7 @@ impl ClauseGenerator {
                 clauses.extend(mc);
                 assumptions.extend(ma);
             }
-            SolveMode::NoChainedCooperation | SolveMode::NoInterdependence => {
+            SolveMode::NoChainedCooperation(_) | SolveMode::NoInterdependence(_) => {
                 let (wc, wa) = self.forbid_walks();
                 clauses.extend(wc);
                 assumptions.extend(wa);
@@ -194,7 +240,7 @@ impl ClauseGenerator {
             SolveMode::NoMutualCooperation => {
                 clauses.extend(self.first_helped_by_time_clauses(t));
             }
-            SolveMode::NoChainedCooperation | SolveMode::NoInterdependence => {
+            SolveMode::NoChainedCooperation(_) | SolveMode::NoInterdependence(_) => {
                 clauses.extend(self.first_helped_by_time_clauses(t));
                 clauses.extend(self.walk_clauses(t));
             }
@@ -207,8 +253,8 @@ impl ClauseGenerator {
         self.assumption_buffer[t] = match self.mode {
             SolveMode::Standard
             | SolveMode::NoMutualCooperation
-            | SolveMode::NoChainedCooperation
-            | SolveMode::NoInterdependence => vec![],
+            | SolveMode::NoChainedCooperation(_)
+            | SolveMode::NoInterdependence(_) => vec![],
             SolveMode::NoCooperation => self.assume_no_cooperation(t),
         };
     }

@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cached_property
 
 from .. import solver
@@ -22,6 +22,8 @@ class WorldCharacterizer:
 
     world: World
     t_max: int
+    _no_chain_cache: dict[int, list | None] = field(default_factory=dict, init=False, repr=False)
+    _no_interdependence_cache: dict[int, list | None] = field(default_factory=dict, init=False, repr=False)
 
     @property
     def is_cooperative(self):
@@ -70,16 +72,16 @@ class WorldCharacterizer:
         # If there does not exist a non-mutual trajectory, then the world requires mutual cooperation.
         return self.shortest_non_mutual_path is None
 
-    @property
-    def is_chained(self):
+    def is_chained(self, length: int = 2) -> bool:
         """
-        Whether the world requires chained cooperation:
+        Whether the world requires chained cooperation of at least `length` help edges:
         - The world is solvable
-        - and the optimal trajectory exhibits a chain (a helped b, then b helped c)
-        - and no non-chained trajectory exists within `t_max`
+        - and the optimal trajectory exhibits a chain of length >= `length`
+          (e.g. `length=2`: a helped b, then b helped c)
+        - and no trajectory within `t_max` avoids every chain of length >= `length`.
 
         Chained cooperation subsumes mutual cooperation: a mutual cycle `a → b → a` is a
-        chain of length 2.
+        chain of length 2, so for a two-agent world ``is_chained(2)`` matches ``is_mutual``.
 
         # Raises
             - ``NotSolvableError`` if the world is not solvable
@@ -88,15 +90,18 @@ class WorldCharacterizer:
         if path is None:
             raise NotSolvableError("World is not solvable")
         profile = profile_trajectory(self.world, path)
-        if not profile.is_chained:
+        if not profile.is_chained(length):
             return False
-        return self.shortest_non_chained_path is None
+        return self._shortest_non_chained_path(length) is None
 
-    def is_interdependent(self, n_agents: int) -> bool:
+    def is_interdependent(self, n_agents: int = 2) -> bool:
         """
         Whether the world *requires* interdependence between at least `n_agents` agents:
-        - the optimal trajectory's dependency graph contains a temporal cycle, and
+        - the optimal trajectory's dependency graph contains a temporal cycle of order >= `n_agents`, and
         - no solution within ``t_max`` avoids all such cycles.
+
+        For two agents this coincides with ``is_mutual`` (and with ``is_chained(2)``): a cycle of
+        order 2 is exactly a mutual `a → b → a`.
 
         # Raises
             - ``NotSolvableError`` if the world is not solvable
@@ -107,7 +112,12 @@ class WorldCharacterizer:
         profile = profile_trajectory(self.world, path)
         if not profile.is_interdependent(n_agents):
             return False
-        return self.shortest_non_interdependent_path is None
+        # A temporal cycle of order `n` is also a chain of length `n`, so requiring an order-`n`
+        # cycle entails requiring a length-`n` chain. If chains of length `n` are avoidable, the
+        # cycles are too: short-circuit without the (stricter) interdependence solve.
+        if not self.is_chained(n_agents):
+            return False
+        return self._shortest_non_interdependent_path(n_agents) is None
 
     @cached_property
     def shortest_path(self):
@@ -122,10 +132,16 @@ class WorldCharacterizer:
     def shortest_non_mutual_path(self):
         return solver.solve(self.world, self.t_max, mode="no-mutual")
 
-    @cached_property
-    def shortest_non_chained_path(self):
-        return solver.solve(self.world, self.t_max, mode="no-chain")
+    def _shortest_non_chained_path(self, length: int):
+        """Shortest plan within `t_max` that avoids every chain of length >= `length`, or None."""
+        if length not in self._no_chain_cache:
+            self._no_chain_cache[length] = solver.solve(self.world, self.t_max, mode=f"no-chain-{length}")
+        return self._no_chain_cache[length]
 
-    @cached_property
-    def shortest_non_interdependent_path(self):
-        return solver.solve(self.world, self.t_max, mode="no-interdependence")
+    def _shortest_non_interdependent_path(self, order: int):
+        """Shortest plan within `t_max` that avoids every cycle of order >= `order`, or None."""
+        if order not in self._no_interdependence_cache:
+            self._no_interdependence_cache[order] = solver.solve(
+                self.world, self.t_max, mode=f"no-interdependence-{order}"
+            )
+        return self._no_interdependence_cache[order]

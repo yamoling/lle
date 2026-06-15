@@ -15,7 +15,7 @@ def solve(
     t_max: int | Literal["auto"] = "auto",
     /,
     *,
-    mode: SolveModeLiteral | SolveMode = "standard",
+    mode: SolveModeLiteral | str | SolveMode = "standard",
 ) -> list[tuple[Action, ...]] | None: ...
 
 
@@ -26,11 +26,11 @@ def solve(
     t_max: int | Literal["auto"] = "auto",
     /,
     *,
-    mode: SolveModeLiteral | SolveMode = "standard",
+    mode: SolveModeLiteral | str | SolveMode = "standard",
 ) -> list[tuple[Action, ...]] | None: ...
 
 
-def solve(world: World, /, *min_max, mode: SolveModeLiteral | SolveMode = "standard"):
+def solve(world: World, /, *min_max, mode: SolveModeLiteral | str | SolveMode = "standard"):
     """
     Find the shortest plan within the time range [t_min, t_max] (both ends included).
 
@@ -55,11 +55,12 @@ def _solve(
     t_min: int,
     t_max: int | Literal["auto"],
     *,
-    mode: SolveModeLiteral | SolveMode,
+    mode: SolveModeLiteral | str | SolveMode,
 ) -> list[tuple[Action, ...]] | None:
     if t_max == "auto":
         t_max = (world.width * world.height) // 2
-    # ClauseGenerator accepts both SolveMode objects and raw string literals.
+    if isinstance(mode, str):
+        mode = SolveMode.from_str(mode)
     gen = ClauseGenerator(world, t_max, mode)
     t_min = max(gen.solution_lower_bound, t_min)
     if t_min > t_max:

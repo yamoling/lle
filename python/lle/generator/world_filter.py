@@ -164,7 +164,7 @@ class Chained(Cooperative):
 
     def _matches(self, c: WorldCharacterizer) -> bool:
         try:
-            return c.is_chained
+            return c.is_chained()
         except NotSolvableError:
             return False
 

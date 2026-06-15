@@ -19,10 +19,10 @@ use crate::{
 /// - `"no-cooperation"`: assumptions forbidding any non-owner agent from entering a laser span.
 /// - `"no-mutual"`: clauses and assumptions forbidding pairs of agents from
 ///   mutually helping each other.
-/// - `"no-chain"`: clauses and assumptions forbidding any temporal chain
-///   `a → b → c` (a helped b, then b helped c). Subsumes `"no-mutual"`.
-/// - `"no-interdependence"`: clauses and assumptions forbidding any temporal cycle in the
-///   dependency graph (a closed help chain returning to its start).
+/// - `"no-chain"` / `"no-chain-N"`: forbid any temporal chain of `N` help edges or more
+///   (`a → b → c` is a chain of length 2). `N` defaults to 2. Subsumes `"no-mutual"`.
+/// - `"no-interdependence"` / `"no-interdependence-N"`: forbid any temporal cycle visiting `N`
+///   distinct agents or more. `N` defaults to 2, which coincides with `"no-mutual"` for two agents.
 ///
 /// ```python
 /// from pysat.solvers import Minisat22
@@ -57,9 +57,9 @@ pub struct PyClauseGenerator {
 impl PyClauseGenerator {
     /// Build a clause generator for the given `world`, considering plans of length up to `t_max`.
     ///
-    /// `mode` selects the solving strategy. It accepts either a `SolveMode` instance or a raw
-    /// string literal (`"standard"`, `"no-cooperation"`, `"no-mutual"`). Defaults to
-    /// `SolveMode.STANDARD`.
+    /// `mode` selects the solving strategy. It accepts either a `SolveMode` instance or its
+    /// canonical string (`"standard"`, `"no-cooperation"`, `"no-mutual"`, `"no-chain[-N]"`,
+    /// `"no-interdependence[-N]"`). Defaults to `"standard"`.
     #[new]
     fn new(
         py: Python,

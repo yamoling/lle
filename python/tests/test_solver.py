@@ -254,10 +254,34 @@ def test_typing_solve_mode_literal():
 def test_rust_solve_mode_values():
     from lle.solver.constraints import SolveMode as RustSolveMode
 
-    assert RustSolveMode.STANDARD.value == "standard"
-    assert RustSolveMode.NO_COOPERATION.value == "no-cooperation"
-    assert RustSolveMode.NO_MUTUAL_COOPERATION.value == "no-mutual"
-    assert str(RustSolveMode.NO_COOPERATION) == "no-cooperation"
+    assert RustSolveMode.standard().value == "standard"
+    assert RustSolveMode.no_cooperation().value == "no-cooperation"
+    assert RustSolveMode.no_mutual().value == "no-mutual"
+    assert str(RustSolveMode.no_cooperation()) == "no-cooperation"
+
+
+def test_rust_solve_mode_parametrized_values_round_trip():
+    from lle.solver.constraints import SolveMode as RustSolveMode
+
+    # Default length renders without a suffix; explicit lengths are kept.
+    assert RustSolveMode.no_chain().value == "no-chain"
+    assert RustSolveMode.no_chain(3).value == "no-chain-3"
+    assert RustSolveMode.no_interdependence(4).value == "no-interdependence-4"
+    # from_str is the inverse of value.
+    for s in ("standard", "no-mutual", "no-chain", "no-chain-3", "no-interdependence", "no-interdependence-4"):
+        assert RustSolveMode.from_str(s).value == s
+    # "no-interdependence-2" is the two-agent equivalent of "no-mutual".
+    assert RustSolveMode.from_str("no-interdependence-2") == RustSolveMode.no_interdependence(2)
+
+
+def test_rust_solve_mode_rejects_invalid_lengths():
+    from lle.solver.constraints import SolveMode as RustSolveMode
+
+    for bad in ("no-chain-1", "no-chain-0", "no-chain-x", "no-interdependence-1", "bogus"):
+        with pytest.raises(ValueError):
+            RustSolveMode.from_str(bad)
+    with pytest.raises(ValueError):
+        RustSolveMode.no_chain(1)
 
 
 def test_clause_generator_accepts_rust_solve_mode():
@@ -265,7 +289,13 @@ def test_clause_generator_accepts_rust_solve_mode():
     from lle.solver.constraints import SolveMode as RustSolveMode
 
     world = World("S0 . . X")
-    modes = [RustSolveMode.STANDARD, RustSolveMode.NO_COOPERATION, RustSolveMode.NO_MUTUAL_COOPERATION]
+    modes = [
+        RustSolveMode.standard(),
+        RustSolveMode.no_cooperation(),
+        RustSolveMode.no_mutual(),
+        RustSolveMode.no_chain(3),
+        RustSolveMode.no_interdependence(2),
+    ]
     for mode in modes:
         gen = ClauseGenerator(world, 5, mode=mode)
         clauses, assumptions = gen.generate(3)

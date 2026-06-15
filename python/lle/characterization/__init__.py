@@ -46,11 +46,11 @@ def is_mutual(world: World, t_max: int | Literal["auto"] = "auto"):
     return w.is_mutual
 
 
-def is_chained(world: World, t_max: int | Literal["auto"] = "auto"):
+def is_chained(world: World, t_max: int | Literal["auto"] = "auto", length: int = 2):
     """
-    Return `True` if the provided world requires chained cooperation to be solved
-    in `t_max` steps, i.e. when there exists a solution with laser blocking enabled
-    but not without laser blocking.
+    Return `True` if the provided world requires chained cooperation of at least `length`
+    help edges to be solved in `t_max` steps, i.e. when every solution within `t_max`
+    exhibits a chain of length >= `length`.
     """
     w = characterize(world, t_max)
-    return w.is_chained
+    return w.is_chained(length)

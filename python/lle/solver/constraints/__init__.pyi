@@ -2,7 +2,6 @@
 # ruff: noqa: E501, F401, F403, F405
 
 import builtins
-import enum
 from lle import world
 import typing
 __all__ = [
@@ -25,10 +24,10 @@ class ClauseGenerator:
     - `"no-cooperation"`: assumptions forbidding any non-owner agent from entering a laser span.
     - `"no-mutual"`: clauses and assumptions forbidding pairs of agents from
       mutually helping each other.
-    - `"no-chain"`: clauses and assumptions forbidding any temporal chain
-      `a → b → c` (a helped b, then b helped c). Subsumes `"no-mutual"`.
-    - `"no-interdependence"`: clauses and assumptions forbidding any temporal cycle in the
-      dependency graph (a closed help chain returning to its start).
+    - `"no-chain"` / `"no-chain-N"`: forbid any temporal chain of `N` help edges or more
+      (`a → b → c` is a chain of length 2). `N` defaults to 2. Subsumes `"no-mutual"`.
+    - `"no-interdependence"` / `"no-interdependence-N"`: forbid any temporal cycle visiting `N`
+      distinct agents or more. `N` defaults to 2, which coincides with `"no-mutual"` for two agents.
     
     ```python
     from pysat.solvers import Minisat22
@@ -66,9 +65,9 @@ class ClauseGenerator:
         r"""
         Build a clause generator for the given `world`, considering plans of length up to `t_max`.
         
-        `mode` selects the solving strategy. It accepts either a `SolveMode` instance or a raw
-        string literal (`"standard"`, `"no-cooperation"`, `"no-mutual"`). Defaults to
-        `SolveMode.STANDARD`.
+        `mode` selects the solving strategy. It accepts either a `SolveMode` instance or its
+        canonical string (`"standard"`, `"no-cooperation"`, `"no-mutual"`, `"no-chain[-N]"`,
+        `"no-interdependence[-N]"`). Defaults to `"standard"`.
         """
     def generate(self, t: builtins.int) -> tuple[builtins.list[builtins.list[builtins.int]], builtins.list[builtins.int]]:
         r"""
@@ -102,51 +101,79 @@ class ClauseGenerator:
         """
 
 @typing.final
-class SolveMode(enum.Enum):
+class SolveMode:
     r"""
     The solving mode used by `ClauseGenerator`.
     
-    Controls which extra constraints and assumptions are emitted by `generate(t)`:
+    Build one with the factory methods (`SolveMode.standard()`, `SolveMode.no_chain(length=3)`,
+    …) or parse one from its canonical string with `SolveMode.from_str("no-chain-3")`. The
+    available modes control which extra constraints and assumptions are emitted by `generate(t)`:
     
-    - `STANDARD` — world rules only; agents may cooperate freely.
-    - `NO_COOPERATION` — per-step unit assumptions forbidding any non-owner agent from occupying
-      a laser span. Equivalent to treating every beam as permanently active.
-    - `NO_MUTUAL_COOPERATION` — dependency indicator clauses plus horizon-level mutual-forbid
-      clauses and assumptions, ruling out plans where two agents each help the other.
-    - `NO_CHAINED_COOPERATION` — chain indicator clauses plus horizon-level chain-forbid
-      assumptions, ruling out plans where a temporal chain `a → b → c` exists (a helped b, then
-      b helped c). Subsumes `NO_MUTUAL_COOPERATION` (cycles are a special case of chains).
-    - `NO_INTERDEPENDENCE` — walk indicator clauses plus horizon-level forbid assumptions, ruling
-      out plans whose dependency graph contains any temporal cycle (a closed help chain that
-      returns to its start with non-decreasing timestamps).
+    - `standard()` — world rules only; agents may cooperate freely.
+    - `no_cooperation()` — forbids any non-owner agent from occupying a laser span. Equivalent to
+      treating every beam as permanently active.
+    - `no_mutual()` — rules out plans where two agents each help the other.
+    - `no_chain(length=2)` — rules out plans containing a temporal chain of `length` help edges or
+      more (`a → b → c` is a chain of length 2). Subsumes `no_mutual()` (a mutual cycle is a chain
+      of length 2).
+    - `no_interdependence(order=2)` — rules out plans whose dependency graph contains a temporal
+      cycle visiting `order` distinct agents or more. For two-agent worlds this coincides with
+      `no_mutual()`.
     
     ```python
     from lle.solver.constraints import ClauseGenerator, SolveMode
     from lle import World
     
-    gen = ClauseGenerator(World.level(6), t_max=21, mode=SolveMode.NO_MUTUAL_COOPERATION)
+    gen = ClauseGenerator(World.level(6), t_max=21, mode=SolveMode.no_mutual())
     for t in range(gen.solution_lower_bound, gen.t_max + 1):
         clauses, assumptions = gen.generate(t)
         ...
     ```
     """
-    STANDARD = ...
-    NO_COOPERATION = ...
-    NO_MUTUAL_COOPERATION = ...
-    NO_CHAINED_COOPERATION = ...
-    NO_INTERDEPENDENCE = ...
-
     @property
-    def value(self) -> typing.Literal['standard', 'no-cooperation', 'no-mutual', 'no-chain', 'no-interdependence']:
+    def value(self) -> builtins.str:
         r"""
-        The canonical string representation, e.g. `"no-cooperation"`.
-        Matches the string literals accepted by `ClauseGenerator` and `solve`.
+        The canonical string representation, inverse of `from_str` (e.g. `"no-chain-3"`).
+        The default length is rendered without a suffix (`"no-chain"`, `"no-interdependence"`).
         """
-    @staticmethod
-    def variants() -> builtins.list[SolveMode]: ...
-    def __str__(self) -> builtins.str: ...
-    def __repr__(self) -> builtins.str: ...
+    def __eq__(self, other: builtins.object, /) -> builtins.bool: ...
     def __hash__(self) -> builtins.int: ...
     @staticmethod
-    def from_str(value: typing.Literal['standard', 'no-cooperation', 'no-mutual', 'no-chain', 'no-interdependence']) -> SolveMode: ...
+    def standard() -> SolveMode:
+        r"""
+        World rules only; agents may cooperate freely.
+        """
+    @staticmethod
+    def no_cooperation() -> SolveMode:
+        r"""
+        Forbid any non-owner agent from entering a laser span (every beam is treated as active).
+        """
+    @staticmethod
+    def no_mutual() -> SolveMode:
+        r"""
+        Forbid plans where two agents each help the other.
+        """
+    @staticmethod
+    def no_chain(length: builtins.int = 2) -> SolveMode:
+        r"""
+        Forbid any temporal chain of `length` help edges or more. `length` must be `>= 2`.
+        """
+    @staticmethod
+    def no_interdependence(order: builtins.int = 2) -> SolveMode:
+        r"""
+        Forbid any temporal cycle visiting `order` distinct agents or more. `order` must be `>= 2`.
+        """
+    @staticmethod
+    def from_str(value: builtins.str) -> SolveMode:
+        r"""
+        Parse a canonical string (e.g. `"standard"`, `"no-chain-3"`, `"no-interdependence-2"`).
+        """
+    @staticmethod
+    def variants() -> builtins.list[SolveMode]:
+        r"""
+        The base modes, each with their default length. Parametrized modes with a non-default
+        length must be built explicitly via `no_chain(...)` / `no_interdependence(...)`.
+        """
+    def __str__(self) -> builtins.str: ...
+    def __repr__(self) -> builtins.str: ...
 
