@@ -223,14 +223,11 @@ class GeneratorBuilder:
     # Behavioural filter
     # ------------------------------------------------------------------
 
-    def solvable(self) -> GeneratorBuilder:
-        """Accept any solvable world (the default constraint)."""
-        self._world_filter = Solvable(self._world_filter.t_max, self._world_filter.t_min)
-        return self
-
-    def independent(self) -> GeneratorBuilder:
+    def independent(self, t_min: int | None = None, t_max: int | None = None) -> GeneratorBuilder:
         """Require worlds solvable *without* cooperation (no laser blocking needed)."""
-        self._world_filter = Independent(self._world_filter.t_max, self._world_filter.t_min)
+        self._world_filter = Independent(
+            t_max if t_max is not None else self._world_filter.t_max, t_min if t_min is not None else self._world_filter.t_min
+        )
         return self
 
     def cooperative(

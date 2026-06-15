@@ -24,13 +24,13 @@ def _(mo):
 
 
 @app.cell
-def _():
+def _(Sequence):
     from typing import Iterable
 
     import lle
     import matplotlib.pyplot as plt
 
-    def display(world: lle.World | Iterable[lle.World]):
+    def display(world: lle.World | Iterable[lle.World], *, titles: Sequence[str] | None = None):
         if isinstance(world, lle.World):
             plt.imshow(world.get_image())
             plt.axis("off")
@@ -41,7 +41,9 @@ def _():
             n_rows = max(1, n_worlds // 4)
             figsize = (5 * n_cols, 5 * n_rows)
             fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize)
-            for i, w in enumerate(worlds):
+            if titles is None:
+                titles = [f"World {i+1}" for i in range(n_worlds)]
+            for i, (w, title) in enumerate(zip(worlds, titles)):
                 if n_rows == 1:
                     ax = axes[i]
                 else:
@@ -97,11 +99,9 @@ def _(mo):
 
 @app.cell
 def _(display, lle):
-    def cooperative():
-        world = lle.generate(n_agents=2).cooperative(t_max=25).build(seed=0)
-        display(world)
-
-    cooperative()
+    cooperative_world = lle.generate(n_agents=2).cooperative(t_max=25).build()
+    independent_world = lle.generate(n_agents=2).lasers(2).independent(t_max=25).build()
+    display([cooperative_world, independent_world], titles=["Cooperative", "Independent"])
     return
 
 
@@ -132,8 +132,8 @@ def _(mo):
 
 @app.cell
 def _(display, lle):
-    chained2 = lle.generate().lasers(2).chained().take(4, progress=False)
-    chained3 = lle.generate().lasers(3).chained().take(4, progress=False)
+    chained2 = lle.generate().lasers(2).chained().take(4)
+    chained3 = lle.generate().lasers(3).chained().take(4)
     display([*chained2, *chained3])
     return
 
@@ -160,13 +160,34 @@ def _(mo):
 @app.cell
 def _(display, lle):
     inter2 = lle.generate(width=6, height=6, n_agents=2).interdependent().take(4)
-    inter3 = lle.generate(width=6, height=6, n_agents=3).lasers(3, span=4).walls(12, style="shapes").interdependent().take(4)
+    inter3 = lle.generate(width=6, height=6, n_agents=3).lasers(3, span=4).walls(8, style="shapes").interdependent().take(4)
     display([*inter2, *inter3])
     return
 
 
 @app.cell
 def _():
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Wall specs
+    How walls are layed out can also be configured. There are three main setups:
+    - individually placed walls (default)
+    - shaped-based, where predefined shaped of walls are selected (L-shaped, T-shaped, 2-line, 3-line, ...)
+    - rooms, where the layout is split into multiple rooms with doors joining them
+    """)
+    return
+
+
+@app.cell
+def _(display, lle):
+    individual_walls = lle.generate().walls(n=20, style="individual").build()
+    shaped_walls = lle.generate().walls(n=20, style="shapes").build()
+    rooms = lle.generate().rooms(n=4).lasers(1).build()
+    display([individual_walls, shaped_walls, rooms], titles=["Individual walls", "Shapes walls", "4 Rooms"])
     return
 
 
