@@ -66,9 +66,14 @@ def place_agents(
     width: int,
     rng: random.Random,
     ctx: PlacementCtx,
+    forbidden: set[Position] | None = None,
 ) -> tuple[list[Position], set[Position]]:
+    _forbidden = forbidden or set()
+
     if mode == "random":
-        all_pos = [(r, c) for r in range(height) for c in range(width)]
+        all_pos = [(r, c) for r in range(height) for c in range(width) if (r, c) not in _forbidden]
+        if len(all_pos) < n_agents:
+            raise LayoutRetry()
         agents = rng.sample(all_pos, n_agents)
 
     elif mode == "edge":
@@ -76,16 +81,18 @@ def place_agents(
         ctx.edge = edge
         if edge in ("left", "right"):
             col = 0 if edge == "left" else width - 1
-            if height < n_agents:
+            valid = [r for r in range(height) if (r, col) not in _forbidden]
+            if len(valid) < n_agents:
                 raise LayoutRetry()
-            lane_ids = sorted(rng.sample(range(height), n_agents))
+            lane_ids = sorted(rng.sample(valid, n_agents))
             ctx.lane_ids = lane_ids
             agents = [(r, col) for r in lane_ids]
         else:
             row = 0 if edge == "top" else height - 1
-            if width < n_agents:
+            valid = [c for c in range(width) if (row, c) not in _forbidden]
+            if len(valid) < n_agents:
                 raise LayoutRetry()
-            lane_ids = sorted(rng.sample(range(width), n_agents))
+            lane_ids = sorted(rng.sample(valid, n_agents))
             ctx.lane_ids = lane_ids
             agents = [(row, c) for c in lane_ids]
 
@@ -98,11 +105,13 @@ def place_agents(
         ctx.agent_anchor = (anchor_r, anchor_c)
         cells = [(anchor_r + dr, anchor_c + dc) for dr in range(cluster_h) for dc in range(cluster_w)]
         agents = cells[:n_agents]
+        if _forbidden and any(a in _forbidden for a in agents):
+            raise LayoutRetry()
 
     else:
         raise ValueError(f"Unknown starts mode: {mode!r}")
 
-    reserved: set[Position] = set(agents)
+    reserved: set[Position] = set(agents) | _forbidden
     return agents, reserved  # type: ignore[return-value]
 
 
@@ -289,12 +298,17 @@ def place_lasers(
     if n_lasers == 0:
         return [], reserved
     if placement == "free":
-        return _place_lasers_free(n_lasers, span, height, width, rng, reserved)
-    if placement == "cross-agent":
-        return _place_lasers_cross_agent(n_lasers, span, height, width, rng, reserved, ctx)
-    if placement == "cross-cluster":
-        return _place_lasers_cross_cluster(n_lasers, span, n_agents, height, width, rng, reserved, ctx)
-    raise ValueError(f"Unknown laser_placement: {placement!r}")
+        lasers, reserved = _place_lasers_free(n_lasers, span, height, width, rng, reserved)
+    elif placement == "cross-agent":
+        lasers, reserved = _place_lasers_cross_agent(n_lasers, span, height, width, rng, reserved, ctx)
+    elif placement == "cross-cluster":
+        lasers, reserved = _place_lasers_cross_cluster(n_lasers, span, n_agents, height, width, rng, reserved, ctx)
+    else:
+        raise ValueError(f"Unknown laser_placement: {placement!r}")
+    # Randomly assign agent colors from the available pool instead of using sequential IDs.
+    colors = rng.sample(range(n_agents), n_lasers)
+    lasers = [(color, pos, direction) for (_, pos, direction), color in zip(lasers, colors)]
+    return lasers, reserved
 
 
 def _place_lasers_free(
@@ -521,3 +535,92 @@ def place_walls(
         return place_wall_shapes(free, n_walls, rng)
     n = min(n_walls, len(free))
     return rng.sample(free, n)  # type: ignore[return-value]
+
+
+def place_room_walls(
+    n_rooms_rows: int,
+    n_rooms_cols: int,
+    door_size: int,
+    height: int,
+    width: int,
+) -> list[Position]:
+    """Generate walls that divide the grid into a ``n_rooms_rows × n_rooms_cols`` layout.
+
+    Each pair of adjacent rooms is connected by a door of ``door_size`` cells
+    centered on the wall segment that faces the room.
+    """
+    n_hdividers = n_rooms_rows - 1
+    n_vdividers = n_rooms_cols - 1
+
+    room_height_total = height - n_hdividers
+    room_width_total = width - n_vdividers
+
+    base_rh, rem_rh = divmod(room_height_total, n_rooms_rows)
+    room_heights = [base_rh + (1 if i < rem_rh else 0) for i in range(n_rooms_rows)]
+
+    base_rw, rem_rw = divmod(room_width_total, n_rooms_cols)
+    room_widths = [base_rw + (1 if i < rem_rw else 0) for i in range(n_rooms_cols)]
+
+    # Absolute row index of each horizontal divider
+    divider_rows: list[int] = []
+    r = room_heights[0]
+    for i in range(n_hdividers):
+        divider_rows.append(r)
+        r += 1 + room_heights[i + 1]
+
+    # Absolute col index of each vertical divider
+    divider_cols: list[int] = []
+    c = room_widths[0]
+    for i in range(n_vdividers):
+        divider_cols.append(c)
+        c += 1 + room_widths[i + 1]
+
+    # Absolute start row/col of each room stripe
+    row_starts: list[int] = []
+    r = 0
+    for i in range(n_rooms_rows):
+        row_starts.append(r)
+        if i < n_hdividers:
+            r += room_heights[i] + 1
+
+    col_starts: list[int] = []
+    c = 0
+    for i in range(n_rooms_cols):
+        col_starts.append(c)
+        if i < n_vdividers:
+            c += room_widths[i] + 1
+
+    # Full divider lines
+    walls: set[Position] = set()
+    for dr in divider_rows:
+        for j in range(width):
+            walls.add((dr, j))
+    for dc in divider_cols:
+        for i in range(height):
+            walls.add((i, dc))
+
+    # Carve one centered door per room-column segment in each horizontal divider
+    for dr in divider_rows:
+        for ci in range(n_rooms_cols):
+            c_start = col_starts[ci]
+            rw = room_widths[ci]
+            c_mid = c_start + (rw - 1) // 2
+            half = door_size // 2
+            for offset in range(-half, door_size - half):
+                col = c_mid + offset
+                if c_start <= col < c_start + rw:
+                    walls.discard((dr, col))
+
+    # Carve one centered door per room-row segment in each vertical divider
+    for dc in divider_cols:
+        for ri in range(n_rooms_rows):
+            r_start = row_starts[ri]
+            rh = room_heights[ri]
+            r_mid = r_start + (rh - 1) // 2
+            half = door_size // 2
+            for offset in range(-half, door_size - half):
+                row = r_mid + offset
+                if r_start <= row < r_start + rh:
+                    walls.discard((row, dc))
+
+    return list(walls)

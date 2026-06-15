@@ -23,9 +23,9 @@ email = "yannick.molinghen@ulb.be"
 [dependency-groups]
 dev = [
   "basedpyright>=1.39.3",
+  "marimo>=0.23.9",
   "matplotlib>=3.10.9",
   "maturin>=1.7.0",
-  "opencv-python>=4.13.0.92",
   "orjson>=3.11.7",
   "pdoc>=16.0.0",
   "pip>=24.2",
@@ -47,7 +47,7 @@ python-source = "python"
 
 [tool.pytest.ini_options]
 markers = [
-    "slow: marks tests that invoke the SAT solver or full generation loops",
+  "slow: marks tests that invoke the SAT solver or full generation loops",
 ]
 testpaths = ["python/tests"]
 

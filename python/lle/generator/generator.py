@@ -10,6 +10,7 @@ from typing import Literal
 
 from tqdm import tqdm
 
+from ..types import Position
 from ..world import World
 from .candidates import CandidateLayout
 from .placements import (
@@ -18,6 +19,7 @@ from .placements import (
     place_agents,
     place_exits,
     place_lasers,
+    place_room_walls,
     place_walls,
 )
 from .world_builder import WorldBuilder
@@ -45,6 +47,13 @@ class LaserConfig:
 class WallConfig:
     n: int
     style: Literal["individual", "shapes"]
+
+
+@dataclass
+class RoomsConfig:
+    n_rows: int
+    n_cols: int
+    door_size: int
 
 
 class WorldGenerator:
@@ -95,9 +104,12 @@ class WorldGenerator:
         laser_span: int | Literal["any", "across"] = "any",
         n_walls: int | Literal["auto"] = "auto",
         walls_style: Literal["individual", "shapes"] = "individual",
+        n_rooms_rows: int = 0,
+        n_rooms_cols: int = 0,
+        door_size: int = 1,
         filter: WorldFilter | None = None,
     ):
-        if exits == "opposite" and starts == "random":
+        if exits == "opposite" and starts not in ("edge", "clustered"):
             raise ValueError("exits='opposite' requires starts='edge' or starts='clustered', not 'random'.")
         if laser_placement == "cross-agent" and starts != "edge":
             raise ValueError("laser_placement='cross-agent' requires starts='edge'.")
@@ -134,16 +146,23 @@ class WorldGenerator:
             if filter.requires_chained_cooperation and n_lasers < 2:
                 raise ValueError("Chained cooperation requires at least 2 lasers.")
 
-        resolved_n_walls = (width * height) // 10 if n_walls == "auto" else n_walls
-        self.n_walls = resolved_n_walls
-        if self.n_walls < 0:
-            raise ValueError(f"num_walls must be >= 0. Got {self.n_walls}")
-        if self.n_walls >= (area / 2):
-            raise ValueError(f"num_walls must be < size/2. Got num_walls={self.n_walls}, size={area}")
-
-        total_needed = (2 * self.agents) + self.n_walls + self.n_lasers
-        if total_needed > area:
-            raise ValueError(f"layout requires {total_needed} unique cells, but grid has only {area}")
+        if n_rooms_rows > 0:
+            # In rooms mode the walls are structural dividers, not random fills.
+            self.n_walls = 0
+            self._rooms_cfg: RoomsConfig | None = RoomsConfig(n_rooms_rows, n_rooms_cols, door_size)
+            self._wall_cfg = WallConfig(n=0, style=walls_style)
+        else:
+            resolved_n_walls = (width * height) // 10 if n_walls == "auto" else n_walls
+            self.n_walls = resolved_n_walls
+            if self.n_walls < 0:
+                raise ValueError(f"num_walls must be >= 0. Got {self.n_walls}")
+            if self.n_walls >= (area / 2):
+                raise ValueError(f"num_walls must be < size/2. Got num_walls={self.n_walls}, size={area}")
+            total_needed = (2 * self.agents) + self.n_walls + self.n_lasers
+            if total_needed > area:
+                raise ValueError(f"layout requires {total_needed} unique cells, but grid has only {area}")
+            self._rooms_cfg = None
+            self._wall_cfg = WallConfig(n=resolved_n_walls, style=walls_style)
 
         self.world_filter = filter
         self._rng = random.Random()
@@ -151,7 +170,6 @@ class WorldGenerator:
         self._agent_cfg = AgentConfig(mode=starts)
         self._exit_cfg = ExitConfig(mode=exits)
         self._laser_cfg = LaserConfig(n=n_lasers, placement=laser_placement, span=laser_span)
-        self._wall_cfg = WallConfig(n=resolved_n_walls, style=walls_style)
 
     # ------------------------------------------------------------------
     # Layout assembly
@@ -159,7 +177,23 @@ class WorldGenerator:
 
     def _make_candidate_layout(self) -> CandidateLayout:
         ctx = PlacementCtx()
-        agents, reserved = place_agents(self._agent_cfg.mode, self.agents, self.height, self.width, self._rng, ctx)
+        # Pre-compute structural room walls so agents/exits/lasers avoid them.
+        if self._rooms_cfg is not None:
+            room_walls = place_room_walls(
+                self._rooms_cfg.n_rows,
+                self._rooms_cfg.n_cols,
+                self._rooms_cfg.door_size,
+                self.height,
+                self.width,
+            )
+            forbidden: set[Position] = set(room_walls)
+        else:
+            room_walls = None
+            forbidden = set()
+
+        agents, reserved = place_agents(
+            self._agent_cfg.mode, self.agents, self.height, self.width, self._rng, ctx, forbidden=forbidden or None
+        )
         exits, reserved = place_exits(self._exit_cfg.mode, self.agents, self.height, self.width, self._rng, reserved, ctx)
         lasers, reserved = place_lasers(
             self._laser_cfg.n,
@@ -172,7 +206,9 @@ class WorldGenerator:
             reserved,
             ctx,
         )
-        walls = place_walls(self._wall_cfg.n, self._wall_cfg.style, reserved, self.height, self.width, self._rng)
+        walls = room_walls if room_walls is not None else place_walls(
+            self._wall_cfg.n, self._wall_cfg.style, reserved, self.height, self.width, self._rng
+        )
         layout = CandidateLayout(self.height, self.width, agents=agents, exits=exits, walls=walls, lasers=lasers)
         if not layout.is_geometry_valid():
             raise LayoutRetry()

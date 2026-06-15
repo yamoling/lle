@@ -29,7 +29,9 @@ worlds = list(
 
 from __future__ import annotations
 
-from typing import Literal, overload
+import math
+import random
+from typing import Iterator, Literal, overload
 
 from ..world import World
 from .generator import WorldGenerator
@@ -73,6 +75,11 @@ class GeneratorBuilder:
         self._n_walls: int | Literal["auto"] = "auto"
         self._walls_style: WallsStyle = "individual"
 
+        # Rooms
+        self._n_rooms_rows: int = 0
+        self._n_rooms_cols: int = 0
+        self._door_size: int = 1
+
         # Behavioural filter — single source of truth for t_max/t_min and the
         # cooperation constraint. Initialised to "any solvable world".
         if t_max == "auto":
@@ -91,17 +98,33 @@ class GeneratorBuilder:
         return self._set_layout("edge", "opposite")
 
     def clustered(self) -> GeneratorBuilder:
-        """Group starts and exits into opposite clusters (Level-6 style)."""
+        """Group starts and exits into opposite clusters. Equivalent to
+        `self.start("clustered").exits("opposite")`. Check these functions for mor informatin."""
         return self._set_layout("clustered", "opposite")
 
     def starts(self, mode: StartsMode) -> GeneratorBuilder:
-        """Set the agent start placement: ``"random"``, ``"edge"``, or ``"clustered"``."""
+        """
+        Set the agent start placement: ``"random"``, ``"edge"``, or ``"clustered"``.
+
+        - `"edge"` places the start positions on one edge of the grid.
+        - `"clustered"` places the start positions in an adjacent cluster. Depending on on
+            the number of agents, the shape of the cluster can vary (2x1, 1x2, 3x1, 1x3, 2x2, 1x4, 4x1, ...).
+        """
         self._starts = mode
         self._layout_explicit = True
         return self
 
     def exits(self, mode: ExitsMode) -> GeneratorBuilder:
-        """Set the exit placement: ``"random"``, ``"edge"``, ``"cluster"``, or ``"opposite"``."""
+        """
+        Set the exit placement: ``"random"``, ``"edge"``, ``"cluster"``, or ``"opposite"``.
+
+        - `"edge"` places exits on one edge of the grid (independently of where agents start).
+        - `"cluster"` groups exits into an adjacent cluster, mirroring the shape logic of
+            `"clustered"` starts (2x1, 1x2, 2x2, …).
+        - `"opposite"` mirrors the agent starts to the far side of the grid: the opposite edge
+            when starts are ``"edge"``, or a cluster on the opposite corner when starts are
+            ``"clustered"``. Requires `starts` to be ``"edge"`` or ``"clustered"``.
+        """
         self._exits = mode
         self._layout_explicit = True
         return self
@@ -115,7 +138,6 @@ class GeneratorBuilder:
     # ------------------------------------------------------------------
     # Lasers and walls
     # ------------------------------------------------------------------
-
     def lasers(
         self,
         n: int | Literal["auto"] = "auto",
@@ -125,8 +147,10 @@ class GeneratorBuilder:
     ) -> GeneratorBuilder:
         """Configure the laser sources.
 
-        - `n`: number of sources; ``"auto"`` picks a sensible count (one helper
-          per other agent when cooperation is required, otherwise none).
+        - `n`: number of sources. ``"auto"`` picks a random count between 0 and
+          the number of agents when no cooperation is required, or a sensible
+          minimum when cooperation is required (at least 1, at least 2 for
+          chained/mutual/interdependent).
         - `placement`: ``"free"`` (anywhere valid), ``"cross-agent"`` (each beam
           crosses all agent lanes; needs `lanes`/`starts("edge")`),
           ``"cross-cluster"`` (corridor between clusters; needs
@@ -149,6 +173,50 @@ class GeneratorBuilder:
         single cells (``"individual"``) or connected ``"shapes"``."""
         self._n_walls = n
         self._walls_style = style
+        return self
+
+    def rooms(self, n: int = 4, *, door_size: int = 1) -> GeneratorBuilder:
+        """Divide the grid into `n` rooms separated by walls with doors.
+
+        Rooms are arranged in a rectangular grid — `n` is factored into
+        ``rows × cols`` as square as possible (e.g. 4 → 2×2, 6 → 2×3, 8 → 2×4).
+        Each pair of adjacent rooms is connected by a centered door of `door_size`
+        cells carved into the dividing wall. Calling `rooms()` overrides any
+        previous `walls()` call.
+
+        ## Parameters
+        - `n`: number of rooms (>= 2). Must be factorable into a rectangular
+          arrangement.
+        - `door_size`: number of cells removed from each wall segment to form a
+          door (>= 1). The door is centered on the wall segment facing the room.
+
+        ## Raises
+        `ValueError` if `n < 2`, `door_size < 1`, or the grid is too small:
+        a ``rows × cols`` layout requires ``height >= 2*rows - 1`` and
+        ``width >= 2*cols - 1`` (one cell per room plus one cell per wall).
+        """
+        if n < 2:
+            raise ValueError(f"rooms requires n >= 2, got {n}")
+        if door_size < 1:
+            raise ValueError(f"door_size must be >= 1, got {door_size}")
+
+        rows = int(math.isqrt(n))
+        while rows >= 1:
+            if n % rows == 0:
+                break
+            rows -= 1
+        cols = n // rows
+
+        min_height = 2 * rows - 1
+        min_width = 2 * cols - 1
+        if self._height < min_height:
+            raise ValueError(f"{n} rooms ({rows}×{cols} layout) requires height >= {min_height}, got {self._height}")
+        if self._width < min_width:
+            raise ValueError(f"{n} rooms ({rows}×{cols} layout) requires width >= {min_width}, got {self._width}")
+
+        self._n_rooms_rows = rows
+        self._n_rooms_cols = cols
+        self._door_size = door_size
         return self
 
     # ------------------------------------------------------------------
@@ -241,16 +309,30 @@ class GeneratorBuilder:
     # Terminals
     # ------------------------------------------------------------------
     @overload
-    def build(self, *, seed: int | None = None, n_jobs: int = 1) -> World: ...
+    def build(self, *, seed: int | None = None, n_jobs: Literal[1] = 1) -> World: ...
     @overload
-    def build(self, *, seed: int | None = None, max_attempts: int, n_jobs: int = 1) -> World | None: ...
+    def build(self, *, seed: int | None = None, max_attempts: int, n_jobs: Literal[1] = 1) -> World | None: ...
+    @overload
+    def build(self, *, n_jobs: int) -> World: ...
+    @overload
+    def build(self, *, max_attempts: int, n_jobs: int) -> World | None: ...
     def build(self, *, seed: int | None = None, max_attempts: int | None = None, n_jobs: int = 1):
         """Generate a single world.
 
         With no `max_attempts` the search runs until it succeeds and always
         returns a `World`. With a bounded `max_attempts` it returns the world,
         or ``None`` if the budget is exhausted.
+
+        `seed` is only accepted when `n_jobs=1`; it has no meaningful effect
+        across parallel workers because concurrency can yield different results
+        with the same seed.
         """
+        if n_jobs < 1:
+            raise ValueError("n_jobs must be >= 1")
+        if n_jobs > 1 and seed is not None:
+            raise ValueError(
+                "Seed is only accepted when n_jobs=1 because parallel workers may yield different results with the same seed due to concurrency."
+            )
         generator = self._make_generator()
         if n_jobs == 1:
             return generator.generate(max_attempts=max_attempts, seed=seed)
@@ -259,6 +341,25 @@ class GeneratorBuilder:
         except StopIteration:
             return None
 
+    @overload
+    def take(
+        self,
+        n: int,
+        *,
+        n_jobs: Literal[1],
+        seed: int | None = None,
+        max_attempts: int | None = None,
+        progress: bool = True,
+    ) -> Iterator[World]: ...
+    @overload
+    def take(
+        self,
+        n: int,
+        *,
+        n_jobs: int | Literal["auto"] = "auto",
+        max_attempts: int | None = None,
+        progress: bool = True,
+    ) -> Iterator[World]: ...
     def take(
         self,
         n: int,
@@ -267,15 +368,18 @@ class GeneratorBuilder:
         seed: int | None = None,
         max_attempts: int | None = None,
         progress: bool = True,
-    ):
+    ) -> Iterator[World]:
         """Generate up to `n` worlds, yielding each as it is produced.
 
         - `n_jobs`: parallel workers; ``"auto"`` uses all CPUs but one.
+        - `seed`: fixed RNG seed — only accepted when `n_jobs=1` because parallel workers may yield different results with the same seed due to concurrency.
         - `max_attempts`: total attempt budget; the stream may be shorter than
           `n` if the budget runs out.
         - `progress`: show a progress bar.
         """
         resolved_jobs = self._resolve_n_jobs(n_jobs)
+        if resolved_jobs > 1 and seed is not None:
+            raise ValueError("Seed is only accepted with n_jobs=1")
         return self._make_generator().generate_n(
             n=n,
             n_jobs=resolved_jobs,
@@ -304,6 +408,9 @@ class GeneratorBuilder:
             laser_span=self._laser_span,
             n_walls=self._n_walls,
             walls_style=self._walls_style,
+            n_rooms_rows=self._n_rooms_rows,
+            n_rooms_cols=self._n_rooms_cols,
+            door_size=self._door_size,
             filter=self._world_filter,
         )
 
@@ -336,7 +443,7 @@ class GeneratorBuilder:
             return min(self._n_agents, max(2, self._n_agents - 1))
         if self._world_filter.requires_cooperation or placement in ("cross-agent", "cross-cluster"):
             return min(self._n_agents, max(1, self._n_agents - 1))
-        return 0
+        return random.randint(0, self._n_agents)
 
     def _resolve_n_jobs(self, n_jobs: int | Literal["auto"]) -> int:
         if n_jobs != "auto":

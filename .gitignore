@@ -87,3 +87,4 @@ python/main.py
 benchmarks/*
 CLAUDE.md
 claude.md
+**/__marimo__
