@@ -5,22 +5,21 @@ every state the world passes through (the initial state and the state after each
 action), records which agents help which others.
 
 # Dependency detection (per state)
-For every enabled laser beam of colour ``c``:
+For every enabled laser beam of colour`c`:
 
-* the beam is *blocked* iff agent ``c`` stands on one of its tiles (only an
+* the beam is *blocked* iff agent`c` stands on one of its tiles (only an
   agent matching the laser colour can stand on the beam without dying);
 * every *other* agent standing on a tile of that beam is alive precisely
-  because the beam is blocked upstream, so it is being helped by agent ``c``.
+  because the beam is blocked upstream, so it is being helped by agent`c`.
 
-Each such situation yields a directed edge ``c -> beneficiary`` at the current
-time step.  This is exactly the definition of *help* in LLE: agent ``c`` blocks a
-laser of colour ``c`` and the beneficiary stands on the beam without dying.
+Each such situation yields a directed edge`c -> beneficiary` at the current
+time step.  This is exactly the definition of *help* in LLE: agent`c` blocks a
+laser of colour`c` and the beneficiary stands on the beam without dying.
 """
 
 from __future__ import annotations
 
 from collections import defaultdict
-from copy import deepcopy
 
 from lle.types import AgentId, LaserId
 from lle.world import World
@@ -30,7 +29,7 @@ from .types import Trajectory
 
 
 def detect_dependencies(world: World) -> set[tuple[AgentId, AgentId]]:
-    """Return the ``(helper, beneficiary)`` edges active in the world's current state."""
+    """Return the`(helper, beneficiary)` edges active in the world's current state."""
     beams: dict[LaserId, list] = defaultdict(list)
     for laser in world.lasers:
         if laser.is_disabled:
@@ -59,7 +58,7 @@ def detect_dependencies(world: World) -> set[tuple[AgentId, AgentId]]:
 
 
 def profile_trajectory(world: World, trajectory: Trajectory, *, reset: bool = True):
-    """Replay ``trajectory`` and build the temporal helper graph.
+    """Replay`trajectory` and build the temporal helper graph.
 
     ## Parameters
     - **world**: The world to analyse. It is **not** mutated; the analysis runs on a deep copy.
@@ -71,16 +70,13 @@ def profile_trajectory(world: World, trajectory: Trajectory, *, reset: bool = Tr
     ## Returns
     The `TrajectoryProfile` summarising the graph.
     """
-    world = deepcopy(world)
     if reset:
         world.reset()
 
-    edges = list[DependencyEdge]()
-    for helper, beneficiary in detect_dependencies(world):
-        edges.append(DependencyEdge(helper, beneficiary, 0))
+    # Initialize edges with the dependencies at t=0
+    edges = [DependencyEdge(helper, beneficiary, 0) for helper, beneficiary in detect_dependencies(world)]
     for t, joint_action in enumerate(trajectory, start=1):
         world.step(joint_action)
         for helper, beneficiary in detect_dependencies(world):
             edges.append(DependencyEdge(helper, beneficiary, t))
-
     return TemporalDependencyGraph(world.n_agents, edges, horizon=len(trajectory)).profile()

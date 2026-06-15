@@ -5,7 +5,7 @@ form a small hierarchy rather than a bag of independent boolean flags so
 that *contradictory* constraints are impossible to express in the first place:
 there is no class that is simultaneously `Independent` and `Mutual`, because
 `Mutual` is a subclass of `Cooperative` and `Independent` is its sibling. This
-removes the old ``cooperative=False, mutual=True`` foot-gun by construction.
+removes the old`cooperative=False, mutual=True` foot-gun by construction.
 
 The taxonomy mirrors the cooperation lattice computed by `WorldCharacterizer`:
 
@@ -36,16 +36,16 @@ from ..characterization.world_characterization import NotSolvableError, WorldCha
 from ..world import World
 
 GeneratorKind = Literal["random", "constructive", "level6_style"]
-"""The procedural generators a filter can recommend when ``kind='auto'``."""
+"""The procedural generators a filter can recommend when`kind='auto'`."""
 
 
 @dataclass
 class WorldFilter(ABC):
     """Base filter: matches every *solvable* world and imposes no further constraint.
 
-    Concrete behavioural constraints are expressed by the subclasses
-    `Independent`, `Cooperative` and `Mutual`. Use those directly, e.g.
-    ``generate(filter=Mutual())``.
+     Concrete behavioural constraints are expressed by the subclasses
+     `Independent`, `Cooperative` and `Mutual`. Use those directly, e.g.
+    `generate(filter=Mutual())`.
     """
 
     t_max: int
@@ -87,7 +87,7 @@ class WorldFilter(ABC):
 
     @property
     def default_kind(self) -> GeneratorKind:
-        """The generator strategy that best fits this filter when ``kind='auto'``."""
+        """The generator strategy that best fits this filter when`kind='auto'`."""
         return "constructive"
 
     @staticmethod
@@ -111,8 +111,8 @@ class WorldFilter(ABC):
         return Mutual(t_max, t_min)
 
     @staticmethod
-    def interdependent(t_max: int = 50, t_min: int | None = None):
-        return Interdependent(t_max, t_min)
+    def interdependent(n_agents: int, t_max: int, t_min: int | None = None):
+        return Interdependent(n_agents, t_max, t_min)
 
 
 @dataclass
@@ -140,7 +140,7 @@ class Independent(WorldFilter):
 
 @dataclass
 class Cooperative(WorldFilter):
-    """Matches worlds that *require* cooperation: no independent plan exists within ``t_max``."""
+    """Matches worlds that *require* cooperation: no independent plan exists within`t_max`."""
 
     def _matches(self, c: WorldCharacterizer) -> bool:
         try:
@@ -158,7 +158,7 @@ class Chained(Cooperative):
     """Matches worlds that require *chained* cooperation: a helped b, then b helped c.
 
     A chain of length >= 2 in the temporal dependency graph is required -- no non-chained
-    plan exists within ``t_max``. Mutual cooperation (a->b->a cycle) is a special case of
+    plan exists within`t_max`. Mutual cooperation (a->b->a cycle) is a special case of
     chaining, so `Mutual` is a refinement of this class.
     """
 
@@ -182,7 +182,7 @@ class Mutual(Chained):
     """
 
     def _matches(self, c: WorldCharacterizer) -> bool:
-        # ``is_mutual`` already entails ``is_chained`` and ``is_cooperative``.
+        # `is_mutual` already entails`is_chained` and`is_cooperative`.
         try:
             return c.is_mutual
         except NotSolvableError:
@@ -205,7 +205,7 @@ class Interdependent(Mutual):
     - its optimal trajectory's dependency graph contains a temporal cycle (every agent in
       the cycle transitively helps and is helped by every other agent, with timestamps
       progressing in a consistent direction), **and**
-    - no solution within ``t_max`` avoids all such cycles.
+    - no solution within`t_max` avoids all such cycles.
 
     For two agents this recovers temporal mutual cooperation (a->b then b->a in time order);
     with more agents it also covers longer circular dependencies (e.g. a->b->c->a).
@@ -213,12 +213,21 @@ class Interdependent(Mutual):
     Interdependence is a refinement of `Mutual`, so this is a subclass of `Mutual`.
     """
 
+    def __init__(self, n_agents: int, t_max: int, t_min: int | None = None):
+        super().__init__(t_max=t_max, t_min=t_min)
+        self.n_agents = n_agents
+
     def _matches(self, c: WorldCharacterizer) -> bool:
         try:
-            return c.is_interdependent()
+            return c.is_interdependent(self.n_agents)
         except NotSolvableError:
             return False
 
     @property
     def requires_interdependence(self) -> bool:
+        return True
+
+    @property
+    def requires_chained_cooperation(self) -> bool:
+        # Note: a cycle is necessarily a chain of length >= 2
         return True

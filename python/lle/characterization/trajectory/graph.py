@@ -1,8 +1,8 @@
 """The temporal helper graph and the structural properties extracted from it.
 
-A *dependency* (or *helper*) edge ``helper -> beneficiary`` at time step ``t``
-means that, at time ``t``, ``helper`` blocks a laser of its own colour while
-``beneficiary`` stands on a tile of that beam without dying (the beam is blocked
+A *dependency* (or *helper*) edge`helper -> beneficiary` at time step`t`
+means that, at time`t`,`helper` blocks a laser of its own colour while
+`beneficiary` stands on a tile of that beam without dying (the beam is blocked
 for the beneficiary).  See `lle.cooperation.analyser` for how these edges are
 detected from a trajectory.
 """
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class DependencyEdge:
-    """A single ``helper -> beneficiary`` relationship at one time step."""
+    """A single`helper -> beneficiary` relationship at one time step."""
 
     helper: AgentId
     """The agent that blocks its own laser."""
@@ -61,49 +61,49 @@ class TemporalDependencyGraph:
         return len(self._edges) == 0
 
     def edges_at(self, t: int) -> set[tuple[AgentId, AgentId]]:
-        """The ``(helper, beneficiary)`` pairs active exactly at time step ``t``."""
+        """The`(helper, beneficiary)` pairs active exactly at time step`t`."""
         return {(e.helper, e.beneficiary) for e in self._edges if e.t == t}
 
     def flattened_edges(self) -> set[tuple[AgentId, AgentId]]:
-        """The set of ``(helper, beneficiary)`` pairs across all time steps."""
+        """The set of`(helper, beneficiary)` pairs across all time steps."""
         return {(e.helper, e.beneficiary) for e in self._edges}
 
     def helpers_of(self, beneficiary: AgentId, t: int | None = None) -> set[AgentId]:
-        """The agents that help ``beneficiary`` (at time ``t`` if given, else ever)."""
+        """The agents that help`beneficiary` (at time`t` if given, else ever)."""
         return {e.helper for e in self._edges if e.beneficiary == beneficiary and (t is None or e.t == t)}
 
     def beneficiaries_of(self, helper: AgentId, t: int | None = None) -> set[AgentId]:
-        """The agents that ``helper`` helps (at time ``t`` if given, else ever)."""
+        """The agents that`helper` helps (at time`t` if given, else ever)."""
         return {e.beneficiary for e in self._edges if e.helper == helper and (t is None or e.t == t)}
 
     # ------------------------------------------------------------------
     # Fan-in / fan-out
     # ------------------------------------------------------------------
     def fan_in(self, beneficiary: AgentId, t: int | None = None) -> int:
-        """How many distinct agents help ``beneficiary`` (at time ``t`` if given)."""
+        """How many distinct agents help`beneficiary` (at time`t` if given)."""
         return len(self.helpers_of(beneficiary, t))
 
     def fan_out(self, helper: AgentId, t: int | None = None) -> int:
-        """How many distinct agents ``helper`` helps (at time ``t`` if given)."""
+        """How many distinct agents`helper` helps (at time`t` if given)."""
         return len(self.beneficiaries_of(helper, t))
 
     def max_fan_in(self, t: int | None = None) -> int:
-        """The largest fan-in over all agents (at time ``t`` if given)."""
+        """The largest fan-in over all agents (at time`t` if given)."""
         return max((self.fan_in(a, t) for a in range(self.n_agents)), default=0)
 
     def max_fan_out(self, t: int | None = None) -> int:
-        """The largest fan-out over all agents (at time ``t`` if given)."""
+        """The largest fan-out over all agents (at time`t` if given)."""
         return max((self.fan_out(a, t) for a in range(self.n_agents)), default=0)
 
     def longest_chain(self) -> int:
         """
-        A chain ``(a, t0) -> (b, t1) -> (c, t2) -> ...`` is a temporal directed path whose
+        A chain `(a, t0) -> (b, t1) -> (c, t2) -> ...` is a temporal directed path whose
         edges progress strictly through time. A chain encodes the idea of transitivity of the
         cooperation: if a helps b and b helps c, then a also helps c indirectly.
 
         Agents may repeat only to close a temporal cycle back to the starting agent. In
-        particular, ``a -> b -> a`` counts as a chain of length 2, while longer walks such as
-        ``a -> b -> c -> a`` also count but stop when they return to their start.
+        particular, `a -> b -> a` counts as a chain of length 2, while longer walks such as
+        `a -> b -> c -> a` also count but stop when they return to their start.
 
         A chain must have a length of at least 2 edges, otherwise it is not a chain.
 
@@ -148,9 +148,9 @@ class TemporalDependencyGraph:
     # ------------------------------------------------------------------
     def max_temporal_cycle_order(self, strict: bool = False) -> int:
         """Size of the largest simple directed cycle in the temporal graph with non-decreasing
-        (or strictly increasing, if ``strict=True``) timestamps, or 0 if no cycle exists.
+        (or strictly increasing, if `strict=True`) timestamps, or 0 if no cycle exists.
 
-        A temporal cycle of order ``k`` visits ``k`` distinct agents and returns to its start,
+        A temporal cycle of order`k` visits`k` distinct agents and returns to its start,
         with each edge's timestamp ≥ the previous one (non-strict) or > (strict).
         """
         by_helper: dict[AgentId, list[tuple[AgentId, int]]] = defaultdict(list)
@@ -185,10 +185,10 @@ class TemporalDependencyGraph:
     def has_cycle(self) -> bool:
         """Whether a mutual-help cycle exists with strictly increasing time.
 
-        A cycle is detected when there exist two agents ``a`` and ``b`` such that
-        ``a`` helps ``b`` at time ``t1`` and ``b`` helps ``a`` at time ``t2 > t1``.
-        Same-timestep mutual edges (``t1 == t2``) are not counted because the
-        strictly-increasing requirement is not satisfied.
+         A cycle is detected when there exist two agents`a` and`b` such that
+        `a` helps`b` at time`t1` and`b` helps`a` at time`t2 > t1`.
+         Same-timestep mutual edges (`t1 == t2`) are not counted because the
+         strictly-increasing requirement is not satisfied.
         """
         by_helper: dict[AgentId, set[tuple[AgentId, int]]] = defaultdict(set)
         for e in self._edges:

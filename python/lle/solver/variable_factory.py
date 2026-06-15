@@ -27,19 +27,19 @@ class VariableFactory:
     # ------------------------------------------------------------------
 
     def laser_blocked(self, laser_id: int, t: int) -> int:
-        """True iff the same-colour agent stands on laser ``laser_id``'s beam at time ``t``."""
+        """True iff the same-colour agent stands on laser`laser_id`'s beam at time`t`."""
         return self.pool.id(("laser_blocked", laser_id, t))
 
     def coop_term(self, helper: int, beneficiary: int, laser_id: int, blocker_idx: int, benef_idx: int, t: int) -> int:
         """Auxiliary variable: helper is at beam[blocker_idx] AND beneficiary is at beam[benef_idx] at time t.
 
-        Used to build the OR-definition of ``coop_event``.
+        Used to build the OR-definition of`coop_event`.
         blocker_idx < benef_idx is required (helper is upstream of beneficiary).
         """
         return self.pool.id(("coop_term", helper, beneficiary, laser_id, blocker_idx, benef_idx, t))
 
     def coop_event(self, helper: int, beneficiary: int, laser_id: int, t: int) -> int:
-        """True iff helper blocks laser ``laser_id`` while beneficiary is at a downstream beam position at time t."""
+        """True iff helper blocks laser`laser_id` while beneficiary is at a downstream beam position at time t."""
         return self.pool.id(("coop_event", helper, beneficiary, laser_id, t))
 
     def depends_on(self, beneficiary: int, helper: int) -> int:

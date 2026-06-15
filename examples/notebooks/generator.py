@@ -24,8 +24,8 @@ def _(mo):
 
 
 @app.cell
-def _(Sequence):
-    from typing import Iterable
+def _():
+    from typing import Iterable, Sequence
 
     import lle
     import matplotlib.pyplot as plt
@@ -42,14 +42,14 @@ def _(Sequence):
             figsize = (5 * n_cols, 5 * n_rows)
             fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize)
             if titles is None:
-                titles = [f"World {i+1}" for i in range(n_worlds)]
+                titles = [f"World {i + 1}" for i in range(n_worlds)]
             for i, (w, title) in enumerate(zip(worlds, titles)):
                 if n_rows == 1:
                     ax = axes[i]
                 else:
                     ax = axes[i // n_cols, i % n_cols]
                 ax.imshow(w.get_image())
-                ax.set_title(f"World {i + 1}")
+                ax.set_title(title)
                 ax.axis("off")
         plt.show()
 
@@ -69,7 +69,7 @@ def _(mo):
 def _(lle, plt):
     def simple_example():
         world = lle.generate().build()
-        three_worlds = lle.generate().take(3, progress=False)
+        three_worlds = lle.generate().take(3)
 
         fig, axes = plt.subplots(1, 4, figsize=(20, 5))
         axes[0].imshow(world.get_image())
@@ -159,14 +159,9 @@ def _(mo):
 
 @app.cell
 def _(display, lle):
-    #inter2 = lle.generate(width=6, height=6, n_agents=2).interdependent().take(4)
-    inter3 = lle.generate(width=7, height=7, n_agents=3).lasers(3, span=4).walls(8, style="shapes").interdependent().take(8)
-    display([*inter3])
-    return
-
-
-@app.cell
-def _():
+    inter2 = lle.generate(width=6, height=6, n_agents=2).interdependent().take(4)
+    inter3 = lle.generate(width=7, height=7, n_agents=3).lasers(3, span=4).walls(8, style="shapes").interdependent(3).take(8)
+    display([*inter2, *inter3])
     return
 
 

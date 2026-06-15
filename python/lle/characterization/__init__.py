@@ -19,7 +19,7 @@ def characterize(world: World, t_max: int | Literal["auto"] = "auto"):
     """Characterize `world` over every plan of length ≤ `t_max`.
 
     Returns a `WorldCharacterizer` exposing properties such as `is_cooperative`
-    and `is_mutual`. `t_max` defaults to ``(width * height) // 2``.
+    and `is_mutual`. `t_max` defaults to`(width * height) // 2`.
     """
     if t_max == "auto":
         t_max = (world.width * world.height) // 2

@@ -62,32 +62,32 @@ class WorldGenerator:
     Parameters
     ----------
     starts:
-        Agent start placement — ``"random"`` (anywhere), ``"edge"`` (one edge,
-        random direction each attempt), or ``"clustered"`` (rectangular group,
+        Agent start placement —`"random"` (anywhere),`"edge"` (one edge,
+        random direction each attempt), or`"clustered"` (rectangular group,
         random anchor each attempt).
     exits:
-        Exit placement — same modes as ``starts``, plus ``"opposite"`` which
+        Exit placement — same modes as`starts`, plus`"opposite"` which
         mirrors the agent edge/cluster to the far side of the grid.
     n_lasers:
         Number of laser sources (0 = no lasers).
     laser_placement:
-        ``"free"`` — valid position anywhere outside reserved cells.
-        ``"cross-agent"`` — structural laser perpendicular to agent lanes,
-        crossing all of them (requires ``starts="edge"``).
-        ``"cross-cluster"`` — corridor laser between start and exit clusters
-        (requires ``starts="clustered"`` and ``exits`` in
-        ``{"opposite", "cluster"}``).
+       `"free"` — valid position anywhere outside reserved cells.
+       `"cross-agent"` — structural laser perpendicular to agent lanes,
+        crossing all of them (requires`starts="edge"`).
+       `"cross-cluster"` — corridor laser between start and exit clusters
+        (requires`starts="clustered"` and`exits` in
+       `{"opposite", "cluster"}`).
     laser_span:
-        Minimum beam length. ``"any"`` enforces the 2-tile minimum. ``"across"``
+        Minimum beam length.`"any"` enforces the 2-tile minimum.`"across"`
         requires the beam to reach the far grid boundary untruncated. An integer
         sets an explicit minimum tile count (>= 2).
     n_walls:
-        Number of wall tiles. ``"auto"`` uses ~10 % of the grid.
+        Number of wall tiles.`"auto"` uses ~10 % of the grid.
     walls_style:
-        ``"individual"`` places single-cell walls; ``"shapes"`` groups them into
+       `"individual"` places single-cell walls;`"shapes"` groups them into
         connected bars / L-shapes / 2×2 blocks.
     filter:
-        A :class:`WorldFilter` applied after layout generation. ``None`` accepts
+        A :class:`WorldFilter` applied after layout generation.`None` accepts
         any geometrically valid world.
     """
 
@@ -206,8 +206,10 @@ class WorldGenerator:
             reserved,
             ctx,
         )
-        walls = room_walls if room_walls is not None else place_walls(
-            self._wall_cfg.n, self._wall_cfg.style, reserved, self.height, self.width, self._rng
+        walls = (
+            room_walls
+            if room_walls is not None
+            else place_walls(self._wall_cfg.n, self._wall_cfg.style, reserved, self.height, self.width, self._rng)
         )
         layout = CandidateLayout(self.height, self.width, agents=agents, exits=exits, walls=walls, lasers=lasers)
         if not layout.is_geometry_valid():

@@ -48,7 +48,7 @@ class GeneratorBuilder:
     """Fluent description of a world-generation request.
 
     Obtain one from `lle.generate(...)`; never instantiate it directly. Every
-    configuration method returns ``self`` so calls can be chained, and the last
+    configuration method returns`self` so calls can be chained, and the last
     call of a given category wins (e.g. calling `cooperative()` then `mutual()`
     keeps `mutual`). When two settings would contradict each other, this design
     makes the contradiction unreachable rather than raising at run time.
@@ -59,7 +59,7 @@ class GeneratorBuilder:
         self._height = height
         self._n_agents = n_agents
 
-        # Layout — defaults to a random scatter. ``_layout_explicit`` records
+        # Layout — defaults to a random scatter.`_layout_explicit` records
         # whether the user pinned a layout, so that an unset layout can be
         # auto-selected from the behavioural filter.
         self._starts: StartsMode = "random"
@@ -104,7 +104,7 @@ class GeneratorBuilder:
 
     def starts(self, mode: StartsMode) -> GeneratorBuilder:
         """
-        Set the agent start placement: ``"random"``, ``"edge"``, or ``"clustered"``.
+        Set the agent start placement:`"random"`,`"edge"`, or`"clustered"`.
 
         - `"edge"` places the start positions on one edge of the grid.
         - `"clustered"` places the start positions in an adjacent cluster. Depending on on
@@ -116,14 +116,14 @@ class GeneratorBuilder:
 
     def exits(self, mode: ExitsMode) -> GeneratorBuilder:
         """
-        Set the exit placement: ``"random"``, ``"edge"``, ``"cluster"``, or ``"opposite"``.
+        Set the exit placement:`"random"`,`"edge"`,`"cluster"`, or`"opposite"`.
 
         - `"edge"` places exits on one edge of the grid (independently of where agents start).
         - `"cluster"` groups exits into an adjacent cluster, mirroring the shape logic of
             `"clustered"` starts (2x1, 1x2, 2x2, …).
         - `"opposite"` mirrors the agent starts to the far side of the grid: the opposite edge
-            when starts are ``"edge"``, or a cluster on the opposite corner when starts are
-            ``"clustered"``. Requires `starts` to be ``"edge"`` or ``"clustered"``.
+            when starts are`"edge"`, or a cluster on the opposite corner when starts are
+           `"clustered"`. Requires `starts` to be`"edge"` or`"clustered"`.
         """
         self._exits = mode
         self._layout_explicit = True
@@ -147,15 +147,15 @@ class GeneratorBuilder:
     ) -> GeneratorBuilder:
         """Configure the laser sources.
 
-        - `n`: number of sources. ``"auto"`` picks a random count between 0 and
+        - `n`: number of sources.`"auto"` picks a random count between 0 and
           the number of agents when no cooperation is required, or a sensible
           minimum when cooperation is required (at least 1, at least 2 for
           chained/mutual/interdependent).
-        - `placement`: ``"free"`` (anywhere valid), ``"cross-agent"`` (each beam
+        - `placement`:`"free"` (anywhere valid),`"cross-agent"` (each beam
           crosses all agent lanes; needs `lanes`/`starts("edge")`),
-          ``"cross-cluster"`` (corridor between clusters; needs
-          `clustered`), or ``"auto"`` to derive it from the layout and filter.
-        - `span`: ``"any"`` (2-tile minimum), ``"across"`` (beam spans the grid),
+         `"cross-cluster"` (corridor between clusters; needs
+          `clustered`), or`"auto"` to derive it from the layout and filter.
+        - `span`:`"any"` (2-tile minimum),`"across"` (beam spans the grid),
           or an integer minimum beam length.
         """
         self._n_lasers = n
@@ -169,8 +169,8 @@ class GeneratorBuilder:
         *,
         style: WallsStyle = "individual",
     ) -> GeneratorBuilder:
-        """Configure walls: `n` cells (``"auto"`` ≈ 10 % of the grid), placed as
-        single cells (``"individual"``) or connected ``"shapes"``."""
+        """Configure walls: `n` cells (`"auto"` ≈ 10 % of the grid), placed as
+        single cells (`"individual"`) or connected`"shapes"`."""
         self._n_walls = n
         self._walls_style = style
         return self
@@ -178,22 +178,22 @@ class GeneratorBuilder:
     def rooms(self, n: int = 4, *, door_size: int = 1) -> GeneratorBuilder:
         """Divide the grid into `n` rooms separated by walls with doors.
 
-        Rooms are arranged in a rectangular grid — `n` is factored into
-        ``rows × cols`` as square as possible (e.g. 4 → 2×2, 6 → 2×3, 8 → 2×4).
-        Each pair of adjacent rooms is connected by a centered door of `door_size`
-        cells carved into the dividing wall. Calling `rooms()` overrides any
-        previous `walls()` call.
+         Rooms are arranged in a rectangular grid — `n` is factored into
+        `rows × cols` as square as possible (e.g. 4 → 2×2, 6 → 2×3, 8 → 2×4).
+         Each pair of adjacent rooms is connected by a centered door of `door_size`
+         cells carved into the dividing wall. Calling `rooms()` overrides any
+         previous `walls()` call.
 
-        ## Parameters
-        - `n`: number of rooms (>= 2). Must be factorable into a rectangular
-          arrangement.
-        - `door_size`: number of cells removed from each wall segment to form a
-          door (>= 1). The door is centered on the wall segment facing the room.
+         ## Parameters
+         - `n`: number of rooms (>= 2). Must be factorable into a rectangular
+           arrangement.
+         - `door_size`: number of cells removed from each wall segment to form a
+           door (>= 1). The door is centered on the wall segment facing the room.
 
-        ## Raises
-        `ValueError` if `n < 2`, `door_size < 1`, or the grid is too small:
-        a ``rows × cols`` layout requires ``height >= 2*rows - 1`` and
-        ``width >= 2*cols - 1`` (one cell per room plus one cell per wall).
+         ## Raises
+         `ValueError` if `n < 2`, `door_size < 1`, or the grid is too small:
+         a`rows × cols` layout requires`height >= 2*rows - 1` and
+        `width >= 2*cols - 1` (one cell per room plus one cell per wall).
         """
         if n < 2:
             raise ValueError(f"rooms requires n >= 2, got {n}")
@@ -268,12 +268,14 @@ class GeneratorBuilder:
 
     def interdependent(
         self,
+        n_agents: int = 2,
         t_max: int | None = None,
         t_min: int | None = None,
     ) -> GeneratorBuilder:
         """Require *temporal interdependence*: a temporal cycle in the dependency graph is forced
-        by every solution within ``t_max``. For two agents this recovers mutual cooperation."""
+        by every solution within`t_max`. For two agents this recovers mutual cooperation."""
         self._world_filter = Interdependent(
+            n_agents,
             t_max if t_max is not None else self._world_filter.t_max,
             t_min if t_min is not None else self._world_filter.t_min,
         )
@@ -318,7 +320,7 @@ class GeneratorBuilder:
 
         With no `max_attempts` the search runs until it succeeds and always
         returns a `World`. With a bounded `max_attempts` it returns the world,
-        or ``None`` if the budget is exhausted.
+        or`None` if the budget is exhausted.
 
         `seed` is only accepted when `n_jobs=1`; it has no meaningful effect
         across parallel workers because concurrency can yield different results
@@ -368,7 +370,7 @@ class GeneratorBuilder:
     ) -> Iterator[World]:
         """Generate up to `n` worlds, yielding each as it is produced.
 
-        - `n_jobs`: parallel workers; ``"auto"`` uses all CPUs but one.
+        - `n_jobs`: parallel workers;`"auto"` uses all CPUs but one.
         - `seed`: fixed RNG seed — only accepted when `n_jobs=1` because parallel workers may yield different results with the same seed due to concurrency.
         - `max_attempts`: total attempt budget; the stream may be shorter than
           `n` if the budget runs out.
@@ -423,7 +425,7 @@ class GeneratorBuilder:
         return self._starts, self._exits
 
     def _resolve_placement(self, starts: StartsMode) -> ResolvedPlacement:
-        """Derive a laser placement from the layout when left on ``"auto"``."""
+        """Derive a laser placement from the layout when left on`"auto"`."""
         if self._laser_placement != "auto":
             return self._laser_placement
         if self._world_filter.requires_cooperation:

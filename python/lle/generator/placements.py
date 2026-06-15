@@ -456,10 +456,10 @@ def _corridor_lasers(
     `fixed_is_row=True` fixes the row coordinate (E/W lasers);
     `fixed_is_row=False` fixes the column coordinate (N/S lasers).
 
-    When `span` is ``"across"`` the source is pinned to the grid edge so the
+    When `span` is`"across"` the source is pinned to the grid edge so the
     beam spans the full extent.  For any other span value the source in the
     varying dimension is drawn uniformly at random from positions that yield at
-    least `span` (or 2 for ``"any"``) beam tiles.
+    least `span` (or 2 for`"any"`) beam tiles.
     """
     grid_span = width if fixed_is_row else height
     # Resolve minimum beam length upfront; "across" is handled in its own branch.
@@ -522,9 +522,9 @@ def place_room_walls(
     height: int,
     width: int,
 ) -> list[Position]:
-    """Generate walls that divide the grid into a ``n_rooms_rows × n_rooms_cols`` layout.
+    """Generate walls that divide the grid into a`n_rooms_rows × n_rooms_cols` layout.
 
-    Each pair of adjacent rooms is connected by a door of ``door_size`` cells
+    Each pair of adjacent rooms is connected by a door of`door_size` cells
     centered on the wall segment that faces the room.
     """
     n_hdividers = n_rooms_rows - 1
