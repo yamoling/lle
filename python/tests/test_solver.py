@@ -256,7 +256,7 @@ def test_rust_solve_mode_values():
 
     assert RustSolveMode.STANDARD.value == "standard"
     assert RustSolveMode.NO_COOPERATION.value == "no-cooperation"
-    assert RustSolveMode.NO_MUTUAL_COOPERATION.value == "no-mutual-cooperation"
+    assert RustSolveMode.NO_MUTUAL_COOPERATION.value == "no-mutual"
     assert str(RustSolveMode.NO_COOPERATION) == "no-cooperation"
 
 

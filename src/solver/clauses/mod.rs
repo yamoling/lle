@@ -3,11 +3,13 @@ mod cooperation;
 mod generator;
 mod lasers;
 mod movement;
+mod solve_mode;
 mod utils;
 mod var_pool;
 pub type Literal = i32;
 pub type Clause = Vec<Literal>;
-pub use generator::{ClauseGenerator, SolveMode};
+pub use generator::ClauseGenerator;
+pub use solve_mode::SolveMode;
 pub use var_pool::{VarKey, VarPool};
 
 #[cfg(test)]

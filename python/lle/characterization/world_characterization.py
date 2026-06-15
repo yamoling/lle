@@ -3,7 +3,7 @@ from functools import cached_property
 
 from .. import solver
 from ..world import World
-from .trajectory import profile_trajectory, TrajectoryProfile
+from .trajectory import profile_trajectory
 
 
 class NotSolvableError(ValueError):
@@ -92,9 +92,9 @@ class WorldCharacterizer:
             return False
         return self.shortest_non_chained_path is None
 
-    def is_interdependent(self) -> bool:
+    def is_interdependent(self, n_agents: int) -> bool:
         """
-        Whether the world *requires* interdependence:
+        Whether the world *requires* interdependence between at least `n_agents` agents:
         - the optimal trajectory's dependency graph contains a temporal cycle, and
         - no solution within ``t_max`` avoids all such cycles.
 
@@ -105,7 +105,7 @@ class WorldCharacterizer:
         if path is None:
             raise NotSolvableError("World is not solvable")
         profile = profile_trajectory(self.world, path)
-        if not profile.is_interdependent():
+        if not profile.is_interdependent(n_agents):
             return False
         return self.shortest_non_interdependent_path is None
 
@@ -120,11 +120,11 @@ class WorldCharacterizer:
 
     @cached_property
     def shortest_non_mutual_path(self):
-        return solver.solve(self.world, self.t_max, mode="no-mutual-cooperation")
+        return solver.solve(self.world, self.t_max, mode="no-mutual")
 
     @cached_property
     def shortest_non_chained_path(self):
-        return solver.solve(self.world, self.t_max, mode="no-chained-cooperation")
+        return solver.solve(self.world, self.t_max, mode="no-chain")
 
     @cached_property
     def shortest_non_interdependent_path(self):

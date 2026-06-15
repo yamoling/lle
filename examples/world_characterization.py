@@ -5,7 +5,7 @@ Mutual cooperation between two agents `a` and `b` is the conjunction
     "a helps b cross one of a's laser beams at some point"   AND
     "b helps a cross one of b's laser beams at some point".
 
-`lle.solve(world, t_max, "no-mutual-cooperation")` searches for the shortest plan in which *no*
+`lle.solve(world, t_max, "no-mutual")` searches for the shortest plan in which *no*
 pair of agents mutually cooperates.
 
 Run with:  python examples/world_characterization.py
@@ -43,7 +43,7 @@ def report(name: str, world: World, t_max: int) -> None:
     for t in range(t_max + 1):
         if lle.solve(world, t) is None:
             continue  # no plan of this length at all
-        free = lle.solve(world, t, mode="no-mutual-cooperation") is not None
+        free = lle.solve(world, t, mode="no-mutual") is not None
         verdict = "free of mutual help" if free else "MUTUAL HELP REQUIRED"
         print(f"  t={t:2}: solvable, shortest plan is {verdict}")
     print(f"  -> requires_mutual_cooperation(t_max={t_max}) = {lle.characterize(world, t_max).is_mutual}")

@@ -116,7 +116,7 @@ def _(mo):
 
 @app.cell
 def _(display, lle):
-    mutual = lle.generate(n_agents=3).lasers(2).mutual(t_max=30).build()
+    mutual = lle.generate(n_agents=3).starts("edge").exits("opposite").lasers(2).mutual(t_max=30).build()
     display(mutual)
     return
 
@@ -159,9 +159,9 @@ def _(mo):
 
 @app.cell
 def _(display, lle):
-    inter2 = lle.generate(width=6, height=6, n_agents=2).interdependent().take(4)
-    inter3 = lle.generate(width=6, height=6, n_agents=3).lasers(3, span=4).walls(8, style="shapes").interdependent().take(4)
-    display([*inter2, *inter3])
+    #inter2 = lle.generate(width=6, height=6, n_agents=2).interdependent().take(4)
+    inter3 = lle.generate(width=7, height=7, n_agents=3).lasers(3, span=4).walls(8, style="shapes").interdependent().take(8)
+    display([*inter3])
     return
 
 

@@ -23,10 +23,10 @@ class ClauseGenerator:
     The `mode` parameter controls which extra constraints are generated:
     - `"standard"` (default): world rules only.
     - `"no-cooperation"`: assumptions forbidding any non-owner agent from entering a laser span.
-    - `"no-mutual-cooperation"`: clauses and assumptions forbidding pairs of agents from
+    - `"no-mutual"`: clauses and assumptions forbidding pairs of agents from
       mutually helping each other.
-    - `"no-chained-cooperation"`: clauses and assumptions forbidding any temporal chain
-      `a → b → c` (a helped b, then b helped c). Subsumes `"no-mutual-cooperation"`.
+    - `"no-chain"`: clauses and assumptions forbidding any temporal chain
+      `a → b → c` (a helped b, then b helped c). Subsumes `"no-mutual"`.
     - `"no-interdependence"`: clauses and assumptions forbidding any temporal cycle in the
       dependency graph (a closed help chain returning to its start).
     
@@ -62,12 +62,12 @@ class ClauseGenerator:
         r"""
         The number of SAT variables allocated so far by this generator.
         """
-    def __new__(cls, world: world.World, t_max: builtins.int, mode: typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation', 'no-chained-cooperation', 'no-interdependence'] | SolveMode) -> ClauseGenerator:
+    def __new__(cls, world: world.World, t_max: builtins.int, mode: typing.Literal['standard', 'no-cooperation', 'no-mutual', 'no-chain', 'no-interdependence'] | SolveMode) -> ClauseGenerator:
         r"""
         Build a clause generator for the given `world`, considering plans of length up to `t_max`.
         
         `mode` selects the solving strategy. It accepts either a `SolveMode` instance or a raw
-        string literal (`"standard"`, `"no-cooperation"`, `"no-mutual-cooperation"`). Defaults to
+        string literal (`"standard"`, `"no-cooperation"`, `"no-mutual"`). Defaults to
         `SolveMode.STANDARD`.
         """
     def generate(self, t: builtins.int) -> tuple[builtins.list[builtins.list[builtins.int]], builtins.list[builtins.int]]:
@@ -78,8 +78,8 @@ class ClauseGenerator:
         then returns the full formula for this horizon:
         - All buffered clauses for steps `0..=t`
         - The objective clauses (every agent on an exit at step `t`)
-        - For `"no-mutual-cooperation"` mode: mutual-forbid clauses and assumptions
-        - For `"no-chained-cooperation"` mode: chain-forbid assumptions
+        - For `"no-mutual"` mode: mutual-forbid clauses and assumptions
+        - For `"no-chain"` mode: chain-forbid assumptions
         - For `"no-interdependence"` mode: cycle-forbid assumptions
         - For `"no-cooperation"` mode: per-step no-cooperation assumptions
         
@@ -137,7 +137,7 @@ class SolveMode(enum.Enum):
     NO_INTERDEPENDENCE = ...
 
     @property
-    def value(self) -> typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation', 'no-chained-cooperation', 'no-interdependence']:
+    def value(self) -> typing.Literal['standard', 'no-cooperation', 'no-mutual', 'no-chain', 'no-interdependence']:
         r"""
         The canonical string representation, e.g. `"no-cooperation"`.
         Matches the string literals accepted by `ClauseGenerator` and `solve`.
@@ -148,5 +148,5 @@ class SolveMode(enum.Enum):
     def __repr__(self) -> builtins.str: ...
     def __hash__(self) -> builtins.int: ...
     @staticmethod
-    def from_str(value: typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation', 'no-chained-cooperation', 'no-interdependence']) -> SolveMode: ...
+    def from_str(value: typing.Literal['standard', 'no-cooperation', 'no-mutual', 'no-chain', 'no-interdependence']) -> SolveMode: ...
 

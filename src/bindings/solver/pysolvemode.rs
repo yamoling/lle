@@ -85,13 +85,13 @@ impl PySolveMode {
     /// The canonical string representation, e.g. `"no-cooperation"`.
     /// Matches the string literals accepted by `ClauseGenerator` and `solve`.
     #[getter]
-    #[gen_stub(override_return_type(type_repr="typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation', 'no-chained-cooperation', 'no-interdependence']", imports=("typing")))]
+    #[gen_stub(override_return_type(type_repr="typing.Literal['standard', 'no-cooperation', 'no-mutual', 'no-chain', 'no-interdependence']", imports=("typing")))]
     pub fn value(&self) -> &'static str {
         match self {
             Self::Standard => "standard",
             Self::NoCooperation => "no-cooperation",
-            Self::NoMutualCooperation => "no-mutual-cooperation",
-            Self::NoChainedCooperation => "no-chained-cooperation",
+            Self::NoMutualCooperation => "no-mutual",
+            Self::NoChainedCooperation => "no-chain",
             Self::NoInterdependence => "no-interdependence",
         }
     }
@@ -125,14 +125,14 @@ impl PySolveMode {
 
     #[staticmethod]
     pub fn from_str(
-        #[gen_stub(override_type(type_repr="typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation', 'no-chained-cooperation', 'no-interdependence']", imports=("typing")))]
+        #[gen_stub(override_type(type_repr="typing.Literal['standard', 'no-cooperation', 'no-mutual', 'no-chain', 'no-interdependence']", imports=("typing")))]
         value: &str,
     ) -> PyResult<Self> {
         match value {
             "standard" => Ok(Self::Standard),
             "no-cooperation" => Ok(Self::NoCooperation),
-            "no-mutual-cooperation" => Ok(Self::NoMutualCooperation),
-            "no-chained-cooperation" => Ok(Self::NoChainedCooperation),
+            "no-mutual" => Ok(Self::NoMutualCooperation),
+            "no-chain" => Ok(Self::NoChainedCooperation),
             "no-interdependence" => Ok(Self::NoInterdependence),
             _ => Err(PyValueError::new_err(format!(
                 "invalid solve mode: {value}"

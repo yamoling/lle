@@ -3,8 +3,8 @@
 Mutual cooperation between agents `a` and `b` holds when, in a plan, `a` helps `b` cross one of
 `a`'s laser beams at some point *and* `b` helps `a` likewise at some point. These tests cover:
 
-- `solve(mode="no-mutual-cooperation")` (the public API), and
-- `ClauseGenerator(mode="no-mutual-cooperation")` (the low-level Rust primitive),
+- `solve(mode="no-mutual")` (the public API), and
+- `ClauseGenerator(mode="no-mutual")` (the low-level Rust primitive),
 
 against oracles whose cooperation structure is already pinned by the codebase (levels 1/3/6) plus
 two hand-built corridors.
@@ -41,7 +41,7 @@ def requires_mutual_cooperation(world: World, t_max: int) -> bool:
     """Return True if the world is solvable but cannot be solved without mutual cooperation."""
     if solve(world, t_max) is None:
         return False
-    return solve(world, t_max, mode="no-mutual-cooperation") is None
+    return solve(world, t_max, mode="no-mutual") is None
 
 
 # ---------------------------------------------------------------------------
@@ -49,7 +49,7 @@ def requires_mutual_cooperation(world: World, t_max: int) -> bool:
 # ---------------------------------------------------------------------------
 def test_independent_level_needs_no_mutual_cooperation():
     assert requires_mutual_cooperation(World.level(1), 10) is False
-    assert solve(World.level(1), 10, mode="no-mutual-cooperation") is not None
+    assert solve(World.level(1), 10, mode="no-mutual") is not None
 
 
 def test_asymmetric_cooperation_is_not_mutual():
@@ -58,13 +58,13 @@ def test_asymmetric_cooperation_is_not_mutual():
     world = World.level(3)
     assert lle.is_cooperative(world, 12) is True
     assert requires_mutual_cooperation(world, 12) is False
-    assert solve(world, 12, mode="no-mutual-cooperation") is not None
+    assert solve(world, 12, mode="no-mutual") is not None
 
 
 def test_level_6_requires_mutual_cooperation():
     world = World.level(6)
     assert requires_mutual_cooperation(world, 21) is True
-    assert solve(world, 21, mode="no-mutual-cooperation") is None
+    assert solve(world, 21, mode="no-mutual") is None
 
 
 def test_no_laser_world_is_never_mutual():
@@ -81,7 +81,7 @@ def test_always_mutual_corridor():
     for t in range(11):
         if solve(world, t) is None:
             continue
-        assert solve(world, t, mode="no-mutual-cooperation") is None
+        assert solve(world, t, mode="no-mutual") is None
 
 
 def test_time_dependent_threshold():
@@ -90,11 +90,11 @@ def test_time_dependent_threshold():
     for t in range(TIME_DEPENDENT_THRESHOLD):
         if solve(world, t) is None:
             continue
-        assert solve(world, t, mode="no-mutual-cooperation") is None, f"expected mutual help at t={t}"
+        assert solve(world, t, mode="no-mutual") is None, f"expected mutual help at t={t}"
     # At/above the threshold: a mutual-free plan appears.
-    assert solve(world, TIME_DEPENDENT_THRESHOLD, mode="no-mutual-cooperation") is not None
+    assert solve(world, TIME_DEPENDENT_THRESHOLD, mode="no-mutual") is not None
     # The mutual-free plan is itself a valid plan (replays without error onto the world).
-    plan = solve(world, TIME_DEPENDENT_THRESHOLD, mode="no-mutual-cooperation")
+    plan = solve(world, TIME_DEPENDENT_THRESHOLD, mode="no-mutual")
     assert plan is not None
     world.reset()
     for joint in plan:
@@ -103,24 +103,24 @@ def test_time_dependent_threshold():
 
 
 # ---------------------------------------------------------------------------
-# ClauseGenerator with mode="no-mutual-cooperation"
+# ClauseGenerator with mode="no-mutual"
 # ---------------------------------------------------------------------------
 def test_no_mutual_cooperation_mode_empty_without_lasers():
-    """With no lasers, no-mutual-cooperation mode should still find a solution."""
-    plan = solve(World(NO_LASER), 6, mode="no-mutual-cooperation")
+    """With no lasers, no-mutual mode should still find a solution."""
+    plan = solve(World(NO_LASER), 6, mode="no-mutual")
     assert plan is not None
 
 
 def test_no_mutual_cooperation_mode_always_mutual_is_unsat():
-    """With mutual cooperation unavoidable, no-mutual-cooperation mode returns None."""
+    """With mutual cooperation unavoidable, no-mutual mode returns None."""
     world = World(ALWAYS_MUTUAL)
-    assert solve(world, 10, mode="no-mutual-cooperation") is None
+    assert solve(world, 10, mode="no-mutual") is None
 
 
 def test_clause_generator_no_mutual_cooperation_mode():
-    """ClauseGenerator with mode='no-mutual-cooperation' must find the same answer as solve()."""
+    """ClauseGenerator with mode='no-mutual' must find the same answer as solve()."""
     world = World(ALWAYS_MUTUAL)
-    gen = ClauseGenerator(world, 10, mode="no-mutual-cooperation")
+    gen = ClauseGenerator(world, 10, mode="no-mutual")
     from lle.solver.solver import solve_model
 
     for t in range(gen.solution_lower_bound, gen.t_max + 1):
@@ -130,5 +130,5 @@ def test_clause_generator_no_mutual_cooperation_mode():
             plan = gen.decode_plan(model, t)
             assert plan is not None
             return
-    # ALWAYS_MUTUAL should be UNSAT under no-mutual-cooperation at any horizon ≤10
-    assert solve(world, 10, mode="no-mutual-cooperation") is None
+    # ALWAYS_MUTUAL should be UNSAT under no-mutual at any horizon ≤10
+    assert solve(world, 10, mode="no-mutual") is None

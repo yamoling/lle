@@ -9,10 +9,10 @@ and is helped). `is_cooperative(world)` is the common-case shortcut.
 from typing import Literal
 
 from ..world import World
-from .trajectory import TrajectoryProfile
+from .trajectory import TrajectoryProfile, profile_trajectory
 from .world_characterization import WorldCharacterizer
 
-__all__ = ["characterize", "is_cooperative", "WorldCharacterizer", "TrajectoryProfile"]
+__all__ = ["characterize", "is_cooperative", "WorldCharacterizer", "TrajectoryProfile", "profile_trajectory"]
 
 
 def characterize(world: World, t_max: int | Literal["auto"] = "auto"):

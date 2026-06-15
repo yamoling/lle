@@ -94,6 +94,36 @@ def test_threshold_mutual_to_cooperative(t_max: int):
     assert wc.is_mutual == is_mutual
 
 
+def test_2_or_3_interdependent():
+    world = World("""
+    S0  .  .  .  .  @ @
+    S1  .  .  .  .  @ @
+    S2 L0E .  .  .  @ @
+    .  .  .  @  .  . .
+    .  .  .  . L1W . .
+    .  @ L2E .  .  . .
+    .  @  @  .  X  X X
+    """)
+    wc = WorldCharacterizer(world, t_max=16)
+    assert wc.is_interdependent(2)
+    assert not wc.is_interdependent(3)
+
+
+def test_not_interdependent():
+    world = World("""
+    S0  .  .  .  .  @ @
+    S1  .  .  .  .  @ @
+    S2 L0E .  .  .  @ @
+    .  .  .  @  .  . .
+    .  .  .  . L1W . .
+    .  @ L2E .  .  . .
+    .  @  @  .  X  X X
+    """)
+    wc = WorldCharacterizer(world, t_max=16)
+    assert wc.is_interdependent(2)
+    assert not wc.is_interdependent(3)
+
+
 # ---------------------------------------------------------------------------
 # Unsolvable world: error handling
 # ---------------------------------------------------------------------------

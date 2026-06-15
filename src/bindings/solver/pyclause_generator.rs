@@ -17,10 +17,10 @@ use crate::{
 /// The `mode` parameter controls which extra constraints are generated:
 /// - `"standard"` (default): world rules only.
 /// - `"no-cooperation"`: assumptions forbidding any non-owner agent from entering a laser span.
-/// - `"no-mutual-cooperation"`: clauses and assumptions forbidding pairs of agents from
+/// - `"no-mutual"`: clauses and assumptions forbidding pairs of agents from
 ///   mutually helping each other.
-/// - `"no-chained-cooperation"`: clauses and assumptions forbidding any temporal chain
-///   `a → b → c` (a helped b, then b helped c). Subsumes `"no-mutual-cooperation"`.
+/// - `"no-chain"`: clauses and assumptions forbidding any temporal chain
+///   `a → b → c` (a helped b, then b helped c). Subsumes `"no-mutual"`.
 /// - `"no-interdependence"`: clauses and assumptions forbidding any temporal cycle in the
 ///   dependency graph (a closed help chain returning to its start).
 ///
@@ -58,7 +58,7 @@ impl PyClauseGenerator {
     /// Build a clause generator for the given `world`, considering plans of length up to `t_max`.
     ///
     /// `mode` selects the solving strategy. It accepts either a `SolveMode` instance or a raw
-    /// string literal (`"standard"`, `"no-cooperation"`, `"no-mutual-cooperation"`). Defaults to
+    /// string literal (`"standard"`, `"no-cooperation"`, `"no-mutual"`). Defaults to
     /// `SolveMode.STANDARD`.
     #[new]
     fn new(
@@ -66,7 +66,7 @@ impl PyClauseGenerator {
         world: &PyWorld,
         t_max: usize,
         #[gen_stub(override_type(
-            type_repr = "typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation', 'no-chained-cooperation', 'no-interdependence'] | SolveMode",
+            type_repr = "typing.Literal['standard', 'no-cooperation', 'no-mutual', 'no-chain', 'no-interdependence'] | SolveMode",
             imports = ("typing",)
         ))]
         mode: Py<PyAny>,
@@ -101,8 +101,8 @@ impl PyClauseGenerator {
     /// then returns the full formula for this horizon:
     /// - All buffered clauses for steps `0..=t`
     /// - The objective clauses (every agent on an exit at step `t`)
-    /// - For `"no-mutual-cooperation"` mode: mutual-forbid clauses and assumptions
-    /// - For `"no-chained-cooperation"` mode: chain-forbid assumptions
+    /// - For `"no-mutual"` mode: mutual-forbid clauses and assumptions
+    /// - For `"no-chain"` mode: chain-forbid assumptions
     /// - For `"no-interdependence"` mode: cycle-forbid assumptions
     /// - For `"no-cooperation"` mode: per-step no-cooperation assumptions
     ///
