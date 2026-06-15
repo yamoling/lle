@@ -233,6 +233,22 @@ def _exits_as_opposite_cluster(
 # ---------------------------------------------------------------------------
 # Laser placement
 # ---------------------------------------------------------------------------
+def _make_candidate(
+    pos: Position,
+    direction: Direction,
+    reserved: set[Position],
+    span: int | Literal["any", "across"],
+    height: int,
+    width: int,
+) -> tuple[Position, Direction, list[Position]] | None:
+    if pos in reserved:
+        return None
+    tiles = beam_tiles(pos, direction, set(), set(), height, width)
+    if len(tiles) < 2 or any(t in reserved for t in tiles):
+        return None
+    if not _beam_satisfies_span(tiles, pos, direction, span, height, width):
+        return None
+    return pos, direction, tiles
 
 
 def _beam_satisfies_span(
@@ -323,19 +339,12 @@ def _place_lasers_free(
     for r in range(height):
         for c in range(width):
             pos = (r, c)
-            if pos in reserved:
-                continue
             for direction in ALL_DIRS:
                 if points_out_immediately(pos, direction, height, width):
                     continue
-                tiles = beam_tiles(pos, direction, set(), set(), height, width)
-                if len(tiles) < 2:
-                    continue
-                if any(t in reserved for t in tiles):
-                    continue
-                if not _beam_satisfies_span(tiles, pos, direction, span, height, width):
-                    continue
-                candidates.append((pos, direction, tiles))
+                c_ = _make_candidate(pos, direction, reserved, span, height, width)
+                if c_ is not None:
+                    candidates.append(c_)
     return _select_lasers(candidates, n_lasers, rng, reserved, reserve_beam=False)
 
 
@@ -355,66 +364,38 @@ def _place_lasers_cross_agent(
 
     lane_set = set(lane_ids)
     min_lane, max_lane = min(lane_ids), max(lane_ids)
-    candidates: list[tuple[Position, Direction, list[Position]]] = []
 
     if edge in ("left", "right"):
-        before_band = [r for r in range(height) if r not in lane_set and r < min_lane]
-        after_band = [r for r in range(height) if r not in lane_set and r > max_lane]
-        for row in before_band:
-            for col in range(width):
-                pos = (row, col)
-                if pos in reserved:
-                    continue
-                tiles = beam_tiles(pos, Direction.SOUTH, set(), set(), height, width)
-                if not _beam_satisfies_span(tiles, pos, Direction.SOUTH, span, height, width):
-                    continue
-                if not lane_set.issubset(t[0] for t in tiles):
-                    continue
-                if any(t in reserved for t in tiles):
-                    continue
-                candidates.append((pos, Direction.SOUTH, tiles))
-        for row in after_band:
-            for col in range(width):
-                pos = (row, col)
-                if pos in reserved:
-                    continue
-                tiles = beam_tiles(pos, Direction.NORTH, set(), set(), height, width)
-                if not _beam_satisfies_span(tiles, pos, Direction.NORTH, span, height, width):
-                    continue
-                if not lane_set.issubset(t[0] for t in tiles):
-                    continue
-                if any(t in reserved for t in tiles):
-                    continue
-                candidates.append((pos, Direction.NORTH, tiles))
+        fixed_range = range(height)
+        other_range = range(width)
+        before_dir, after_dir = Direction.SOUTH, Direction.NORTH
+        lane_axis = 0  # tile[0] is the row, which must cover all lane rows
+
+        def make_pos(fixed, other):
+            return (fixed, other)
     else:
-        before_band = [c for c in range(width) if c not in lane_set and c < min_lane]
-        after_band = [c for c in range(width) if c not in lane_set and c > max_lane]
-        for col in before_band:
-            for row in range(height):
-                pos = (row, col)
-                if pos in reserved:
+        fixed_range = range(width)
+        other_range = range(height)
+        before_dir, after_dir = Direction.EAST, Direction.WEST
+        lane_axis = 1  # tile[1] is the col, which must cover all lane cols
+
+        def make_pos(fixed, other):
+            return (other, fixed)
+
+    before_band = [i for i in fixed_range if i not in lane_set and i < min_lane]
+    after_band = [i for i in fixed_range if i not in lane_set and i > max_lane]
+
+    candidates: list[tuple[Position, Direction, list[Position]]] = []
+    for band, direction in ((before_band, before_dir), (after_band, after_dir)):
+        for fixed in band:
+            for other in other_range:
+                pos = make_pos(fixed, other)
+                c = _make_candidate(pos, direction, reserved, span, height, width)
+                if c is None:
                     continue
-                tiles = beam_tiles(pos, Direction.EAST, set(), set(), height, width)
-                if not _beam_satisfies_span(tiles, pos, Direction.EAST, span, height, width):
-                    continue
-                if not lane_set.issubset(t[1] for t in tiles):
-                    continue
-                if any(t in reserved for t in tiles):
-                    continue
-                candidates.append((pos, Direction.EAST, tiles))
-        for col in after_band:
-            for row in range(height):
-                pos = (row, col)
-                if pos in reserved:
-                    continue
-                tiles = beam_tiles(pos, Direction.WEST, set(), set(), height, width)
-                if not _beam_satisfies_span(tiles, pos, Direction.WEST, span, height, width):
-                    continue
-                if not lane_set.issubset(t[1] for t in tiles):
-                    continue
-                if any(t in reserved for t in tiles):
-                    continue
-                candidates.append((pos, Direction.WEST, tiles))
+                _, _, tiles = c
+                if lane_set.issubset(t[lane_axis] for t in tiles):
+                    candidates.append(c)
 
     if not candidates:
         raise LayoutRetry()
@@ -450,64 +431,63 @@ def _place_lasers_cross_cluster(
         corridor_rows = list(range(agent_bottom + 1, exit_top))
         rng.shuffle(corridor_rows)
         chosen = sorted(corridor_rows[:n_lasers])
-        return _corridor_lasers_horizontal(chosen, span, height, width, reserved)
+        return _corridor_lasers(chosen, Direction.EAST, Direction.WEST, True, span, height, width, rng, reserved)
     if col_gap >= n_lasers:
         corridor_cols = list(range(agent_right + 1, exit_left))
         rng.shuffle(corridor_cols)
         chosen = sorted(corridor_cols[:n_lasers])
-        return _corridor_lasers_vertical(chosen, span, height, width, reserved)
+        return _corridor_lasers(chosen, Direction.SOUTH, Direction.NORTH, False, span, height, width, rng, reserved)
     raise LayoutRetry()
 
 
-def _corridor_lasers_horizontal(
-    corridor_rows: list[int],
+def _corridor_lasers(
+    slots: list[int],
+    dir_even: Direction,
+    dir_odd: Direction,
+    fixed_is_row: bool,
     span: int | Literal["any", "across"],
     height: int,
     width: int,
+    rng: random.Random,
     reserved: set[Position],
 ) -> tuple[list[tuple[int, Position, Direction]], set[Position]]:
-    """E/W lasers placed on corridor rows from alternating sides."""
+    """Lasers placed on corridor rows or columns from alternating sides.
+
+    `fixed_is_row=True` fixes the row coordinate (E/W lasers);
+    `fixed_is_row=False` fixes the column coordinate (N/S lasers).
+
+    When `span` is ``"across"`` the source is pinned to the grid edge so the
+    beam spans the full extent.  For any other span value the source in the
+    varying dimension is drawn uniformly at random from positions that yield at
+    least `span` (or 2 for ``"any"``) beam tiles.
+    """
+    grid_span = width if fixed_is_row else height
+    # Resolve minimum beam length upfront; "across" is handled in its own branch.
+    min_len: int = 2 if span == "any" else (0 if span == "across" else span)  # type: ignore[assignment]
+
     lasers: list[tuple[int, Position, Direction]] = []
     new_reserved = set(reserved)
-    for i, row in enumerate(corridor_rows):
-        pos: Position
-        if i % 2 == 0:
-            pos = (row, 0)
-            direction = Direction.EAST
-        else:
-            pos = (row, width - 1)
-            direction = Direction.WEST
-        if pos in new_reserved:
-            raise LayoutRetry()
-        tiles = beam_tiles(pos, direction, set(), set(), height, width)
-        if not _beam_satisfies_span(tiles, pos, direction, span, height, width):
-            raise LayoutRetry()
-        lasers.append((i, pos, direction))
-        new_reserved.add(pos)
-        new_reserved.update(tiles)
-    return lasers, new_reserved
 
+    for i, slot in enumerate(slots):
+        direction = dir_even if i % 2 == 0 else dir_odd
 
-def _corridor_lasers_vertical(
-    corridor_cols: list[int],
-    span: int | Literal["any", "across"],
-    height: int,
-    width: int,
-    reserved: set[Position],
-) -> tuple[list[tuple[int, Position, Direction]], set[Position]]:
-    """N/S lasers placed on corridor cols from alternating sides."""
-    lasers: list[tuple[int, Position, Direction]] = []
-    new_reserved = set(reserved)
-    for i, col in enumerate(corridor_cols):
-        pos: Position
-        if i % 2 == 0:
-            pos = (0, col)
-            direction = Direction.SOUTH
+        if span == "across":
+            var = 0 if direction in (Direction.EAST, Direction.SOUTH) else grid_span - 1
+            pos: Position = (slot, var) if fixed_is_row else (var, slot)
+            if pos in new_reserved:
+                raise LayoutRetry()
         else:
-            pos = (height - 1, col)
-            direction = Direction.NORTH
-        if pos in new_reserved:
-            raise LayoutRetry()
+            if direction in (Direction.EAST, Direction.SOUTH):
+                # beam extends forward: source var ≤ grid_span - 1 - min_len
+                valid = [v for v in range(0, grid_span - min_len) if ((slot, v) if fixed_is_row else (v, slot)) not in new_reserved]
+            else:
+                # beam extends backward: source var ≥ min_len
+                valid = [v for v in range(min_len, grid_span) if ((slot, v) if fixed_is_row else (v, slot)) not in new_reserved]
+            if not valid:
+                raise LayoutRetry()
+            var = rng.choice(valid)
+            pos = (slot, var) if fixed_is_row else (var, slot)
+
         tiles = beam_tiles(pos, direction, set(), set(), height, width)
         if not _beam_satisfies_span(tiles, pos, direction, span, height, width):
             raise LayoutRetry()
@@ -520,8 +500,6 @@ def _corridor_lasers_vertical(
 # ---------------------------------------------------------------------------
 # Wall placement
 # ---------------------------------------------------------------------------
-
-
 def place_walls(
     n_walls: int,
     style: Literal["individual", "shapes"],
