@@ -84,7 +84,7 @@ class TemporalDependencyGraph:
 
     def has_asymmetric_edge(self) -> bool:
         """Whether some agent helps another agent without ever being helped itself."""
-        return bool(self.asymmetric_edges())
+        return len(self.asymmetric_edges()) > 0
 
     # ------------------------------------------------------------------
     # Fan-in / fan-out

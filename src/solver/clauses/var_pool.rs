@@ -22,7 +22,7 @@ pub enum VarKey {
     /// indicator: read at the current horizon it expresses time-agnostic dependency (used by
     /// the mutual-cooperation forbid), and it seeds the first edge of every temporal walk
     /// (chains and interdependence cycles).
-    FirstHelpedByTime {
+    HasHelpedByTime {
         helper: AgentId,
         beneficiary: AgentId,
         t: usize,
@@ -40,7 +40,7 @@ pub enum VarKey {
     },
     /// Progress for temporal walk `walk_id`: its first `step` edges have fired with
     /// non-decreasing timestamps, the `step`-th edge firing at some time ≤ `t`. Only created for
-    /// `step ≥ 2`; the first edge is expressed directly by [`FirstHelpedByTime`]. A walk is a
+    /// `step ≥ 2`; the first edge is expressed directly by [`HasHelpedByTime`]. A walk is a
     /// chain (`a → b → c`, open) or an interdependence cycle (closed) depending on the mode.
     WalkProgress { walk_id: u32, step: u8, t: usize },
     /// Whether temporal walk `walk_id` has been fully realized (all its edges fired in order).
@@ -70,8 +70,8 @@ impl VarKey {
     }
 
     #[inline]
-    pub fn first_helped_by_time(helper: AgentId, beneficiary: AgentId, t: usize) -> Self {
-        VarKey::FirstHelpedByTime {
+    pub fn has_helped_by_time(helper: AgentId, beneficiary: AgentId, t: usize) -> Self {
+        VarKey::HasHelpedByTime {
             helper,
             beneficiary,
             t,
@@ -159,8 +159,8 @@ impl VarPool {
     }
 
     /// Indicator "`helper` has helped `beneficiary` at any time step ≤ `t`".
-    pub fn first_helped_by_time(&mut self, helper: AgentId, beneficiary: AgentId, t: usize) -> i32 {
-        self.id(VarKey::first_helped_by_time(helper, beneficiary, t))
+    pub fn has_helped_by_time(&mut self, helper: AgentId, beneficiary: AgentId, t: usize) -> i32 {
+        self.id(VarKey::has_helped_by_time(helper, beneficiary, t))
     }
 
     /// Progress indicator: the first `step` edges of walk `walk_id` have been fired by time `t`.

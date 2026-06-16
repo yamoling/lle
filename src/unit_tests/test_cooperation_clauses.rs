@@ -1,10 +1,10 @@
-//! Direct tests of the `first_helped_by_time` / mutual-cooperation clause generation.
+//! Direct tests of the `has_helped_by_time` / mutual-cooperation clause generation.
 //!
 //! These exercise the *structure* of the generated literals and clauses, independently of any
 //! SAT solver (solving is delegated to Python). SAT/UNSAT behaviour is covered by the Python
 //! tests in `python/tests/test_mutual_cooperation.py`.
 //!
-//! Note: a `first_helped_by_time` indicator is created only for `(helper, beneficiary)` pairs
+//! Note: a `has_helped_by_time` indicator is created only for `(helper, beneficiary)` pairs
 //! that can take part in a *mutual* dependency, i.e. **both** agents own a laser. A non-owner can
 //! never reciprocate help, so tracking a dependency onto it would be a dead variable. This is why
 //! the single-owner worlds below produce no indicator at all.
@@ -22,9 +22,9 @@ fn build(map: &str, t_max: usize, mode: SolveMode) -> ClauseGenerator {
     cg
 }
 
-/// True if `helper` has a `first_helped_by_time(helper, beneficiary, t)` variable at any step.
+/// True if `helper` has a `has_helped_by_time(helper, beneficiary, t)` variable at any step.
 fn can_help(cg: &ClauseGenerator, helper: usize, beneficiary: usize, t_max: usize) -> bool {
-    (0..=t_max).any(|t| cg.exists(&VarKey::first_helped_by_time(helper, beneficiary, t)))
+    (0..=t_max).any(|t| cg.exists(&VarKey::has_helped_by_time(helper, beneficiary, t)))
 }
 
 /// `S0` (laser owner) can step into beam `L0E` to protect `S1`, but `S1` owns no laser, so no
@@ -63,36 +63,40 @@ fn single_owner_world_tracks_no_dependency() {
 }
 
 #[test]
-fn first_helped_by_time_clauses_are_binary_implications_into_fhbt() {
+fn has_helped_by_time_clauses_are_binary_implications_into_has_helped() {
     let world = World::try_from(MUTUAL).expect("failed to parse world");
     let mut cg = ClauseGenerator::new(&world, 10, SolveMode::NoMutualCooperation);
     // Each clause must be a binary implication whose single positive literal is some
-    // `first_helped_by_time(helper, beneficiary, t)`, and whose antecedent is either the
+    // `has_helped_by_time(helper, beneficiary, t)`, and whose antecedent is either the
     // beneficiary's agent var (a fresh help event) or the previous-step indicator (monotone
     // carry-forward).
     let mut produced_any = false;
     for t in 0..=10 {
-        for clause in cg.first_helped_by_time_clauses(t) {
+        for clause in cg.has_helped_by_time_clauses(t) {
             produced_any = true;
             assert_eq!(clause.len(), 2, "each implication must be a binary clause");
             let (negated, positive): (Vec<i32>, Vec<i32>) =
                 clause.iter().copied().partition(|&l| l < 0);
             assert_eq!(negated.len(), 1, "exactly one negated (antecedent) literal");
-            assert_eq!(positive.len(), 1, "exactly one positive (fhbt) literal");
-            // The positive literal must be a first_helped_by_time indicator at the current step.
-            let Some(VarKey::FirstHelpedByTime {
+            assert_eq!(
+                positive.len(),
+                1,
+                "exactly one positive (has_helped) literal"
+            );
+            // The positive literal must be a has_helped_by_time indicator at the current step.
+            let Some(VarKey::HasHelpedByTime {
                 helper,
                 beneficiary,
-                t: fhbt_t,
+                t: has_helped_t,
             }) = cg.pool.key(positive[0])
             else {
-                panic!("positive literal must be a FirstHelpedByTime var");
+                panic!("positive literal must be a HasHelpedByTime var");
             };
-            assert_eq!(fhbt_t, t);
+            assert_eq!(has_helped_t, t);
             // The antecedent is either the beneficiary's agent var, or the previous-step indicator.
             match cg.pool.key(-negated[0]) {
                 Some(VarKey::Agent { agent_id, .. }) => assert_eq!(agent_id, beneficiary),
-                Some(VarKey::FirstHelpedByTime {
+                Some(VarKey::HasHelpedByTime {
                     helper: h2,
                     beneficiary: b2,
                     t: prev_t,
@@ -110,7 +114,7 @@ fn first_helped_by_time_clauses_are_binary_implications_into_fhbt() {
     }
     assert!(
         produced_any,
-        "two crossable facing beams must yield first-helped-by-time implications"
+        "two crossable facing beams must yield has-helped-by-time implications"
     );
 }
 
@@ -120,7 +124,7 @@ fn no_laser_has_no_dependencies() {
     let mut cg = ClauseGenerator::new(&world, 10, SolveMode::NoMutualCooperation);
     for t in 0..=10 {
         assert!(
-            cg.first_helped_by_time_clauses(t).is_empty(),
+            cg.has_helped_by_time_clauses(t).is_empty(),
             "no laser means no help events"
         );
     }

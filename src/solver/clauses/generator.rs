@@ -118,10 +118,10 @@ pub struct ClauseGenerator {
     ///   distinct owners and whose final beneficiary `vn` is any other agent (open, cycle or lasso).
     /// - `NoInterdependence`: closed walks `[v0, …, v_{m-1}, v0]` (any simple cycle, order ≥ 2).
     pub(super) walks: Vec<Vec<AgentId>>,
-    /// Ordered `(helper, beneficiary)` pairs for which a `first_helped_by_time` indicator is
+    /// Ordered `(helper, beneficiary)` pairs for which a `has_helped_by_time` indicator is
     /// actually consumed — the mutual owner-pairs (mutual mode) or each walk's first edge (walk
-    /// modes). Generating `fhbt` only for these avoids defined-but-unread indicator variables.
-    pub(super) fhbt_pairs: Vec<(AgentId, AgentId)>,
+    /// modes). Generating `has_helped` only for these avoids defined-but-unread indicator variables.
+    pub(super) has_helped_pairs: Vec<(AgentId, AgentId)>,
     /// `clause_buffer[t]` = world-enforcing (+ mode-specific) clauses for step `t`.
     clause_buffer: Vec<Vec<Clause>>,
     /// `assumption_buffer[t]` = per-step assumptions for step `t`.
@@ -152,10 +152,10 @@ impl ClauseGenerator {
                 .collect(),
             _ => vec![],
         };
-        // `first_helped_by_time` is generated only for directed pairs consumed by the selected
+        // `has_helped_by_time` is generated only for directed pairs consumed by the selected
         // cooperation mode: all owner-to-agent edges for asymmetric mode, mutual owner-pairs for
         // mutual mode, or each walk's first edge for walk modes.
-        let fhbt_pairs: Vec<(AgentId, AgentId)> = match mode {
+        let has_helped_pairs: Vec<(AgentId, AgentId)> = match mode {
             SolveMode::NoAsymmetricCooperation => owners
                 .iter()
                 .flat_map(|&helper| {
@@ -188,7 +188,7 @@ impl ClauseGenerator {
             pool: VarPool::new(),
             mode,
             walks,
-            fhbt_pairs,
+            has_helped_pairs,
             clause_buffer: vec![Vec::new(); t_max + 1],
             assumption_buffer: vec![Vec::new(); t_max + 1],
             generated_until: None,
@@ -207,8 +207,8 @@ impl ClauseGenerator {
         let start = self.generated_until.map_or(0, |u| u + 1);
         for tt in start..=t {
             self.ctx.update(tt);
-            self.fill_clauses(tt);
-            self.fill_assumptions(tt);
+            self.generate_clauses(tt);
+            self.generate_assumptions(tt);
         }
         if start <= t {
             self.generated_until = Some(t);
@@ -223,6 +223,10 @@ impl ClauseGenerator {
         clauses.extend(self.objective(t));
         match self.mode {
             SolveMode::NoAsymmetricCooperation => {
+                // Asymmetric-forbid clauses depend on the current solve horizon `t` because an
+                // earlier help event is non-asymmetric if the helper is helped at any later step
+                // up to `t`. Do not cache these in `fill_clauses`; see
+                // `forbid_asymmetric_cooperation` for details.
                 let (ac, aa) = self.forbid_asymmetric_cooperation(t);
                 clauses.extend(ac);
                 assumptions.extend(aa);
@@ -243,7 +247,7 @@ impl ClauseGenerator {
         (clauses, assumptions)
     }
 
-    fn fill_clauses(&mut self, t: usize) {
+    fn generate_clauses(&mut self, t: usize) {
         let mut clauses = Vec::new();
         clauses.extend(self.initialization(t));
         clauses.extend(self.exactly_one_position(t));
@@ -254,12 +258,11 @@ impl ClauseGenerator {
         let (beam_clauses, active_lit) = self.beam_activation(t);
         clauses.extend(beam_clauses);
         clauses.extend(self.no_step_on_active_laser(t, &active_lit));
+        if self.mode != SolveMode::Standard {
+            clauses.extend(self.has_helped_by_time_clauses(t));
+        }
         match self.mode {
-            SolveMode::NoAsymmetricCooperation | SolveMode::NoMutualCooperation => {
-                clauses.extend(self.first_helped_by_time_clauses(t));
-            }
             SolveMode::NoChainedCooperation(_) | SolveMode::NoInterdependence(_) => {
-                clauses.extend(self.first_helped_by_time_clauses(t));
                 clauses.extend(self.walk_clauses(t));
             }
             _ => {}
@@ -267,7 +270,7 @@ impl ClauseGenerator {
         self.clause_buffer[t] = clauses;
     }
 
-    fn fill_assumptions(&mut self, t: usize) {
+    fn generate_assumptions(&mut self, t: usize) {
         self.assumption_buffer[t] = match self.mode {
             SolveMode::Standard
             | SolveMode::NoAsymmetricCooperation

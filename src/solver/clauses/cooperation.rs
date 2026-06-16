@@ -31,13 +31,13 @@ impl ClauseGenerator {
             .collect()
     }
 
-    /// Clauses defining `first_helped_by_time(helper, beneficiary, t)` for every pair that can
+    /// Clauses defining `has_helped_by_time(helper, beneficiary, t)` for every pair that can
     /// help, at time step `t`. This is a **monotone temporal prefix-OR**: it becomes true at the
     /// first help event and stays true forever after.
     ///
     /// ```text
-    /// agent(beneficiary, q, t)                    → first_helped_by_time(helper, beneficiary, t)
-    /// first_helped_by_time(helper, beneficiary, t-1) → first_helped_by_time(helper, beneficiary, t)
+    /// agent(beneficiary, q, t)                    → has_helped_by_time(helper, beneficiary, t)
+    /// has_helped_by_time(helper, beneficiary, t-1) → has_helped_by_time(helper, beneficiary, t)
     /// ```
     ///
     /// This single family serves three purposes, replacing what used to be three separate
@@ -48,15 +48,15 @@ impl ClauseGenerator {
     /// - it is the left side of every chain (its original role).
     ///
     /// Call once per time step, after `generate(t)`.
-    pub(crate) fn first_helped_by_time_clauses(&mut self, t: usize) -> Vec<Clause> {
+    pub(crate) fn has_helped_by_time_clauses(&mut self, t: usize) -> Vec<Clause> {
         self.ctx.update(t);
         let mut clauses = Vec::new();
-        for idx in 0..self.fhbt_pairs.len() {
-            let (helper, beneficiary) = self.fhbt_pairs[idx];
+        for idx in 0..self.has_helped_pairs.len() {
+            let (helper, beneficiary) = self.has_helped_pairs[idx];
             let positions = self.help_edge_positions(helper, beneficiary, t);
             let prev = if t > 0 {
                 self.pool
-                    .get(&VarKey::first_helped_by_time(helper, beneficiary, t - 1))
+                    .get(&VarKey::has_helped_by_time(helper, beneficiary, t - 1))
             } else {
                 None
             };
@@ -64,13 +64,13 @@ impl ClauseGenerator {
             if positions.is_empty() && prev.is_none() {
                 continue;
             }
-            let fhbt = self.pool.first_helped_by_time(helper, beneficiary, t);
+            let has_helped = self.pool.has_helped_by_time(helper, beneficiary, t);
             for pos in &positions {
                 let agent_var = self.pool.agent(beneficiary, *pos, t);
-                clauses.push(implies(agent_var, fhbt));
+                clauses.push(implies(agent_var, has_helped));
             }
             if let Some(prev) = prev {
-                clauses.push(implies(prev, fhbt));
+                clauses.push(implies(prev, has_helped));
             }
         }
         clauses
@@ -89,19 +89,27 @@ impl ClauseGenerator {
     /// encoded as:
     ///
     /// ```text
-    /// ¬agent(beneficiary, q, τ) ∨ OR_k first_helped_by_time(k, helper, t) ∨ asymmetric(...)
+    /// ¬agent(beneficiary, q, τ) ∨ OR_k has_helped_by_time(k, helper, t) ∨ asymmetric(...)
     /// ```
     ///
     /// The returned assumptions contain `¬asymmetric(...)` for every such variable. Under those
     /// assumptions, the clauses reduce to the direct no-asymmetric constraint:
     ///
     /// ```text
-    /// agent(beneficiary, q, τ) → OR_k first_helped_by_time(k, helper, t)
+    /// agent(beneficiary, q, τ) → OR_k has_helped_by_time(k, helper, t)
     /// ```
     ///
     /// If no incoming-help indicator exists for `helper`, the defining clause is
     /// `¬agent(beneficiary, q, τ) ∨ asymmetric(...)`, and the negative assumption forbids all
     /// outgoing help from that unhelpable helper.
+    ///
+    /// This must stay horizon-specific and must not be folded into the per-step cached clauses
+    /// generated alongside laser activity. The condition that makes an outgoing help event
+    /// non-asymmetric is "the helper is helped at some time `≤ t`", where `t` is the current solve
+    /// horizon, not the event time `τ`. A helper may help at `τ` and only be helped later. Using
+    /// `has_helped_by_time(_, helper, τ)` would reject such valid non-asymmetric trajectories;
+    /// using `t_max` would be unsound for shorter horizon solves. Therefore these clauses are
+    /// generated at the end of `generate(t)`, after the current horizon is known.
     pub(crate) fn forbid_asymmetric_cooperation(
         &mut self,
         t: usize,
@@ -110,8 +118,8 @@ impl ClauseGenerator {
         let mut assumptions = Vec::new();
         for tau in 0..=t {
             self.ctx.update(tau);
-            let pairs = self.fhbt_pairs.clone();
-            for (helper, beneficiary) in pairs {
+            // let pairs = self.has_helped_pairs.clone();
+            for (helper, beneficiary) in self.has_helped_pairs.clone() {
                 let positions = self.help_edge_positions(helper, beneficiary, tau);
                 if positions.is_empty() {
                     continue;
@@ -119,8 +127,7 @@ impl ClauseGenerator {
                 let incoming: Vec<Literal> = (0..self.ctx.n_agents)
                     .filter(|&other| other != helper)
                     .filter_map(|other| {
-                        self.pool
-                            .get(&VarKey::first_helped_by_time(other, helper, t))
+                        self.pool.get(&VarKey::has_helped_by_time(other, helper, t))
                     })
                     .collect();
                 for pos in positions {
@@ -142,26 +149,26 @@ impl ClauseGenerator {
     /// horizon `t`.
     ///
     /// Mutual cooperation between `a` and `b` is "`a` helps `b` at some point **and** `b` helps
-    /// `a` at some point". With the monotone [`first_helped_by_time`](Self::first_helped_by_time_clauses)
+    /// `a` at some point". With the monotone [`has_helped_by_time`](Self::has_helped_by_time_clauses)
     /// indicator read at the current horizon, that is exactly
-    /// `first_helped_by_time(a, b, t) ∧ first_helped_by_time(b, a, t)`, reified into a
+    /// `has_helped_by_time(a, b, t) ∧ has_helped_by_time(b, a, t)`, reified into a
     /// [`mutual`](VarKey::mutual) variable
     ///
     /// ```text
-    /// first_helped_by_time(a, b, t) ∧ first_helped_by_time(b, a, t) → mutual(a, b)
+    /// has_helped_by_time(a, b, t) ∧ has_helped_by_time(b, a, t) → mutual(a, b)
     /// ```
     ///
     /// and returned together with the assumption `¬mutual(a, b)`. Call after
-    /// `first_helped_by_time_clauses` has been generated for every time step `0..=t`.
+    /// `has_helped_by_time_clauses` has been generated for every time step `0..=t`.
     pub(crate) fn forbid_mutual_cooperation(&mut self, t: usize) -> (Vec<Clause>, Vec<Literal>) {
         let n_agents = self.ctx.n_agents;
         let mut clauses = Vec::new();
         let mut assumptions = Vec::new();
         for a in 0..n_agents {
             for b in (a + 1)..n_agents {
-                // `a` helps `b` ⇒ first_helped_by_time(a, b); `b` helps `a` ⇒ first_helped_by_time(b, a).
-                let a_helps_b = self.pool.get(&VarKey::first_helped_by_time(a, b, t));
-                let b_helps_a = self.pool.get(&VarKey::first_helped_by_time(b, a, t));
+                // `a` helps `b` ⇒ has_helped_by_time(a, b); `b` helps `a` ⇒ has_helped_by_time(b, a).
+                let a_helps_b = self.pool.get(&VarKey::has_helped_by_time(a, b, t));
+                let b_helps_a = self.pool.get(&VarKey::has_helped_by_time(b, a, t));
                 if let (Some(d_ab), Some(d_ba)) = (a_helps_b, b_helps_a) {
                     let mutual = self.pool.mutual(a, b);
                     clauses.push(vec![-d_ab, -d_ba, mutual]);
@@ -175,7 +182,7 @@ impl ClauseGenerator {
     /// The progress literal after the first `step` edges of `walk` have fired by time `t`, or
     /// `None` if that progress variable has not been created yet.
     ///
-    /// `step 1` is expressed directly by [`first_helped_by_time`](Self::first_helped_by_time_clauses)
+    /// `step 1` is expressed directly by [`has_helped_by_time`](Self::has_helped_by_time_clauses)
     /// (the walk's first edge `walk[0] → walk[1]`); deeper steps use the dedicated
     /// [`WalkProgress`](VarKey::WalkProgress) family.
     fn walk_progress_get(
@@ -187,7 +194,7 @@ impl ClauseGenerator {
     ) -> Option<i32> {
         if step == 1 {
             self.pool
-                .get(&VarKey::first_helped_by_time(walk[0], walk[1], t))
+                .get(&VarKey::has_helped_by_time(walk[0], walk[1], t))
         } else {
             self.pool
                 .get(&VarKey::walk_progress(walk_id, step as u8, t))
@@ -201,7 +208,7 @@ impl ClauseGenerator {
     /// encoding is one construction for both:
     ///
     /// ```text
-    /// // step 1 is first_helped_by_time(u0, u1, ·) — emitted by first_helped_by_time_clauses
+    /// // step 1 is has_helped_by_time(u0, u1, ·) — emitted by has_helped_by_time_clauses
     /// progress(s-1, t) ∧ agent(u_s, q, t) → progress(s, t)      for 2 ≤ s ≤ m-1   (interior edges)
     /// progress(s, t-1)                     → progress(s, t)                        (monotone in t)
     /// progress(m-1, t) ∧ agent(u_m, q, t) → walk_realized(walk) (the closing/last edge)
@@ -209,7 +216,7 @@ impl ClauseGenerator {
     ///
     /// where `agent(u_s, q, t)` ranges over the help-edge tiles of `u_{s-1}`'s beam reachable by
     /// `u_s`. Call once per time step, after
-    /// [`first_helped_by_time_clauses`](Self::first_helped_by_time_clauses).
+    /// [`has_helped_by_time_clauses`](Self::has_helped_by_time_clauses).
     pub(crate) fn walk_clauses(&mut self, t: usize) -> Vec<Clause> {
         self.ctx.update(t);
         let mut clauses = Vec::new();
