@@ -105,32 +105,19 @@ class TemporalDependencyGraph:
         """The largest fan-out over all agents (at time`t` if given)."""
         return max((self.fan_out(a, t) for a in range(self.n_agents)), default=0)
 
-    def longest_chain(self) -> int:
+    def longest_walk(self) -> int:
         """
-        A chain `(a, t0) -> (b, t1) -> (c, t2) -> ...` is a temporal directed path whose
-        edges progress strictly through time. The order of a chain is the number of edges
-        that compose it, i.e. the length of the egde-path. A chain encodes two ideas:
-           1) transitivity of the cooperation: if a helps b and b helps c, then a also helps c indirectly.
-           2) depth of cooperation: i.e. how many subsequent (or simultaneous) cooperative events occur.
-
-        A chain must have a length of at least 2 edges, otherwise it is not a chain.
-
-        # Returns
-        The returned value counts the length of the longest chain in the graph.
+        Returns the length of the longest walk in the graph.
 
         # Examples
-           - a single help relationship returns 0;
+           - `a -> b` returns 1;
            - `a -> b -> c` returns `2`;
            - `a -> b -> c -> a` returns `3`;
            - `a -> b -> c -> d -> b` returns `4`;
-           - `a -> b`, and `a -> c` returns `0`;
+           - `a -> b`, and `a -> c` returns `1`;
            - `a -> b -> a` returns `2`;
            - an independent graph returns `0`.
         """
-        # A chain is a temporal walk whose helpers are distinct and whose timestamps never
-        # decrease; its final beneficiary is unconstrained, so a walk may close back onto an
-        # earlier agent (a cycle `a -> b -> c -> a` or a lasso `a -> b -> c -> d -> b`). Distinct
-        # helpers bound the walk length to `n_agents`, so the search terminates.
         by_helper: dict[AgentId, list[tuple[AgentId, int]]] = defaultdict(list)
         for e in self._edges:
             by_helper[e.helper].append((e.beneficiary, e.t))
@@ -149,8 +136,6 @@ class TemporalDependencyGraph:
             return best
 
         max_length = max((dfs(a, frozenset({a}), -1) for a in range(self.n_agents)), default=0)
-        if max_length < 2:
-            return 0
         return max_length
 
     # ------------------------------------------------------------------
