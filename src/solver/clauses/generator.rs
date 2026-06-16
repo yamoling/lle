@@ -4,9 +4,9 @@ use crate::solver::errors::SolverError;
 use crate::{Action, AgentId, Position, World};
 
 use super::super::context::ConstraintContext;
-use super::solve_mode::SolveMode;
 use super::Clause;
 use super::Literal;
+use super::solve_mode::SolveMode;
 use super::{VarKey, VarPool};
 
 /// Enumerate all simple directed cycles of order ≥ `min_order` over `agents`.

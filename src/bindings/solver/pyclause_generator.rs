@@ -3,7 +3,7 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use super::pysolvemode::PySolveMode;
 use crate::{
-    bindings::{pyexceptions::solver_error_to_exception, PyAction, PyWorld},
+    bindings::{PyAction, PyWorld, pyexceptions::solver_error_to_exception},
     solver::{Clause, ClauseGenerator, Literal, SolveMode},
 };
 

@@ -12,6 +12,12 @@ impl ClauseGenerator {
     /// folding away tiles that no same-colour agent can ever reach (constant-active tiles).
     /// Returns both the clauses and a map from `(laser_id, x, y)` to the literal representing
     /// beam-tile activation; tiles absent from the map are constant-active.
+    ///
+    /// Keep the returned `active_lit` map coupled to [`Self::no_step_on_active_laser`]. It carries
+    /// more information than `self.pool.get(VarKey::laser(...))`: a downstream tile may have no own
+    /// laser variable while still being controlled by an upstream blocker, in which case the map
+    /// points that tile to the upstream active literal. A missing map entry means something stronger:
+    /// the tile is constant-active and cannot be made safe by any blocker.
     pub(super) fn beam_activation(&mut self, t: usize) -> (Vec<Clause>, HashMap<VarKey, i32>) {
         let mut clauses = Vec::new();
         let mut active_lit = HashMap::new();
@@ -48,6 +54,16 @@ impl ClauseGenerator {
     }
 
     /// Agents cannot step on an active laser beam of another colour.
+    ///
+    /// `active_lit` must be the map returned by [`Self::beam_activation`] for the same `t`. Do not
+    /// replace it with `self.pool.get(VarKey::laser(...))`: absence from the pool is ambiguous.
+    /// It can mean either:
+    /// - a downstream tile reuses an upstream active literal, so a non-owner may stand there when
+    ///   the beam is blocked upstream; or
+    /// - a constant-active tile, where no blocker can ever make the tile safe.
+    ///
+    /// The map disambiguates those cases. `Some(lit)` yields the conditional clause
+    /// `agent_on_tile -> !lit`; `None` yields a unit clause forbidding the tile entirely.
     pub(super) fn no_step_on_active_laser(
         &mut self,
         t: usize,

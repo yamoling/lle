@@ -1,7 +1,7 @@
 use image::{GenericImage, Rgb, RgbImage, RgbaImage};
 use itertools::izip;
 
-use super::{sprites, TileVisitor, BLACK, GRID_GREY};
+use super::{BLACK, GRID_GREY, TileVisitor, sprites};
 use crate::{
     core::World,
     tiles::{Direction, Gem, Laser, LaserSource},

@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    AgentId, Position,
     core::parsing::laser_config::LaserConfig,
     tiles::{Direction, LaserId},
-    AgentId, Position,
 };
 
 #[derive(Debug, Deserialize, Serialize)]

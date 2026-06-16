@@ -99,7 +99,11 @@ fn first_helped_by_time_clauses_are_binary_implications_into_fhbt() {
                     t: prev_t,
                 }) => {
                     assert_eq!((h2, b2), (helper, beneficiary));
-                    assert_eq!(prev_t, t - 1, "monotone carry must reference the previous step");
+                    assert_eq!(
+                        prev_t,
+                        t - 1,
+                        "monotone carry must reference the previous step"
+                    );
                 }
                 other => panic!("unexpected antecedent literal: {other:?}"),
             }
@@ -129,22 +133,34 @@ fn no_laser_has_no_dependencies() {
 fn mutual_world_creates_both_directions() {
     let cg = build(MUTUAL, 10);
     // agent 0 (L0E owner) can help agent 1 cross its east beam
-    assert!(can_help(&cg, 0, 1, 10), "agent 0 should be able to help agent 1");
+    assert!(
+        can_help(&cg, 0, 1, 10),
+        "agent 0 should be able to help agent 1"
+    );
     // agent 1 (L1W owner) can help agent 0 cross its west beam
-    assert!(can_help(&cg, 1, 0, 10), "agent 1 should be able to help agent 0");
+    assert!(
+        can_help(&cg, 1, 0, 10),
+        "agent 1 should be able to help agent 0"
+    );
 }
 
 #[test]
 fn mutual_world_generates_forbid_clauses_and_assumptions() {
     let mut cg = build(MUTUAL, 10);
     let (clauses, assumptions) = cg.forbid_mutual_cooperation(10);
-    assert!(!clauses.is_empty(), "mutual world must produce forbid clauses");
+    assert!(
+        !clauses.is_empty(),
+        "mutual world must produce forbid clauses"
+    );
     assert!(
         !assumptions.is_empty(),
         "mutual world must produce negative assumptions"
     );
     for &lit in &assumptions {
-        assert!(lit < 0, "all forbid-mutual assumptions must be negative literals");
+        assert!(
+            lit < 0,
+            "all forbid-mutual assumptions must be negative literals"
+        );
     }
 }
 
@@ -160,5 +176,8 @@ fn level_6_dependency_is_bidirectional() {
             .filter(|&b| b != a)
             .any(|b| can_help(&cg, a, b, 21) && can_help(&cg, b, a, 21))
     });
-    assert!(has_bidirectional, "level 6 must have at least one bidirectional dependency pair");
+    assert!(
+        has_bidirectional,
+        "level 6 must have at least one bidirectional dependency pair"
+    );
 }

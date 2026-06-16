@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
 use crate::{
-    tiles::{Direction, LaserBeam, LaserId, LaserSource},
     AgentId,
+    tiles::{Direction, LaserBeam, LaserId, LaserSource},
 };
 
 use super::ParseError;
@@ -23,7 +23,7 @@ impl LaserConfig {
             Err(_) => {
                 return Err(ParseError::InvalidAgentId {
                     given_agent_id: value[1..2].to_string(),
-                })
+                });
             }
         };
         Ok(Self {

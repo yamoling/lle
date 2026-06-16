@@ -1,6 +1,6 @@
 use crate::{
-    agent::{Agent, AgentId},
     WorldEvent,
+    agent::{Agent, AgentId},
 };
 
 #[derive(Default, Debug)]

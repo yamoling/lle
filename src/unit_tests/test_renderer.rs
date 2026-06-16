@@ -1,4 +1,4 @@
-use crate::{rendering::TILE_SIZE, Renderer, World};
+use crate::{Renderer, World, rendering::TILE_SIZE};
 
 #[test]
 fn pixel_dimensions() {
