@@ -29,6 +29,15 @@ pub enum VarKey {
     },
     /// Whether agents `a` and `b` mutually depend on each other (canonical: `a < b`).
     Mutual { a: AgentId, b: AgentId },
+    /// Whether the concrete help event `helper -> beneficiary` at `pos` and time `t` is asymmetric,
+    /// i.e. `helper` is not helped by any other agent by the solve horizon. The variable is used as
+    /// a forbid-by-assumption literal in `no-asymmetric` mode.
+    Asymmetric {
+        helper: AgentId,
+        beneficiary: AgentId,
+        pos: Position,
+        t: usize,
+    },
     /// Progress for temporal walk `walk_id`: its first `step` edges have fired with
     /// non-decreasing timestamps, the `step`-th edge firing at some time ≤ `t`. Only created for
     /// `step ≥ 2`; the first edge is expressed directly by [`FirstHelpedByTime`]. A walk is a
@@ -74,6 +83,16 @@ impl VarKey {
     pub fn mutual(a: AgentId, b: AgentId) -> Self {
         let (lo, hi) = if a < b { (a, b) } else { (b, a) };
         VarKey::Mutual { a: lo, b: hi }
+    }
+
+    #[inline]
+    pub fn asymmetric(helper: AgentId, beneficiary: AgentId, pos: Position, t: usize) -> Self {
+        VarKey::Asymmetric {
+            helper,
+            beneficiary,
+            pos,
+            t,
+        }
     }
 
     #[inline]
@@ -126,6 +145,17 @@ impl VarPool {
     /// Indicator "`a` and `b` mutually depend on each other" (canonical, `a < b`).
     pub fn mutual(&mut self, a: AgentId, b: AgentId) -> i32 {
         self.id(VarKey::mutual(a, b))
+    }
+
+    /// Indicator "this concrete help event is asymmetric".
+    pub fn asymmetric(
+        &mut self,
+        helper: AgentId,
+        beneficiary: AgentId,
+        pos: Position,
+        t: usize,
+    ) -> i32 {
+        self.id(VarKey::asymmetric(helper, beneficiary, pos, t))
     }
 
     /// Indicator "`helper` has helped `beneficiary` at any time step ≤ `t`".

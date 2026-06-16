@@ -200,7 +200,7 @@ impl ClauseGenerator {
     /// Fills the internal buffers for any steps not yet cached, then returns:
     /// - All buffered world-enforcing (and mode-specific) clauses for steps `0..=t`
     /// - The objective clauses for horizon `t` (every agent on an exit)
-    /// - For `NoAsymmetricCooperation`: clauses forbidding asymmetric help edges
+    /// - For `NoAsymmetricCooperation`: the current asymmetric-forbid clauses and assumptions
     /// - For `NoMutualCooperation`: the current mutual-forbid clauses and assumptions
     /// - For `NoCooperation`: per-step no-cooperation assumptions for steps `0..=t`
     pub fn generate(&mut self, t: usize) -> (Vec<Clause>, Vec<Literal>) {
@@ -223,7 +223,9 @@ impl ClauseGenerator {
         clauses.extend(self.objective(t));
         match self.mode {
             SolveMode::NoAsymmetricCooperation => {
-                clauses.extend(self.forbid_asymmetric_cooperation(t));
+                let (ac, aa) = self.forbid_asymmetric_cooperation(t);
+                clauses.extend(ac);
+                assumptions.extend(aa);
             }
             SolveMode::NoMutualCooperation => {
                 let (mc, ma) = self.forbid_mutual_cooperation(t);

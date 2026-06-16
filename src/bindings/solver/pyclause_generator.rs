@@ -17,7 +17,7 @@ use crate::{
 /// The `mode` parameter controls which extra constraints are generated:
 /// - `"standard"` (default): world rules only.
 /// - `"no-cooperation"`: assumptions forbidding any non-owner agent from entering a laser span.
-/// - `"no-asymmetric"`: clauses forbidding an agent from helping unless it is also helped.
+/// - `"no-asymmetric"`: clauses characterizing asymmetric cooperation and assumptions that such cooperation is forbidden.
 /// - `"no-mutual"`: clauses and assumptions forbidding pairs of agents from
 ///   mutually helping each other.
 /// - `"no-chain"` / `"no-chain-N"`: forbid any temporal chain of `N` help edges or more
@@ -37,7 +37,8 @@ use crate::{
 ///     with Minisat22(bootstrap_with=clauses) as solver:
 ///         if solver.solve(assumptions=assumptions):
 ///             plan = gen.decode_plan(solver.get_model(), t)
-///             break
+///             if plan is not None:
+///                 return plan
 /// ```
 #[gen_stub_pyclass]
 #[pyclass(name = "ClauseGenerator", module = "lle.solver.constraints")]
@@ -102,7 +103,7 @@ impl PyClauseGenerator {
     /// then returns the full formula for this horizon:
     /// - All buffered clauses for steps `0..=t`
     /// - The objective clauses (every agent on an exit at step `t`)
-    /// - For `"no-asymmetric"` mode: asymmetric-forbid clauses
+    /// - For `"no-asymmetric"` mode: asymmetric-forbid clauses and assumptions
     /// - For `"no-mutual"` mode: mutual-forbid clauses and assumptions
     /// - For `"no-chain"` mode: chain-forbid assumptions
     /// - For `"no-interdependence"` mode: cycle-forbid assumptions

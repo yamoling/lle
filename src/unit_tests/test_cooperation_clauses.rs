@@ -14,10 +14,9 @@ use crate::solver::ClauseGenerator;
 use crate::solver::SolveMode;
 use crate::solver::VarKey;
 
-/// Build a generator using `NoMutualCooperation` mode and fill all steps up to `t_max`.
-fn build(map: &str, t_max: usize) -> ClauseGenerator {
+fn build(map: &str, t_max: usize, mode: SolveMode) -> ClauseGenerator {
     let world = World::try_from(map).expect("failed to parse world");
-    let mut cg = ClauseGenerator::new(&world, t_max, SolveMode::NoMutualCooperation);
+    let mut cg = ClauseGenerator::new(&world, t_max, mode);
     // `generate(t_max)` fills steps 0..=t_max in one call.
     let _ = cg.generate(t_max);
     cg
@@ -53,7 +52,7 @@ S0 . S1
 fn single_owner_world_tracks_no_dependency() {
     // Only agent 0 owns a laser, so no mutual dependency is expressible: no indicator is created
     // in either direction and nothing is forbidden.
-    let mut cg = build(ONE_WAY, 10);
+    let mut cg = build(ONE_WAY, 10, SolveMode::NoMutualCooperation);
     assert!(!can_help(&cg, 0, 1, 10), "no indicator onto a non-owner");
     assert!(!can_help(&cg, 1, 0, 10), "a non-owner can never help");
     let (clauses, assumptions) = cg.forbid_mutual_cooperation(10);
@@ -131,7 +130,7 @@ fn no_laser_has_no_dependencies() {
 
 #[test]
 fn mutual_world_creates_both_directions() {
-    let cg = build(MUTUAL, 10);
+    let cg = build(MUTUAL, 10, SolveMode::NoMutualCooperation);
     // agent 0 (L0E owner) can help agent 1 cross its east beam
     assert!(
         can_help(&cg, 0, 1, 10),
@@ -146,7 +145,7 @@ fn mutual_world_creates_both_directions() {
 
 #[test]
 fn mutual_world_generates_forbid_clauses_and_assumptions() {
-    let mut cg = build(MUTUAL, 10);
+    let mut cg = build(MUTUAL, 10, SolveMode::NoMutualCooperation);
     let (clauses, assumptions) = cg.forbid_mutual_cooperation(10);
     assert!(
         !clauses.is_empty(),
@@ -162,6 +161,38 @@ fn mutual_world_generates_forbid_clauses_and_assumptions() {
             "all forbid-mutual assumptions must be negative literals"
         );
     }
+}
+
+#[test]
+fn asymmetric_world_generates_forbid_clauses_and_assumptions() {
+    let mut cg = build(ONE_WAY, 10, SolveMode::NoAsymmetricCooperation);
+    let (clauses, assumptions) = cg.forbid_asymmetric_cooperation(10);
+    assert!(
+        !clauses.is_empty(),
+        "one-way world must produce asymmetric-definition clauses"
+    );
+    assert!(
+        !assumptions.is_empty(),
+        "one-way world must produce negative asymmetric assumptions"
+    );
+    for &lit in &assumptions {
+        assert!(
+            lit < 0,
+            "all forbid-asymmetric assumptions must be negative literals"
+        );
+        assert!(
+            matches!(cg.pool.key(-lit), Some(VarKey::Asymmetric { .. })),
+            "forbid-asymmetric assumption must negate an Asymmetric variable"
+        );
+    }
+    assert!(
+        clauses.iter().any(|clause| {
+            clause
+                .iter()
+                .any(|&lit| lit > 0 && matches!(cg.pool.key(lit), Some(VarKey::Asymmetric { .. })))
+        }),
+        "definition clauses must imply an Asymmetric variable"
+    );
 }
 
 #[test]
