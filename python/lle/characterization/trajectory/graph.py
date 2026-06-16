@@ -98,47 +98,47 @@ class TemporalDependencyGraph:
     def longest_chain(self) -> int:
         """
         A chain `(a, t0) -> (b, t1) -> (c, t2) -> ...` is a temporal directed path whose
-        edges progress strictly through time. A chain encodes the idea of transitivity of the
-        cooperation: if a helps b and b helps c, then a also helps c indirectly.
-
-        Agents may repeat only to close a temporal cycle back to the starting agent. In
-        particular, `a -> b -> a` counts as a chain of length 2, while longer walks such as
-        `a -> b -> c -> a` also count but stop when they return to their start.
+        edges progress strictly through time. The order of a chain is the number of edges
+        that compose it, i.e. the length of the egde-path. A chain encodes two ideas:
+           1) transitivity of the cooperation: if a helps b and b helps c, then a also helps c indirectly.
+           2) depth of cooperation: i.e. how many subsequent (or simultaneous) cooperative events occur.
 
         A chain must have a length of at least 2 edges, otherwise it is not a chain.
 
         # Returns
         The returned value counts the length of the longest chain in the graph.
 
-        For instance:
+        # Examples
            - a single help relationship returns 0;
            - `a -> b -> c` returns `2`;
-           - `a -> b -> c -> a` returns `2`;
-           - `a -> b -> c -> d` returns `3`;
+           - `a -> b -> c -> a` returns `3`;
+           - `a -> b -> c -> d -> b` returns `4`;
            - `a -> b`, and `a -> c` returns `0`;
            - `a -> b -> a` returns `2`;
            - an independent graph returns `0`.
         """
+        # A chain is a temporal walk whose helpers are distinct and whose timestamps never
+        # decrease; its final beneficiary is unconstrained, so a walk may close back onto an
+        # earlier agent (a cycle `a -> b -> c -> a` or a lasso `a -> b -> c -> d -> b`). Distinct
+        # helpers bound the walk length to `n_agents`, so the search terminates.
         by_helper: dict[AgentId, list[tuple[AgentId, int]]] = defaultdict(list)
         for e in self._edges:
             by_helper[e.helper].append((e.beneficiary, e.t))
 
-        def dfs(start: AgentId, node: AgentId, visited: set[AgentId], last_t: int) -> int:
+        def dfs(node: AgentId, used_helpers: frozenset[AgentId], last_t: int) -> int:
             best = 0
-            for nxt, t in by_helper.get(node, []):
+            for beneficiary, t in by_helper.get(node, []):
                 if t < last_t:
                     continue
-                if nxt == start and len(visited) >= 2:
+                # This edge always counts; we may extend through `beneficiary` only if it has not
+                # already served as a helper (otherwise it can only be the chain's final node).
+                if beneficiary in used_helpers:
                     best = max(best, 1)
-                    continue
-                if nxt in visited:
-                    continue
-                visited.add(nxt)
-                best = max(best, 1 + dfs(start, nxt, visited, t))
-                visited.remove(nxt)
+                else:
+                    best = max(best, 1 + dfs(beneficiary, used_helpers | {beneficiary}, t))
             return best
 
-        max_length = max((dfs(start, start, {start}, -1) for start in range(self.n_agents)), default=0)
+        max_length = max((dfs(a, frozenset({a}), -1) for a in range(self.n_agents)), default=0)
         if max_length < 2:
             return 0
         return max_length

@@ -43,14 +43,17 @@ fn cycles_dfs(
 
 /// Enumerate every temporal walk whose realization is a chain of length exactly `n_edges`.
 ///
-/// A chain of length `n` (counting help edges) is realized by either:
-/// - an **open** simple path `v0 → v1 → … → vn` of `n + 1` distinct agents whose `n` helpers
-///   `v0…v_{n-1}` each own a laser, the beneficiary `vn` being any other agent; or
-/// - a **closed** simple cycle `v0 → … → v_{n-1} → v0` of `n` distinct laser owners.
+/// A chain of length `n` (counting help edges) is a temporal walk `v0 → v1 → … → vn` whose `n`
+/// helpers `v0…v_{n-1}` are distinct laser owners and whose final beneficiary `vn` is any agent
+/// other than the last helper `v_{n-1}` (an agent cannot help itself). The final beneficiary may:
+/// - be a fresh agent not on the path → an **open** chain over `n + 1` distinct agents;
+/// - close back to the first helper `v0` → a **closed** order-`n` cycle; or
+/// - close back to any earlier helper `v_i` (`0 < i < n-1`) → a **lasso** (an open prefix that
+///   loops onto a middle agent). Lassos are genuine length-`n` chains: `a → b → c → d → b` has
+///   four help edges just like an open path or a cycle does.
 ///
-/// Forbidding every length-`n` chain forbids every chain of length `>= n`: a longer open chain
-/// contains a length-`n` open prefix, and a cycle of order `k > n` likewise exposes a length-`n`
-/// open prefix over its `k` distinct agents.
+/// Forbidding every length-`n` chain forbids every chain of length `>= n`: any longer walk
+/// contains a length-`n` prefix over its first `n` distinct helpers.
 pub(crate) fn enumerate_chains(
     owners: &[AgentId],
     n_agents: usize,
@@ -59,17 +62,16 @@ pub(crate) fn enumerate_chains(
     let mut walks = Vec::new();
     // Each chain's `n` helpers form an ordered sequence of distinct owners.
     for helpers in ordered_owner_sequences(owners, n_edges) {
-        // Closed variant: the last helper helps the first agent, closing an order-`n` cycle.
-        let mut cycle = helpers.clone();
-        cycle.push(helpers[0]);
-        walks.push(cycle);
-        // Open variants: any agent not already on the path can be the final beneficiary.
+        let last_helper = helpers[n_edges - 1];
+        // The final beneficiary is any agent other than the last helper. This unifies the open
+        // (fresh agent), closed (back to `helpers[0]`) and lasso (back to a middle agent) variants.
         for beneficiary in 0..n_agents {
-            if !helpers.contains(&beneficiary) {
-                let mut path = helpers.clone();
-                path.push(beneficiary);
-                walks.push(path);
+            if beneficiary == last_helper {
+                continue;
             }
+            let mut walk = helpers.clone();
+            walk.push(beneficiary);
+            walks.push(walk);
         }
     }
     walks
@@ -112,7 +114,8 @@ pub struct ClauseGenerator {
     mode: SolveMode,
     /// Temporal walks the mode forbids, as vertex sequences `[u0, u1, …, um]` (edge `i` is
     /// `u_i → u_{i+1}`). Empty unless the mode is walk-based:
-    /// - `NoChainedCooperation`: open length-2 walks `[a, b, c]` (a chain `a → b → c`).
+    /// - `NoChainedCooperation`: length-`n` chains `[v0, …, v_{n-1}, vn]` whose helpers are
+    ///   distinct owners and whose final beneficiary `vn` is any other agent (open, cycle or lasso).
     /// - `NoInterdependence`: closed walks `[v0, …, v_{m-1}, v0]` (any simple cycle, order ≥ 2).
     pub(super) walks: Vec<Vec<AgentId>>,
     /// Ordered `(helper, beneficiary)` pairs for which a `first_helped_by_time` indicator is

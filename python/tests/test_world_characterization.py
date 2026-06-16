@@ -11,7 +11,6 @@ import pytest
 from lle import World
 from lle.characterization.world_characterization import WorldCharacterizer
 
-
 ONE_WAY_COOPERATION = """
  .  . S0 S1 . .
 L0E .  .  . @ .
@@ -163,6 +162,90 @@ def test_three_agent_cycle_is_3_interdependent_but_not_4_interdependent():
     assert wc.is_interdependent(2)
     assert wc.is_interdependent(3)
     assert not wc.is_interdependent(4)
+
+
+def test_chain_4_is_not_interdependent():
+    """A 4-agent chain is not an interdependent."""
+    world = World("""
+ @  S0 S1  @
+L0E X  .   @
+ @  S2 .   @
+ @  .  X  L1W
+ @  .  S3  @
+L2E X  .   @
+ @  .  X   @
+""")
+    wc = WorldCharacterizer(world, t_max=6)
+    assert wc.is_solvable
+    assert wc.is_chained(2)
+    assert wc.is_chained(3)
+    assert not wc.is_chained(4)
+    assert not wc.is_mutual
+    assert not wc.is_interdependent(2)
+    assert not wc.is_interdependent(3)
+    assert not wc.is_interdependent(4)
+    assert wc.shortest_non_interdependent_path(2) is not None
+
+
+def test_chain_4_and_mutual():
+    """A 4-agent chain is not an interdependent."""
+    world = World("""
+ @  S0 S1  @
+L0E X  .   @
+ @  S2 .   @
+ @  .  X  L1W
+ @  .  S3  @
+L2E .  .   @
+ @  X  X  L3W
+""")
+    wc = WorldCharacterizer(world, t_max=6)
+    assert wc.is_solvable
+    assert wc.is_chained(2)
+    assert wc.is_chained(3)
+    assert wc.is_chained(4)
+    assert wc.is_mutual
+    assert wc.is_interdependent(2)
+    assert not wc.is_interdependent(3)
+    assert not wc.is_interdependent(4)
+    assert wc.shortest_non_interdependent_path(2) is None
+    assert wc.shortest_non_interdependent_path(3) is not None
+
+
+def test_no_3cycle_because_of_temporality():
+    """
+    We want to show that temporality is important and that a temporally-flattened graph
+    cannot represent the actual cooperation graph.
+
+    In this world, we have a first step where two independent help events occur:
+        - help(0, 1, t=1)
+        - help(2, 3, t=1)
+    Then, we have
+        - help(1, 2, t=2)
+        - help(3, 1, t=2)
+    In a flattened graph, we would have a cycle 0 -> 1 -> 2 -> 3 -> 0 while there is actually
+    no dependency between 0 and 3.
+
+    To do so, the map is organized is such that:
+       - the two bottom exits are only available toagents 0 and 2 because they stand in a laser beam;
+       - agents 1 and 3 have no choice but to walk on an exit tile right away
+       - agents 1 and 3 block a laser from their exit tiles.
+    """
+    world = World("""
+ @  @  L1S @ L3S  @   @
+ @  S0 S1  @ S3  S2   @
+L0E .   .  @  .   .  L2W
+ @  .   X  @  X   .   @
+ @  .   .  .  .   .   @
+ @ L2E  X  @  X  L0W  @
+""")
+    wc = WorldCharacterizer(world, 20)
+    assert wc.is_cooperative
+    assert not wc.is_independent
+    assert wc.is_mutual  # 0 helps 1 and vice-versa
+    assert wc.is_chained(2)  # Equivalent to is_mutual
+    assert not wc.is_chained(3)
+    assert wc.is_interdependent(2)  # Equivalent to is_mutual
+    assert not wc.is_interdependent(3)
 
 
 # ---------------------------------------------------------------------------
