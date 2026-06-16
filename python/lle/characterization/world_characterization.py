@@ -25,6 +25,11 @@ class WorldCharacterizer:
     _no_chain_cache: dict[int, list | None] = field(default_factory=dict, init=False, repr=False)
     _no_interdependence_cache: dict[int, list | None] = field(default_factory=dict, init=False, repr=False)
 
+    @cached_property
+    def n_laser_colours(self) -> int:
+        """Number of distinct agent colours that own a laser source."""
+        return len({source.agent_id for source in self.world.laser_sources})
+
     @property
     def is_cooperative(self):
         """
@@ -86,13 +91,24 @@ class WorldCharacterizer:
         # Raises
             -`NotSolvableError` if the world is not solvable
         """
+        self._validate_dependency_order(length)
         path = self.shortest_path
         if path is None:
             raise NotSolvableError("World is not solvable")
+        if self.shortest_independent_path is not None:
+            return False
+        if length > self.n_laser_colours:
+            self._no_chain_cache[length] = path
+            return False
+        cached = self._infer_from_monotone_cache(self._no_chain_cache, length)
+        if cached is not None:
+            return cached
         profile = profile_trajectory(self.world, path)
         if not profile.is_chained(length):
             return False
-        return self.shortest_non_chained_path(length) is None
+        is_chained = self.shortest_non_chained_path(length) is None
+        self._propagate_monotone_cache(self._no_chain_cache, length)
+        return is_chained
 
     def is_interdependent(self, n_agents: int = 2) -> bool:
         """
@@ -106,9 +122,18 @@ class WorldCharacterizer:
         # Raises
             -`NotSolvableError` if the world is not solvable
         """
+        self._validate_dependency_order(n_agents)
         path = self.shortest_path
         if path is None:
             raise NotSolvableError("World is not solvable")
+        if self.shortest_independent_path is not None:
+            return False
+        if n_agents > self.n_laser_colours:
+            self._no_interdependence_cache[n_agents] = path
+            return False
+        cached = self._infer_from_monotone_cache(self._no_interdependence_cache, n_agents)
+        if cached is not None:
+            return cached
         profile = profile_trajectory(self.world, path)
         if not profile.is_interdependent(n_agents):
             return False
@@ -117,7 +142,9 @@ class WorldCharacterizer:
         # cycles are too: short-circuit without the (stricter) interdependence solve.
         if not self.is_chained(n_agents):
             return False
-        return self.shortest_non_interdependent_path(n_agents) is None
+        is_interdependent = self.shortest_non_interdependent_path(n_agents) is None
+        self._propagate_monotone_cache(self._no_interdependence_cache, n_agents)
+        return is_interdependent
 
     @cached_property
     def shortest_path(self):
@@ -134,12 +161,61 @@ class WorldCharacterizer:
 
     def shortest_non_chained_path(self, length: int):
         """Shortest plan within `t_max` that avoids every chain of length >= `length`, or None."""
+        self._validate_dependency_order(length)
+        if length > self.n_laser_colours:
+            self._no_chain_cache[length] = self.shortest_path
+        elif "shortest_independent_path" in self.__dict__ and self.shortest_independent_path is not None:
+            self._no_chain_cache[length] = self.shortest_independent_path
+        is_known, inferred = self._infer_no_dependency_result(self._no_chain_cache, length)
+        if is_known:
+            self._no_chain_cache[length] = inferred
+            return inferred
         if length not in self._no_chain_cache:
             self._no_chain_cache[length] = solver.solve(self.world, self.t_max, mode=f"no-chain-{length}")
+            self._propagate_monotone_cache(self._no_chain_cache, length)
         return self._no_chain_cache[length]
 
     def shortest_non_interdependent_path(self, order: int):
         """Shortest plan within `t_max` that avoids every cycle of order >= `order`, or None."""
+        self._validate_dependency_order(order)
+        if order > self.n_laser_colours:
+            self._no_interdependence_cache[order] = self.shortest_path
+        elif "shortest_independent_path" in self.__dict__ and self.shortest_independent_path is not None:
+            self._no_interdependence_cache[order] = self.shortest_independent_path
+        is_known, inferred = self._infer_no_dependency_result(self._no_interdependence_cache, order)
+        if is_known:
+            self._no_interdependence_cache[order] = inferred
+            return inferred
         if order not in self._no_interdependence_cache:
             self._no_interdependence_cache[order] = solver.solve(self.world, self.t_max, mode=f"no-interdependence-{order}")
+            self._propagate_monotone_cache(self._no_interdependence_cache, order)
         return self._no_interdependence_cache[order]
+
+    @staticmethod
+    def _validate_dependency_order(order: int) -> None:
+        if order < 2:
+            raise ValueError(f"Dependency order must be >= 2, got {order}.")
+
+    def _infer_from_monotone_cache(self, cache: dict[int, list | None], order: int) -> bool | None:
+        is_known, inferred = self._infer_no_dependency_result(cache, order)
+        if is_known:
+            cache[order] = inferred
+            return inferred is None
+        return None
+
+    def _infer_no_dependency_result(self, cache: dict[int, list | None], order: int):
+        for cached_order, path in cache.items():
+            if cached_order <= order and path is not None:
+                return True, path
+        if any(cached_order >= order and path is None for cached_order, path in cache.items()):
+            return True, None
+        return False, None
+
+    def _propagate_monotone_cache(self, cache: dict[int, list | None], order: int) -> None:
+        path = cache[order]
+        if path is None:
+            for lower_order in range(2, order):
+                cache.setdefault(lower_order, None)
+        else:
+            for higher_order in range(order + 1, self.n_laser_colours + 1):
+                cache.setdefault(higher_order, path)

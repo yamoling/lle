@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import pytest
 from lle import World
+from lle.characterization import world_characterization
 from lle.characterization.world_characterization import WorldCharacterizer
 
 ONE_WAY_COOPERATION = """
@@ -129,6 +130,100 @@ def test_one_way_cooperation_is_not_chained_or_interdependent():
     assert not wc.is_chained(3)
     assert not wc.is_interdependent(2)
     assert not wc.is_interdependent(3)
+
+
+def test_chain_upper_bound_shortcut_skips_solver(monkeypatch: pytest.MonkeyPatch):
+    """Chain lengths above the number of laser owners are impossible."""
+    world = World(ONE_WAY_COOPERATION)
+    calls: list[str] = []
+
+    def fake_solve(_world: World, _t_max: int, *, mode: str = "standard"):
+        calls.append(mode)
+        if mode == "standard":
+            return []
+        if mode == "no-cooperation":
+            return None
+        raise AssertionError(f"Unexpected solver mode: {mode}")
+
+    monkeypatch.setattr(world_characterization.solver, "solve", fake_solve)
+
+    wc = WorldCharacterizer(world, t_max=8)
+    assert not wc.is_chained(2)
+    assert not wc.is_interdependent(2)
+    assert calls == ["standard", "no-cooperation"]
+
+
+def test_independent_shortcut_skips_dependency_solvers(monkeypatch: pytest.MonkeyPatch):
+    """Independent worlds cannot require chains or interdependence."""
+    world = World(ONE_WAY_COOPERATION)
+    calls: list[str] = []
+
+    def fake_solve(_world: World, _t_max: int, *, mode: str = "standard"):
+        calls.append(mode)
+        if mode in {"standard", "no-cooperation"}:
+            return []
+        raise AssertionError(f"Unexpected solver mode: {mode}")
+
+    monkeypatch.setattr(world_characterization.solver, "solve", fake_solve)
+
+    wc = WorldCharacterizer(world, t_max=10)
+    assert not wc.is_chained(2)
+    assert not wc.is_interdependent(2)
+    assert calls == ["standard", "no-cooperation"]
+
+
+def test_chained_monotone_cache_shortcuts(monkeypatch: pytest.MonkeyPatch):
+    """Known lower SAT and higher UNSAT results imply adjacent chain queries."""
+    world = World(THREE_AGENT_INTERDEPENDENT)
+    calls: list[str] = []
+
+    def fake_solve(_world: World, _t_max: int, *, mode: str = "standard"):
+        calls.append(mode)
+        if mode == "standard":
+            return []
+        if mode == "no-cooperation":
+            return None
+        raise AssertionError(f"Unexpected solver mode: {mode}")
+
+    monkeypatch.setattr(world_characterization.solver, "solve", fake_solve)
+
+    wc = WorldCharacterizer(world, t_max=15)
+    wc._no_chain_cache[2] = []
+    assert not wc.is_chained(3)
+    assert calls == ["standard", "no-cooperation"]
+
+    wc = WorldCharacterizer(world, t_max=15)
+    calls.clear()
+    wc._no_chain_cache[3] = None
+    assert wc.is_chained(2)
+    assert calls == ["standard", "no-cooperation"]
+
+
+def test_interdependent_monotone_cache_shortcuts(monkeypatch: pytest.MonkeyPatch):
+    """Known lower SAT and higher UNSAT results imply adjacent interdependence queries."""
+    world = World(THREE_AGENT_INTERDEPENDENT)
+    calls: list[str] = []
+
+    def fake_solve(_world: World, _t_max: int, *, mode: str = "standard"):
+        calls.append(mode)
+        if mode == "standard":
+            return []
+        if mode == "no-cooperation":
+            return None
+        raise AssertionError(f"Unexpected solver mode: {mode}")
+
+    monkeypatch.setattr(world_characterization.solver, "solve", fake_solve)
+
+    wc = WorldCharacterizer(world, t_max=15)
+    wc._no_interdependence_cache[2] = []
+    assert not wc.is_interdependent(3)
+    assert calls == ["standard", "no-cooperation"]
+
+    wc = WorldCharacterizer(world, t_max=15)
+    calls.clear()
+    wc._no_interdependence_cache[3] = None
+    assert wc.is_interdependent(2)
+    assert calls == ["standard", "no-cooperation"]
 
 
 def test_two_agent_mutual_is_chain_2_but_not_chain_3():
