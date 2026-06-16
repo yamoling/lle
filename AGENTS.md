@@ -1,4 +1,4 @@
-# CLAUDE.md
+# Agents instructions
 
 Check out the [readme.md](readme.md) to get started and [contributing.md](contributing.md) to follow code guidelines. As an agent, you are not allowed to create commits on your own initiative, unless explicitly requested.
 
