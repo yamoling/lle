@@ -14,6 +14,11 @@ class TrajectoryProfile:
         return not self.graph.is_empty
 
     @property
+    def is_asymmetric(self):
+        """Whether the trajectory has a help edge whose helper is never helped."""
+        return self.graph.has_asymmetric_edge()
+
+    @property
     def is_mutual(self):
         """
         Whether the trajectory exhibits mutual help, i.e. help(a, b) and help(b, a).

@@ -76,6 +76,16 @@ class TemporalDependencyGraph:
         """The agents that`helper` helps (at time`t` if given, else ever)."""
         return {e.beneficiary for e in self._edges if e.helper == helper and (t is None or e.t == t)}
 
+    def asymmetric_edges(self) -> set[tuple[AgentId, AgentId]]:
+        """Flattened help edges whose helper is never helped by any other agent."""
+        edges = self.flattened_edges()
+        helped_agents = {beneficiary for _, beneficiary in edges}
+        return {(helper, beneficiary) for helper, beneficiary in edges if helper not in helped_agents}
+
+    def has_asymmetric_edge(self) -> bool:
+        """Whether some agent helps another agent without ever being helped itself."""
+        return bool(self.asymmetric_edges())
+
     # ------------------------------------------------------------------
     # Fan-in / fan-out
     # ------------------------------------------------------------------

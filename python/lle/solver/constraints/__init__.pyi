@@ -22,6 +22,7 @@ class ClauseGenerator:
     The `mode` parameter controls which extra constraints are generated:
     - `"standard"` (default): world rules only.
     - `"no-cooperation"`: assumptions forbidding any non-owner agent from entering a laser span.
+    - `"no-asymmetric"`: clauses forbidding an agent from helping unless it is also helped.
     - `"no-mutual"`: clauses and assumptions forbidding pairs of agents from
       mutually helping each other.
     - `"no-chain"` / `"no-chain-N"`: forbid any temporal chain of `N` help edges or more
@@ -61,13 +62,13 @@ class ClauseGenerator:
         r"""
         The number of SAT variables allocated so far by this generator.
         """
-    def __new__(cls, world: world.World, t_max: builtins.int, mode: typing.Literal['standard', 'no-cooperation', 'no-mutual', 'no-chain', 'no-interdependence'] | SolveMode) -> ClauseGenerator:
+    def __new__(cls, world: world.World, t_max: builtins.int, mode: typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-mutual', 'no-chain', 'no-interdependence'] | SolveMode) -> ClauseGenerator:
         r"""
         Build a clause generator for the given `world`, considering plans of length up to `t_max`.
         
         `mode` selects the solving strategy. It accepts either a `SolveMode` instance or its
-        canonical string (`"standard"`, `"no-cooperation"`, `"no-mutual"`, `"no-chain[-N]"`,
-        `"no-interdependence[-N]"`). Defaults to `"standard"`.
+        canonical string (`"standard"`, `"no-cooperation"`, `"no-asymmetric"`, `"no-mutual"`,
+        `"no-chain[-N]"`, `"no-interdependence[-N]"`). Defaults to `"standard"`.
         """
     def generate(self, t: builtins.int) -> tuple[builtins.list[builtins.list[builtins.int]], builtins.list[builtins.int]]:
         r"""
@@ -77,6 +78,7 @@ class ClauseGenerator:
         then returns the full formula for this horizon:
         - All buffered clauses for steps `0..=t`
         - The objective clauses (every agent on an exit at step `t`)
+        - For `"no-asymmetric"` mode: asymmetric-forbid clauses
         - For `"no-mutual"` mode: mutual-forbid clauses and assumptions
         - For `"no-chain"` mode: chain-forbid assumptions
         - For `"no-interdependence"` mode: cycle-forbid assumptions
@@ -112,6 +114,7 @@ class SolveMode:
     - `standard()` — world rules only; agents may cooperate freely.
     - `no_cooperation()` — forbids any non-owner agent from occupying a laser span. Equivalent to
       treating every beam as permanently active.
+    - `no_asymmetric()` — rules out plans where an agent helps someone without ever being helped.
     - `no_mutual()` — rules out plans where two agents each help the other.
     - `no_chain(length=2)` — rules out plans containing a temporal chain of `length` help edges or
       more (`a → b → c` is a chain of length 2). Subsumes `no_mutual()` (a mutual cycle is a chain
@@ -147,6 +150,11 @@ class SolveMode:
     def no_cooperation() -> SolveMode:
         r"""
         Forbid any non-owner agent from entering a laser span (every beam is treated as active).
+        """
+    @staticmethod
+    def no_asymmetric() -> SolveMode:
+        r"""
+        Forbid plans where an agent helps someone without ever being helped by another agent.
         """
     @staticmethod
     def no_mutual() -> SolveMode:

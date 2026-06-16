@@ -76,6 +76,48 @@ impl ClauseGenerator {
         clauses
     }
 
+    /// Clauses forbidding *asymmetric* cooperation at horizon `t`.
+    ///
+    /// A help event `helper → beneficiary` is asymmetric if `helper` is never helped by any other
+    /// agent anywhere in the trajectory. To forbid such events, every concrete help occupancy at
+    /// any time `τ ≤ t` must imply that some incoming help edge into `helper` has occurred by the
+    /// final horizon `t`:
+    ///
+    /// ```text
+    /// agent(beneficiary, q, τ) → OR_k first_helped_by_time(k, helper, t)
+    /// ```
+    ///
+    /// If no incoming-help indicator exists for `helper`, the clause degenerates to
+    /// `¬agent(beneficiary, q, τ)`, forbidding all outgoing help from an unhelpable helper.
+    pub(crate) fn forbid_asymmetric_cooperation(&mut self, t: usize) -> Vec<Clause> {
+        let mut clauses = Vec::new();
+        for tau in 0..=t {
+            self.ctx.update(tau);
+            let pairs = self.fhbt_pairs.clone();
+            for (helper, beneficiary) in pairs {
+                let positions = self.help_edge_positions(helper, beneficiary, tau);
+                if positions.is_empty() {
+                    continue;
+                }
+                let incoming: Vec<Literal> = (0..self.ctx.n_agents)
+                    .filter(|&other| other != helper)
+                    .filter_map(|other| {
+                        self.pool
+                            .get(&VarKey::first_helped_by_time(other, helper, t))
+                    })
+                    .collect();
+                for pos in positions {
+                    let agent_var = self.pool.agent(beneficiary, pos, tau);
+                    let mut clause = Vec::with_capacity(incoming.len() + 1);
+                    clause.push(-agent_var);
+                    clause.extend(incoming.iter().copied());
+                    clauses.push(clause);
+                }
+            }
+        }
+        clauses
+    }
+
     /// Clauses and assumptions that forbid *mutual* cooperation between every pair of agents, at
     /// horizon `t`.
     ///

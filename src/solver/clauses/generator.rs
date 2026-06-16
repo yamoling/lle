@@ -4,9 +4,9 @@ use crate::solver::errors::SolverError;
 use crate::{Action, AgentId, Position, World};
 
 use super::super::context::ConstraintContext;
+use super::solve_mode::SolveMode;
 use super::Clause;
 use super::Literal;
-use super::solve_mode::SolveMode;
 use super::{VarKey, VarPool};
 
 /// Enumerate all simple directed cycles of order ≥ `min_order` over `agents`.
@@ -152,9 +152,18 @@ impl ClauseGenerator {
                 .collect(),
             _ => vec![],
         };
-        // `first_helped_by_time` is only ever read for mutual owner-pairs and for the first edge
-        // of every walk; both endpoints are always laser owners. Restrict generation to these.
+        // `first_helped_by_time` is generated only for directed pairs consumed by the selected
+        // cooperation mode: all owner-to-agent edges for asymmetric mode, mutual owner-pairs for
+        // mutual mode, or each walk's first edge for walk modes.
         let fhbt_pairs: Vec<(AgentId, AgentId)> = match mode {
+            SolveMode::NoAsymmetricCooperation => owners
+                .iter()
+                .flat_map(|&helper| {
+                    (0..ctx.n_agents)
+                        .filter(move |&beneficiary| beneficiary != helper)
+                        .map(move |beneficiary| (helper, beneficiary))
+                })
+                .collect(),
             SolveMode::NoMutualCooperation => owners
                 .iter()
                 .flat_map(|&a| {
@@ -191,6 +200,7 @@ impl ClauseGenerator {
     /// Fills the internal buffers for any steps not yet cached, then returns:
     /// - All buffered world-enforcing (and mode-specific) clauses for steps `0..=t`
     /// - The objective clauses for horizon `t` (every agent on an exit)
+    /// - For `NoAsymmetricCooperation`: clauses forbidding asymmetric help edges
     /// - For `NoMutualCooperation`: the current mutual-forbid clauses and assumptions
     /// - For `NoCooperation`: per-step no-cooperation assumptions for steps `0..=t`
     pub fn generate(&mut self, t: usize) -> (Vec<Clause>, Vec<Literal>) {
@@ -212,6 +222,9 @@ impl ClauseGenerator {
             .collect();
         clauses.extend(self.objective(t));
         match self.mode {
+            SolveMode::NoAsymmetricCooperation => {
+                clauses.extend(self.forbid_asymmetric_cooperation(t));
+            }
             SolveMode::NoMutualCooperation => {
                 let (mc, ma) = self.forbid_mutual_cooperation(t);
                 clauses.extend(mc);
@@ -240,7 +253,7 @@ impl ClauseGenerator {
         clauses.extend(beam_clauses);
         clauses.extend(self.no_step_on_active_laser(t, &active_lit));
         match self.mode {
-            SolveMode::NoMutualCooperation => {
+            SolveMode::NoAsymmetricCooperation | SolveMode::NoMutualCooperation => {
                 clauses.extend(self.first_helped_by_time_clauses(t));
             }
             SolveMode::NoChainedCooperation(_) | SolveMode::NoInterdependence(_) => {
@@ -255,6 +268,7 @@ impl ClauseGenerator {
     fn fill_assumptions(&mut self, t: usize) {
         self.assumption_buffer[t] = match self.mode {
             SolveMode::Standard
+            | SolveMode::NoAsymmetricCooperation
             | SolveMode::NoMutualCooperation
             | SolveMode::NoChainedCooperation(_)
             | SolveMode::NoInterdependence(_) => vec![],

@@ -12,7 +12,16 @@ from ..world import World
 from .trajectory import TrajectoryProfile, profile_trajectory
 from .world_characterization import WorldCharacterizer
 
-__all__ = ["characterize", "is_cooperative", "WorldCharacterizer", "TrajectoryProfile", "profile_trajectory"]
+__all__ = [
+    "characterize",
+    "is_cooperative",
+    "is_asymmetric",
+    "is_mutual",
+    "is_chained",
+    "WorldCharacterizer",
+    "TrajectoryProfile",
+    "profile_trajectory",
+]
 
 
 def characterize(world: World, t_max: int | Literal["auto"] = "auto"):
@@ -34,6 +43,16 @@ def is_cooperative(world: World, t_max: int | Literal["auto"] = "auto"):
     """
     w = characterize(world, t_max)
     return w.is_cooperative
+
+
+def is_asymmetric(world: World, t_max: int | Literal["auto"] = "auto"):
+    """
+    Return `True` if the provided world requires asymmetric cooperation to be solved
+    in `t_max` steps, i.e. when every solution within `t_max` contains at least one
+    help edge whose helper is never helped by another agent.
+    """
+    w = characterize(world, t_max)
+    return w.is_asymmetric
 
 
 def is_mutual(world: World, t_max: int | Literal["auto"] = "auto"):

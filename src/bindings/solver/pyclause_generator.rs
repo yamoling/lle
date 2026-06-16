@@ -3,7 +3,7 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use super::pysolvemode::PySolveMode;
 use crate::{
-    bindings::{PyAction, PyWorld, pyexceptions::solver_error_to_exception},
+    bindings::{pyexceptions::solver_error_to_exception, PyAction, PyWorld},
     solver::{Clause, ClauseGenerator, Literal, SolveMode},
 };
 
@@ -17,6 +17,7 @@ use crate::{
 /// The `mode` parameter controls which extra constraints are generated:
 /// - `"standard"` (default): world rules only.
 /// - `"no-cooperation"`: assumptions forbidding any non-owner agent from entering a laser span.
+/// - `"no-asymmetric"`: clauses forbidding an agent from helping unless it is also helped.
 /// - `"no-mutual"`: clauses and assumptions forbidding pairs of agents from
 ///   mutually helping each other.
 /// - `"no-chain"` / `"no-chain-N"`: forbid any temporal chain of `N` help edges or more
@@ -58,15 +59,15 @@ impl PyClauseGenerator {
     /// Build a clause generator for the given `world`, considering plans of length up to `t_max`.
     ///
     /// `mode` selects the solving strategy. It accepts either a `SolveMode` instance or its
-    /// canonical string (`"standard"`, `"no-cooperation"`, `"no-mutual"`, `"no-chain[-N]"`,
-    /// `"no-interdependence[-N]"`). Defaults to `"standard"`.
+    /// canonical string (`"standard"`, `"no-cooperation"`, `"no-asymmetric"`, `"no-mutual"`,
+    /// `"no-chain[-N]"`, `"no-interdependence[-N]"`). Defaults to `"standard"`.
     #[new]
     fn new(
         py: Python,
         world: &PyWorld,
         t_max: usize,
         #[gen_stub(override_type(
-            type_repr = "typing.Literal['standard', 'no-cooperation', 'no-mutual', 'no-chain', 'no-interdependence'] | SolveMode",
+            type_repr = "typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-mutual', 'no-chain', 'no-interdependence'] | SolveMode",
             imports = ("typing",)
         ))]
         mode: Py<PyAny>,
@@ -101,6 +102,7 @@ impl PyClauseGenerator {
     /// then returns the full formula for this horizon:
     /// - All buffered clauses for steps `0..=t`
     /// - The objective clauses (every agent on an exit at step `t`)
+    /// - For `"no-asymmetric"` mode: asymmetric-forbid clauses
     /// - For `"no-mutual"` mode: mutual-forbid clauses and assumptions
     /// - For `"no-chain"` mode: chain-forbid assumptions
     /// - For `"no-interdependence"` mode: cycle-forbid assumptions

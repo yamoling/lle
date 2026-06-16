@@ -58,6 +58,29 @@ class WorldCharacterizer:
         return self.shortest_independent_path is not None
 
     @property
+    def is_asymmetric(self):
+        """
+        Whether the world requires asymmetric cooperation:
+        - the world is solvable,
+        - at least one solution exhibits a help edge whose helper is never helped, and
+        - no solution within `t_max` avoids all such asymmetric help edges.
+
+        # Raises
+            -`NotSolvableError` if the world is not solvable
+        """
+        path = self.shortest_path
+        if path is None:
+            raise NotSolvableError("Cannot determine if requires asymmetric cooperation if unsolvable.")
+        if self.n_laser_colours == 0:
+            return False
+        profile = profile_trajectory(self.world, path)
+        if not profile.is_asymmetric:
+            return False
+        if self.shortest_independent_path is not None:
+            return False
+        return self.shortest_non_asymmetric_path is None
+
+    @property
     def is_mutual(self):
         """
         - The world is solvable
@@ -154,6 +177,17 @@ class WorldCharacterizer:
     def shortest_independent_path(self):
         """The length of the shortest valid plan within [lower_bound, t_max] that does not involve cooperation, or None if unsolvable."""
         return solver.solve(self.world, self.t_max, mode="no-cooperation")
+
+    @cached_property
+    def shortest_non_asymmetric_path(self):
+        if self.n_laser_colours == 0:
+            return self.shortest_path
+        if (
+            "shortest_independent_path" in self.__dict__
+            and self.shortest_independent_path is not None
+        ):
+            return self.shortest_independent_path
+        return solver.solve(self.world, self.t_max, mode="no-asymmetric")
 
     @cached_property
     def shortest_non_mutual_path(self):

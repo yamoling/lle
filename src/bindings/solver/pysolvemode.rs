@@ -12,6 +12,7 @@ use crate::solver::SolveMode;
 /// - `standard()` — world rules only; agents may cooperate freely.
 /// - `no_cooperation()` — forbids any non-owner agent from occupying a laser span. Equivalent to
 ///   treating every beam as permanently active.
+/// - `no_asymmetric()` — rules out plans where an agent helps someone without ever being helped.
 /// - `no_mutual()` — rules out plans where two agents each help the other.
 /// - `no_chain(length=2)` — rules out plans containing a temporal chain of `length` help edges or
 ///   more (`a → b → c` is a chain of length 2). Subsumes `no_mutual()` (a mutual cycle is a chain
@@ -76,6 +77,12 @@ impl PySolveMode {
         SolveMode::NoCooperation.into()
     }
 
+    /// Forbid plans where an agent helps someone without ever being helped by another agent.
+    #[staticmethod]
+    fn no_asymmetric() -> Self {
+        SolveMode::NoAsymmetricCooperation.into()
+    }
+
     /// Forbid plans where two agents each help the other.
     #[staticmethod]
     fn no_mutual() -> Self {
@@ -118,6 +125,7 @@ impl PySolveMode {
         [
             SolveMode::Standard,
             SolveMode::NoCooperation,
+            SolveMode::NoAsymmetricCooperation,
             SolveMode::NoMutualCooperation,
             SolveMode::NoChainedCooperation(2),
             SolveMode::NoInterdependence(2),

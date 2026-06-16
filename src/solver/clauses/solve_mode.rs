@@ -6,6 +6,9 @@ pub enum SolveMode {
     Standard,
     /// No non-owner agent may enter any laser span.
     NoCooperation,
+    /// No help edge `a → b` may appear unless `a` is helped by some other agent somewhere in the
+    /// same trajectory. Equivalently, forbids asymmetric cooperation events.
+    NoAsymmetricCooperation,
     /// No pair of agents may mutually cooperate (each helping the other).
     NoMutualCooperation,
     /// No temporal chain of length `>= n` may appear, where the length counts help edges
@@ -45,6 +48,7 @@ impl SolveMode {
         match s {
             "standard" => Ok(SolveMode::Standard),
             "no-cooperation" => Ok(SolveMode::NoCooperation),
+            "no-asymmetric" => Ok(SolveMode::NoAsymmetricCooperation),
             "no-mutual" => Ok(SolveMode::NoMutualCooperation),
             other => {
                 if let Some(res) = parametrized(s, "no-chain") {
@@ -55,7 +59,7 @@ impl SolveMode {
                 }
                 Err(format!(
                     "Unknown solve mode: '{other}'. Expected one of: 'standard', 'no-cooperation', \
-                     'no-mutual', 'no-chain[-N]', 'no-interdependence[-N]' (N >= {MIN_LENGTH})."
+                     'no-asymmetric', 'no-mutual', 'no-chain[-N]', 'no-interdependence[-N]' (N >= {MIN_LENGTH})."
                 ))
             }
         }
@@ -68,6 +72,7 @@ impl SolveMode {
         match self {
             SolveMode::Standard => "standard".to_string(),
             SolveMode::NoCooperation => "no-cooperation".to_string(),
+            SolveMode::NoAsymmetricCooperation => "no-asymmetric".to_string(),
             SolveMode::NoMutualCooperation => "no-mutual".to_string(),
             SolveMode::NoChainedCooperation(n) => suffixed("no-chain", *n),
             SolveMode::NoInterdependence(n) => suffixed("no-interdependence", *n),
@@ -96,6 +101,10 @@ mod tests {
         assert_eq!(
             SolveMode::from_str("no-cooperation").unwrap(),
             SolveMode::NoCooperation
+        );
+        assert_eq!(
+            SolveMode::from_str("no-asymmetric").unwrap(),
+            SolveMode::NoAsymmetricCooperation
         );
         assert_eq!(
             SolveMode::from_str("no-mutual").unwrap(),
@@ -146,6 +155,7 @@ mod tests {
             "standard",
             "no-cooperation",
             "no-mutual",
+            "no-asymmetric",
             "no-chain",
             "no-chain-3",
             "no-interdependence",

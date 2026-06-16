@@ -195,7 +195,7 @@ from .observations import ObservationType
 from .solver import solve
 from .types import AgentId, LaserId, Position
 from .world import Action, EventType, World, WorldEvent, WorldState
-from .characterization import is_cooperative, characterize, is_mutual, is_chained
+from .characterization import is_cooperative, characterize, is_asymmetric, is_mutual, is_chained
 
 __version__: str
 from_file = LLE.from_file
@@ -230,6 +230,7 @@ __all__ = [
     "level",
     "solve",
     "is_cooperative",
+    "is_asymmetric",
     "is_mutual",
     "is_chained",
     "generate",
