@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 from lle.generator.generator import WorldGenerator
-from lle.generator.world_filter import Cooperative, WorldFilter
+from lle.generator.world_filter import Chained, Constraint, Cooperative, Interdependent, Mutual
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -236,10 +236,10 @@ def test_cooperative_filter():
         exits="opposite",
         n_lasers=1,
         laser_placement="cross-agent",
-        filter=WorldFilter.cooperative(30),
+        constraint=Constraint(30, Cooperative()),
     )
     world = _build(gen, max_attempts=200)
-    assert Cooperative(30).is_satisfied_by(world)
+    assert Constraint(30, Cooperative()).is_satisfied_by(world)
 
 
 # ---------------------------------------------------------------------------
@@ -287,32 +287,47 @@ def test_error_laser_span_too_small():
 
 def test_error_cooperative_requires_n_agents_ge_2():
     with pytest.raises(ValueError, match="agents"):
-        WorldGenerator(width=5, height=5, n_agents=1, n_lasers=1, filter=WorldFilter.cooperative(20))
+        WorldGenerator(width=5, height=5, n_agents=1, n_lasers=1, constraint=Constraint(20, Cooperative()))
 
 
 def test_error_cooperative_requires_lasers():
     with pytest.raises(ValueError, match="laser"):
-        WorldGenerator(width=5, height=5, n_agents=2, n_lasers=0, filter=WorldFilter.cooperative(20))
+        WorldGenerator(width=5, height=5, n_agents=2, n_lasers=0, constraint=Constraint(20, Cooperative()))
 
 
 def test_error_mutual_requires_n_agents_ge_2():
     with pytest.raises(ValueError, match="agents"):
-        WorldGenerator(width=5, height=5, n_agents=1, n_lasers=1, filter=WorldFilter.mutual(20))
+        WorldGenerator(width=5, height=5, n_agents=1, n_lasers=1, constraint=Constraint(20, Mutual()))
 
 
 def test_error_mutual_requires_n_lasers_ge_2():
     with pytest.raises(ValueError, match="laser"):
-        WorldGenerator(width=5, height=5, n_agents=2, n_lasers=1, filter=WorldFilter.mutual(20))
+        WorldGenerator(width=5, height=5, n_agents=2, n_lasers=1, constraint=Constraint(20, Mutual()))
 
 
 def test_error_chained_requires_n_agents_ge_2():
     with pytest.raises(ValueError, match="agents"):
-        WorldGenerator(width=5, height=5, n_agents=1, n_lasers=1, filter=WorldFilter.chained(20))
+        WorldGenerator(width=5, height=5, n_agents=1, n_lasers=1, constraint=Constraint(20, Chained()))
 
 
 def test_error_chained_requires_n_lasers_ge_2():
     with pytest.raises(ValueError, match="laser"):
-        WorldGenerator(width=5, height=5, n_agents=2, n_lasers=1, filter=WorldFilter.chained(20))
+        WorldGenerator(width=5, height=5, n_agents=2, n_lasers=1, constraint=Constraint(20, Chained()))
+
+
+def test_error_chained_order_3_requires_three_lasers():
+    with pytest.raises(ValueError, match="laser"):
+        WorldGenerator(width=5, height=5, n_agents=3, n_lasers=2, constraint=Constraint(20, Chained(3)))
+
+
+def test_error_interdependent_order_3_requires_three_agents():
+    with pytest.raises(ValueError, match="agents"):
+        WorldGenerator(width=5, height=5, n_agents=2, n_lasers=2, constraint=Constraint(20, Interdependent(3)))
+
+
+def test_error_interdependent_order_3_requires_three_lasers():
+    with pytest.raises(ValueError, match="laser"):
+        WorldGenerator(width=5, height=5, n_agents=3, n_lasers=2, constraint=Constraint(20, Interdependent(3)))
 
 
 # ---------------------------------------------------------------------------

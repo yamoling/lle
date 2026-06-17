@@ -99,8 +99,8 @@ def _(mo):
 
 @app.cell
 def _(display, lle):
-    cooperative_world = lle.generate(n_agents=2).cooperative(t_max=25).build()
-    independent_world = lle.generate(n_agents=2).lasers(2).independent(t_max=25).build()
+    cooperative_world = lle.generate(n_agents=2).cooperative().cap(25).build()
+    independent_world = lle.generate(n_agents=2).lasers(2).independent().cap(25).build()
     display([cooperative_world, independent_world], titles=["Cooperative", "Independent"])
     return
 
@@ -116,7 +116,7 @@ def _(mo):
 
 @app.cell
 def _(display, lle):
-    mutual = lle.generate(n_agents=3).starts("edge").exits("opposite").lasers(2).mutual(t_max=30).build()
+    mutual = lle.generate(n_agents=3).starts("edge").exits("opposite").lasers(2).mutual().cap(30).build()
     display(mutual)
     return
 

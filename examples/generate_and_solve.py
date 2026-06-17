@@ -2,7 +2,7 @@ import lle
 
 if __name__ == "__main__":
     # 1. Generate a solvable, cooperation-requiring world (SAT-verified).
-    world = lle.generate(n_agents=2).cooperative(t_max=21).build()
+    world = lle.generate(n_agents=2).cooperative().cap(21).build()
     assert isinstance(world, lle.World)
 
     # 2. Check it really requires cooperation.

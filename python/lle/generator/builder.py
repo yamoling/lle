@@ -12,9 +12,9 @@ world = lle.generate(width=10, height=10, n_agents=3).build(seed=0)
 
 # A cooperative world laid out as one lane per agent
 world = (
-    lle.generate(width=8, height=8, n_agents=2)
+    lle.generate(width=8, height=8, n_agents=2, t_max=30)
     .lanes()
-    .cooperative(t_max=30)
+    .cooperative()
     .build(seed=5)
 )
 
@@ -31,11 +31,12 @@ from __future__ import annotations
 
 import math
 import random
+from dataclasses import replace
 from typing import Iterator, Literal, overload
 
 from ..world import World
 from .generator import WorldGenerator
-from .world_filter import Chained, Cooperative, Independent, Interdependent, Mutual, Solvable, WorldFilter
+from .world_filter import Asymmetric, Chained, Constraint, Cooperative, Independent, Interdependent, Mutual, Predicate, Solvable
 
 StartsMode = Literal["random", "edge", "clustered"]
 ExitsMode = Literal["random", "edge", "cluster", "opposite"]
@@ -80,11 +81,9 @@ class GeneratorBuilder:
         self._n_rooms_cols: int = 0
         self._door_size: int = 1
 
-        # Behavioural filter — single source of truth for t_max/t_min and the
-        # cooperation constraint. Initialised to "any solvable world".
         if t_max == "auto":
             t_max = width * height // 2
-        self._world_filter: WorldFilter = Solvable(t_max)
+        self._constraint: Constraint = Constraint(t_max)
 
     # ------------------------------------------------------------------
     # Layout
@@ -223,75 +222,54 @@ class GeneratorBuilder:
     # Behavioural filter
     # ------------------------------------------------------------------
 
-    def independent(self, t_min: int | None = None, t_max: int | None = None) -> GeneratorBuilder:
+    def solvable(self) -> GeneratorBuilder:
+        """Require only solvability, with no additional cooperation constraint."""
+        return self.require(Solvable())
+
+    def independent(self) -> GeneratorBuilder:
         """Require worlds solvable *without* cooperation (no laser blocking needed)."""
-        self._world_filter = Independent(
-            t_max if t_max is not None else self._world_filter.t_max, t_min if t_min is not None else self._world_filter.t_min
-        )
-        return self
+        return self.require(Independent())
 
-    def cooperative(
-        self,
-        t_max: int | None = None,
-        t_min: int | None = None,
-    ) -> GeneratorBuilder:
-        """Require worlds that *need* cooperation within `t_max` steps."""
-        self._world_filter = Cooperative(
-            t_max if t_max is not None else self._world_filter.t_max,
-            t_min if t_min is not None else self._world_filter.t_min,
-        )
-        return self
+    def cooperative(self) -> GeneratorBuilder:
+        """Require worlds that need cooperation within the configured solver horizon."""
+        return self.require(Cooperative())
 
-    def chained(
-        self,
-        t_max: int | None = None,
-        t_min: int | None = None,
-    ) -> GeneratorBuilder:
-        """Require *chained* cooperation: a helped b, then b helped c (chain length ≥ 2)."""
-        self._world_filter = Chained(
-            t_max if t_max is not None else self._world_filter.t_max,
-            t_min if t_min is not None else self._world_filter.t_min,
-        )
-        return self
+    def chained(self, length: int = 2) -> GeneratorBuilder:
+        """Require chained cooperation of at least `length` help edges."""
+        return self.require(Chained(length))
 
-    def mutual(
-        self,
-        t_max: int | None = None,
-        t_min: int | None = None,
-    ) -> GeneratorBuilder:
-        """Require *mutual* cooperation: every agent both helps and is helped."""
-        self._world_filter = Mutual(
-            t_max if t_max is not None else self._world_filter.t_max,
-            t_min if t_min is not None else self._world_filter.t_min,
-        )
-        return self
+    def mutual(self) -> GeneratorBuilder:
+        """Require mutual cooperation: every agent both helps and is helped."""
+        return self.require(Mutual())
 
-    def interdependent(
-        self,
-        n_agents: int = 2,
-        t_max: int | None = None,
-        t_min: int | None = None,
-    ) -> GeneratorBuilder:
-        """Require *temporal interdependence*: a temporal cycle in the dependency graph is forced
-        by every solution within`t_max`. For two agents this recovers mutual cooperation."""
-        self._world_filter = Interdependent(
-            n_agents,
-            t_max if t_max is not None else self._world_filter.t_max,
-            t_min if t_min is not None else self._world_filter.t_min,
-        )
-        return self
+    def interdependent(self, order: int = 2) -> GeneratorBuilder:
+        """Require temporal interdependence of at least `order` agents."""
+        return self.require(Interdependent(order))
 
-    def require(self, filter: WorldFilter):
-        """Constrain generation with an explicit `WorldFilter` (escape hatch for
-        custom or future filters). Overrides the named filter shortcuts."""
-        self._world_filter = filter
+    def asymmetric(self) -> GeneratorBuilder:
+        """Require asymmetric cooperation."""
+        return self.require(Asymmetric())
+
+    def require(self, predicate: Predicate | Constraint):
+        """Constrain generation with an explicit predicate expression.
+
+        Accepts any expression built from predicate atoms and `&`, `|`, `~`.
+        Passing a `Constraint` is accepted for advanced callers that want to
+        replace the current predicate and horizon together.
+        """
+        if isinstance(predicate, Constraint):
+            self._constraint = predicate
+        elif isinstance(predicate, Predicate):
+            self._constraint = replace(self._constraint, predicate=predicate)
+        else:
+            raise TypeError(f"require() expects a Predicate or Constraint, got {type(predicate).__name__}.")
         return self
 
     def at_least(self, t_min: int):
         """
         Generate world whose solutions require at least `t_min` time steps.
         """
-        self._world_filter.t_min = t_min
+        self._constraint = replace(self._constraint, t_min=t_min)
         return self
 
     def cap(self, t_max: int):
@@ -301,7 +279,7 @@ class GeneratorBuilder:
 
         By default, `t_max` is set to width * height // 2.
         """
-        self._world_filter.t_max = t_max
+        self._constraint = replace(self._constraint, t_max=t_max)
         return self
 
     # ------------------------------------------------------------------
@@ -410,17 +388,18 @@ class GeneratorBuilder:
             n_rooms_rows=self._n_rooms_rows,
             n_rooms_cols=self._n_rooms_cols,
             door_size=self._door_size,
-            filter=self._world_filter,
+            constraint=self._constraint,
         )
 
     def _resolve_layout(self) -> tuple[StartsMode, ExitsMode]:
         """Pick a layout. An explicit layout is honoured; otherwise one is chosen
-        to suit the behavioural filter (cooperation favours opposite-side layouts)."""
+        to suit the behavioural constraint (cooperation favours opposite-side layouts)."""
         if self._layout_explicit:
             return self._starts, self._exits
-        if self._world_filter.requires_mutual_cooperation:
+        requirements = self._constraint.requirements
+        if requirements.mutual:
             return "clustered", "opposite"
-        if self._world_filter.requires_cooperation:
+        if requirements.cooperation:
             return "edge", "opposite"
         return self._starts, self._exits
 
@@ -428,7 +407,7 @@ class GeneratorBuilder:
         """Derive a laser placement from the layout when left on`"auto"`."""
         if self._laser_placement != "auto":
             return self._laser_placement
-        if self._world_filter.requires_cooperation:
+        if self._constraint.requirements.cooperation:
             if starts == "clustered":
                 return "cross-cluster"
             if starts == "edge":
@@ -438,9 +417,10 @@ class GeneratorBuilder:
     def _resolve_n_lasers(self, placement: ResolvedPlacement) -> int:
         if self._n_lasers != "auto":
             return self._n_lasers
-        if self._world_filter.requires_chained_cooperation:
-            return min(self._n_agents, max(2, self._n_agents - 1))
-        if self._world_filter.requires_cooperation or placement in ("cross-agent", "cross-cluster"):
+        requirements = self._constraint.requirements
+        if requirements.min_lasers > 0:
+            return min(self._n_agents, max(requirements.min_lasers, self._n_agents - 1))
+        if requirements.cooperation or placement in ("cross-agent", "cross-cluster"):
             return min(self._n_agents, max(1, self._n_agents - 1))
         return random.randint(0, self._n_agents)
 

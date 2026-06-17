@@ -91,14 +91,14 @@ customize the layout generation. Call `build()` or `take(n)` to generate one or 
 gen = lle.generate(width=5, height=5, n_agents=2)
 world = gen.build()         # One single world
 worlds = list(gen.take(3))  # Three worlds
-builder = lle.generate(width=4, height=4, n_agents=2).lasers(1).cooperative(t_max=10)
-builder = lle.generate(width=4, height=4, n_agents=2).lasers(2).mutual(t_max=10)
-two_worlds = list(lle.generate(width=4, height=4, n_agents=2).lasers(1).cooperative(t_max=10).take(2))
+builder = lle.generate(width=4, height=4, n_agents=2).lasers(1).cooperative().cap(10)
+builder = lle.generate(width=4, height=4, n_agents=2).lasers(2).mutual().cap(10)
+two_worlds = list(lle.generate(width=4, height=4, n_agents=2).lasers(1).cooperative().cap(10).take(2))
 ```
 
 **Builder options** — layout: `random()`, `lanes()`, `clustered()`, `starts(...)` / `exits(...)`.
 Obstacles: `lasers(n, placement=..., span=...)`, `walls(n, style=...)`.
-Behaviour: `solvable()` (default), `independent()`, `cooperative(...)`, `mutual(...)`.
+Behaviour: `solvable()` (default), `independent()`, `cooperative()`, `chained(n)`, `mutual()`, `interdependent(n)`, or `require(...)`.
 
 See `lle.generator` for the full method reference.
 

@@ -23,7 +23,7 @@ from .placements import (
     place_walls,
 )
 from .world_builder import WorldBuilder
-from .world_filter import WorldFilter
+from .world_filter import Constraint
 
 
 @dataclass
@@ -86,8 +86,8 @@ class WorldGenerator:
     walls_style:
        `"individual"` places single-cell walls;`"shapes"` groups them into
         connected bars / L-shapes / 2×2 blocks.
-    filter:
-        A :class:`WorldFilter` applied after layout generation.`None` accepts
+    constraint:
+        A :class:`Constraint` applied after layout generation. `None` accepts
         any geometrically valid world.
     """
 
@@ -107,7 +107,7 @@ class WorldGenerator:
         n_rooms_rows: int = 0,
         n_rooms_cols: int = 0,
         door_size: int = 1,
-        filter: WorldFilter | None = None,
+        constraint: Constraint | None = None,
     ):
         if exits == "opposite" and starts not in ("edge", "clustered"):
             raise ValueError("exits='opposite' requires starts='edge' or starts='clustered', not 'random'.")
@@ -137,14 +137,12 @@ class WorldGenerator:
             raise ValueError(f"lasers must be <= agents (one laser source per colour). Got lasers={n_lasers}, agents={n_agents}.")
         self.n_lasers = n_lasers
 
-        if filter is not None:
-            if filter.requires_cooperation:
-                if n_agents < 2:
-                    raise ValueError("Cooperative worlds require at least 2 agents.")
-                if n_lasers == 0:
-                    raise ValueError("Cooperative worlds are impossible with 0 lasers.")
-            if filter.requires_chained_cooperation and n_lasers < 2:
-                raise ValueError("Chained cooperation requires at least 2 lasers.")
+        if constraint is not None:
+            requirements = constraint.requirements
+            if n_agents < requirements.min_agents:
+                raise ValueError(f"Constraint requires at least {requirements.min_agents} agents, got {n_agents}.")
+            if n_lasers < requirements.min_lasers:
+                raise ValueError(f"Constraint requires at least {requirements.min_lasers} laser sources, got {n_lasers}.")
 
         if n_rooms_rows > 0:
             # In rooms mode the walls are structural dividers, not random fills.
@@ -164,7 +162,7 @@ class WorldGenerator:
             self._rooms_cfg = None
             self._wall_cfg = WallConfig(n=resolved_n_walls, style=walls_style)
 
-        self.world_filter = filter
+        self.constraint = constraint
         self._rng = random.Random()
 
         self._agent_cfg = AgentConfig(mode=starts)
@@ -229,9 +227,9 @@ class WorldGenerator:
         return b.build()
 
     def _accept_world(self, world: World) -> bool:
-        if self.world_filter is None:
+        if self.constraint is None:
             return True
-        return self.world_filter.is_satisfied_by(world)
+        return self.constraint.is_satisfied_by(world)
 
     # ------------------------------------------------------------------
     # Generation loop
