@@ -29,20 +29,35 @@ class TrajectoryProfile:
     def is_chained(self, length: int = 2):
         """Whether the trajectory exhibits a cooperation chain of at least `length` help edges.
 
-        A chain is a temporal directed walk of help edges whose timestamps never decrease and never repeat. The
-        length is the number of help edges. Agents and lasers may repeat freely, so simultaneous
-        mutual help, cycles, and lassos all count. If same-timestep help contains a directed cycle,
-        the chain length is unbounded.
+        A chain is a directed temporal trail of help edges whose timestamps never decrease.
+        Vertices (agents) may be revisited freely; temporal edges — uniquely identified by
+        (helper, beneficiary, t) — may each be used at most once.  Because the help graph at any
+        single time step is a finite simple directed graph, and edges at different time steps are
+        always distinct triples, every trail is finite.
 
         A chain encodes two ideas:
            1) transitivity of the cooperation: if a helps b and b helps c, then a also helps c indirectly.
            2) depth of cooperation: i.e. how many subsequent (or simultaneous) cooperative events occur.
 
-        A chain must have a length of at least 2 edges; a single help edge is cooperative but not chained.
+        A chain must have at least 2 edges; a single help edge is cooperative but not chained.
+
+        # Returns
+        Returns `0` when the longest trail has fewer than two edges (a single help edge is
+        cooperation, but not a chain).
+
+        # Examples
+           - `a -> b` returns 0 (single edge, not a chain);
+           - `a -> b -> c` returns `2`;
+           - `a -> b -> c -> a` returns `3`;
+           - `a -> b -> c -> d -> b` returns `4`;
+           - `a -> b`, and `a -> c` returns `0` (no path of length ≥ 2 from either branch);
+           - `a -> b -> a` returns `2`;
+           - `a -> b` and `b -> a` at the same time step returns `2` (trail uses each edge once);
+           - an independent graph returns `0`.
         """
         if length < 2:
             raise ValueError("A chain must have at least 2 edges")
-        return self.graph.longest_walk() >= length
+        return self.graph.longest_trail() >= length
 
     def interdependence_order(self) -> int:
         """The order of the largest temporal cycle in this trajectory (0 if none)."""

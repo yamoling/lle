@@ -41,6 +41,62 @@ fn cycles_dfs(
     }
 }
 
+/// Enumerate all directed trails of exactly `length` edges starting from a laser owner.
+///
+/// Each trail is returned as `[v0, v1, …, v_length]` where:
+/// - `v0, …, v_{length-1}` must be laser owners (they are helpers);
+/// - `v_length` can be any agent (the final beneficiary);
+/// - no directed pair `(vi, v_{i+1})` appears twice (trail condition);
+/// - no self-loops (`vi ≠ v_{i+1}`).
+pub(crate) fn enumerate_directed_trails(
+    owners: &[AgentId],
+    all_agents: &[AgentId],
+    length: usize,
+) -> Vec<Vec<AgentId>> {
+    if length < 2 {
+        return vec![];
+    }
+    let mut out = Vec::new();
+    let mut edges_used = HashSet::new();
+    for &start in owners {
+        let mut path = vec![start];
+        trail_dfs(start, owners, all_agents, &mut edges_used, &mut path, length, &mut out);
+    }
+    out
+}
+
+fn trail_dfs(
+    current: AgentId,
+    owners: &[AgentId],
+    all_agents: &[AgentId],
+    edges_used: &mut HashSet<(AgentId, AgentId)>,
+    path: &mut Vec<AgentId>,
+    target_edges: usize,
+    out: &mut Vec<Vec<AgentId>>,
+) {
+    let current_edges = path.len() - 1;
+    if current_edges == target_edges {
+        out.push(path.clone());
+        return;
+    }
+    let remaining = target_edges - current_edges;
+    // All helpers except the last must be laser owners; the final beneficiary can be any agent.
+    let candidates: &[AgentId] = if remaining == 1 { all_agents } else { owners };
+    for &next in candidates {
+        if next == current {
+            continue;
+        }
+        let edge = (current, next);
+        if !edges_used.contains(&edge) {
+            edges_used.insert(edge);
+            path.push(next);
+            trail_dfs(next, owners, all_agents, edges_used, path, target_edges, out);
+            path.pop();
+            edges_used.remove(&edge);
+        }
+    }
+}
+
 /// Generates the SAT clauses for a bounded planning horizon, combining initialization,
 /// movement, laser constraints, mode-specific constraints, and the objective.
 pub struct ClauseGenerator {
@@ -48,14 +104,14 @@ pub struct ClauseGenerator {
     pub(super) pool: VarPool,
     pub(super) exits: HashSet<Position>,
     pub(super) mode: SolveMode,
-    /// Temporal cycles forbidden by `NoInterdependence`, as closed vertex sequences
-    /// `[v0, …, v_{m-1}, v0]` (edge `i` is `v_i → v_{i+1}`). Chain mode uses a separate
-    /// time-indexed depth counter and leaves this list empty.
+    /// Directed trails/cycles detected by walk-progress tracking. Each entry is a vertex sequence
+    /// `[v0, …, v_m]` (edge `i` is `v_i → v_{i+1}`).  For `NoInterdependence`, entries are
+    /// closed cycles (`v_m == v_0`). For `NoChainedCooperation`, entries are open trails with no
+    /// repeated directed pairs.
     pub(super) walks: Vec<Vec<AgentId>>,
     /// Ordered `(helper, beneficiary)` pairs for which a `has_helped_by_time` indicator is
     /// actually consumed — all owner-to-agent edges for asymmetric mode, mutual owner-pairs for
-    /// mutual mode, or each cycle's first edge for interdependence mode. Chain mode reads help
-    /// events directly and does not need these indicators.
+    /// mutual mode, or each walk's first edge for interdependence and chain modes.
     pub(super) has_helped_pairs: Vec<(AgentId, AgentId)>,
     /// `clause_buffer[t]` = world-enforcing (+ mode-specific) clauses for step `t`.
     clause_buffer: Vec<Vec<Clause>>,
@@ -73,6 +129,7 @@ impl ClauseGenerator {
         let mut owners: Vec<AgentId> = ctx.laser_sources.iter().map(|s| s.agent_id).collect();
         owners.sort_unstable();
         owners.dedup();
+        let all_agents: Vec<AgentId> = (0..ctx.n_agents).collect();
         let walks = match mode {
             // Any simple directed cycle of order ≥ `n`, expanded to a closed vertex sequence.
             SolveMode::NoInterdependence(n) => enumerate_directed_cycles(&owners, n)
@@ -82,12 +139,16 @@ impl ClauseGenerator {
                     cycle
                 })
                 .collect(),
+            // All directed trails of exactly `k` edges; forbidding each one prevents chains ≥ k
+            // because every longer trail contains a sub-trail of length k.
+            SolveMode::NoChainedCooperation(k) => {
+                enumerate_directed_trails(&owners, &all_agents, k)
+            }
             _ => vec![],
         };
         // `has_helped_by_time` is generated only for directed pairs consumed by the selected
         // cooperation mode: all owner-to-agent edges for asymmetric mode, mutual owner-pairs for
-        // mutual mode, or each cycle's first edge for interdependence mode. Chain mode uses direct
-        // per-time help-edge witnesses instead.
+        // mutual mode, or each walk's first edge for interdependence and chain modes.
         let has_helped_pairs: Vec<(AgentId, AgentId)> = match mode {
             SolveMode::NoAsymmetricCooperation => owners
                 .iter()
@@ -106,7 +167,7 @@ impl ClauseGenerator {
                         .map(move |&b| (a, b))
                 })
                 .collect(),
-            SolveMode::NoInterdependence(_) => {
+            SolveMode::NoInterdependence(_) | SolveMode::NoChainedCooperation(_) => {
                 let mut pairs: Vec<(AgentId, AgentId)> =
                     walks.iter().map(|w| (w[0], w[1])).collect();
                 pairs.sort_unstable();
@@ -169,8 +230,7 @@ impl ClauseGenerator {
                 clauses.extend(mc);
                 assumptions.extend(ma);
             }
-            SolveMode::NoChainedCooperation(_) => assumptions.extend(self.assume_no_chain()),
-            SolveMode::NoInterdependence(_) => {
+            SolveMode::NoChainedCooperation(_) | SolveMode::NoInterdependence(_) => {
                 let (wc, wa) = self.forbid_walks();
                 clauses.extend(wc);
                 assumptions.extend(wa);
@@ -195,12 +255,14 @@ impl ClauseGenerator {
         match self.mode {
             SolveMode::NoAsymmetricCooperation
             | SolveMode::NoMutualCooperation
-            | SolveMode::NoInterdependence(_) => clauses.extend(self.has_helped_by_time_clauses(t)),
+            | SolveMode::NoInterdependence(_)
+            | SolveMode::NoChainedCooperation(_) => clauses.extend(self.has_helped_by_time_clauses(t)),
             _ => {}
         }
         match self.mode {
-            SolveMode::NoChainedCooperation(k) => clauses.extend(self.chain_depth_clauses(t, k)),
-            SolveMode::NoInterdependence(_) => clauses.extend(self.walk_clauses(t)),
+            SolveMode::NoChainedCooperation(_) | SolveMode::NoInterdependence(_) => {
+                clauses.extend(self.walk_clauses(t))
+            }
             _ => {}
         }
         self.clause_buffer[t] = clauses;

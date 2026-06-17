@@ -32,13 +32,10 @@ use crate::{
 ///
 /// world = World.level(1)
 /// gen = ClauseGenerator(world, t_max=20, mode="standard")
-/// for t in range(gen.solution_lower_bound, gen.t_max + 1):
-///     clauses, assumptions = gen.generate(t)
-///     with Minisat22(bootstrap_with=clauses) as solver:
-///         if solver.solve(assumptions=assumptions):
-///             plan = gen.decode_plan(solver.get_model(), t)
-///             if plan is not None:
-///                 return plan
+/// clauses, assumptions = gen.generate(t_max)
+/// with Minisat22(bootstrap_with=clauses) as solver:
+///     if solver.solve(assumptions=assumptions):
+///         plan = gen.decode_plan(solver.get_model(), t)
 /// ```
 #[gen_stub_pyclass]
 #[pyclass(name = "ClauseGenerator", module = "lle.solver.constraints")]

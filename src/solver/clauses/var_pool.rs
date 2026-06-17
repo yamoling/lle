@@ -35,10 +35,6 @@ pub enum VarKey {
         pos: Position,
         t: usize,
     },
-    /// A chain of length `depth` ending at `head`, whose last help edge occurred at a time ≤ `t`.
-    ChainDepth { head: AgentId, depth: u8, t: usize },
-    /// Whether a chain of length `k` has been realized somewhere in the trajectory.
-    ChainRealized { k: usize },
     /// Progress for interdependence cycle `walk_id`: its first `step` edges have fired with
     /// non-decreasing timestamps, the `step`-th edge firing at some time ≤ `t`. Only created for
     /// `step ≥ 2`; the first edge is expressed directly by [`HasHelpedByTime`].
@@ -92,16 +88,6 @@ impl VarKey {
             pos,
             t,
         }
-    }
-
-    #[inline]
-    pub fn chain_depth(head: AgentId, depth: u8, t: usize) -> Self {
-        VarKey::ChainDepth { head, depth, t }
-    }
-
-    #[inline]
-    pub fn chain_realized(k: usize) -> Self {
-        VarKey::ChainRealized { k }
     }
 
     #[inline]
@@ -170,16 +156,6 @@ impl VarPool {
     /// Indicator "`helper` has helped `beneficiary` at any time step ≤ `t`".
     pub fn has_helped_by_time(&mut self, helper: AgentId, beneficiary: AgentId, t: usize) -> i32 {
         self.id(VarKey::has_helped_by_time(helper, beneficiary, t))
-    }
-
-    /// Chain-depth indicator: a non-decreasing-time chain of length `depth` ending at `head` has fired by time `t`.
-    pub fn chain_depth(&mut self, head: AgentId, depth: u8, t: usize) -> i32 {
-        self.id(VarKey::chain_depth(head, depth, t))
-    }
-
-    /// Whether a length-`k` chain has been realized.
-    pub fn chain_realized(&mut self, k: usize) -> i32 {
-        self.id(VarKey::chain_realized(k))
     }
 
     /// Progress indicator: the first `step` edges of interdependence cycle `walk_id` have fired by time `t`.

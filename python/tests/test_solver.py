@@ -250,8 +250,7 @@ def test_no_chain_solver_returns_only_plans_below_requested_depth(level: int, t_
         return
 
     profile = profile_trajectory(world, plan)
-    assert profile.graph.longest_chain() < length
-    assert profile.graph.longest_walk() == profile.graph.longest_chain()
+    assert profile.graph.longest_trail() < length
 
 
 def test_typing_solve_mode_literal():

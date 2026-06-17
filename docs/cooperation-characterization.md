@@ -198,7 +198,9 @@ This example illustrates an open chain of dependencies: one help event enables a
 
 ### Trajectory-level
 
-A chain is a temporal directed walk of help edges whose timestamps never decrease:
+A chain is a temporal directed **trail** of help edges whose timestamps never decrease.  A trail is
+a walk where no directed edge `(helper, beneficiary)` is traversed twice at the same time step `t`.
+Formally, each temporal triple `(helper, beneficiary, t)` may appear at most once.
 
 ```text
 a -> b -> c -> ...
@@ -213,10 +215,12 @@ The graph implementation allows:
 - open chains, such as `a -> b -> c`;
 - cycles, such as `a -> b -> a` or `a -> b -> c -> a`;
 - lassos, such as `a -> b -> c -> d -> b`;
-- revisits/reuse, such as `a -> b -> a -> b`; and
-- simultaneous chains, such as `a -> b` and `b -> c` at the same timestep.
+- simultaneous chains: `a -> b` and `b -> c` at the same time step count as a length-2 chain; and
+- vertex revisits: the same agent may appear multiple times, provided no directed pair is reused.
 
-Agents and lasers may repeat freely. If same-timestep help contains a directed cycle, chain length is unbounded because the walk can loop at that timestep.
+Because the help graph at any single time step is a finite simple directed graph (no repeated edges
+within one step), and edges at different time steps are always distinct temporal triples, every trail
+is finite.
 
 ### World-level
 
@@ -229,7 +233,10 @@ A world requires chained cooperation of length at least `N` when:
 
 `N` must be at least `2`. The bare mode string `"no-chain"` is canonical shorthand for `"no-chain-2"`.
 
-The solver uses a time-indexed chain-depth counter `chain_depth(agent, depth, t)` and forbids `chain_realized(N)`. Forbidding length-`N` chains also forbids all longer chains, because any longer temporal walk has a length-`N` prefix.
+The solver enumerates all directed trails of exactly length `N` (vertex sequences with no repeated
+directed pair) and tracks whether any of them is realized using walk-progress variables.  Forbidding
+each length-`N` trail also forbids all longer chains, because every trail of length `> N` contains
+a sub-trail of length exactly `N`.
 
 ## Interdependence / cyclic help
 
@@ -287,10 +294,15 @@ For asymmetric characterization, `shortest_non_asymmetric_path` returns the stan
 
 ### Chain and interdependence upper bounds
 
+Under trail semantics (no repeated directed pair at the same time step), chained cooperation has a
+finite structural upper bound.  At a single time step `t`, the help graph is a simple directed graph
+over at most `n_agents` nodes, which has at most `n_agents × (n_agents − 1)` directed edges.  Any
+trail within that graph therefore has length at most `n_agents × (n_agents − 1)`.  Across multiple
+time steps, the same directed pair `(helper, beneficiary)` may be reused at a different `t` (each
+temporal triple is distinct), but the set of distinct triples is finite, so every trail is finite.
 
-Chained cooperation has no finite structural upper bound once simultaneous help and revisits are allowed: a same-timestep directed cycle can be walked around arbitrarily many times. Therefore `is_chained(length)` does not use a `t_max` or laser-owner vacuity shortcut.
-
-TODO: the upper statement is false ! There is an upper bound but we still have to figure it out.
+A practical tighter bound within a single time step is `(n_agents − 1) × n_lasers`, since help can
+only occur across laser beams and there are at most `n_lasers` beam types.
 
 Interdependence has a separate structural bound: only agents that own at least one laser can be helpers in help edges, so a cycle of order greater than the number of laser-owning agents cannot occur.
 

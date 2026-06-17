@@ -9,7 +9,7 @@ detected from a trajectory.
 
 from __future__ import annotations
 
-from collections import defaultdict, deque
+from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -105,25 +105,9 @@ class TemporalDependencyGraph:
         """The largest fan-out over all agents (at time`t` if given)."""
         return max((self.fan_out(a, t) for a in range(self.n_agents)), default=0)
 
-    def longest_walk(self) -> int | float:
-        """Return the length of the longest non-decreasing-time help-edge walk.
-
-        A chain is a directed walk of help edges whose timestamps never decrease. Agents and lasers
-        are not resources: the same agent may be revisited and the same help edge may be used again
-        at the same or a later time. If one time bucket contains a directed cycle, the longest walk
-        is unbounded and this method returns `float("inf")`. It reports `0` when the longest finite
-        walk has fewer than two edges (a single help edge is cooperation, but not a chain).
-
-        # Examples
-           - `a -> b` returns 1;
-           - `a -> b -> c` returns `2`;
-           - `a -> b -> c -> a` returns `3`;
-           - `a -> b -> c -> d -> b` returns `4`;
-           - `a -> b`, and `a -> c` returns `1`;
-           - `a -> b -> a` returns `2`;
-           - an independent graph returns `0`.
-        """
-        if not self._edges:
+    def longest_trail(self) -> int:
+        """Return the length of the longest non-decreasing-time help-edge trail."""
+        if len(self._edges) == 0:
             return 0
 
         best_ending_at: dict[AgentId, int] = defaultdict(int)
@@ -138,45 +122,31 @@ class TemporalDependencyGraph:
                 bucket.append(sorted_edges[idx])
                 idx += 1
 
-            adjacency: dict[AgentId, set[AgentId]] = defaultdict(set)
-            indegree: dict[AgentId, int] = defaultdict(int)
-            nodes: set[AgentId] = set()
+            adj: dict[AgentId, set[AgentId]] = defaultdict(set)
             for edge in bucket:
-                nodes.add(edge.helper)
-                nodes.add(edge.beneficiary)
-                if edge.beneficiary not in adjacency[edge.helper]:
-                    adjacency[edge.helper].add(edge.beneficiary)
-                    indegree[edge.beneficiary] += 1
-                    indegree.setdefault(edge.helper, indegree.get(edge.helper, 0))
+                adj[edge.helper].add(edge.beneficiary)
 
-            queue = deque(node for node in nodes if indegree[node] == 0)
-            topo: list[AgentId] = []
-            while queue:
-                node = queue.popleft()
-                topo.append(node)
-                for nxt in adjacency.get(node, set()):
-                    indegree[nxt] -= 1
-                    if indegree[nxt] == 0:
-                        queue.append(nxt)
+            # Carry forward existing depths; the DFS below may only improve them.
+            new_depths: dict[AgentId, int] = defaultdict(int, best_ending_at)
 
-            if len(topo) != len(nodes):
-                return float("inf")
+            def dfs(current: AgentId, depth: int, edges_used: set, longest: int):
+                new_depths[current] = max(new_depths[current], depth)
+                longest = max(longest, depth)
+                for nxt in adj.get(current, ()):
+                    edge = (current, nxt)
+                    if edge not in edges_used:
+                        edges_used.add(edge)
+                        longest = max(dfs(nxt, depth + 1, edges_used, longest), longest)
+                        edges_used.discard(edge)
+                return longest
 
-            depths = {node: best_ending_at[node] for node in nodes}
-            for node in topo:
-                for nxt in adjacency.get(node, set()):
-                    length = depths[node] + 1
-                    depths[nxt] = max(depths.get(nxt, 0), length)
-                    longest = max(longest, length)
+            # Start DFS from every vertex that has outgoing edges in this bucket.
+            for start in adj:
+                dfs(start, best_ending_at[start], set(), 0)
 
-            for node, length in depths.items():
-                best_ending_at[node] = max(best_ending_at[node], length)
+            best_ending_at = new_depths
 
-        return longest if longest >= 2 else 0
-
-    def longest_chain(self) -> int | float:
-        """Alias for [`longest_walk`](TemporalDependencyGraph.longest_walk)."""
-        return self.longest_walk()
+        return longest
 
     # ------------------------------------------------------------------
     # Cycles

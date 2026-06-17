@@ -1,5 +1,4 @@
 use super::generator::ClauseGenerator;
-use super::solve_mode::SolveMode;
 use super::utils::implies;
 use super::{Clause, Literal, VarKey};
 use crate::{AgentId, Position};
@@ -41,13 +40,12 @@ impl ClauseGenerator {
     /// has_helped_by_time(helper, beneficiary, t-1) → has_helped_by_time(helper, beneficiary, t)
     /// ```
     ///
-    /// This single family serves two purposes, replacing what used to be separate variable towers:
+    /// This single family serves multiple purposes:
     /// - read at the current horizon it is the time-agnostic "h ever helps b" indicator that the
     ///   mutual-cooperation forbid relies on (formerly `DependsOn`);
-    /// - it is the first edge (`step 1`) of every temporal cycle used by interdependence mode
-    ///   (formerly `CycleProgress(·,1,·)`).
+    /// - it is the first edge (`step 1`) of every temporal walk/trail used by interdependence and
+    ///   chain modes (formerly `CycleProgress(·,1,·)`).
     ///
-    /// Chain mode now reads concrete help events directly in [`chain_depth_clauses`](Self::chain_depth_clauses).
     /// Call once per time step, after `generate(t)`.
     pub(crate) fn has_helped_by_time_clauses(&mut self, t: usize) -> Vec<Clause> {
         self.ctx.update(t);
@@ -177,84 +175,6 @@ impl ClauseGenerator {
             }
         }
         (clauses, assumptions)
-    }
-
-    /// Additive clauses, at time step `t`, for the time-indexed chain-depth counter.
-    ///
-    /// `chain_depth(head, depth, t)` means that a non-decreasing-time chain of `depth` help edges
-    /// ends at `head`, with its last edge at some time `≤ t`. Fresh help edges at time `t` create
-    /// depth 1, extend depths already available at the same time `t`, or realize the forbidden
-    /// length `k`. Reading predecessors at `t` is what allows simultaneous help events to chain;
-    /// the encoding remains stratified because every extension increases `depth`.
-    pub(crate) fn chain_depth_clauses(&mut self, t: usize, _k: usize) -> Vec<Clause> {
-        self.ctx.update(t);
-        let SolveMode::NoChainedCooperation(k) = self.mode else {
-            return Vec::new();
-        };
-        debug_assert!(
-            k >= 2,
-            "chain lengths below 2 are rejected by SolveMode parsing"
-        );
-        debug_assert!(k < 64, "chain-depth variables store depth in u8 by design");
-
-        let mut clauses = Vec::new();
-
-        // Temporal carry: once a depth is reachable, it remains reachable at later time steps.
-        if t > 0 {
-            for head in 0..self.ctx.n_agents {
-                for depth in 1..=k - 1 {
-                    let depth = depth as u8;
-                    if let Some(prev) = self.pool.get(&VarKey::chain_depth(head, depth, t - 1)) {
-                        let current = self.pool.chain_depth(head, depth, t);
-                        clauses.push(implies(prev, current));
-                    }
-                }
-            }
-        }
-
-        for helper in 0..self.ctx.n_agents {
-            for beneficiary in 0..self.ctx.n_agents {
-                if helper == beneficiary {
-                    continue;
-                }
-                let positions = self.help_edge_positions(helper, beneficiary, t);
-                if positions.is_empty() {
-                    continue;
-                }
-                for pos in positions {
-                    let agent_var = self.pool.agent(beneficiary, pos, t);
-                    let depth_one = self.pool.chain_depth(beneficiary, 1, t);
-                    clauses.push(implies(agent_var, depth_one));
-
-                    if k >= 3 {
-                        for depth in 1..=k - 2 {
-                            let prev_depth = self.pool.chain_depth(helper, depth as u8, t);
-                            let next_depth =
-                                self.pool.chain_depth(beneficiary, (depth + 1) as u8, t);
-                            clauses.push(vec![-prev_depth, -agent_var, next_depth]);
-                        }
-                    }
-
-                    let prev_depth = self.pool.chain_depth(helper, (k - 1) as u8, t);
-                    let realized = self.pool.chain_realized(k);
-                    clauses.push(vec![-prev_depth, -agent_var, realized]);
-                }
-            }
-        }
-
-        clauses
-    }
-
-    /// Assumption `¬chain_realized(k)` when a length-`k` chain can be witnessed by the generated
-    /// clauses. If no realized literal exists yet, there is nothing to forbid at the current horizon.
-    pub(crate) fn assume_no_chain(&self) -> Vec<Literal> {
-        let SolveMode::NoChainedCooperation(k) = self.mode else {
-            return vec![];
-        };
-        self.pool
-            .get(&VarKey::chain_realized(k))
-            .map(|lit| vec![-lit])
-            .unwrap_or_default()
     }
 
     /// The progress literal after the first `step` edges of `walk` have fired by time `t`, or

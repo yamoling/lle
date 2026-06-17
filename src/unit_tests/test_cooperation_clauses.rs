@@ -12,7 +12,7 @@
 use crate::solver::ClauseGenerator;
 use crate::solver::SolveMode;
 use crate::solver::VarKey;
-use crate::{Position, World};
+use crate::World;
 
 fn build(map: &str, t_max: usize, mode: SolveMode) -> ClauseGenerator {
     let world = World::try_from(map).expect("failed to parse world");
@@ -27,32 +27,6 @@ fn can_help(cg: &ClauseGenerator, helper: usize, beneficiary: usize, t_max: usiz
     (0..=t_max).any(|t| cg.exists(&VarKey::has_helped_by_time(helper, beneficiary, t)))
 }
 
-fn has_clause(clauses: &[Vec<i32>], expected: &[i32]) -> bool {
-    let mut expected = expected.to_vec();
-    expected.sort_unstable();
-    clauses.iter().any(|clause| {
-        let mut clause = clause.clone();
-        clause.sort_unstable();
-        clause == expected
-    })
-}
-
-fn first_help_position(
-    cg: &mut ClauseGenerator,
-    helper: usize,
-    beneficiary: usize,
-    start_t: usize,
-    end_t: usize,
-) -> (usize, Position) {
-    for t in start_t..=end_t {
-        cg.ctx.update(t);
-        let positions = cg.help_edge_positions(helper, beneficiary, t);
-        if let Some(pos) = positions.first() {
-            return (t, *pos);
-        }
-    }
-    panic!("no help position found for {helper}->{beneficiary} in {start_t}..={end_t}");
-}
 
 /// `S0` (laser owner) can step into beam `L0E` to protect `S1`, but `S1` owns no laser, so no
 /// mutual dependency is even expressible.
@@ -227,81 +201,61 @@ fn asymmetric_world_generates_forbid_clauses_and_assumptions() {
 }
 
 #[test]
-fn chain_depth_base_clauses_create_length_one_depth() {
+fn chained_mode_k2_enumerates_two_trails_for_mutual_world() {
     let world = World::try_from(MUTUAL).expect("failed to parse world");
-    let mut cg = ClauseGenerator::new(&world, 10, SolveMode::NoChainedCooperation(2));
-
-    let (t, pos) = first_help_position(&mut cg, 0, 1, 1, 10);
-    let clauses = cg.chain_depth_clauses(t, 2);
-
-    let agent_var = cg.literal(&VarKey::agent(1, pos, t)).unwrap();
-    let depth = cg.literal(&VarKey::chain_depth(1, 1, t)).unwrap();
-    assert!(
-        has_clause(&clauses, &[-agent_var, depth]),
-        "a concrete help witness must imply depth 1 ending at the beneficiary"
+    let cg = ClauseGenerator::new(&world, 10, SolveMode::NoChainedCooperation(2));
+    // MUTUAL world: owners = [0, 1], all_agents = [0, 1].
+    // Length-2 trails with no repeated directed pair: [0,1,0] and [1,0,1].
+    assert_eq!(
+        cg.walks.len(),
+        2,
+        "two distinct length-2 trails in a 2-owner world"
     );
 }
 
 #[test]
-fn chain_depth_extension_reads_same_time_depth() {
+fn chained_mode_k3_has_no_trails_for_two_agent_world() {
     let world = World::try_from(MUTUAL).expect("failed to parse world");
-    let mut cg = ClauseGenerator::new(&world, 10, SolveMode::NoChainedCooperation(3));
-    let (t, pos) = first_help_position(&mut cg, 0, 1, 1, 10);
-    let same_time_depth = cg.pool.chain_depth(0, 1, t);
-
-    let clauses = cg.chain_depth_clauses(t, 2);
-
-    let agent_var = cg.literal(&VarKey::agent(1, pos, t)).unwrap();
-    let next_depth = cg.literal(&VarKey::chain_depth(1, 2, t)).unwrap();
+    let cg = ClauseGenerator::new(&world, 10, SolveMode::NoChainedCooperation(3));
+    // Only 2 distinct directed pairs (0->1) and (1->0) exist; a length-3 trail needs 3 distinct
+    // directed pairs, which is impossible with 2 agents.
     assert!(
-        has_clause(&clauses, &[-same_time_depth, -agent_var, next_depth]),
-        "extension must allow a depth ending at the helper at the same timestep"
+        cg.walks.is_empty(),
+        "no length-3 trail can exist with only 2 agents and 2 possible directed pairs"
     );
 }
 
 #[test]
-fn chain_depth_detection_forbids_revisited_agent_chain() {
-    let world = World::try_from(MUTUAL).expect("failed to parse world");
-    let mut cg = ClauseGenerator::new(&world, 10, SolveMode::NoChainedCooperation(3));
-    let (t, pos) = first_help_position(&mut cg, 1, 0, 1, 10);
-    let same_time_depth = cg.pool.chain_depth(1, 2, t);
-
-    let clauses = cg.chain_depth_clauses(t, 2);
-
-    let agent_var = cg.literal(&VarKey::agent(0, pos, t)).unwrap();
-    let realized = cg.literal(&VarKey::chain_realized(3)).unwrap();
+fn no_chained_mode_uses_walk_realized_variables() {
+    let cg = build(MUTUAL, 10, SolveMode::NoChainedCooperation(2));
+    // With trails [0,1,0] and [1,0,1], the MUTUAL world can realize both: walk_realized(0) and
+    // walk_realized(1) should be allocated after generate().
     assert!(
-        has_clause(&clauses, &[-same_time_depth, -agent_var, realized]),
-        "a same-time edge into an earlier agent may realize the chain"
+        cg.exists(&VarKey::WalkRealized { walk_id: 0 }),
+        "chain mode must allocate WalkRealized(0)"
     );
-
-    let assumptions = cg.assume_no_chain();
-    assert_eq!(assumptions, vec![-realized]);
+    assert!(
+        cg.exists(&VarKey::WalkRealized { walk_id: 1 }),
+        "chain mode must allocate WalkRealized(1)"
+    );
 }
 
 #[test]
-fn no_chained_mode_uses_chain_depth_not_walk_variables() {
-    let cg = build(MUTUAL, 10, SolveMode::NoChainedCooperation(3));
-    let has_chain_var = (1..=cg.n_vars() as i32).any(|id| {
-        matches!(
-            cg.pool.key(id),
-            Some(VarKey::ChainDepth { .. }) | Some(VarKey::ChainRealized { .. })
-        )
-    });
-    let has_walk_var = (1..=cg.n_vars() as i32).any(|id| {
-        matches!(
-            cg.pool.key(id),
-            Some(VarKey::WalkProgress { .. }) | Some(VarKey::WalkRealized { .. })
-        )
-    });
+fn chained_mode_forbid_walks_produces_negative_assumptions() {
+    let cg = build(MUTUAL, 10, SolveMode::NoChainedCooperation(2));
+    let (clauses, assumptions) = cg.forbid_walks();
+    assert!(clauses.is_empty(), "forbid_walks must not produce extra clauses");
     assert!(
-        has_chain_var,
-        "chain mode must allocate chain-depth variables"
+        !assumptions.is_empty(),
+        "mutual world with k=2 must have walk-realized assumptions"
     );
-    assert!(
-        !has_walk_var,
-        "chain mode must not use legacy walk variables"
-    );
+    for &lit in &assumptions {
+        assert!(lit < 0, "all walk-forbid assumptions must be negative");
+        assert!(
+            matches!(cg.pool.key(-lit), Some(VarKey::WalkRealized { .. })),
+            "assumption must negate a WalkRealized variable"
+        );
+    }
 }
 
 #[test]
