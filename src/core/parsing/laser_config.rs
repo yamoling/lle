@@ -18,11 +18,12 @@ impl LaserConfig {
     /// Note there is no "TryFrom" implementation for LaserSource because we need the laser_id.
     pub fn from_str(value: &str, laser_id: LaserId) -> Result<LaserConfig, ParseError> {
         let direction = Direction::try_from(value.chars().last().unwrap()).unwrap();
-        let agent_id = match (&value[1..2]).parse::<AgentId>() {
+        let agent_id_str = &value[1..value.len() - 1];
+        let agent_id = match agent_id_str.parse::<AgentId>() {
             Ok(agent_id) => agent_id,
             Err(_) => {
                 return Err(ParseError::InvalidAgentId {
-                    given_agent_id: value[1..2].to_string(),
+                    given_agent_id: agent_id_str.to_string(),
                 });
             }
         };

@@ -18,10 +18,7 @@ pub enum VarKey {
         t: usize,
     },
     /// Whether `helper` has helped `beneficiary` at any time step ≤ `t` (a monotone temporal
-    /// prefix-OR over the per-step help events). This is the single shared "h has helped b"
-    /// indicator: read at the current horizon it expresses time-agnostic dependency (used by
-    /// the mutual-cooperation forbid), and it seeds the first edge of every temporal walk
-    /// (chains and interdependence cycles).
+    /// prefix-OR over the per-step help events).
     HasHelpedByTime {
         helper: AgentId,
         beneficiary: AgentId,
@@ -38,13 +35,15 @@ pub enum VarKey {
         pos: Position,
         t: usize,
     },
-    /// Progress for temporal walk `walk_id`: its first `step` edges have fired with
+    /// A chain of length `depth` ending at `head`, whose last help edge occurred at a time ≤ `t`.
+    ChainDepth { head: AgentId, depth: u8, t: usize },
+    /// Whether a chain of length `k` has been realized somewhere in the trajectory.
+    ChainRealized { k: usize },
+    /// Progress for interdependence cycle `walk_id`: its first `step` edges have fired with
     /// non-decreasing timestamps, the `step`-th edge firing at some time ≤ `t`. Only created for
-    /// `step ≥ 2`; the first edge is expressed directly by [`HasHelpedByTime`]. A walk is a
-    /// chain (`a → b → c`, open) or an interdependence cycle (closed) depending on the mode.
+    /// `step ≥ 2`; the first edge is expressed directly by [`HasHelpedByTime`].
     WalkProgress { walk_id: u32, step: u8, t: usize },
-    /// Whether temporal walk `walk_id` has been fully realized (all its edges fired in order).
-    /// Subsumes the former `Chain` (open length-2 walk) and `CycleRealized` (closed walk).
+    /// Whether interdependence cycle `walk_id` has been fully realized (all its edges fired in order).
     WalkRealized { walk_id: u32 },
     /// Auxiliary variable used internally by cardinality encodings; carries a unique counter.
     Aux(i32),
@@ -93,6 +92,16 @@ impl VarKey {
             pos,
             t,
         }
+    }
+
+    #[inline]
+    pub fn chain_depth(head: AgentId, depth: u8, t: usize) -> Self {
+        VarKey::ChainDepth { head, depth, t }
+    }
+
+    #[inline]
+    pub fn chain_realized(k: usize) -> Self {
+        VarKey::ChainRealized { k }
     }
 
     #[inline]
@@ -163,12 +172,22 @@ impl VarPool {
         self.id(VarKey::has_helped_by_time(helper, beneficiary, t))
     }
 
-    /// Progress indicator: the first `step` edges of walk `walk_id` have been fired by time `t`.
+    /// Chain-depth indicator: a non-decreasing-time chain of length `depth` ending at `head` has fired by time `t`.
+    pub fn chain_depth(&mut self, head: AgentId, depth: u8, t: usize) -> i32 {
+        self.id(VarKey::chain_depth(head, depth, t))
+    }
+
+    /// Whether a length-`k` chain has been realized.
+    pub fn chain_realized(&mut self, k: usize) -> i32 {
+        self.id(VarKey::chain_realized(k))
+    }
+
+    /// Progress indicator: the first `step` edges of interdependence cycle `walk_id` have fired by time `t`.
     pub fn walk_progress(&mut self, walk_id: u32, step: u8, t: usize) -> i32 {
         self.id(VarKey::walk_progress(walk_id, step, t))
     }
 
-    /// Whether temporal walk `walk_id` has been fully realized.
+    /// Whether temporal cycle `walk_id` has been fully realized.
     pub fn walk_realized(&mut self, walk_id: u32) -> i32 {
         self.id(VarKey::walk_realized(walk_id))
     }

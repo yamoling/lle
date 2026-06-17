@@ -108,8 +108,8 @@ class WorldCharacterizer:
           (e.g. `length=2`: a helped b, then b helped c)
         - and no trajectory within `t_max` avoids every chain of length >= `length`.
 
-        Chained cooperation subsumes mutual cooperation: a mutual cycle `a → b → a` is a
-        chain of length 2, so for a two-agent world`is_chained(2)` matches`is_mutual`.
+        A mutual cycle `a → b → a` is a chain of length 2 even when the two help events occur
+        simultaneously, because chained cooperation uses non-decreasing timestamps.
 
         # Raises
             -`NotSolvableError` if the world is not solvable
@@ -119,9 +119,6 @@ class WorldCharacterizer:
         if path is None:
             raise NotSolvableError("World is not solvable")
         if self.shortest_independent_path is not None:
-            return False
-        if length > self.n_laser_colours:
-            self._no_chain_cache[length] = path
             return False
         cached = self._infer_from_monotone_cache(self._no_chain_cache, length)
         if cached is not None:
@@ -139,8 +136,8 @@ class WorldCharacterizer:
         - the optimal trajectory's dependency graph contains a temporal cycle of order >= `n_agents`, and
         - no solution within`t_max` avoids all such cycles.
 
-        For two agents this coincides with`is_mutual` (and with`is_chained(2)`): a cycle of
-        order 2 is exactly a mutual `a → b → a`.
+        For two agents this coincides with`is_mutual`: a cycle of order 2 is exactly a mutual
+        `a → b → a` under the non-strict temporal-cycle semantics used by interdependence.
 
         # Raises
             -`NotSolvableError` if the world is not solvable
@@ -160,13 +157,12 @@ class WorldCharacterizer:
         profile = profile_trajectory(self.world, path)
         if not profile.is_interdependent(n_agents):
             return False
-        # A temporal cycle of order `n` is also a chain of length `n`, so requiring an order-`n`
-        # cycle entails requiring a length-`n` chain. If chains of length `n` are avoidable, the
-        # cycles are too: short-circuit without the (stricter) interdependence solve.
-        if not self.is_chained(n_agents):
-            return False
         is_interdependent = self.shortest_non_interdependent_path(n_agents) is None
-        self._propagate_monotone_cache(self._no_interdependence_cache, n_agents)
+        self._propagate_monotone_cache(
+            self._no_interdependence_cache,
+            n_agents,
+            upper_bound=self.n_laser_colours,
+        )
         return is_interdependent
 
     @cached_property
@@ -182,10 +178,7 @@ class WorldCharacterizer:
     def shortest_non_asymmetric_path(self):
         if self.n_laser_colours == 0:
             return self.shortest_path
-        if (
-            "shortest_independent_path" in self.__dict__
-            and self.shortest_independent_path is not None
-        ):
+        if "shortest_independent_path" in self.__dict__ and self.shortest_independent_path is not None:
             return self.shortest_independent_path
         return solver.solve(self.world, self.t_max, mode="no-asymmetric")
 
@@ -196,9 +189,7 @@ class WorldCharacterizer:
     def shortest_non_chained_path(self, length: int):
         """Shortest plan within `t_max` that avoids every chain of length >= `length`, or None."""
         self._validate_dependency_order(length)
-        if length > self.n_laser_colours:
-            self._no_chain_cache[length] = self.shortest_path
-        elif "shortest_independent_path" in self.__dict__ and self.shortest_independent_path is not None:
+        if "shortest_independent_path" in self.__dict__ and self.shortest_independent_path is not None:
             self._no_chain_cache[length] = self.shortest_independent_path
         is_known, inferred = self._infer_no_dependency_result(self._no_chain_cache, length)
         if is_known:
@@ -222,7 +213,11 @@ class WorldCharacterizer:
             return inferred
         if order not in self._no_interdependence_cache:
             self._no_interdependence_cache[order] = solver.solve(self.world, self.t_max, mode=f"no-interdependence-{order}")
-            self._propagate_monotone_cache(self._no_interdependence_cache, order)
+            self._propagate_monotone_cache(
+                self._no_interdependence_cache,
+                order,
+                upper_bound=self.n_laser_colours,
+            )
         return self._no_interdependence_cache[order]
 
     @staticmethod
@@ -245,11 +240,17 @@ class WorldCharacterizer:
             return True, None
         return False, None
 
-    def _propagate_monotone_cache(self, cache: dict[int, list | None], order: int) -> None:
+    def _propagate_monotone_cache(
+        self,
+        cache: dict[int, list | None],
+        order: int,
+        *,
+        upper_bound: int | None = None,
+    ) -> None:
         path = cache[order]
         if path is None:
             for lower_order in range(2, order):
                 cache.setdefault(lower_order, None)
-        else:
-            for higher_order in range(order + 1, self.n_laser_colours + 1):
+        elif upper_bound is not None:
+            for higher_order in range(order + 1, upper_bound + 1):
                 cache.setdefault(higher_order, path)

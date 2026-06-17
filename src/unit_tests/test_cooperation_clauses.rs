@@ -9,10 +9,10 @@
 //! never reciprocate help, so tracking a dependency onto it would be a dead variable. This is why
 //! the single-owner worlds below produce no indicator at all.
 
-use crate::World;
 use crate::solver::ClauseGenerator;
 use crate::solver::SolveMode;
 use crate::solver::VarKey;
+use crate::{Position, World};
 
 fn build(map: &str, t_max: usize, mode: SolveMode) -> ClauseGenerator {
     let world = World::try_from(map).expect("failed to parse world");
@@ -25,6 +25,33 @@ fn build(map: &str, t_max: usize, mode: SolveMode) -> ClauseGenerator {
 /// True if `helper` has a `has_helped_by_time(helper, beneficiary, t)` variable at any step.
 fn can_help(cg: &ClauseGenerator, helper: usize, beneficiary: usize, t_max: usize) -> bool {
     (0..=t_max).any(|t| cg.exists(&VarKey::has_helped_by_time(helper, beneficiary, t)))
+}
+
+fn has_clause(clauses: &[Vec<i32>], expected: &[i32]) -> bool {
+    let mut expected = expected.to_vec();
+    expected.sort_unstable();
+    clauses.iter().any(|clause| {
+        let mut clause = clause.clone();
+        clause.sort_unstable();
+        clause == expected
+    })
+}
+
+fn first_help_position(
+    cg: &mut ClauseGenerator,
+    helper: usize,
+    beneficiary: usize,
+    start_t: usize,
+    end_t: usize,
+) -> (usize, Position) {
+    for t in start_t..=end_t {
+        cg.ctx.update(t);
+        let positions = cg.help_edge_positions(helper, beneficiary, t);
+        if let Some(pos) = positions.first() {
+            return (t, *pos);
+        }
+    }
+    panic!("no help position found for {helper}->{beneficiary} in {start_t}..={end_t}");
 }
 
 /// `S0` (laser owner) can step into beam `L0E` to protect `S1`, but `S1` owns no laser, so no
@@ -196,6 +223,84 @@ fn asymmetric_world_generates_forbid_clauses_and_assumptions() {
                 .any(|&lit| lit > 0 && matches!(cg.pool.key(lit), Some(VarKey::Asymmetric { .. })))
         }),
         "definition clauses must imply an Asymmetric variable"
+    );
+}
+
+#[test]
+fn chain_depth_base_clauses_create_length_one_depth() {
+    let world = World::try_from(MUTUAL).expect("failed to parse world");
+    let mut cg = ClauseGenerator::new(&world, 10, SolveMode::NoChainedCooperation(2));
+
+    let (t, pos) = first_help_position(&mut cg, 0, 1, 1, 10);
+    let clauses = cg.chain_depth_clauses(t, 2);
+
+    let agent_var = cg.literal(&VarKey::agent(1, pos, t)).unwrap();
+    let depth = cg.literal(&VarKey::chain_depth(1, 1, t)).unwrap();
+    assert!(
+        has_clause(&clauses, &[-agent_var, depth]),
+        "a concrete help witness must imply depth 1 ending at the beneficiary"
+    );
+}
+
+#[test]
+fn chain_depth_extension_reads_same_time_depth() {
+    let world = World::try_from(MUTUAL).expect("failed to parse world");
+    let mut cg = ClauseGenerator::new(&world, 10, SolveMode::NoChainedCooperation(3));
+    let (t, pos) = first_help_position(&mut cg, 0, 1, 1, 10);
+    let same_time_depth = cg.pool.chain_depth(0, 1, t);
+
+    let clauses = cg.chain_depth_clauses(t, 2);
+
+    let agent_var = cg.literal(&VarKey::agent(1, pos, t)).unwrap();
+    let next_depth = cg.literal(&VarKey::chain_depth(1, 2, t)).unwrap();
+    assert!(
+        has_clause(&clauses, &[-same_time_depth, -agent_var, next_depth]),
+        "extension must allow a depth ending at the helper at the same timestep"
+    );
+}
+
+#[test]
+fn chain_depth_detection_forbids_revisited_agent_chain() {
+    let world = World::try_from(MUTUAL).expect("failed to parse world");
+    let mut cg = ClauseGenerator::new(&world, 10, SolveMode::NoChainedCooperation(3));
+    let (t, pos) = first_help_position(&mut cg, 1, 0, 1, 10);
+    let same_time_depth = cg.pool.chain_depth(1, 2, t);
+
+    let clauses = cg.chain_depth_clauses(t, 2);
+
+    let agent_var = cg.literal(&VarKey::agent(0, pos, t)).unwrap();
+    let realized = cg.literal(&VarKey::chain_realized(3)).unwrap();
+    assert!(
+        has_clause(&clauses, &[-same_time_depth, -agent_var, realized]),
+        "a same-time edge into an earlier agent may realize the chain"
+    );
+
+    let assumptions = cg.assume_no_chain();
+    assert_eq!(assumptions, vec![-realized]);
+}
+
+#[test]
+fn no_chained_mode_uses_chain_depth_not_walk_variables() {
+    let cg = build(MUTUAL, 10, SolveMode::NoChainedCooperation(3));
+    let has_chain_var = (1..=cg.n_vars() as i32).any(|id| {
+        matches!(
+            cg.pool.key(id),
+            Some(VarKey::ChainDepth { .. }) | Some(VarKey::ChainRealized { .. })
+        )
+    });
+    let has_walk_var = (1..=cg.n_vars() as i32).any(|id| {
+        matches!(
+            cg.pool.key(id),
+            Some(VarKey::WalkProgress { .. }) | Some(VarKey::WalkRealized { .. })
+        )
+    });
+    assert!(
+        has_chain_var,
+        "chain mode must allocate chain-depth variables"
+    );
+    assert!(
+        !has_walk_var,
+        "chain mode must not use legacy walk variables"
     );
 }
 

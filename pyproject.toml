@@ -41,7 +41,7 @@ build-backend = "maturin"
 typeCheckingMode = "standard"
 
 [tool.maturin]
-features = ["pyo3/extension-module"]
+features = ["python-bindings", "pyo3/extension-module"]
 module-name = "lle"
 python-source = "python"
 

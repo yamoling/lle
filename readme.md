@@ -133,15 +133,14 @@ Clone the repo, install the Python dependencies, then compile with `maturin`. Th
 `uv`, but `conda`, `poetry`, or plain `pip` work too.
 ```bash
 git clone https://github.com/yamoling/lle
-uv venv                 # create a virtual environment
-source .venv/bin/activate
-uv sync                 # install python dependencies
-maturin dev             # build and install lle in the venv
+uv sync                      # creatte a venv and install python dependencies
+uv run maturin dev           # build and install lle in the venv
+uv run maturin dev --release # build and install lle in the venv (release mode)
 ```
 
 Re-generate the Python bindings in `python/lle` with:
 ```bash
-cargo run --bin stub-gen
+cargo run --features python-bindings --bin stub-gen
 ```
 
 ## Tests

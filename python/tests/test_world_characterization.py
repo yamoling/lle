@@ -132,25 +132,22 @@ def test_one_way_cooperation_is_not_chained_or_interdependent():
     assert not wc.is_interdependent(3)
 
 
-def test_chain_upper_bound_shortcut_skips_solver(monkeypatch: pytest.MonkeyPatch):
-    """Chain lengths above the number of laser owners are impossible."""
+def test_chain_has_no_time_horizon_upper_bound_shortcut(monkeypatch: pytest.MonkeyPatch):
+    """Same-timestep cycles can make arbitrarily long chains, so high lengths still call no-chain."""
     world = World(ONE_WAY_COOPERATION)
     calls: list[str] = []
 
     def fake_solve(_world: World, _t_max: int, *, mode: str = "standard"):
         calls.append(mode)
-        if mode == "standard":
+        if mode == "no-chain-10":
             return []
-        if mode == "no-cooperation":
-            return None
         raise AssertionError(f"Unexpected solver mode: {mode}")
 
     monkeypatch.setattr(world_characterization.solver, "solve", fake_solve)
 
     wc = WorldCharacterizer(world, t_max=8)
-    assert not wc.is_chained(2)
-    assert not wc.is_interdependent(2)
-    assert calls == ["standard", "no-cooperation"]
+    assert wc.shortest_non_chained_path(10) == []
+    assert calls == ["no-chain-10"]
 
 
 def test_independent_shortcut_skips_dependency_solvers(monkeypatch: pytest.MonkeyPatch):

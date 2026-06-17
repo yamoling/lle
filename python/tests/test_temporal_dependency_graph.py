@@ -411,8 +411,8 @@ class TestLongestTemporalChain:
         graph = TemporalDependencyGraph(n_agents=4, edges=edges, horizon=4)
         assert graph.longest_walk() == 3
 
-    def test_temporal_no_chain_same_time(self):
-        """Edges at the same time can form a chain."""
+    def test_temporal_chain_same_time_two_edges(self):
+        """Edges at the same time can form a non-decreasing-time chain."""
         edges = [
             DependencyEdge(helper=0, beneficiary=1, t=1),
             DependencyEdge(helper=1, beneficiary=2, t=1),
@@ -421,17 +421,17 @@ class TestLongestTemporalChain:
         assert graph.longest_walk() == 2
 
     def test_temporal_chain_same_time(self):
-        """Edges at the same time cannot form a chain."""
+        """Longer simultaneous paths also chain under non-decreasing-time semantics."""
         edges = [
             DependencyEdge(helper=0, beneficiary=1, t=1),
             DependencyEdge(helper=1, beneficiary=2, t=1),
             DependencyEdge(helper=2, beneficiary=3, t=1),
         ]
-        graph = TemporalDependencyGraph(n_agents=3, edges=edges, horizon=3)
+        graph = TemporalDependencyGraph(n_agents=4, edges=edges, horizon=3)
         assert graph.longest_walk() == 3
 
     def test_temporal_chain_decreasing_times(self):
-        """Chain with decreasing times cannot form a chain (time must be strictly increasing)."""
+        """Chain with decreasing times cannot form a chain (time must be non-decreasing)."""
         edges = [
             DependencyEdge(helper=0, beneficiary=1, t=3),
             DependencyEdge(helper=1, beneficiary=2, t=2),
@@ -454,7 +454,7 @@ class TestLongestTemporalChain:
         assert graph.longest_walk() == 2
 
     def test_temporal_chain_with_equal_times(self):
-        """Edges at the same time can form a chain."""
+        """Equal timestamps extend a chain when they form an acyclic same-time path."""
         edges = [
             DependencyEdge(helper=0, beneficiary=1, t=1),
             DependencyEdge(helper=1, beneficiary=2, t=1),
@@ -479,8 +479,38 @@ class TestLongestTemporalChain:
         """A Hamiltonian cycle with strictly increasing times."""
         # 0 -> 1 (t=1), 1 -> 2 (t=2), 2 -> 3 (t=3), 3 -> 0 (t=4)
         # Longest temporal chain: 0 -> 1 -> 2 -> 3 -> 0 (length 4)
-        # Include 3 -> 0 even though it re-visits 0 twice
+        # Include 3 -> 0 even though it re-visits 0.
         assert hamiltonian_cycle_graph.longest_walk() == 4
+
+    def test_temporal_chain_may_revisit_agents(self):
+        """Agent revisit: 0 -> 1 -> 0 -> 1 is a length-3 strict temporal walk."""
+        edges = [
+            DependencyEdge(helper=0, beneficiary=1, t=1),
+            DependencyEdge(helper=1, beneficiary=0, t=2),
+            DependencyEdge(helper=0, beneficiary=1, t=3),
+        ]
+        graph = TemporalDependencyGraph(n_agents=2, edges=edges, horizon=3)
+        assert graph.longest_walk() == 3
+
+    def test_temporal_chain_may_not_revisit_same_edge(self):
+        """There is a loop in the help graph, but the temporal graph should not re-visit the same edge twice."""
+        edges = [
+            DependencyEdge(helper=0, beneficiary=1, t=1),
+            DependencyEdge(helper=1, beneficiary=0, t=1),
+            DependencyEdge(helper=1, beneficiary=2, t=3),
+        ]
+        graph = TemporalDependencyGraph(n_agents=3, edges=edges, horizon=5)
+        assert graph.longest_walk() == 3
+
+    def test_temporal_chain_may_reuse_same_helper_laser_later(self):
+        """The same helper can contribute multiple edges at different times."""
+        edges = [
+            DependencyEdge(helper=0, beneficiary=1, t=1),
+            DependencyEdge(helper=1, beneficiary=0, t=2),
+            DependencyEdge(helper=0, beneficiary=2, t=3),
+        ]
+        graph = TemporalDependencyGraph(n_agents=3, edges=edges, horizon=3)
+        assert graph.longest_walk() == 3
 
     # --- Docstring example tests ---
 
@@ -530,13 +560,23 @@ class TestLongestTemporalChain:
         assert graph.longest_walk() == 0
 
     def test_mutual_help_is_chain(self):
-        """Doc example: a -> b -> a returns 0 because mutual help is not a chain."""
+        """Doc example: a -> b -> a returns 2 when the reverse edge is later."""
         edges = [
             DependencyEdge(helper=0, beneficiary=1, t=1),
             DependencyEdge(helper=1, beneficiary=0, t=2),
         ]
         graph = TemporalDependencyGraph(n_agents=2, edges=edges, horizon=3)
         assert graph.longest_walk() == 2
+
+    def test_simultaneous_mutual_help_is_bounded_chain(self):
+        """Same-time reciprocal help can be walked around indefinitely."""
+        edges = [
+            DependencyEdge(helper=0, beneficiary=1, t=1),
+            DependencyEdge(helper=1, beneficiary=0, t=1),
+        ]
+        graph = TemporalDependencyGraph(n_agents=2, edges=edges, horizon=1)
+        assert graph.longest_walk() == 2
+        assert graph.profile().is_chained(100)
 
     def test_independent_graph_returns_0(self):
         """Doc example: an independent graph returns 0."""
@@ -670,7 +710,9 @@ class TestProfileIntegration:
         """Profile of linear chain has correct longest_chain."""
         profile = linear_chain_graph.profile()
         assert linear_chain_graph.longest_walk() == 3
-        assert profile.is_chained
+        assert profile.is_chained()
+        assert profile.is_chained(3)
+        assert not profile.is_chained(4)
 
     def test_profile_branching(self, branching_graph: TemporalDependencyGraph):
         """Profile of branching graph has correct fan-out."""

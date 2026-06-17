@@ -3,6 +3,7 @@ from typing import get_args
 import lle
 import pytest
 from lle import Action, World
+from lle.characterization.trajectory import profile_trajectory
 from lle.solver import SolveMode, SolveModeLiteral
 
 
@@ -236,6 +237,21 @@ def test_no_cooperation_agrees_with_is_cooperative(level: int, t_max: int, expec
     no_coop = lle.solve(world, t_max, mode="no-cooperation")
     is_coop = lle.is_cooperative(world, t_max=t_max)
     assert (no_coop is None) == is_coop == expect_coop
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("level,t_max", [(1, 10), (2, 10), (3, 10), (4, 10), (5, 21), (6, 21)])
+@pytest.mark.parametrize("length", [2, 3, 4])
+def test_no_chain_solver_returns_only_plans_below_requested_depth(level: int, t_max: int, length: int):
+    """Any plan returned by no-chain-k must profile with longest chain < k."""
+    world = World.level(level)
+    plan = lle.solve(world, t_max, mode=f"no-chain-{length}")
+    if plan is None:
+        return
+
+    profile = profile_trajectory(world, plan)
+    assert profile.graph.longest_chain() < length
+    assert profile.graph.longest_walk() == profile.graph.longest_chain()
 
 
 def test_typing_solve_mode_literal():

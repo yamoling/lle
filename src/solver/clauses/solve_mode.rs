@@ -11,10 +11,10 @@ pub enum SolveMode {
     NoAsymmetricCooperation,
     /// No pair of agents may mutually cooperate (each helping the other).
     NoMutualCooperation,
-    /// No temporal chain of length `>= n` may appear, where the length counts help edges
-    /// (`a → b → c` is a chain of length 2). The wrapped value is that minimal rejected length
-    /// `n >= 2`. A mutual cycle `a → b → a` is a chain of length 2, so `NoChainedCooperation(2)`
-    /// is strictly stronger than `NoMutualCooperation`.
+    /// No non-decreasing-time temporal chain of length `>= n` may appear, where the length counts
+    /// help edges (`a → b → c` is a chain of length 2). Agents and lasers may repeat; edge times
+    /// may be equal, so simultaneous help events can form or extend chains. The wrapped value is
+    /// that minimal rejected length `n >= 2`.
     NoChainedCooperation(usize),
     /// No temporal cycle of order `>= n` may appear in the dependency graph of any solution. A
     /// temporal cycle of order `k` visits `k` distinct agents and closes back to the start with

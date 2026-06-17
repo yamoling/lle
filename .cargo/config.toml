@@ -1,0 +1,2 @@
+[alias]
+stub-gen = "run --bin stub-gen --features python-bindings"

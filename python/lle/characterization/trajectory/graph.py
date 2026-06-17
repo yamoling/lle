@@ -9,7 +9,7 @@ detected from a trajectory.
 
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import defaultdict, deque
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -105,9 +105,14 @@ class TemporalDependencyGraph:
         """The largest fan-out over all agents (at time`t` if given)."""
         return max((self.fan_out(a, t) for a in range(self.n_agents)), default=0)
 
-    def longest_walk(self) -> int:
-        """
-        Returns the length of the longest walk in the graph.
+    def longest_walk(self) -> int | float:
+        """Return the length of the longest non-decreasing-time help-edge walk.
+
+        A chain is a directed walk of help edges whose timestamps never decrease. Agents and lasers
+        are not resources: the same agent may be revisited and the same help edge may be used again
+        at the same or a later time. If one time bucket contains a directed cycle, the longest walk
+        is unbounded and this method returns `float("inf")`. It reports `0` when the longest finite
+        walk has fewer than two edges (a single help edge is cooperation, but not a chain).
 
         # Examples
            - `a -> b` returns 1;
@@ -118,25 +123,60 @@ class TemporalDependencyGraph:
            - `a -> b -> a` returns `2`;
            - an independent graph returns `0`.
         """
-        by_helper: dict[AgentId, list[tuple[AgentId, int]]] = defaultdict(list)
-        for e in self._edges:
-            by_helper[e.helper].append((e.beneficiary, e.t))
+        if not self._edges:
+            return 0
 
-        def dfs(node: AgentId, used_helpers: frozenset[AgentId], last_t: int) -> int:
-            best = 0
-            for beneficiary, t in by_helper.get(node, []):
-                if t < last_t:
-                    continue
-                # This edge always counts; we may extend through `beneficiary` only if it has not
-                # already served as a helper (otherwise it can only be the chain's final node).
-                if beneficiary in used_helpers:
-                    best = max(best, 1)
-                else:
-                    best = max(best, 1 + dfs(beneficiary, used_helpers | {beneficiary}, t))
-            return best
+        best_ending_at: dict[AgentId, int] = defaultdict(int)
+        longest = 0
 
-        max_length = max((dfs(a, frozenset({a}), -1) for a in range(self.n_agents)), default=0)
-        return max_length
+        sorted_edges = sorted(self._edges, key=lambda edge: edge.t)
+        idx = 0
+        while idx < len(sorted_edges):
+            t = sorted_edges[idx].t
+            bucket: list[DependencyEdge] = []
+            while idx < len(sorted_edges) and sorted_edges[idx].t == t:
+                bucket.append(sorted_edges[idx])
+                idx += 1
+
+            adjacency: dict[AgentId, set[AgentId]] = defaultdict(set)
+            indegree: dict[AgentId, int] = defaultdict(int)
+            nodes: set[AgentId] = set()
+            for edge in bucket:
+                nodes.add(edge.helper)
+                nodes.add(edge.beneficiary)
+                if edge.beneficiary not in adjacency[edge.helper]:
+                    adjacency[edge.helper].add(edge.beneficiary)
+                    indegree[edge.beneficiary] += 1
+                    indegree.setdefault(edge.helper, indegree.get(edge.helper, 0))
+
+            queue = deque(node for node in nodes if indegree[node] == 0)
+            topo: list[AgentId] = []
+            while queue:
+                node = queue.popleft()
+                topo.append(node)
+                for nxt in adjacency.get(node, set()):
+                    indegree[nxt] -= 1
+                    if indegree[nxt] == 0:
+                        queue.append(nxt)
+
+            if len(topo) != len(nodes):
+                return float("inf")
+
+            depths = {node: best_ending_at[node] for node in nodes}
+            for node in topo:
+                for nxt in adjacency.get(node, set()):
+                    length = depths[node] + 1
+                    depths[nxt] = max(depths.get(nxt, 0), length)
+                    longest = max(longest, length)
+
+            for node, length in depths.items():
+                best_ending_at[node] = max(best_ending_at[node], length)
+
+        return longest if longest >= 2 else 0
+
+    def longest_chain(self) -> int | float:
+        """Alias for [`longest_walk`](TemporalDependencyGraph.longest_walk)."""
+        return self.longest_walk()
 
     # ------------------------------------------------------------------
     # Cycles

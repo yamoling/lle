@@ -1,5 +1,6 @@
 mod action;
 mod agent;
+#[cfg(feature = "python-bindings")]
 pub mod bindings;
 mod core;
 mod position;

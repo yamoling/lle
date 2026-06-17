@@ -22,11 +22,11 @@ class ClauseGenerator:
     The `mode` parameter controls which extra constraints are generated:
     - `"standard"` (default): world rules only.
     - `"no-cooperation"`: assumptions forbidding any non-owner agent from entering a laser span.
-    - `"no-asymmetric"`: clauses forbidding an agent from helping unless it is also helped.
+    - `"no-asymmetric"`: clauses characterizing asymmetric cooperation and assumptions that such cooperation is forbidden.
     - `"no-mutual"`: clauses and assumptions forbidding pairs of agents from
       mutually helping each other.
-    - `"no-chain"` / `"no-chain-N"`: forbid any temporal chain of `N` help edges or more
-      (`a → b → c` is a chain of length 2). `N` defaults to 2. Subsumes `"no-mutual"`.
+    - `"no-chain"` / `"no-chain-N"`: forbid any non-decreasing-time temporal chain of
+      `N` help edges or more (`a → b → c` is a chain of length 2). `N` defaults to 2.
     - `"no-interdependence"` / `"no-interdependence-N"`: forbid any temporal cycle visiting `N`
       distinct agents or more. `N` defaults to 2, which coincides with `"no-mutual"` for two agents.
     
@@ -42,7 +42,8 @@ class ClauseGenerator:
         with Minisat22(bootstrap_with=clauses) as solver:
             if solver.solve(assumptions=assumptions):
                 plan = gen.decode_plan(solver.get_model(), t)
-                break
+                if plan is not None:
+                    return plan
     ```
     """
     @property
@@ -78,7 +79,7 @@ class ClauseGenerator:
         then returns the full formula for this horizon:
         - All buffered clauses for steps `0..=t`
         - The objective clauses (every agent on an exit at step `t`)
-        - For `"no-asymmetric"` mode: asymmetric-forbid clauses
+        - For `"no-asymmetric"` mode: asymmetric-forbid clauses and assumptions
         - For `"no-mutual"` mode: mutual-forbid clauses and assumptions
         - For `"no-chain"` mode: chain-forbid assumptions
         - For `"no-interdependence"` mode: cycle-forbid assumptions
@@ -116,9 +117,8 @@ class SolveMode:
       treating every beam as permanently active.
     - `no_asymmetric()` — rules out plans where an agent helps someone without ever being helped.
     - `no_mutual()` — rules out plans where two agents each help the other.
-    - `no_chain(length=2)` — rules out plans containing a temporal chain of `length` help edges or
-      more (`a → b → c` is a chain of length 2). Subsumes `no_mutual()` (a mutual cycle is a chain
-      of length 2).
+    - `no_chain(length=2)` — rules out plans containing a non-decreasing-time temporal chain of
+      `length` help edges or more (`a → b → c` is a chain of length 2).
     - `no_interdependence(order=2)` — rules out plans whose dependency graph contains a temporal
       cycle visiting `order` distinct agents or more. For two-agent worlds this coincides with
       `no_mutual()`.
@@ -164,7 +164,7 @@ class SolveMode:
     @staticmethod
     def no_chain(length: builtins.int = 2) -> SolveMode:
         r"""
-        Forbid any temporal chain of `length` help edges or more. `length` must be `>= 2`.
+        Forbid any non-decreasing-time temporal chain of `length` help edges or more. `length` must be `>= 2`.
         """
     @staticmethod
     def no_interdependence(order: builtins.int = 2) -> SolveMode:

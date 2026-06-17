@@ -90,3 +90,9 @@ impl PartialEq<(usize, usize)> for Position {
         self.i == other.0 && self.j == other.1
     }
 }
+
+impl From<(usize, usize)> for Position {
+    fn from(pos: (usize, usize)) -> Self {
+        Self { i: pos.0, j: pos.1 }
+    }
+}

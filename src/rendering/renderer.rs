@@ -24,8 +24,8 @@ pub struct Renderer {
 
 impl Renderer {
     pub fn new(core: &World) -> Self {
-        let pixel_width = core.width() as u32 * TILE_SIZE + 1;
-        let pixel_height = core.height() as u32 * TILE_SIZE + 1;
+        let pixel_width = core.width() as u32 * TILE_SIZE;
+        let pixel_height = core.height() as u32 * TILE_SIZE;
         let mut renderer = Self {
             static_frame: image::RgbImage::new(pixel_width, pixel_height),
             pixel_width,
@@ -85,7 +85,7 @@ impl Renderer {
         for (id, pos) in world.agents_positions().iter().enumerate() {
             let x = pos.x() as u32 * TILE_SIZE;
             let y = pos.y() as u32 * TILE_SIZE;
-            add_transparent_image(&mut frame, &sprites::AGENTS[id], x, y);
+            add_transparent_image(&mut frame, sprites::agent(id), x, y);
         }
         for (pos, source) in world.sources() {
             let mut data = VisitorData {
@@ -113,10 +113,10 @@ fn draw_grid(img: &mut RgbImage) {
     let height = img.height();
     let horizontal_line = RgbImage::from_pixel(width, 1, GRID_GREY);
     let vertical_line = RgbImage::from_pixel(1, height, GRID_GREY);
-    for i in (0..height).step_by(TILE_SIZE as usize) {
+    for i in (TILE_SIZE..height).step_by(TILE_SIZE as usize) {
         img.copy_from(&horizontal_line, 0, i).unwrap();
     }
-    for j in (0..width).step_by(TILE_SIZE as usize) {
+    for j in (TILE_SIZE..width).step_by(TILE_SIZE as usize) {
         img.copy_from(&vertical_line, j, 0).unwrap();
     }
 }
@@ -152,10 +152,10 @@ fn draw_rectangle(
     let horizontal_line = RgbImage::from_pixel(width, thickness, color);
     let vertical_line = RgbImage::from_pixel(thickness, height, color);
     img.copy_from(&horizontal_line, x, y).unwrap();
-    img.copy_from(&horizontal_line, x, y + height - thickness + 1)
+    img.copy_from(&horizontal_line, x, y + height - thickness)
         .unwrap();
     img.copy_from(&vertical_line, x, y).unwrap();
-    img.copy_from(&vertical_line, x + width - thickness + 1, y)
+    img.copy_from(&vertical_line, x + width - thickness, y)
         .unwrap();
 }
 
@@ -170,8 +170,8 @@ impl TileVisitor for Renderer {
         if laser.is_on() {
             let agent_id = laser.agent_id();
             let laser_sprite = match laser.direction() {
-                Direction::North | Direction::South => &sprites::VERTICAL_LASERS[agent_id],
-                Direction::East | Direction::West => &sprites::HORIZONTAL_LASERS[agent_id],
+                Direction::North | Direction::South => sprites::vertical_laser(agent_id),
+                Direction::East | Direction::West => sprites::horizontal_laser(agent_id),
             };
             add_transparent_image(data.frame, laser_sprite, data.x, data.y);
         }
@@ -182,10 +182,10 @@ impl TileVisitor for Renderer {
     fn visit_laser_source(&self, source: &LaserSource, data: &mut VisitorData) {
         let agent_id = source.agent_id();
         let source_sprite = match source.direction() {
-            Direction::North => &sprites::LASER_SOURCES_NORTH[agent_id],
-            Direction::East => &sprites::LASER_SOURCES_EAST[agent_id],
-            Direction::South => &sprites::LASER_SOURCES_SOUTH[agent_id],
-            Direction::West => &sprites::LASER_SOURCES_WEST[agent_id],
+            Direction::North => sprites::laser_source_north(agent_id),
+            Direction::East => sprites::laser_source_east(agent_id),
+            Direction::South => sprites::laser_source_south(agent_id),
+            Direction::West => sprites::laser_source_west(agent_id),
         };
         data.frame.copy_from(source_sprite, data.x, data.y).unwrap();
     }

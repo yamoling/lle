@@ -14,9 +14,8 @@ use crate::solver::SolveMode;
 ///   treating every beam as permanently active.
 /// - `no_asymmetric()` — rules out plans where an agent helps someone without ever being helped.
 /// - `no_mutual()` — rules out plans where two agents each help the other.
-/// - `no_chain(length=2)` — rules out plans containing a temporal chain of `length` help edges or
-///   more (`a → b → c` is a chain of length 2). Subsumes `no_mutual()` (a mutual cycle is a chain
-///   of length 2).
+/// - `no_chain(length=2)` — rules out plans containing a non-decreasing-time temporal chain of
+///   `length` help edges or more (`a → b → c` is a chain of length 2).
 /// - `no_interdependence(order=2)` — rules out plans whose dependency graph contains a temporal
 ///   cycle visiting `order` distinct agents or more. For two-agent worlds this coincides with
 ///   `no_mutual()`.
@@ -89,7 +88,7 @@ impl PySolveMode {
         SolveMode::NoMutualCooperation.into()
     }
 
-    /// Forbid any temporal chain of `length` help edges or more. `length` must be `>= 2`.
+    /// Forbid any non-decreasing-time temporal chain of `length` help edges or more. `length` must be `>= 2`.
     #[staticmethod]
     #[pyo3(signature = (length=2))]
     fn no_chain(length: usize) -> PyResult<Self> {

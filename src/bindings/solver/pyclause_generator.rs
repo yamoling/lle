@@ -20,8 +20,8 @@ use crate::{
 /// - `"no-asymmetric"`: clauses characterizing asymmetric cooperation and assumptions that such cooperation is forbidden.
 /// - `"no-mutual"`: clauses and assumptions forbidding pairs of agents from
 ///   mutually helping each other.
-/// - `"no-chain"` / `"no-chain-N"`: forbid any temporal chain of `N` help edges or more
-///   (`a → b → c` is a chain of length 2). `N` defaults to 2. Subsumes `"no-mutual"`.
+/// - `"no-chain"` / `"no-chain-N"`: forbid any non-decreasing-time temporal chain of
+///   `N` help edges or more (`a → b → c` is a chain of length 2). `N` defaults to 2.
 /// - `"no-interdependence"` / `"no-interdependence-N"`: forbid any temporal cycle visiting `N`
 ///   distinct agents or more. `N` defaults to 2, which coincides with `"no-mutual"` for two agents.
 ///

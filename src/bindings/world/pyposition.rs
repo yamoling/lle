@@ -7,12 +7,3 @@ impl From<Position> for PyPosition {
         pos.as_ij()
     }
 }
-
-impl Into<Position> for PyPosition {
-    fn into(self) -> Position {
-        Position {
-            i: self.0,
-            j: self.1,
-        }
-    }
-}

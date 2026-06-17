@@ -273,7 +273,7 @@ def test_world_send_thread():
 def test_rendering_size():
     world = World("S0 . X")
     TILE_SIZE = 32
-    expected_size = (TILE_SIZE * world.width + 1, TILE_SIZE * world.height + 1)
+    expected_size = (TILE_SIZE * world.width, TILE_SIZE * world.height)
     assert world.image_dimensions == expected_size
     img = world.get_image()
     expected_shape = (expected_size[1], expected_size[0], 3)
@@ -833,3 +833,25 @@ def test_reset_in_blocked_laser():
     w.reset()
     # This should not panic !
     w.step(actions)
+
+
+def test_many_agents():
+    world = World("""
+ .   .   . . . .
+S0  L0W  . . . X
+S1  L1W  . . . X
+S2  L2W  . . . X
+S3  L3W  . . . X
+S4  L4W  . . . X
+S5  L5W  . . . X
+S6  L6W  . . . X
+S7  L7W  . . . X
+S8  L8W  . . . X
+S9  L9W  . . . X
+S10 L10W . . . X
+S11 L11W . . . X
+S12 L12W . . . X
+S13 L13W . . . X
+""")
+    assert world.n_agents == 14
+    assert len(world.laser_sources) == 14
