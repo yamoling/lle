@@ -35,11 +35,12 @@ pub enum VarKey {
         pos: Position,
         t: usize,
     },
-    /// Progress for interdependence cycle `trail_id`: its first `step` edges have fired with
-    /// non-decreasing timestamps, the `step`-th edge firing at some time ≤ `t`. Only created for
-    /// `step ≥ 2`; the first edge is expressed directly by [`HasHelpedByTime`].
+    /// Progress for trail `trail_id`: its first `step` edges have fired with non-decreasing
+    /// timestamps, the `step`-th edge firing at some time ≤ `t`. Only created for `step ≥ 2`; the
+    /// first edge is expressed directly by [`HasHelpedByTime`]. The trail is a closed cycle for
+    /// interdependence mode and an open chain for chained-cooperation mode.
     TrailProgress { trail_id: u32, step: u8, t: usize },
-    /// Whether interdependence cycle `trail_id` has been fully realized (all its edges fired in order).
+    /// Whether trail `trail_id` has been fully realized (all its edges fired in order).
     TrailRealized { trail_id: u32 },
     /// Auxiliary variable used internally by cardinality encodings; carries a unique counter.
     Aux(i32),
@@ -158,12 +159,12 @@ impl VarPool {
         self.id(VarKey::has_helped_by_time(helper, beneficiary, t))
     }
 
-    /// Progress indicator: the first `step` edges of interdependence cycle `trail_id` have fired by time `t`.
+    /// Progress indicator: the first `step` edges of trail `trail_id` have fired by time `t`.
     pub fn trail_progress(&mut self, trail_id: u32, step: u8, t: usize) -> i32 {
         self.id(VarKey::trail_progress(trail_id, step, t))
     }
 
-    /// Whether temporal cycle `trail_id` has been fully realized.
+    /// Whether trail `trail_id` has been fully realized.
     pub fn trail_realized(&mut self, trail_id: u32) -> i32 {
         self.id(VarKey::trail_realized(trail_id))
     }

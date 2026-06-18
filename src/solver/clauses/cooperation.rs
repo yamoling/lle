@@ -1,9 +1,29 @@
 use super::generator::ClauseGenerator;
+use super::solve_mode::SolveMode;
 use super::utils::implies;
 use super::{Clause, Literal, VarKey};
 use crate::{AgentId, Position};
 
 impl ClauseGenerator {
+    /// Horizon-specific cooperation forbid for the current mode: the clauses and assumptions that
+    /// must be appended at horizon `t` and cannot be cached per step.
+    ///
+    /// `NoAsymmetricCooperation` and `NoMutualCooperation` depend on the current solve horizon `t`
+    /// (an earlier help event is non-asymmetric if the helper is helped at any later step up to
+    /// `t`), so they are recomputed here rather than buffered; see
+    /// [`forbid_asymmetric_cooperation`](Self::forbid_asymmetric_cooperation) for details.
+    /// `NoChainedCooperation` / `NoInterdependence` only read the `trail_realized` assumptions.
+    pub(crate) fn forbid_cooperation(&mut self, t: usize) -> (Vec<Clause>, Vec<Literal>) {
+        match self.mode {
+            SolveMode::NoAsymmetricCooperation => self.forbid_asymmetric_cooperation(t),
+            SolveMode::NoMutualCooperation => self.forbid_mutual_cooperation(t),
+            SolveMode::NoChainedCooperation(_) | SolveMode::NoInterdependence(_) => {
+                self.forbid_trails()
+            }
+            _ => (vec![], vec![]),
+        }
+    }
+
     /// Positions where `beneficiary` can legally stand on one of `helper`'s beams at time `t`.
     ///
     /// Such an occupancy is a *help edge* `helper → beneficiary`: [`no_step_on_active_laser`]
@@ -199,11 +219,11 @@ impl ClauseGenerator {
         }
     }
 
-    /// Additive clauses, at time step `t`, advancing every temporal interdependence cycle in
-    /// `self.trails`.
+    /// Additive clauses, at time step `t`, advancing every temporal trail in `self.trails`. A
+    /// trail is a closed cycle (`u_m == u0`) for interdependence mode and an open chain for
+    /// chained-cooperation mode; both are encoded identically here.
     ///
-    /// A cycle is a closed vertex sequence `[u0, u1, …, um]` (edge `i` is `u_i → u_{i+1}` and
-    /// `u_m == u0`):
+    /// A trail is a vertex sequence `[u0, u1, …, um]` (edge `i` is `u_i → u_{i+1}`):
     ///
     /// ```text
     /// // step 1 is has_helped_by_time(u0, u1, ·) — emitted by has_helped_by_time_clauses
@@ -266,9 +286,9 @@ impl ClauseGenerator {
         clauses
     }
 
-    /// Assumptions `¬trail_realized(trail)` for every interdependence cycle whose realized variable
-    /// was created by [`trail_clauses`](Self::trail_clauses). Pass the returned assumptions alongside
-    /// those from `generate(t)`.
+    /// Assumptions `¬trail_realized(trail)` for every trail whose realized variable was created by
+    /// [`trail_clauses`](Self::trail_clauses). Pass the returned assumptions alongside those from
+    /// `generate(t)`.
     pub(crate) fn forbid_trails(&self) -> (Vec<Clause>, Vec<Literal>) {
         let assumptions = (0..self.trails.len())
             .filter_map(|id| self.pool.get(&VarKey::trail_realized(id as u32)))

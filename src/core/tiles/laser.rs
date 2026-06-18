@@ -110,7 +110,7 @@ impl Laser {
         if let Tile::Laser(wrapped) = self.wrapped.as_mut() {
             wrapped.set_tile(tile);
         } else {
-            self.wrapped = Box::new(tile);
+            *self.wrapped = tile;
         }
     }
 

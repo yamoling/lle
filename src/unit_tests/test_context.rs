@@ -34,7 +34,7 @@ fn test_reachable_positions_grow_with_time() {
     let positions_t1: Vec<_> = reachable_t1.iter().collect();
     // With 9 steps remaining and exit at distance 1 from adjacent cells, both (0,0) and (0,1) should be reachable
     assert!(
-        positions_t1.len() >= 1,
+        !positions_t1.is_empty(),
         "At t=1, should reach at least some positions"
     );
 
@@ -43,7 +43,7 @@ fn test_reachable_positions_grow_with_time() {
     let reachable_t2 = ctx.relevant_positions(2, &[0]);
     let positions_t2: Vec<_> = reachable_t2.iter().collect();
     assert!(
-        positions_t2.len() > 0,
+        !positions_t2.is_empty(),
         "At t=2, should still have reachable positions"
     );
 }

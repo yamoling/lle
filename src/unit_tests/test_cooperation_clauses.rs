@@ -225,37 +225,37 @@ fn chained_mode_k3_has_no_trails_for_two_agent_world() {
 }
 
 #[test]
-fn no_chained_mode_uses_walk_realized_variables() {
+fn no_chained_mode_uses_trail_realized_variables() {
     let cg = build(MUTUAL, 10, SolveMode::NoChainedCooperation(2));
-    // With trails [0,1,0] and [1,0,1], the MUTUAL world can realize both: walk_realized(0) and
-    // walk_realized(1) should be allocated after generate().
+    // With trails [0,1,0] and [1,0,1], the MUTUAL world can realize both: trail_realized(0) and
+    // trail_realized(1) should be allocated after generate().
     assert!(
         cg.exists(&VarKey::TrailRealized { trail_id: 0 }),
-        "chain mode must allocate WalkRealized(0)"
+        "chain mode must allocate TrailRealized(0)"
     );
     assert!(
         cg.exists(&VarKey::TrailRealized { trail_id: 1 }),
-        "chain mode must allocate WalkRealized(1)"
+        "chain mode must allocate TrailRealized(1)"
     );
 }
 
 #[test]
-fn chained_mode_forbid_walks_produces_negative_assumptions() {
+fn chained_mode_forbid_trails_produces_negative_assumptions() {
     let cg = build(MUTUAL, 10, SolveMode::NoChainedCooperation(2));
     let (clauses, assumptions) = cg.forbid_trails();
     assert!(
         clauses.is_empty(),
-        "forbid_walks must not produce extra clauses"
+        "forbid_trails must not produce extra clauses"
     );
     assert!(
         !assumptions.is_empty(),
-        "mutual world with k=2 must have walk-realized assumptions"
+        "mutual world with k=2 must have trail-realized assumptions"
     );
     for &lit in &assumptions {
-        assert!(lit < 0, "all walk-forbid assumptions must be negative");
+        assert!(lit < 0, "all trail-forbid assumptions must be negative");
         assert!(
             matches!(cg.pool.key(-lit), Some(VarKey::TrailRealized { .. })),
-            "assumption must negate a WalkRealized variable"
+            "assumption must negate a TrailRealized variable"
         );
     }
 }

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Action, RuntimeWorldError, tiles::Direction};
 
-#[derive(Debug, Clone, Copy, Eq, Hash, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, Eq, Hash, PartialEq, Deserialize, Serialize)]
 pub struct Position {
     pub i: usize,
     pub j: usize,
@@ -73,15 +73,9 @@ impl Add<&Action> for &Position {
     }
 }
 
-impl Into<(usize, usize)> for &Position {
-    fn into(self) -> (usize, usize) {
-        (self.i, self.j)
-    }
-}
-
-impl PartialEq<Position> for Position {
-    fn eq(&self, other: &Position) -> bool {
-        self.i == other.i && self.j == other.j
+impl From<&Position> for (usize, usize) {
+    fn from(val: &Position) -> Self {
+        (val.i, val.j)
     }
 }
 

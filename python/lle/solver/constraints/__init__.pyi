@@ -169,9 +169,12 @@ class SolveMode:
         Forbid any temporal cycle visiting `order` distinct agents or more. `order` must be `>= 2`.
         """
     @staticmethod
-    def from_str(value: builtins.str) -> SolveMode:
+    def from_str(value: typing.Literal['standard', 'no-asymmetric', 'no-chain', 'no-interdependence', 'no-mutual'] | builtins.str) -> SolveMode:
         r"""
         Parse a canonical string (e.g. `"standard"`, `"no-chain-3"`, `"no-interdependence-2"`).
+        
+        `"no-chain"` and `"no-interdependence"` both accept a `"-n"` suffix to specify the minimum chain length or interdependence order.
+        Note that `"no-chain"` and `"no-interdependence"` are aliases for `"no-chain-2"` and `"no-interdependence-2"` respectively.
         """
     @staticmethod
     def variants() -> builtins.list[SolveMode]:

@@ -65,12 +65,11 @@ pub fn sample_different(
                 }
             }
         }
-        return false;
+        false
     }
-    if assign_positions(0, &agent_indices, &random_start_positions, rng, &mut result) {
+    if assign_positions(0, &agent_indices, random_start_positions, rng, &mut result) {
         // Re-order the result to match the original order of the agents
-        let ordered_result = agent_indices.into_iter().map(|id| result[id]).collect();
-        ordered_result
+        agent_indices.into_iter().map(|id| result[id]).collect()
     } else {
         panic!("Could not assign positions to agents");
     }

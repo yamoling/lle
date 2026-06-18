@@ -146,7 +146,7 @@ impl World {
             .iter()
             .map(|pos| {
                 if let Tile::LaserSource(source) = &self.grid[pos.i][pos.j] {
-                    (pos.clone(), source)
+                    (*pos, source)
                 } else {
                     unreachable!()
                 }
@@ -158,9 +158,9 @@ impl World {
         let mut lasers = vec![];
         for pos in &self.lasers_positions {
             if let Tile::Laser(laser) = &self.grid[pos.i][pos.j] {
-                lasers.push((pos.clone(), laser));
+                lasers.push((*pos, laser));
                 if let Tile::Laser(wrapped) = laser.wrapped() {
-                    lasers.push((pos.clone(), wrapped));
+                    lasers.push((*pos, wrapped));
                 }
             } else {
                 unreachable!()
@@ -242,10 +242,10 @@ impl World {
     pub fn n_gems_collected(&self) -> usize {
         let mut res = 0;
         for pos in &self.gems_positions {
-            if let Tile::Gem(gem) = &self.grid[pos.i][pos.j] {
-                if gem.is_collected() {
-                    res += 1;
-                }
+            if let Tile::Gem(gem) = &self.grid[pos.i][pos.j]
+                && gem.is_collected()
+            {
+                res += 1;
             }
         }
         res
@@ -320,12 +320,12 @@ impl World {
             let mut agent_actions = vec![Action::Stay];
             if agent.is_alive() && !agent.has_arrived() {
                 for action in [Action::North, Action::East, Action::South, Action::West] {
-                    if let Ok(pos) = &action + agent_pos {
-                        if let Some(tile) = self.at(&pos) {
-                            if tile.is_walkable() && !tile.is_occupied() {
-                                agent_actions.push(action);
-                            }
-                        }
+                    if let Ok(pos) = &action + agent_pos
+                        && let Some(tile) = self.at(&pos)
+                        && tile.is_walkable()
+                        && !tile.is_occupied()
+                    {
+                        agent_actions.push(action);
                     }
                 }
             }
@@ -419,7 +419,7 @@ impl World {
                 return Err(RuntimeWorldError::InvalidAction {
                     agent_id,
                     available: availables.clone(),
-                    taken: action.clone(),
+                    taken: *action,
                 });
             }
         }
@@ -507,9 +507,7 @@ impl World {
 
         for pos in &state.agents_positions {
             if pos.i >= self.height || pos.j >= self.width {
-                return Err(RuntimeWorldError::OutOfWorldPosition {
-                    position: pos.clone(),
-                });
+                return Err(RuntimeWorldError::OutOfWorldPosition { position: *pos });
             }
         }
         let current_state = self.get_state();
@@ -522,10 +520,8 @@ impl World {
         }
         // Collect the necessary gems BEFORE entering the tiles with the agents
         for (pos, &collect) in izip!(&self.gems_positions, &state.gems_collected) {
-            if collect {
-                if let Tile::Gem(gem) = &mut self.grid[pos.i][pos.j] {
-                    gem.collect();
-                }
+            if collect && let Tile::Gem(gem) = &mut self.grid[pos.i][pos.j] {
+                gem.collect();
             }
         }
         for (pos, agent) in izip!(&state.agents_positions, &self.agents) {
@@ -538,7 +534,7 @@ impl World {
                 // Reset the state to the one before the pre-enter
                 self.set_state(&current_state).unwrap();
                 return Err(RuntimeWorldError::InvalidAgentPosition {
-                    position: pos.clone(),
+                    position: *pos,
                     reason,
                 });
             }
@@ -621,12 +617,12 @@ impl TryFrom<&str> for World {
 impl Clone for World {
     fn clone(&self) -> Self {
         let state = self.get_state();
-        let mut clone = self.get_config().to_world().unwrap();
+        let mut clone = self.get_config().into_world().unwrap();
         clone.set_state(&state).unwrap();
         clone
     }
 }
 
 #[cfg(test)]
-#[path = "../../unit_tests/test_world.rs"]
+#[path = "../unit_tests/test_world.rs"]
 mod test;

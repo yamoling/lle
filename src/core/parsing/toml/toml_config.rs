@@ -37,7 +37,7 @@ impl TomlConfig {
             Some(s) => s,
             None => return Ok(()),
         };
-        let config = parse_v1(&world_str)?;
+        let config = parse_v1(world_str)?;
         if let Some(w) = self.width {
             if w != config.width() {
                 return Err(ParseError::InconsistentWorldStringWidth {
@@ -62,17 +62,16 @@ impl TomlConfig {
             if self.agents.len() <= agent_num {
                 self.agents.push(AgentConfig::default());
             }
-            let positions = starts.iter().map(|pos| PositionsConfig::from(pos));
+            let positions = starts.iter().map(PositionsConfig::from);
             self.agents[agent_num].starts.extend(positions);
         }
-        if let Some(n) = self.n_agents {
-            if n < self.agents.len() {
+        if let Some(n) = self.n_agents
+            && n < self.agents.len() {
                 return Err(ParseError::InconsistentNumberOfAgents {
                     toml_n_agents_field: n,
                     actual_n_agents: self.agents.len(),
                 });
             }
-        }
 
         for pos in config.exits() {
             self.exits.push(PositionsConfig::from(pos));
@@ -184,7 +183,7 @@ impl From<&WorldConfig> for TomlConfig {
             agents.push(AgentConfig {
                 starts: starts
                     .iter()
-                    .map(|pos| PositionsConfig::from(pos))
+                    .map(PositionsConfig::from)
                     .collect(),
             })
         }

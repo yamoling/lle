@@ -26,8 +26,10 @@ pub enum SolveMode {
 /// The smallest meaningful chain length / cycle order: a single help edge is not a chain.
 const MIN_LENGTH: usize = 2;
 
-impl SolveMode {
-    pub fn from_str(s: &str) -> Result<Self, String> {
+impl std::str::FromStr for SolveMode {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, String> {
         // Parse the optional `-N` suffix shared by the parametrized modes.
         fn parametrized(s: &str, prefix: &str) -> Option<Result<usize, String>> {
             if s == prefix {
@@ -64,6 +66,29 @@ impl SolveMode {
             }
         }
     }
+}
+
+impl SolveMode {
+    /// Whether the mode consumes the `has_helped_by_time` indicator family (all cooperation modes
+    /// except plain `NoCooperation`).
+    pub(crate) fn needs_has_helped(&self) -> bool {
+        matches!(
+            self,
+            SolveMode::NoAsymmetricCooperation
+                | SolveMode::NoMutualCooperation
+                | SolveMode::NoInterdependence(_)
+                | SolveMode::NoChainedCooperation(_)
+        )
+    }
+
+    /// Whether the mode's forbid is encoded through the trail machinery (`trail_clauses` /
+    /// `forbid_trails`).
+    pub(crate) fn uses_trails(&self) -> bool {
+        matches!(
+            self,
+            SolveMode::NoInterdependence(_) | SolveMode::NoChainedCooperation(_)
+        )
+    }
 
     /// The canonical string representation, inverse of [`SolveMode::from_str`]. The default
     /// length (2) is rendered without a suffix (e.g. `"no-chain"`) so the canonical strings of
@@ -91,6 +116,7 @@ fn suffixed(prefix: &str, n: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::SolveMode;
+    use std::str::FromStr;
 
     #[test]
     fn parses_base_modes() {

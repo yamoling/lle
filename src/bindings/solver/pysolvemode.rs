@@ -61,6 +61,14 @@ impl From<SolveMode> for PySolveMode {
     }
 }
 
+impl std::str::FromStr for PySolveMode {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, String> {
+        s.parse::<SolveMode>().map(Into::into)
+    }
+}
+
 #[gen_stub_pymethods]
 #[pymethods]
 impl PySolveMode {
@@ -103,11 +111,18 @@ impl PySolveMode {
     }
 
     /// Parse a canonical string (e.g. `"standard"`, `"no-chain-3"`, `"no-interdependence-2"`).
+    ///
+    /// `"no-chain"` and `"no-interdependence"` both accept a `"-n"` suffix to specify the minimum chain length or interdependence order.
+    /// Note that `"no-chain"` and `"no-interdependence"` are aliases for `"no-chain-2"` and `"no-interdependence-2"` respectively.
     #[staticmethod]
-    pub fn from_str(value: &str) -> PyResult<Self> {
-        SolveMode::from_str(value)
-            .map(Into::into)
-            .map_err(PyValueError::new_err)
+    #[pyo3(name = "from_str")]
+    pub fn parse(
+        #[gen_stub(override_type(
+            type_repr = "typing.Literal['standard', 'no-asymmetric', 'no-chain', 'no-interdependence', 'no-mutual'] | builtins.str"
+        ))]
+        value: &str,
+    ) -> PyResult<Self> {
+        value.parse::<Self>().map_err(PyValueError::new_err)
     }
 
     /// The canonical string representation, inverse of `from_str` (e.g. `"no-chain-3"`).

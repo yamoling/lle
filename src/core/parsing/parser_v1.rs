@@ -29,7 +29,7 @@ impl ParsingData {
         agent_id: AgentId,
         pos: Position,
     ) -> Result<(), ParseError> {
-        while self.start_positions.len() <= agent_id as usize {
+        while self.start_positions.len() <= agent_id {
             self.start_positions.push(Vec::new());
         }
         if !self.start_positions[agent_id].is_empty() {

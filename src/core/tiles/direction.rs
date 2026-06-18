@@ -74,9 +74,9 @@ impl TryFrom<char> for Direction {
     }
 }
 
-impl Into<&str> for Direction {
-    fn into(self) -> &'static str {
-        match self {
+impl From<Direction> for &str {
+    fn from(val: Direction) -> Self {
+        match val {
             Direction::North => "N",
             Direction::East => "E",
             Direction::South => "S",

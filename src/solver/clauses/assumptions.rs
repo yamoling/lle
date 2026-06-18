@@ -13,12 +13,12 @@ impl ClauseGenerator {
                     continue;
                 }
                 let positions = self.ctx.relevant_positions_for_agent(agent, t);
-                for pos in path.intersection(&positions) {
+                for pos in path.intersection(positions) {
                     let key = VarKey::agent(agent, pos, t);
                     let var = self
                         .pool
                         .get(&key)
-                        .expect(&format!("Agent variable {key:?} does not exist."));
+                        .unwrap_or_else(|| panic!("Agent variable {key:?} does not exist."));
                     assumptions.push(-var);
                 }
             }

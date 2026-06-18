@@ -1,9 +1,11 @@
 mod assumptions;
 mod cooperation;
+mod gems;
 mod generator;
 mod lasers;
 mod movement;
 mod solve_mode;
+mod trails;
 mod utils;
 mod var_pool;
 pub type Literal = i32;

@@ -22,7 +22,7 @@ impl Tile {
     pub fn pre_enter(&mut self, agent: &Agent) -> Result<(), RuntimeWorldError> {
         match self {
             Self::Laser(laser) => laser.pre_enter(agent),
-            Self::Wall | Self::LaserSource(_) => return Err(RuntimeWorldError::TileNotWalkable),
+            Self::Wall | Self::LaserSource(_) => Err(RuntimeWorldError::TileNotWalkable),
             _ => Ok(()),
         }
     }

@@ -54,7 +54,7 @@ fn test_multi_digit_agents_and_laser_sources_world() {
         );
     }
 
-    config.to_world().unwrap();
+    config.into_world().unwrap();
 }
 
 #[test]
@@ -66,7 +66,7 @@ fn test_laser_kill_on_spawn() {
     ",
     )
     .unwrap();
-    let world = config.to_world();
+    let world = config.into_world();
     match world {
         Ok(_) => panic!(
             "The start location of agent 0 should have been removed and no remaining start position remains for agent 0"
@@ -86,7 +86,7 @@ fn test_laser_blocked_on_spawn() {
     ",
     )
     .unwrap();
-    let world = config.to_world();
+    let world = config.into_world();
     match world {
         Ok(_) => {}
         Err(ParseError::AgentWithoutStart { .. }) => panic!(

@@ -34,10 +34,6 @@ impl LaserConfig {
         })
     }
 
-    pub fn to_string(&self) -> String {
-        format!("L{}{}", self.agent_id, self.direction.to_file_string())
-    }
-
     pub fn build(&self, beam_length: usize) -> LaserSource {
         let beam = Rc::new(LaserBeam::new(
             beam_length,
@@ -62,6 +58,12 @@ impl From<&LaserSource> for LaserConfig {
 impl From<LaserSource> for LaserConfig {
     fn from(source: LaserSource) -> Self {
         Self::from(&source)
+    }
+}
+
+impl std::fmt::Display for LaserConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "L{}{}", self.agent_id, self.direction.to_file_string())
     }
 }
 

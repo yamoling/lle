@@ -47,7 +47,7 @@ impl PyLaserSource {
             direction: PyDirection::from(source.direction()),
             is_enabled: source.is_enabled(),
             laser_id: source.laser_id(),
-            pos: pos.into(),
+            pos,
             world,
         }
     }
@@ -58,7 +58,7 @@ impl PyLaserSource {
         }
 
         let world = &mut self.world.lock().unwrap();
-        let tile = world.at_mut(&self.pos.clone().into()).unwrap();
+        let tile = world.at_mut(&self.pos.into()).unwrap();
         // let tile = inner(world, self.pos).unwrap();
         match tile {
             Tile::LaserSource(laser_source) => {
@@ -111,7 +111,7 @@ impl PyLaserSource {
                 "Agent ID is greater than the number of agents",
             ));
         }
-        if let Some(Tile::LaserSource(laser_source)) = world.at(&self.pos.clone().into()) {
+        if let Some(Tile::LaserSource(laser_source)) = world.at(&self.pos.into()) {
             laser_source.set_agent_id(new_agent_id as AgentId);
         } else {
             return Err(pyo3::exceptions::PyValueError::new_err(
@@ -128,9 +128,9 @@ impl PyLaserSource {
             .collect();
         for (start_agent_id, pos) in enumerate(world.possible_starts()) {
             if start_agent_id != new_agent_id {
-                let starts_set = HashSet::from_iter(pos.into_iter());
+                let starts_set = HashSet::from_iter(pos);
                 let intersection: Vec<_> = lasers_positions.intersection(&starts_set).collect();
-                if intersection.len() > 0 {
+                if !intersection.is_empty() {
                     return Err(pyo3::exceptions::PyValueError::new_err(format!(
                         "Laser source cannot be changed to agent ID {new_agent_id} since it would cross the start position of agent {start_agent_id} at {intersection:?}",
                     )));
@@ -156,7 +156,7 @@ impl PyLaserSource {
                 && self.laser_id == source.laser_id
                 && self.pos == source.pos;
         }
-        return false;
+        false
     }
 
     /// Hash based on the `laser_id`.

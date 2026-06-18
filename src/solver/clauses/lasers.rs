@@ -8,6 +8,16 @@ use super::generator::ClauseGenerator;
 use super::utils::{equals, implies};
 
 impl ClauseGenerator {
+    /// Owned `(agent_id, laser_id, path)` copy of every laser source. Cloning detaches the data
+    /// from the `&self.ctx` borrow so the loops below can take `&mut self.pool`.
+    fn laser_source_snapshot(&self) -> Vec<(usize, usize, Vec<Position>)> {
+        self.ctx
+            .laser_sources
+            .iter()
+            .map(|s| (s.agent_id, s.laser_id, s.path.clone()))
+            .collect()
+    }
+
     /// Defines, for each beam tile, the literal denoting "this beam tile is active at time `t`",
     /// folding away tiles that no same-colour agent can ever reach (constant-active tiles).
     /// Returns both the clauses and a map from `(laser_id, x, y)` to the literal representing
@@ -21,12 +31,7 @@ impl ClauseGenerator {
     pub(super) fn beam_activation(&mut self, t: usize) -> (Vec<Clause>, HashMap<VarKey, i32>) {
         let mut clauses = Vec::new();
         let mut active_lit = HashMap::new();
-        let sources: Vec<(usize, usize, Vec<Position>)> = self
-            .ctx
-            .laser_sources
-            .iter()
-            .map(|s| (s.agent_id, s.laser_id, s.path.clone()))
-            .collect();
+        let sources = self.laser_source_snapshot();
         for (agent_id, laser_id, path) in sources {
             let blockable = self.ctx.relevant_positions(t, &[agent_id]);
             let mut prev_active: Option<i32> = None;
@@ -70,12 +75,7 @@ impl ClauseGenerator {
         active_lit: &HashMap<VarKey, i32>,
     ) -> Vec<Clause> {
         let mut clauses = Vec::new();
-        let sources: Vec<(usize, usize, Vec<Position>)> = self
-            .ctx
-            .laser_sources
-            .iter()
-            .map(|s| (s.agent_id, s.laser_id, s.path.clone()))
-            .collect();
+        let sources = self.laser_source_snapshot();
         for agent in 0..self.ctx.n_agents {
             let reachable = self.ctx.relevant_positions(t, &[agent]);
             for &(source_agent_id, laser_id, ref path) in &sources {

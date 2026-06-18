@@ -25,12 +25,12 @@ impl TomlLaserConfig {
     }
 }
 
-impl Into<LaserConfig> for &TomlLaserConfig {
-    fn into(self) -> LaserConfig {
+impl From<&TomlLaserConfig> for LaserConfig {
+    fn from(val: &TomlLaserConfig) -> Self {
         LaserConfig {
-            direction: self.direction,
-            agent_id: self.agent,
-            laser_id: self.laser_id,
+            direction: val.direction,
+            agent_id: val.agent,
+            laser_id: val.laser_id,
         }
     }
 }

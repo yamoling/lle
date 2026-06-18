@@ -96,7 +96,7 @@ fn parse_empty_world() {
     match World::try_from("") {
         Ok(_) => panic!("Should not be able to parse empty world"),
         Err(e) => match e {
-            ParseError::EmptyWorld { .. } => {}
+            ParseError::EmptyWorld => {}
             _ => panic!("Expected EmptyWorld, got {e:?}"),
         },
     }

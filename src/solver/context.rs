@@ -19,11 +19,10 @@ fn neighbours_of(
     }
     let mut result = Vec::new();
     for d in Direction::iter() {
-        if let Ok(n) = pos + d {
-            if n.i < height && n.j < width && !walls.contains(&n) {
+        if let Ok(n) = pos + d
+            && n.i < height && n.j < width && !walls.contains(&n) {
                 result.push(n);
             }
-        }
     }
     result
 }
@@ -150,9 +149,9 @@ impl ConstraintContext {
         let mut forbidden_first_beam_tiles: Vec<Vec<Position>> = vec![Vec::new(); n_agents];
         for source in &laser_sources {
             if let Some(&first_tile) = source.path.first() {
-                for agent in 0..n_agents {
+                for (agent, forbidden) in forbidden_first_beam_tiles.iter_mut().enumerate() {
                     if agent != source.agent_id {
-                        forbidden_first_beam_tiles[agent].push(first_tile);
+                        forbidden.push(first_tile);
                     }
                 }
             }
@@ -413,10 +412,10 @@ fn compute_exit_distance(
     while let Some(current) = frontier.pop_front() {
         let current_dist = dist[&current];
         for &pred in &predecessors[current.i][current.j] {
-            if !dist.contains_key(&pred) {
-                dist.insert(pred, current_dist + 1);
+            dist.entry(pred).or_insert_with(|| {
                 frontier.push_back(pred);
-            }
+                current_dist + 1
+            });
         }
     }
     dist

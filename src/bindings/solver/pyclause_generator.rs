@@ -73,7 +73,7 @@ impl PyClauseGenerator {
         let mode: SolveMode = if let Ok(m) = mode.extract::<PySolveMode>(py) {
             m.into()
         } else if let Ok(s) = mode.extract::<String>(py) {
-            SolveMode::from_str(&s).map_err(PyValueError::new_err)?
+            s.parse::<SolveMode>().map_err(PyValueError::new_err)?
         } else {
             return Err(PyValueError::new_err(
                 "mode must be a SolveMode enum or a string",

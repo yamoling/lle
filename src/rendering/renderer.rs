@@ -80,7 +80,7 @@ impl Renderer {
                 y: pos.y() as u32 * TILE_SIZE,
                 frame: &mut frame,
             };
-            self.visit_gem(&gem, &mut data);
+            self.visit_gem(gem, &mut data);
         }
         for (id, pos) in world.agents_positions().iter().enumerate() {
             let x = pos.x() as u32 * TILE_SIZE;

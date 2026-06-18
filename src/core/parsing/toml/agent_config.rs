@@ -24,7 +24,7 @@ impl AgentConfig {
         exit_positions: &[Position],
     ) -> Result<Vec<Position>, ParseError> {
         let mut res: HashSet<Position> =
-            HashSet::from_iter(global_start_positions.to_vec().into_iter());
+            HashSet::from_iter(global_start_positions.to_vec());
         for start in &self.starts {
             for pos in start.to_positions(world_width, world_height)? {
                 res.insert(pos);

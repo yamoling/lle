@@ -26,7 +26,7 @@ impl ClauseGenerator {
         for agent in 0..self.ctx.n_agents {
             let positions: Vec<Position> = self
                 .ctx
-                .relevant_positions(t, &[agent])
+                .relevant_positions_for_agent(agent, t)
                 .into_iter()
                 .collect();
             if positions.len() <= 1 {
@@ -59,7 +59,7 @@ impl ClauseGenerator {
         for agent in 0..self.ctx.n_agents {
             let positions: Vec<Position> = self
                 .ctx
-                .relevant_positions(t, &[agent])
+                .relevant_positions_for_agent(agent, t)
                 .into_iter()
                 .collect();
             for pos in positions {
