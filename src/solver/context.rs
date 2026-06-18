@@ -20,9 +20,12 @@ fn neighbours_of(
     let mut result = Vec::new();
     for d in Direction::iter() {
         if let Ok(n) = pos + d
-            && n.i < height && n.j < width && !walls.contains(&n) {
-                result.push(n);
-            }
+            && n.i < height
+            && n.j < width
+            && !walls.contains(&n)
+        {
+            result.push(n);
+        }
     }
     result
 }
@@ -301,6 +304,7 @@ impl ConstraintContext {
     /// Relevant positions for a single agent at time `t`, i.e. positions that the agent
     /// can reach and from which it can still access the exit within due time.
     pub fn relevant_positions_for_agent(&self, agent: usize, t: usize) -> &PositionSet {
+        let _pos: Vec<_> = self.relevant_positions[agent][t].iter().collect();
         &self.relevant_positions[agent][t]
     }
 

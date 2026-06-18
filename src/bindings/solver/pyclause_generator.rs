@@ -60,6 +60,7 @@ impl PyClauseGenerator {
     /// canonical string (`"standard"`, `"no-cooperation"`, `"no-asymmetric"`, `"no-mutual"`,
     /// `"no-chain[-N]"`, `"no-interdependence[-N]"`). Defaults to `"standard"`.
     #[new]
+    #[pyo3(signature = (world, t_max, mode, collect_gems=false))]
     fn new(
         py: Python,
         world: &PyWorld,
@@ -69,6 +70,7 @@ impl PyClauseGenerator {
             imports = ("typing",)
         ))]
         mode: Py<PyAny>,
+        collect_gems: bool,
     ) -> PyResult<Self> {
         let mode: SolveMode = if let Ok(m) = mode.extract::<PySolveMode>(py) {
             m.into()
@@ -79,7 +81,8 @@ impl PyClauseGenerator {
                 "mode must be a SolveMode enum or a string",
             ));
         };
-        let inner = world.with_world(|world| ClauseGenerator::new(world, t_max, mode));
+        let inner =
+            world.with_world(|world| ClauseGenerator::new(world, t_max, mode, collect_gems));
         let solution_lower_bound = inner.solution_lower_bound();
         Ok(Self {
             inner,

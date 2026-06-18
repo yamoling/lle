@@ -16,7 +16,10 @@ pub struct ClauseGenerator {
     pub(super) ctx: ConstraintContext,
     pub(super) pool: VarPool,
     pub(super) exits: HashSet<Position>,
+    pub(super) gems: Vec<Position>,
     pub(super) mode: SolveMode,
+    /// Whether gems should be collected in the objective function.
+    collect_gems: bool,
     /// Directed trails/cycles detected by trail-progress tracking. Each entry is a vertex sequence
     /// `[v0, …, v_m]` (edge `i` is `v_i → v_{i+1}`).  For `NoInterdependence`, entries are
     /// closed cycles (`v_m == v_0`). For `NoChainedCooperation`, entries are open trails with no
@@ -35,7 +38,7 @@ pub struct ClauseGenerator {
 }
 
 impl ClauseGenerator {
-    pub fn new(world: &World, t_max: usize, mode: SolveMode) -> Self {
+    pub fn new(world: &World, t_max: usize, mode: SolveMode, collect_gems: bool) -> Self {
         let ctx = ConstraintContext::new(world, t_max);
         // Agents that own a laser are the only ones that can ever help (the helper of every trail
         // edge must block a beam).
@@ -76,10 +79,12 @@ impl ClauseGenerator {
         };
         Self {
             exits: world.exits_positions().into_iter().collect(),
+            gems: world.gems_positions(),
             ctx,
             pool: VarPool::new(),
             mode,
             trails,
+            collect_gems,
             has_helped_pairs,
             clause_buffer: vec![Vec::new(); t_max + 1],
             assumption_buffer: vec![Vec::new(); t_max + 1],
@@ -154,7 +159,11 @@ impl ClauseGenerator {
     /// Objective clauses for horizon `t`: every agent must be on an exit. Not cached.
     pub fn objective(&mut self, t: usize) -> Vec<Clause> {
         self.ctx.update(t);
-        let mut clauses = Vec::with_capacity(self.ctx.n_agents);
+        let mut clauses = if self.collect_gems {
+            self.gems_must_be_collected(t)
+        } else {
+            Vec::with_capacity(self.ctx.n_agents)
+        };
         for agent in 0..self.ctx.n_agents {
             let reachable = self.ctx.relevant_positions_for_agent(agent, t);
             let positions: Vec<Position> = self

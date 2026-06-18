@@ -16,7 +16,7 @@ use crate::solver::VarKey;
 
 fn build(map: &str, t_max: usize, mode: SolveMode) -> ClauseGenerator {
     let world = World::try_from(map).expect("failed to parse world");
-    let mut cg = ClauseGenerator::new(&world, t_max, mode);
+    let mut cg = ClauseGenerator::new(&world, t_max, mode, false);
     // `generate(t_max)` fills steps 0..=t_max in one call.
     let _ = cg.generate(t_max);
     cg
@@ -65,7 +65,7 @@ fn single_owner_world_tracks_no_dependency() {
 #[test]
 fn has_helped_by_time_clauses_are_binary_implications_into_has_helped() {
     let world = World::try_from(MUTUAL).expect("failed to parse world");
-    let mut cg = ClauseGenerator::new(&world, 10, SolveMode::NoMutualCooperation);
+    let mut cg = ClauseGenerator::new(&world, 10, SolveMode::NoMutualCooperation, false);
     // Each clause must be a binary implication whose single positive literal is some
     // `has_helped_by_time(helper, beneficiary, t)`, and whose antecedent is either the
     // beneficiary's agent var (a fresh help event) or the previous-step indicator (monotone
@@ -121,7 +121,7 @@ fn has_helped_by_time_clauses_are_binary_implications_into_has_helped() {
 #[test]
 fn no_laser_has_no_dependencies() {
     let world = World::try_from(NO_LASER).expect("failed to parse world");
-    let mut cg = ClauseGenerator::new(&world, 10, SolveMode::NoMutualCooperation);
+    let mut cg = ClauseGenerator::new(&world, 10, SolveMode::NoMutualCooperation, false);
     for t in 0..=10 {
         assert!(
             cg.has_helped_by_time_clauses(t).is_empty(),
@@ -202,7 +202,7 @@ fn asymmetric_world_generates_forbid_clauses_and_assumptions() {
 #[test]
 fn chained_mode_k2_enumerates_two_trails_for_mutual_world() {
     let world = World::try_from(MUTUAL).expect("failed to parse world");
-    let cg = ClauseGenerator::new(&world, 10, SolveMode::NoChainedCooperation(2));
+    let cg = ClauseGenerator::new(&world, 10, SolveMode::NoChainedCooperation(2), false);
     // MUTUAL world: owners = [0, 1], all_agents = [0, 1].
     // Length-2 trails with no repeated directed pair: [0,1,0] and [1,0,1].
     assert_eq!(
@@ -215,7 +215,7 @@ fn chained_mode_k2_enumerates_two_trails_for_mutual_world() {
 #[test]
 fn chained_mode_k3_has_no_trails_for_two_agent_world() {
     let world = World::try_from(MUTUAL).expect("failed to parse world");
-    let cg = ClauseGenerator::new(&world, 10, SolveMode::NoChainedCooperation(3));
+    let cg = ClauseGenerator::new(&world, 10, SolveMode::NoChainedCooperation(3), false);
     // Only 2 distinct directed pairs (0->1) and (1->0) exist; a length-3 trail needs 3 distinct
     // directed pairs, which is impossible with 2 agents.
     assert!(
@@ -264,7 +264,7 @@ fn chained_mode_forbid_trails_produces_negative_assumptions() {
 fn level_6_dependency_is_bidirectional() {
     let world = World::get_level(6).expect("failed to load level 6");
     let n = world.n_agents();
-    let mut cg = ClauseGenerator::new(&world, 21, SolveMode::NoMutualCooperation);
+    let mut cg = ClauseGenerator::new(&world, 21, SolveMode::NoMutualCooperation, false);
     let _ = cg.generate(21);
     // Level 6 requires mutual cooperation: at least one pair must have both directions.
     let has_bidirectional = (0..n).any(|a| {
