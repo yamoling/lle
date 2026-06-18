@@ -11,7 +11,7 @@ pub enum VarKey {
         pos: Position,
         t: usize,
     },
-    /// (laser_id, i, j, t)
+    /// Whether (laser_id, i, j) is active at time step t
     Laser {
         laser_id: AgentId,
         pos: Position,
@@ -35,12 +35,12 @@ pub enum VarKey {
         pos: Position,
         t: usize,
     },
-    /// Progress for interdependence cycle `walk_id`: its first `step` edges have fired with
+    /// Progress for interdependence cycle `trail_id`: its first `step` edges have fired with
     /// non-decreasing timestamps, the `step`-th edge firing at some time ≤ `t`. Only created for
     /// `step ≥ 2`; the first edge is expressed directly by [`HasHelpedByTime`].
-    WalkProgress { walk_id: u32, step: u8, t: usize },
-    /// Whether interdependence cycle `walk_id` has been fully realized (all its edges fired in order).
-    WalkRealized { walk_id: u32 },
+    TrailProgress { trail_id: u32, step: u8, t: usize },
+    /// Whether interdependence cycle `trail_id` has been fully realized (all its edges fired in order).
+    TrailRealized { trail_id: u32 },
     /// Auxiliary variable used internally by cardinality encodings; carries a unique counter.
     Aux(i32),
 }
@@ -91,13 +91,13 @@ impl VarKey {
     }
 
     #[inline]
-    pub fn walk_progress(walk_id: u32, step: u8, t: usize) -> Self {
-        VarKey::WalkProgress { walk_id, step, t }
+    pub fn trail_progress(trail_id: u32, step: u8, t: usize) -> Self {
+        VarKey::TrailProgress { trail_id, step, t }
     }
 
     #[inline]
-    pub fn walk_realized(walk_id: u32) -> Self {
-        VarKey::WalkRealized { walk_id }
+    pub fn trail_realized(trail_id: u32) -> Self {
+        VarKey::TrailRealized { trail_id }
     }
 
     #[inline]
@@ -158,14 +158,14 @@ impl VarPool {
         self.id(VarKey::has_helped_by_time(helper, beneficiary, t))
     }
 
-    /// Progress indicator: the first `step` edges of interdependence cycle `walk_id` have fired by time `t`.
-    pub fn walk_progress(&mut self, walk_id: u32, step: u8, t: usize) -> i32 {
-        self.id(VarKey::walk_progress(walk_id, step, t))
+    /// Progress indicator: the first `step` edges of interdependence cycle `trail_id` have fired by time `t`.
+    pub fn trail_progress(&mut self, trail_id: u32, step: u8, t: usize) -> i32 {
+        self.id(VarKey::trail_progress(trail_id, step, t))
     }
 
-    /// Whether temporal cycle `walk_id` has been fully realized.
-    pub fn walk_realized(&mut self, walk_id: u32) -> i32 {
-        self.id(VarKey::walk_realized(walk_id))
+    /// Whether temporal cycle `trail_id` has been fully realized.
+    pub fn trail_realized(&mut self, trail_id: u32) -> i32 {
+        self.id(VarKey::trail_realized(trail_id))
     }
 
     /// Variable id already assigned to `key`, or `None` if it was never created.

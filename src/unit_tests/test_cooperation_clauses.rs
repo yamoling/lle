@@ -9,10 +9,10 @@
 //! never reciprocate help, so tracking a dependency onto it would be a dead variable. This is why
 //! the single-owner worlds below produce no indicator at all.
 
+use crate::World;
 use crate::solver::ClauseGenerator;
 use crate::solver::SolveMode;
 use crate::solver::VarKey;
-use crate::World;
 
 fn build(map: &str, t_max: usize, mode: SolveMode) -> ClauseGenerator {
     let world = World::try_from(map).expect("failed to parse world");
@@ -26,7 +26,6 @@ fn build(map: &str, t_max: usize, mode: SolveMode) -> ClauseGenerator {
 fn can_help(cg: &ClauseGenerator, helper: usize, beneficiary: usize, t_max: usize) -> bool {
     (0..=t_max).any(|t| cg.exists(&VarKey::has_helped_by_time(helper, beneficiary, t)))
 }
-
 
 /// `S0` (laser owner) can step into beam `L0E` to protect `S1`, but `S1` owns no laser, so no
 /// mutual dependency is even expressible.
@@ -207,7 +206,7 @@ fn chained_mode_k2_enumerates_two_trails_for_mutual_world() {
     // MUTUAL world: owners = [0, 1], all_agents = [0, 1].
     // Length-2 trails with no repeated directed pair: [0,1,0] and [1,0,1].
     assert_eq!(
-        cg.walks.len(),
+        cg.trails.len(),
         2,
         "two distinct length-2 trails in a 2-owner world"
     );
@@ -220,7 +219,7 @@ fn chained_mode_k3_has_no_trails_for_two_agent_world() {
     // Only 2 distinct directed pairs (0->1) and (1->0) exist; a length-3 trail needs 3 distinct
     // directed pairs, which is impossible with 2 agents.
     assert!(
-        cg.walks.is_empty(),
+        cg.trails.is_empty(),
         "no length-3 trail can exist with only 2 agents and 2 possible directed pairs"
     );
 }
@@ -231,11 +230,11 @@ fn no_chained_mode_uses_walk_realized_variables() {
     // With trails [0,1,0] and [1,0,1], the MUTUAL world can realize both: walk_realized(0) and
     // walk_realized(1) should be allocated after generate().
     assert!(
-        cg.exists(&VarKey::WalkRealized { walk_id: 0 }),
+        cg.exists(&VarKey::TrailRealized { trail_id: 0 }),
         "chain mode must allocate WalkRealized(0)"
     );
     assert!(
-        cg.exists(&VarKey::WalkRealized { walk_id: 1 }),
+        cg.exists(&VarKey::TrailRealized { trail_id: 1 }),
         "chain mode must allocate WalkRealized(1)"
     );
 }
@@ -243,8 +242,11 @@ fn no_chained_mode_uses_walk_realized_variables() {
 #[test]
 fn chained_mode_forbid_walks_produces_negative_assumptions() {
     let cg = build(MUTUAL, 10, SolveMode::NoChainedCooperation(2));
-    let (clauses, assumptions) = cg.forbid_walks();
-    assert!(clauses.is_empty(), "forbid_walks must not produce extra clauses");
+    let (clauses, assumptions) = cg.forbid_trails();
+    assert!(
+        clauses.is_empty(),
+        "forbid_walks must not produce extra clauses"
+    );
     assert!(
         !assumptions.is_empty(),
         "mutual world with k=2 must have walk-realized assumptions"
@@ -252,7 +254,7 @@ fn chained_mode_forbid_walks_produces_negative_assumptions() {
     for &lit in &assumptions {
         assert!(lit < 0, "all walk-forbid assumptions must be negative");
         assert!(
-            matches!(cg.pool.key(-lit), Some(VarKey::WalkRealized { .. })),
+            matches!(cg.pool.key(-lit), Some(VarKey::TrailRealized { .. })),
             "assumption must negate a WalkRealized variable"
         );
     }

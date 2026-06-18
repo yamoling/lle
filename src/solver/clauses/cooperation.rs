@@ -43,7 +43,7 @@ impl ClauseGenerator {
     /// This single family serves multiple purposes:
     /// - read at the current horizon it is the time-agnostic "h ever helps b" indicator that the
     ///   mutual-cooperation forbid relies on (formerly `DependsOn`);
-    /// - it is the first edge (`step 1`) of every temporal walk/trail used by interdependence and
+    /// - it is the first edge (`step 1`) of every temporal trail used by interdependence and
     ///   chain modes (formerly `CycleProgress(·,1,·)`).
     ///
     /// Call once per time step, after `generate(t)`.
@@ -177,30 +177,30 @@ impl ClauseGenerator {
         (clauses, assumptions)
     }
 
-    /// The progress literal after the first `step` edges of `walk` have fired by time `t`, or
+    /// The progress literal after the first `step` edges of `trail` have fired by time `t`, or
     /// `None` if that progress variable has not been created yet.
     ///
     /// `step 1` is expressed directly by [`has_helped_by_time`](Self::has_helped_by_time_clauses)
-    /// (the walk's first edge `walk[0] → walk[1]`); deeper steps use the dedicated
-    /// [`WalkProgress`](VarKey::WalkProgress) family.
-    fn walk_progress_get(
+    /// (the trail's first edge `trail[0] → trail[1]`); deeper steps use the dedicated
+    /// [`TrailProgress`](VarKey::TrailProgress) family.
+    fn trail_progress_get(
         &self,
-        walk_id: u32,
-        walk: &[AgentId],
+        trail_id: u32,
+        trail: &[AgentId],
         step: usize,
         t: usize,
     ) -> Option<i32> {
         if step == 1 {
             self.pool
-                .get(&VarKey::has_helped_by_time(walk[0], walk[1], t))
+                .get(&VarKey::has_helped_by_time(trail[0], trail[1], t))
         } else {
             self.pool
-                .get(&VarKey::walk_progress(walk_id, step as u8, t))
+                .get(&VarKey::trail_progress(trail_id, step as u8, t))
         }
     }
 
     /// Additive clauses, at time step `t`, advancing every temporal interdependence cycle in
-    /// `self.walks`.
+    /// `self.trails`.
     ///
     /// A cycle is a closed vertex sequence `[u0, u1, …, um]` (edge `i` is `u_i → u_{i+1}` and
     /// `u_m == u0`):
@@ -209,56 +209,56 @@ impl ClauseGenerator {
     /// // step 1 is has_helped_by_time(u0, u1, ·) — emitted by has_helped_by_time_clauses
     /// progress(s-1, t) ∧ agent(u_s, q, t) → progress(s, t)      for 2 ≤ s ≤ m-1   (interior edges)
     /// progress(s, t-1)                     → progress(s, t)                        (monotone in t)
-    /// progress(m-1, t) ∧ agent(u_m, q, t) → walk_realized(walk) (the closing edge)
+    /// progress(m-1, t) ∧ agent(u_m, q, t) → trail_realized(trail) (the closing edge)
     /// ```
     ///
     /// where `agent(u_s, q, t)` ranges over the help-edge tiles of `u_{s-1}`'s beam reachable by
     /// `u_s`. Call once per time step, after
     /// [`has_helped_by_time_clauses`](Self::has_helped_by_time_clauses).
-    pub(crate) fn walk_clauses(&mut self, t: usize) -> Vec<Clause> {
+    pub(crate) fn trail_clauses(&mut self, t: usize) -> Vec<Clause> {
         self.ctx.update(t);
         let mut clauses = Vec::new();
 
-        for walk_id in 0..self.walks.len() {
-            let walk = self.walks[walk_id].clone();
-            let id = walk_id as u32;
-            let m = walk.len() - 1; // number of edges
+        for trail_id in 0..self.trails.len() {
+            let trail = self.trails[trail_id].clone();
+            let id = trail_id as u32;
+            let m = trail.len() - 1; // number of edges
 
-            // Interior edges 2..=m-1 produce WalkProgress variables.
+            // Interior edges 2..=m-1 produce TrailProgress variables.
             for step in 2..m {
-                let (helper, ben) = (walk[step - 1], walk[step]);
+                let (helper, ben) = (trail[step - 1], trail[step]);
                 let cur_step = step as u8;
 
                 // Monotone in time (independent of any new event at t).
                 let prev_t = if t > 0 {
-                    self.pool.get(&VarKey::walk_progress(id, cur_step, t - 1))
+                    self.pool.get(&VarKey::trail_progress(id, cur_step, t - 1))
                 } else {
                     None
                 };
                 if let Some(prev_t) = prev_t {
-                    let prog = self.pool.walk_progress(id, cur_step, t);
+                    let prog = self.pool.trail_progress(id, cur_step, t);
                     clauses.push(implies(prev_t, prog));
                 }
 
                 // progress(step-1, t) ∧ agent(ben, q, t) → progress(step, t).
-                let Some(prev_prog) = self.walk_progress_get(id, &walk, step - 1, t) else {
+                let Some(prev_prog) = self.trail_progress_get(id, &trail, step - 1, t) else {
                     continue;
                 };
                 for pos in self.help_edge_positions(helper, ben, t) {
                     let av = self.pool.agent(ben, pos, t);
-                    let prog = self.pool.walk_progress(id, cur_step, t);
+                    let prog = self.pool.trail_progress(id, cur_step, t);
                     clauses.push(vec![-prev_prog, -av, prog]);
                 }
             }
 
-            // Closing (last) edge u_{m-1} → u_m fires walk_realized.
-            let Some(last_prog) = self.walk_progress_get(id, &walk, m - 1, t) else {
+            // Closing (last) edge u_{m-1} → u_m fires trail_realized.
+            let Some(last_prog) = self.trail_progress_get(id, &trail, m - 1, t) else {
                 continue;
             };
-            let (helper, ben) = (walk[m - 1], walk[m]);
+            let (helper, ben) = (trail[m - 1], trail[m]);
             for pos in self.help_edge_positions(helper, ben, t) {
                 let av = self.pool.agent(ben, pos, t);
-                let realized = self.pool.walk_realized(id);
+                let realized = self.pool.trail_realized(id);
                 clauses.push(vec![-last_prog, -av, realized]);
             }
         }
@@ -266,12 +266,12 @@ impl ClauseGenerator {
         clauses
     }
 
-    /// Assumptions `¬walk_realized(walk)` for every interdependence cycle whose realized variable
-    /// was created by [`walk_clauses`](Self::walk_clauses). Pass the returned assumptions alongside
+    /// Assumptions `¬trail_realized(trail)` for every interdependence cycle whose realized variable
+    /// was created by [`trail_clauses`](Self::trail_clauses). Pass the returned assumptions alongside
     /// those from `generate(t)`.
-    pub(crate) fn forbid_walks(&self) -> (Vec<Clause>, Vec<Literal>) {
-        let assumptions = (0..self.walks.len())
-            .filter_map(|id| self.pool.get(&VarKey::walk_realized(id as u32)))
+    pub(crate) fn forbid_trails(&self) -> (Vec<Clause>, Vec<Literal>) {
+        let assumptions = (0..self.trails.len())
+            .filter_map(|id| self.pool.get(&VarKey::trail_realized(id as u32)))
             .map(|v| -v)
             .collect();
         (vec![], assumptions)
