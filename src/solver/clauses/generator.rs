@@ -1,5 +1,7 @@
 use std::collections::HashSet;
 
+use itertools::Itertools;
+
 use crate::solver::errors::SolverError;
 use crate::{Action, AgentId, Position, World};
 
@@ -42,9 +44,12 @@ impl ClauseGenerator {
         let ctx = ConstraintContext::new(world, t_max);
         // Agents that own a laser are the only ones that can ever help (the helper of every trail
         // edge must block a beam).
-        let mut owners: Vec<AgentId> = ctx.laser_sources.iter().map(|s| s.agent_id).collect();
-        owners.sort_unstable();
-        owners.dedup();
+        let owners: Vec<AgentId> = ctx
+            .laser_sources
+            .iter()
+            .map(|s| s.agent_id)
+            .unique()
+            .collect();
         let all_agents: Vec<AgentId> = (0..ctx.n_agents).collect();
         let trails = enumerate_for_mode(mode, &owners, &all_agents);
         // `has_helped_by_time` is generated only for directed pairs consumed by the selected
