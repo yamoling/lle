@@ -4,10 +4,8 @@
 //! SAT solver (solving is delegated to Python). SAT/UNSAT behaviour is covered by the Python
 //! tests in `python/tests/test_mutual_cooperation.py`.
 //!
-//! Note: a `has_helped_by_time` indicator is created only for `(helper, beneficiary)` pairs
-//! that can take part in a *mutual* dependency, i.e. **both** agents own a laser. A non-owner can
-//! never reciprocate help, so tracking a dependency onto it would be a dead variable. This is why
-//! the single-owner worlds below produce no indicator at all.
+//! Note: `has_helped_by_time` is now a shared primitive tracked for every laser-owner helper and
+//! non-self beneficiary. Mode-specific forbid logic decides which of those directed pairs matter.
 
 use crate::World;
 use crate::solver::ClauseGenerator;
@@ -16,9 +14,9 @@ use crate::solver::VarKey;
 
 fn build(map: &str, t_max: usize, mode: SolveMode) -> ClauseGenerator {
     let world = World::try_from(map).expect("failed to parse world");
-    let mut cg = ClauseGenerator::new(&world, t_max, mode, false);
-    // `generate(t_max)` fills steps 0..=t_max in one call.
-    let _ = cg.generate(t_max);
+    let mut cg = ClauseGenerator::new(&world, t_max);
+    // `generate(t_max, mode, false)` fills steps 0..=t_max in one call and creates mode support.
+    let _ = cg.generate(t_max, mode, false);
     cg
 }
 
@@ -50,10 +48,13 @@ S0 . S1
 
 #[test]
 fn single_owner_world_tracks_no_dependency() {
-    // Only agent 0 owns a laser, so no mutual dependency is expressible: no indicator is created
-    // in either direction and nothing is forbidden.
+    // Only agent 0 owns a laser, so only the one-way help indicator can be created. No mutual
+    // dependency is expressible and nothing is forbidden.
     let mut cg = build(ONE_WAY, 10, SolveMode::NoMutualCooperation);
-    assert!(!can_help(&cg, 0, 1, 10), "no indicator onto a non-owner");
+    assert!(
+        can_help(&cg, 0, 1, 10),
+        "owner-to-non-owner help is tracked"
+    );
     assert!(!can_help(&cg, 1, 0, 10), "a non-owner can never help");
     let (clauses, assumptions) = cg.forbid_mutual_cooperation(10);
     assert!(
@@ -65,7 +66,7 @@ fn single_owner_world_tracks_no_dependency() {
 #[test]
 fn has_helped_by_time_clauses_are_binary_implications_into_has_helped() {
     let world = World::try_from(MUTUAL).expect("failed to parse world");
-    let mut cg = ClauseGenerator::new(&world, 10, SolveMode::NoMutualCooperation, false);
+    let mut cg = ClauseGenerator::new(&world, 10);
     // Each clause must be a binary implication whose single positive literal is some
     // `has_helped_by_time(helper, beneficiary, t)`, and whose antecedent is either the
     // beneficiary's agent var (a fresh help event) or the previous-step indicator (monotone
@@ -121,7 +122,7 @@ fn has_helped_by_time_clauses_are_binary_implications_into_has_helped() {
 #[test]
 fn no_laser_has_no_dependencies() {
     let world = World::try_from(NO_LASER).expect("failed to parse world");
-    let mut cg = ClauseGenerator::new(&world, 10, SolveMode::NoMutualCooperation, false);
+    let mut cg = ClauseGenerator::new(&world, 10);
     for t in 0..=10 {
         assert!(
             cg.has_helped_by_time_clauses(t).is_empty(),
@@ -200,62 +201,70 @@ fn asymmetric_world_generates_forbid_clauses_and_assumptions() {
 }
 
 #[test]
-fn chained_mode_k2_enumerates_two_trails_for_mutual_world() {
+fn chained_mode_k2_enumerates_two_chains_for_mutual_world() {
     let world = World::try_from(MUTUAL).expect("failed to parse world");
-    let cg = ClauseGenerator::new(&world, 10, SolveMode::NoChainedCooperation(2), false);
+    let mut cg = ClauseGenerator::new(&world, 10);
+    let _ = cg.generate(0, SolveMode::NoChainedCooperation(2), false);
     // MUTUAL world: owners = [0, 1], all_agents = [0, 1].
-    // Length-2 trails with no repeated directed pair: [0,1,0] and [1,0,1].
+    // Length-2 chains with no repeated directed pair: [0,1,0] and [1,0,1].
     assert_eq!(
-        cg.trails.len(),
+        cg.chain_support.get(&2).unwrap().chains.len(),
         2,
-        "two distinct length-2 trails in a 2-owner world"
+        "two distinct length-2 chains in a 2-owner world"
     );
 }
 
 #[test]
-fn chained_mode_k3_has_no_trails_for_two_agent_world() {
+fn chained_mode_k3_has_no_chains_for_two_agent_world() {
     let world = World::try_from(MUTUAL).expect("failed to parse world");
-    let cg = ClauseGenerator::new(&world, 10, SolveMode::NoChainedCooperation(3), false);
-    // Only 2 distinct directed pairs (0->1) and (1->0) exist; a length-3 trail needs 3 distinct
+    let mut cg = ClauseGenerator::new(&world, 10);
+    let _ = cg.generate(0, SolveMode::NoChainedCooperation(3), false);
+    // Only 2 distinct directed pairs (0->1) and (1->0) exist; a length-3 chain needs 3 distinct
     // directed pairs, which is impossible with 2 agents.
     assert!(
-        cg.trails.is_empty(),
-        "no length-3 trail can exist with only 2 agents and 2 possible directed pairs"
+        cg.chain_support.get(&3).unwrap().chains.is_empty(),
+        "no length-3 chain can exist with only 2 agents and 2 possible directed pairs"
     );
 }
 
 #[test]
-fn no_chained_mode_uses_trail_realized_variables() {
+fn no_chained_mode_uses_chain_realized_variables() {
     let cg = build(MUTUAL, 10, SolveMode::NoChainedCooperation(2));
-    // With trails [0,1,0] and [1,0,1], the MUTUAL world can realize both: trail_realized(0) and
-    // trail_realized(1) should be allocated after generate().
+    // With chains [0,1,0] and [1,0,1], the MUTUAL world can realize both: chain_realized(0) and
+    // chain_realized(1) should be allocated after generate().
     assert!(
-        cg.exists(&VarKey::TrailRealized { trail_id: 0 }),
-        "chain mode must allocate TrailRealized(0)"
+        cg.exists(&VarKey::ChainRealized {
+            length: 2,
+            chain_id: 0
+        }),
+        "chain mode must allocate ChainRealized(0)"
     );
     assert!(
-        cg.exists(&VarKey::TrailRealized { trail_id: 1 }),
-        "chain mode must allocate TrailRealized(1)"
+        cg.exists(&VarKey::ChainRealized {
+            length: 2,
+            chain_id: 1
+        }),
+        "chain mode must allocate ChainRealized(1)"
     );
 }
 
 #[test]
-fn chained_mode_forbid_trails_produces_negative_assumptions() {
+fn chained_mode_forbid_chains_produces_negative_assumptions() {
     let cg = build(MUTUAL, 10, SolveMode::NoChainedCooperation(2));
-    let (clauses, assumptions) = cg.forbid_trails();
+    let (clauses, assumptions) = cg.forbid_chains(2);
     assert!(
         clauses.is_empty(),
-        "forbid_trails must not produce extra clauses"
+        "forbid_chains must not produce extra clauses"
     );
     assert!(
         !assumptions.is_empty(),
-        "mutual world with k=2 must have trail-realized assumptions"
+        "mutual world with k=2 must have chain-realized assumptions"
     );
     for &lit in &assumptions {
-        assert!(lit < 0, "all trail-forbid assumptions must be negative");
+        assert!(lit < 0, "all chain-forbid assumptions must be negative");
         assert!(
-            matches!(cg.pool.key(-lit), Some(VarKey::TrailRealized { .. })),
-            "assumption must negate a TrailRealized variable"
+            matches!(cg.pool.key(-lit), Some(VarKey::ChainRealized { .. })),
+            "assumption must negate a ChainRealized variable"
         );
     }
 }
@@ -264,8 +273,8 @@ fn chained_mode_forbid_trails_produces_negative_assumptions() {
 fn level_6_dependency_is_bidirectional() {
     let world = World::get_level(6).expect("failed to load level 6");
     let n = world.n_agents();
-    let mut cg = ClauseGenerator::new(&world, 21, SolveMode::NoMutualCooperation, false);
-    let _ = cg.generate(21);
+    let mut cg = ClauseGenerator::new(&world, 21);
+    let _ = cg.generate(21, SolveMode::NoMutualCooperation, false);
     // Level 6 requires mutual cooperation: at least one pair must have both directions.
     let has_bidirectional = (0..n).any(|a| {
         (0..n)

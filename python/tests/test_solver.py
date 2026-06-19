@@ -4,7 +4,7 @@ import lle
 import pytest
 from lle import Action, World
 from lle.characterization.trajectory import profile_trajectory
-from lle.solver import SolveMode, SolveModeLiteral
+from lle.solver import SolveMode, SolveModeLiteral, Solver
 
 
 def _default_t_max(world: World) -> int:
@@ -290,29 +290,69 @@ def test_rust_solve_mode_parametrized_values_round_trip():
 
 
 def test_rust_solve_mode_rejects_invalid_lengths():
-    from lle.solver.constraints import SolveMode as RustSolveMode
+    from lle.solver.constraints import SolveMode
 
     for bad in ("no-chain-1", "no-chain-0", "no-chain-x", "no-interdependence-1", "bogus"):
         with pytest.raises(ValueError):
-            RustSolveMode.from_str(bad)
+            SolveMode.from_str(bad)
     with pytest.raises(ValueError):
-        RustSolveMode.no_chain(1)
+        SolveMode.no_chain(1)
 
 
-def test_clause_generator_accepts_rust_solve_mode():
-    from lle.solver.constraints import ClauseGenerator
+def test_reusable_solver_across_modes():
+    world = World("""
+     .   .  S0  S1  .   .
+    L0E  .   .   .  @   .
+     .   .   .   .  .   .
+     .   .   .   .  .   .
+     X   X   .   .  .   .
+    """)
+    solver = Solver(world, 10)
+
+    standard = solver.solve("standard")
+    no_cooperation = solver.solve("no-cooperation")
+
+    assert standard is not None
+    assert no_cooperation is not None
+    assert len(standard) < len(no_cooperation)
+
+
+def test_solver_accepts_rust_solve_mode_objects():
     from lle.solver.constraints import SolveMode as RustSolveMode
 
     world = World("S0 . . X")
-    modes = [
-        RustSolveMode.standard(),
-        RustSolveMode.no_cooperation(),
-        RustSolveMode.no_mutual(),
-        RustSolveMode.no_chain(3),
-        RustSolveMode.no_interdependence(2),
-    ]
-    for mode in modes:
-        gen = ClauseGenerator(world, 5, mode=mode)
-        clauses, assumptions = gen.generate(3)
-        assert isinstance(clauses, list)
-        assert isinstance(assumptions, list)
+    solver = Solver(world, 5)
+    plan = solver.solve(RustSolveMode.no_cooperation())
+
+    assert plan is not None
+    assert len(plan) == 3
+
+
+def test_solve_function_remains_compatible():
+    default_world = World("S0 .\n.  X")
+    corridor_world = World("S0 . . X")
+
+    assert lle.solve(default_world) is not None
+    path = lle.solve(corridor_world, 5)
+    assert path is not None and len(path) == 3
+    path = lle.solve(corridor_world, 3, 5)
+    assert path is not None and len(path) == 3
+    path = lle.solve(corridor_world, 4, 5)
+    assert path is not None and len(path) == 4
+    path = lle.solve(corridor_world, 5, mode="no-cooperation")
+    assert path is not None and len(path) == 3
+
+
+def test_solver_override_t_max_cannot_exceed_construction_bound():
+    solver = Solver(World("S0 . . X"), 5)
+
+    with pytest.raises(ValueError, match="exceeds this solver's t_max"):
+        solver.solve(override_t_max=6)
+
+
+def test_collect_gems_is_per_solve_call():
+    world = World("S0 G X")
+    solver = Solver(world, 2)
+
+    assert solver.solve(collect_gems=False) is not None
+    assert solver.solve(collect_gems=True) is not None

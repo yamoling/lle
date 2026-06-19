@@ -69,27 +69,6 @@ impl std::str::FromStr for SolveMode {
 }
 
 impl SolveMode {
-    /// Whether the mode consumes the `has_helped_by_time` indicator family (all cooperation modes
-    /// except plain `NoCooperation`).
-    pub(crate) fn needs_has_helped(&self) -> bool {
-        matches!(
-            self,
-            SolveMode::NoAsymmetricCooperation
-                | SolveMode::NoMutualCooperation
-                | SolveMode::NoInterdependence(_)
-                | SolveMode::NoChainedCooperation(_)
-        )
-    }
-
-    /// Whether the mode's forbid is encoded through the trail machinery (`trail_clauses` /
-    /// `forbid_trails`).
-    pub(crate) fn uses_trails(&self) -> bool {
-        matches!(
-            self,
-            SolveMode::NoInterdependence(_) | SolveMode::NoChainedCooperation(_)
-        )
-    }
-
     /// The canonical string representation, inverse of [`SolveMode::from_str`]. The default
     /// length (2) is rendered without a suffix (e.g. `"no-chain"`) so the canonical strings of
     /// the base modes match the documented `SolveModeLiteral` values.

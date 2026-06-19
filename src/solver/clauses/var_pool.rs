@@ -35,13 +35,28 @@ pub enum VarKey {
         pos: Position,
         t: usize,
     },
-    /// Progress for trail `trail_id`: its first `step` edges have fired with non-decreasing
-    /// timestamps, the `step`-th edge firing at some time ≤ `t`. Only created for `step ≥ 2`; the
-    /// first edge is expressed directly by [`HasHelpedByTime`]. The trail is a closed cycle for
-    /// interdependence mode and an open chain for chained-cooperation mode.
-    TrailProgress { trail_id: u32, step: u8, t: usize },
-    /// Whether trail `trail_id` has been fully realized (all its edges fired in order).
-    TrailRealized { trail_id: u32 },
+    /// Progress for chain `chain_id` of forbidden length `length`: its first `step` edges have
+    /// fired with non-decreasing timestamps, the `step`-th edge firing at some time ≤ `t`.
+    /// Only created for `step ≥ 2`; the first edge is expressed directly by [`HasHelpedByTime`].
+    ChainProgress {
+        length: usize,
+        chain_id: u32,
+        step: u8,
+        t: usize,
+    },
+    /// Whether chain `chain_id` of forbidden length `length` has been fully realized.
+    ChainRealized { length: usize, chain_id: u32 },
+    /// Progress for cycle rotation `cycle_id` of forbidden order `order`: its first `step` edges
+    /// have fired with non-decreasing timestamps, the `step`-th edge firing at some time ≤ `t`.
+    /// Only created for `step ≥ 2`; the first edge is expressed directly by [`HasHelpedByTime`].
+    CycleProgress {
+        order: usize,
+        cycle_id: u32,
+        step: u8,
+        t: usize,
+    },
+    /// Whether cycle rotation `cycle_id` of forbidden order `order` has been fully realized.
+    CycleRealized { order: usize, cycle_id: u32 },
     /// Auxiliary variable used internally by cardinality encodings; carries a unique counter.
     Aux(i32),
 }
@@ -92,13 +107,33 @@ impl VarKey {
     }
 
     #[inline]
-    pub fn trail_progress(trail_id: u32, step: u8, t: usize) -> Self {
-        VarKey::TrailProgress { trail_id, step, t }
+    pub fn chain_progress(length: usize, chain_id: u32, step: u8, t: usize) -> Self {
+        VarKey::ChainProgress {
+            length,
+            chain_id,
+            step,
+            t,
+        }
     }
 
     #[inline]
-    pub fn trail_realized(trail_id: u32) -> Self {
-        VarKey::TrailRealized { trail_id }
+    pub fn chain_realized(length: usize, chain_id: u32) -> Self {
+        VarKey::ChainRealized { length, chain_id }
+    }
+
+    #[inline]
+    pub fn cycle_progress(order: usize, cycle_id: u32, step: u8, t: usize) -> Self {
+        VarKey::CycleProgress {
+            order,
+            cycle_id,
+            step,
+            t,
+        }
+    }
+
+    #[inline]
+    pub fn cycle_realized(order: usize, cycle_id: u32) -> Self {
+        VarKey::CycleRealized { order, cycle_id }
     }
 
     #[inline]
@@ -159,14 +194,24 @@ impl VarPool {
         self.id(VarKey::has_helped_by_time(helper, beneficiary, t))
     }
 
-    /// Progress indicator: the first `step` edges of trail `trail_id` have fired by time `t`.
-    pub fn trail_progress(&mut self, trail_id: u32, step: u8, t: usize) -> i32 {
-        self.id(VarKey::trail_progress(trail_id, step, t))
+    /// Progress indicator: the first `step` edges of chain `chain_id` have fired by time `t`.
+    pub fn chain_progress(&mut self, length: usize, chain_id: u32, step: u8, t: usize) -> i32 {
+        self.id(VarKey::chain_progress(length, chain_id, step, t))
     }
 
-    /// Whether trail `trail_id` has been fully realized.
-    pub fn trail_realized(&mut self, trail_id: u32) -> i32 {
-        self.id(VarKey::trail_realized(trail_id))
+    /// Whether chain `chain_id` has been fully realized.
+    pub fn chain_realized(&mut self, length: usize, chain_id: u32) -> i32 {
+        self.id(VarKey::chain_realized(length, chain_id))
+    }
+
+    /// Progress indicator: the first `step` edges of cycle rotation `cycle_id` have fired by time `t`.
+    pub fn cycle_progress(&mut self, order: usize, cycle_id: u32, step: u8, t: usize) -> i32 {
+        self.id(VarKey::cycle_progress(order, cycle_id, step, t))
+    }
+
+    /// Whether cycle rotation `cycle_id` has been fully realized.
+    pub fn cycle_realized(&mut self, order: usize, cycle_id: u32) -> i32 {
+        self.id(VarKey::cycle_realized(order, cycle_id))
     }
 
     /// Variable id already assigned to `key`, or `None` if it was never created.

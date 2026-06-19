@@ -24,9 +24,9 @@ use crate::solver::SolveMode;
 /// from lle.solver.constraints import ClauseGenerator, SolveMode
 /// from lle import World
 ///
-/// gen = ClauseGenerator(World.level(6), t_max=21, mode=SolveMode.no_mutual())
+/// gen = ClauseGenerator(World.level(6), t_max=21)
 /// for t in range(gen.solution_lower_bound, gen.t_max + 1):
-///     clauses, assumptions = gen.generate(t)
+///     clauses, assumptions = gen.generate(t, mode=SolveMode.no_mutual())
 ///     ...
 /// ```
 #[gen_stub_pyclass]
@@ -118,7 +118,7 @@ impl PySolveMode {
     #[pyo3(name = "from_str")]
     pub fn parse(
         #[gen_stub(override_type(
-            type_repr = "typing.Literal['standard', 'no-asymmetric', 'no-chain', 'no-interdependence', 'no-mutual'] | builtins.str"
+            type_repr = "typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-chain', 'no-interdependence', 'no-mutual'] | builtins.str"
         ))]
         value: &str,
     ) -> PyResult<Self> {

@@ -138,9 +138,10 @@ uv run maturin dev           # build and install lle in the venv
 uv run maturin dev --release # build and install lle in the venv (release mode)
 ```
 
-Re-generate the Python bindings in `python/lle` with:
+Re-generate the Python bindings in `python/lle` with one of the following:
 ```bash
 cargo run --features python-bindings --bin stub-gen
+cargo stub-gen # Alias for the above defined in .cargo/config.toml
 ```
 
 ## Tests

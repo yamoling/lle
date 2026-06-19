@@ -4,23 +4,22 @@ use super::utils::implies;
 use super::{Clause, Literal, VarKey};
 use crate::{AgentId, Position};
 
+#[derive(Clone, Copy)]
+enum DependencyKind {
+    Chain { length: usize },
+    Cycle { order: usize },
+}
+
 impl ClauseGenerator {
-    /// Horizon-specific cooperation forbid for the current mode: the clauses and assumptions that
-    /// must be appended at horizon `t` and cannot be cached per step.
-    ///
-    /// `NoAsymmetricCooperation` and `NoMutualCooperation` depend on the current solve horizon `t`
-    /// (an earlier help event is non-asymmetric if the helper is helped at any later step up to
-    /// `t`), so they are recomputed here rather than buffered; see
-    /// [`forbid_asymmetric_cooperation`](Self::forbid_asymmetric_cooperation) for details.
-    /// `NoChainedCooperation` / `NoInterdependence` only read the `trail_realized` assumptions.
-    pub(crate) fn forbid_cooperation(&mut self, t: usize) -> (Vec<Clause>, Vec<Literal>) {
-        match self.mode {
+    /// Horizon-specific forbid clauses/assumptions for `mode`.
+    pub(crate) fn mode_forbid(&mut self, t: usize, mode: SolveMode) -> (Vec<Clause>, Vec<Literal>) {
+        match mode {
+            SolveMode::Standard => (vec![], vec![]),
+            SolveMode::NoCooperation => (vec![], self.assume_no_cooperation_until(t)),
             SolveMode::NoAsymmetricCooperation => self.forbid_asymmetric_cooperation(t),
             SolveMode::NoMutualCooperation => self.forbid_mutual_cooperation(t),
-            SolveMode::NoChainedCooperation(_) | SolveMode::NoInterdependence(_) => {
-                self.forbid_trails()
-            }
-            _ => (vec![], vec![]),
+            SolveMode::NoChainedCooperation(length) => self.forbid_chains(length),
+            SolveMode::NoInterdependence(order) => self.forbid_cycle_rotations(order),
         }
     }
 
@@ -51,27 +50,21 @@ impl ClauseGenerator {
             .collect()
     }
 
-    /// Clauses defining `has_helped_by_time(helper, beneficiary, t)` for every pair that can
-    /// help, at time step `t`. This is a **monotone temporal prefix-OR**: it becomes true at the
-    /// first help event and stays true forever after.
+    /// Clauses defining `has_helped_by_time(helper, beneficiary, t)` for every tracked help pair at
+    /// time step `t`. This is a **monotone temporal prefix-OR**: it becomes true at the first help
+    /// event and stays true forever after.
     ///
     /// ```text
     /// agent(beneficiary, q, t)                    → has_helped_by_time(helper, beneficiary, t)
     /// has_helped_by_time(helper, beneficiary, t-1) → has_helped_by_time(helper, beneficiary, t)
     /// ```
     ///
-    /// This single family serves multiple purposes:
-    /// - read at the current horizon it is the time-agnostic "h ever helps b" indicator that the
-    ///   mutual-cooperation forbid relies on (formerly `DependsOn`);
-    /// - it is the first edge (`step 1`) of every temporal trail used by interdependence and
-    ///   chain modes (formerly `CycleProgress(·,1,·)`).
-    ///
-    /// Call once per time step, after `generate(t)`.
+    /// Call once per time step through [`ensure_help_tracking`](Self::ensure_help_tracking).
     pub(crate) fn has_helped_by_time_clauses(&mut self, t: usize) -> Vec<Clause> {
         self.ctx.update(t);
         let mut clauses = Vec::new();
-        for idx in 0..self.has_helped_pairs.len() {
-            let (helper, beneficiary) = self.has_helped_pairs[idx];
+        for idx in 0..self.tracked_help_pairs.len() {
+            let (helper, beneficiary) = self.tracked_help_pairs[idx];
             let positions = self.help_edge_positions(helper, beneficiary, t);
             let prev = if t > 0 {
                 self.pool
@@ -102,42 +95,20 @@ impl ClauseGenerator {
     /// [`asymmetric`](VarKey::asymmetric) variable:
     ///
     /// ```text
-    /// agent(beneficiary, q, τ) ∧ no incoming help into helper by t → asymmetric(helper, beneficiary, q, τ)
-    /// ```
-    ///
-    /// encoded as:
-    ///
-    /// ```text
     /// ¬agent(beneficiary, q, τ) ∨ OR_k has_helped_by_time(k, helper, t) ∨ asymmetric(...)
     /// ```
     ///
-    /// The returned assumptions contain `¬asymmetric(...)` for every such variable. Under those
-    /// assumptions, the clauses reduce to the direct no-asymmetric constraint:
-    ///
-    /// ```text
-    /// agent(beneficiary, q, τ) → OR_k has_helped_by_time(k, helper, t)
-    /// ```
-    ///
-    /// If no incoming-help indicator exists for `helper`, the defining clause is
-    /// `¬agent(beneficiary, q, τ) ∨ asymmetric(...)`, and the negative assumption forbids all
-    /// outgoing help from that unhelpable helper.
-    ///
-    /// This must stay horizon-specific and must not be folded into the per-step cached clauses
-    /// generated alongside laser activity. The condition that makes an outgoing help event
-    /// non-asymmetric is "the helper is helped at some time `≤ t`", where `t` is the current solve
-    /// horizon, not the event time `τ`. A helper may help at `τ` and only be helped later. Using
-    /// `has_helped_by_time(_, helper, τ)` would reject such valid non-asymmetric trajectories;
-    /// using `t_max` would be unsound for shorter horizon solves. Therefore these clauses are
-    /// generated at the end of `generate(t)`, after the current horizon is known.
+    /// The returned assumptions contain `¬asymmetric(...)` for every such variable.
     pub(crate) fn forbid_asymmetric_cooperation(
         &mut self,
         t: usize,
     ) -> (Vec<Clause>, Vec<Literal>) {
+        self.ensure_help_tracking(t);
         let mut clauses = Vec::new();
         let mut assumptions = Vec::new();
         for tau in 0..=t {
             self.ctx.update(tau);
-            for (helper, beneficiary) in self.has_helped_pairs.clone() {
+            for (helper, beneficiary) in self.tracked_help_pairs.clone() {
                 let positions = self.help_edge_positions(helper, beneficiary, tau);
                 if positions.is_empty() {
                     continue;
@@ -165,26 +136,13 @@ impl ClauseGenerator {
 
     /// Clauses and assumptions that forbid *mutual* cooperation between every pair of agents, at
     /// horizon `t`.
-    ///
-    /// Mutual cooperation between `a` and `b` is "`a` helps `b` at some point **and** `b` helps
-    /// `a` at some point". With the monotone [`has_helped_by_time`](Self::has_helped_by_time_clauses)
-    /// indicator read at the current horizon, that is exactly
-    /// `has_helped_by_time(a, b, t) ∧ has_helped_by_time(b, a, t)`, reified into a
-    /// [`mutual`](VarKey::mutual) variable
-    ///
-    /// ```text
-    /// has_helped_by_time(a, b, t) ∧ has_helped_by_time(b, a, t) → mutual(a, b)
-    /// ```
-    ///
-    /// and returned together with the assumption `¬mutual(a, b)`. Call after
-    /// `has_helped_by_time_clauses` has been generated for every time step `0..=t`.
     pub(crate) fn forbid_mutual_cooperation(&mut self, t: usize) -> (Vec<Clause>, Vec<Literal>) {
+        self.ensure_help_tracking(t);
         let n_agents = self.ctx.n_agents;
         let mut clauses = Vec::new();
         let mut assumptions = Vec::new();
         for a in 0..n_agents {
             for b in (a + 1)..n_agents {
-                // `a` helps `b` ⇒ has_helped_by_time(a, b); `b` helps `a` ⇒ has_helped_by_time(b, a).
                 let a_helps_b = self.pool.get(&VarKey::has_helped_by_time(a, b, t));
                 let b_helps_a = self.pool.get(&VarKey::has_helped_by_time(b, a, t));
                 if let (Some(d_ab), Some(d_ba)) = (a_helps_b, b_helps_a) {
@@ -197,88 +155,132 @@ impl ClauseGenerator {
         (clauses, assumptions)
     }
 
-    /// The progress literal after the first `step` edges of `trail` have fired by time `t`, or
+    /// The progress literal after the first `step` edges of `dependency` have fired by time `t`, or
     /// `None` if that progress variable has not been created yet.
     ///
-    /// `step 1` is expressed directly by [`has_helped_by_time`](Self::has_helped_by_time_clauses)
-    /// (the trail's first edge `trail[0] → trail[1]`); deeper steps use the dedicated
-    /// [`TrailProgress`](VarKey::TrailProgress) family.
-    fn trail_progress_get(
+    /// `step 1` is expressed directly by `has_helped_by_time(dependency[0], dependency[1], t)`;
+    /// deeper steps use the chain/cycle-specific progress variable family.
+    fn dependency_progress_get(
         &self,
-        trail_id: u32,
-        trail: &[AgentId],
+        kind: DependencyKind,
+        dependency_id: u32,
+        dependency: &[AgentId],
         step: usize,
         t: usize,
     ) -> Option<i32> {
         if step == 1 {
             self.pool
-                .get(&VarKey::has_helped_by_time(trail[0], trail[1], t))
+                .get(&VarKey::has_helped_by_time(dependency[0], dependency[1], t))
         } else {
-            self.pool
-                .get(&VarKey::trail_progress(trail_id, step as u8, t))
+            match kind {
+                DependencyKind::Chain { length } => self.pool.get(&VarKey::chain_progress(
+                    length,
+                    dependency_id,
+                    step as u8,
+                    t,
+                )),
+                DependencyKind::Cycle { order } => {
+                    self.pool
+                        .get(&VarKey::cycle_progress(order, dependency_id, step as u8, t))
+                }
+            }
         }
     }
 
-    /// Additive clauses, at time step `t`, advancing every temporal trail in `self.trails`. A
-    /// trail is a closed cycle (`u_m == u0`) for interdependence mode and an open chain for
-    /// chained-cooperation mode; both are encoded identically here.
-    ///
-    /// A trail is a vertex sequence `[u0, u1, …, um]` (edge `i` is `u_i → u_{i+1}`):
-    ///
-    /// ```text
-    /// // step 1 is has_helped_by_time(u0, u1, ·) — emitted by has_helped_by_time_clauses
-    /// progress(s-1, t) ∧ agent(u_s, q, t) → progress(s, t)      for 2 ≤ s ≤ m-1   (interior edges)
-    /// progress(s, t-1)                     → progress(s, t)                        (monotone in t)
-    /// progress(m-1, t) ∧ agent(u_m, q, t) → trail_realized(trail) (the closing edge)
-    /// ```
-    ///
-    /// where `agent(u_s, q, t)` ranges over the help-edge tiles of `u_{s-1}`'s beam reachable by
-    /// `u_s`. Call once per time step, after
-    /// [`has_helped_by_time_clauses`](Self::has_helped_by_time_clauses).
-    pub(crate) fn trail_clauses(&mut self, t: usize) -> Vec<Clause> {
+    fn dependency_progress_prev_get(
+        &self,
+        kind: DependencyKind,
+        dependency_id: u32,
+        step: u8,
+        t: usize,
+    ) -> Option<i32> {
+        if t == 0 {
+            return None;
+        }
+        match kind {
+            DependencyKind::Chain { length } => {
+                self.pool
+                    .get(&VarKey::chain_progress(length, dependency_id, step, t - 1))
+            }
+            DependencyKind::Cycle { order } => {
+                self.pool
+                    .get(&VarKey::cycle_progress(order, dependency_id, step, t - 1))
+            }
+        }
+    }
+
+    fn dependency_progress_create(
+        &mut self,
+        kind: DependencyKind,
+        dependency_id: u32,
+        step: u8,
+        t: usize,
+    ) -> i32 {
+        match kind {
+            DependencyKind::Chain { length } => {
+                self.pool.chain_progress(length, dependency_id, step, t)
+            }
+            DependencyKind::Cycle { order } => {
+                self.pool.cycle_progress(order, dependency_id, step, t)
+            }
+        }
+    }
+
+    fn dependency_realized_create(&mut self, kind: DependencyKind, dependency_id: u32) -> i32 {
+        match kind {
+            DependencyKind::Chain { length } => self.pool.chain_realized(length, dependency_id),
+            DependencyKind::Cycle { order } => self.pool.cycle_realized(order, dependency_id),
+        }
+    }
+
+    fn dependency_clauses(
+        &mut self,
+        kind: DependencyKind,
+        dependencies: &[Vec<AgentId>],
+        t: usize,
+    ) -> Vec<Clause> {
         self.ctx.update(t);
         let mut clauses = Vec::new();
 
-        for trail_id in 0..self.trails.len() {
-            let trail = self.trails[trail_id].clone();
-            let id = trail_id as u32;
-            let m = trail.len() - 1; // number of edges
+        for (id, dependency) in dependencies.iter().enumerate() {
+            // let dependency = dependencies[dependency_id].clone();
+            // let id = dependency_id as u32;
+            let id = id as u32;
+            let m = dependency.len() - 1; // number of edges
 
-            // Interior edges 2..=m-1 produce TrailProgress variables.
+            // Interior edges 2..=m-1 produce progress variables.
             for step in 2..m {
-                let (helper, ben) = (trail[step - 1], trail[step]);
+                let (helper, ben) = (dependency[step - 1], dependency[step]);
                 let cur_step = step as u8;
 
                 // Monotone in time (independent of any new event at t).
-                let prev_t = if t > 0 {
-                    self.pool.get(&VarKey::trail_progress(id, cur_step, t - 1))
-                } else {
-                    None
-                };
-                if let Some(prev_t) = prev_t {
-                    let prog = self.pool.trail_progress(id, cur_step, t);
+                if let Some(prev_t) = self.dependency_progress_prev_get(kind, id, cur_step, t) {
+                    let prog = self.dependency_progress_create(kind, id, cur_step, t);
                     clauses.push(implies(prev_t, prog));
                 }
 
                 // progress(step-1, t) ∧ agent(ben, q, t) → progress(step, t).
-                let Some(prev_prog) = self.trail_progress_get(id, &trail, step - 1, t) else {
+                let Some(prev_prog) =
+                    self.dependency_progress_get(kind, id, dependency, step - 1, t)
+                else {
                     continue;
                 };
                 for pos in self.help_edge_positions(helper, ben, t) {
                     let av = self.pool.agent(ben, pos, t);
-                    let prog = self.pool.trail_progress(id, cur_step, t);
+                    let prog = self.dependency_progress_create(kind, id, cur_step, t);
                     clauses.push(vec![-prev_prog, -av, prog]);
                 }
             }
 
-            // Closing (last) edge u_{m-1} → u_m fires trail_realized.
-            let Some(last_prog) = self.trail_progress_get(id, &trail, m - 1, t) else {
+            // Closing/last edge u_{m-1} → u_m fires the realized indicator.
+            let Some(last_prog) = self.dependency_progress_get(kind, id, dependency, m - 1, t)
+            else {
                 continue;
             };
-            let (helper, ben) = (trail[m - 1], trail[m]);
+            let (helper, ben) = (dependency[m - 1], dependency[m]);
             for pos in self.help_edge_positions(helper, ben, t) {
                 let av = self.pool.agent(ben, pos, t);
-                let realized = self.pool.trail_realized(id);
+                let realized = self.dependency_realized_create(kind, id);
                 clauses.push(vec![-last_prog, -av, realized]);
             }
         }
@@ -286,12 +288,44 @@ impl ClauseGenerator {
         clauses
     }
 
-    /// Assumptions `¬trail_realized(trail)` for every trail whose realized variable was created by
-    /// [`trail_clauses`](Self::trail_clauses). Pass the returned assumptions alongside those from
-    /// `generate(t)`.
-    pub(crate) fn forbid_trails(&self) -> (Vec<Clause>, Vec<Literal>) {
-        let assumptions = (0..self.trails.len())
-            .filter_map(|id| self.pool.get(&VarKey::trail_realized(id as u32)))
+    pub(crate) fn chain_clauses(
+        &mut self,
+        length: usize,
+        chains: &[Vec<AgentId>],
+        t: usize,
+    ) -> Vec<Clause> {
+        self.dependency_clauses(DependencyKind::Chain { length }, chains, t)
+    }
+
+    pub(crate) fn cycle_rotation_clauses(
+        &mut self,
+        order: usize,
+        cycle_rotations: &[Vec<AgentId>],
+        t: usize,
+    ) -> Vec<Clause> {
+        self.dependency_clauses(DependencyKind::Cycle { order }, cycle_rotations, t)
+    }
+
+    /// Assumptions `¬chain_realized(chain)` for every chain whose realized variable was created.
+    pub(crate) fn forbid_chains(&self, length: usize) -> (Vec<Clause>, Vec<Literal>) {
+        let Some(support) = self.chain_support.get(&length) else {
+            return (vec![], vec![]);
+        };
+        let assumptions = (0..support.chains.len())
+            .filter_map(|id| self.pool.get(&VarKey::chain_realized(length, id as u32)))
+            .map(|v| -v)
+            .collect();
+        (vec![], assumptions)
+    }
+
+    /// Assumptions `¬cycle_realized(rotation)` for every cycle rotation whose realized variable was
+    /// created.
+    pub(crate) fn forbid_cycle_rotations(&self, order: usize) -> (Vec<Clause>, Vec<Literal>) {
+        let Some(support) = self.interdependence_support.get(&order) else {
+            return (vec![], vec![]);
+        };
+        let assumptions = (0..support.possible_cycles.len())
+            .filter_map(|id| self.pool.get(&VarKey::cycle_realized(order, id as u32)))
             .map(|v| -v)
             .collect();
         (vec![], assumptions)

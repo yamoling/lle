@@ -66,12 +66,13 @@ impl TomlConfig {
             self.agents[agent_num].starts.extend(positions);
         }
         if let Some(n) = self.n_agents
-            && n < self.agents.len() {
-                return Err(ParseError::InconsistentNumberOfAgents {
-                    toml_n_agents_field: n,
-                    actual_n_agents: self.agents.len(),
-                });
-            }
+            && n < self.agents.len()
+        {
+            return Err(ParseError::InconsistentNumberOfAgents {
+                toml_n_agents_field: n,
+                actual_n_agents: self.agents.len(),
+            });
+        }
 
         for pos in config.exits() {
             self.exits.push(PositionsConfig::from(pos));
@@ -181,10 +182,7 @@ impl From<&WorldConfig> for TomlConfig {
         let mut agents = vec![];
         for starts in value.random_starts() {
             agents.push(AgentConfig {
-                starts: starts
-                    .iter()
-                    .map(PositionsConfig::from)
-                    .collect(),
+                starts: starts.iter().map(PositionsConfig::from).collect(),
             })
         }
         let exits = value.exits().iter().map(PositionsConfig::from).collect();

@@ -9,6 +9,70 @@ from .constraints import ClauseGenerator, SolveMode
 from .types import SolveModeLiteral
 
 
+def _default_t_max(world: World) -> int:
+    return (world.width * world.height) // 2
+
+
+def _parse_mode(mode: SolveModeLiteral | str | SolveMode) -> SolveMode:
+    if isinstance(mode, str):
+        return SolveMode.from_str(mode)
+    return mode
+
+
+class Solver:
+    """Reusable SAT solver facade for one world and maximum horizon.
+
+    A `Solver` owns one Rust `ClauseGenerator`, so repeated calls with different solve modes reuse
+    the same cached domain clauses.
+    """
+
+    world: World
+    t_max: int
+    generator: ClauseGenerator
+
+    def __init__(self, world: World, t_max: int | Literal["auto"] = "auto") -> None:
+        self.world = world
+        self.t_max = _default_t_max(world) if t_max == "auto" else t_max
+        self.generator = ClauseGenerator(world, self.t_max)
+
+    @property
+    def solution_lower_bound(self) -> int:
+        return self.generator.solution_lower_bound
+
+    def solve(
+        self,
+        mode: SolveModeLiteral | str | SolveMode = "standard",
+        *,
+        t_min: int = 0,
+        override_t_max: int | None = None,
+        collect_gems: bool = False,
+    ) -> list[tuple[Action, ...]] | None:
+        """Find the shortest plan for this solver's world.
+
+        `override_t_max` may restrict the horizon for this call, but it cannot exceed the solver's
+        construction-time `t_max` because the underlying Rust generator was built for that bound.
+        """
+        if override_t_max is None:
+            t_max = self.t_max
+        elif override_t_max > self.t_max:
+            raise ValueError(
+                f"override_t_max={override_t_max} exceeds this solver's t_max={self.t_max}. Construct a new Solver with a larger t_max."
+            )
+        else:
+            t_max = override_t_max
+
+        parsed_mode = _parse_mode(mode)
+        t_min = max(self.solution_lower_bound, t_min)
+        if t_min > t_max:
+            return None
+        for t in range(t_min, t_max + 1):
+            clauses, assumptions = self.generator.generate(t, mode=parsed_mode, collect_gems=collect_gems)
+            model = solve_model(clauses, assumptions=assumptions)
+            if model is not None:
+                return _to_plan(self.generator.decode_plan(model, t))
+        return None
+
+
 @overload
 def solve(
     world: World,
@@ -16,6 +80,7 @@ def solve(
     /,
     *,
     mode: SolveModeLiteral | str | SolveMode = "standard",
+    collect_gems: bool = False,
 ) -> list[tuple[Action, ...]] | None: ...
 
 
@@ -27,10 +92,17 @@ def solve(
     /,
     *,
     mode: SolveModeLiteral | str | SolveMode = "standard",
+    collect_gems: bool = False,
 ) -> list[tuple[Action, ...]] | None: ...
 
 
-def solve(world: World, /, *min_max, mode: SolveModeLiteral | str | SolveMode = "standard"):
+def solve(
+    world: World,
+    /,
+    *min_max,
+    mode: SolveModeLiteral | str | SolveMode = "standard",
+    collect_gems: bool = False,
+):
     """
     Find the shortest plan within the time range [t_min, t_max] (both ends included).
 
@@ -38,39 +110,17 @@ def solve(world: World, /, *min_max, mode: SolveModeLiteral | str | SolveMode = 
         - `t_min`: The minimum time step to consider.
         - `t_max`: The maximum time step to consider. Defaults to (width * height) // 2.
         - `mode`: The solving mode. Check the `SolveMode` enum for more information.
+        - `collect_gems`: Whether all gems must be collected before solving succeeds.
     """
     match min_max:
         case ():
-            return _solve(world, 0, "auto", mode=mode)
+            return Solver(world).solve(mode, collect_gems=collect_gems)
         case (t_max,):
-            return _solve(world, 0, t_max, mode=mode)
+            return Solver(world, t_max).solve(mode, collect_gems=collect_gems)
         case (t_min, t_max):
-            return _solve(world, t_min, t_max, mode=mode)
+            return Solver(world, t_max).solve(mode, t_min=t_min, collect_gems=collect_gems)
         case _:
             raise ValueError(f"Invalid arguments: (world, {min_max})")
-
-
-def _solve(
-    world: World,
-    t_min: int,
-    t_max: int | Literal["auto"],
-    *,
-    mode: SolveModeLiteral | str | SolveMode,
-) -> list[tuple[Action, ...]] | None:
-    if t_max == "auto":
-        t_max = (world.width * world.height) // 2
-    if isinstance(mode, str):
-        mode = SolveMode.from_str(mode)
-    gen = ClauseGenerator(world, t_max, mode)
-    t_min = max(gen.solution_lower_bound, t_min)
-    if t_min > t_max:
-        return None
-    for t in range(t_min, t_max + 1):
-        clauses, assumptions = gen.generate(t)
-        model = solve_model(clauses, assumptions=assumptions)
-        if model is not None:
-            return _to_plan(gen.decode_plan(model, t))
-    return None
 
 
 def solve_model(clauses: list[list[int]], *, assumptions: list[int] | None = None) -> list[int] | None:
@@ -80,9 +130,9 @@ def solve_model(clauses: list[list[int]], *, assumptions: list[int] | None = Non
     """
     if assumptions is None:
         assumptions = []
-    with Minisat22(bootstrap_with=clauses) as solver:
-        if solver.solve(assumptions=assumptions):
-            model = solver.get_model()
+    with Minisat22(bootstrap_with=clauses) as sat_solver:
+        if sat_solver.solve(assumptions=assumptions):
+            model = sat_solver.get_model()
             assert model is not None
             return model
 

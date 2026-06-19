@@ -16,6 +16,9 @@ Additionally, words in "-our" such as "colour", "neighbour" or "behaviour" shoul
 - Typing is discouraged for return types, unless it can not be inferred (e.g.: the return type is a supertype such as `list[SomeSuperType]`). If explicit, the hinted return type should be as the inted type should be as accurate as possible (e.g.: prefer `list[T]` over `Sequence[T]`).
 - Python bindings are generated with `cargo run --features python-bindings --bin stub-gen`.
 
+### Rust styling
+You should run `cargo fmt` and `cargo clippy` before committing.
+
 ### Rust unit tests
 Unlike the common convention, unit tests live in `src/unit_tests/`, one file per tested module. Each file is wired via a `#[path="..."]` directive by its tested module. Example from `src/solver/context.rs`:
 ```rust

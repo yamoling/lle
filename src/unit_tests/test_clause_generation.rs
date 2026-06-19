@@ -10,7 +10,7 @@ fn pos(i: usize, j: usize) -> Position {
 
 fn build(map: &str, t_max: usize) -> ClauseGenerator {
     let world = World::try_from(map).expect("failed to parse world");
-    ClauseGenerator::new(&world, t_max, SolveMode::Standard, false)
+    ClauseGenerator::new(&world, t_max)
 }
 
 fn check_n_possible_positions(cg: &ClauseGenerator, agent: usize, t: usize, expected: usize) {
@@ -36,8 +36,8 @@ fn standard_levels(#[values(1, 2, 3, 4, 5, 6)] level: usize) {}
 fn test_position_validity_single_agent() {
     let t_max = 4;
     let world = World::try_from("S0 . X").expect("Failed to parse world");
-    let mut generator = ClauseGenerator::new(&world, t_max, SolveMode::Standard, false);
-    generator.generate(t_max);
+    let mut generator = ClauseGenerator::new(&world, t_max);
+    generator.generate(t_max, SolveMode::Standard, false);
 
     let start_pos = world.starts()[0];
     // Pos (0,0) exists at t={0,1,2}
@@ -71,9 +71,9 @@ fn possible_positions_multiple_agents() {
     )
     .expect("Failed to parse world");
     let t_max = 10;
-    let mut cg = ClauseGenerator::new(&world, t_max, SolveMode::Standard, false);
+    let mut cg = ClauseGenerator::new(&world, t_max);
 
-    let (clauses, assumptions) = cg.generate(t_max);
+    let (clauses, assumptions) = cg.generate(t_max, SolveMode::Standard, false);
     assert!(!clauses.is_empty());
     assert!(assumptions.is_empty());
     // t=0, only start position
@@ -113,7 +113,7 @@ fn possible_positions_multiple_agents() {
 #[test]
 fn test_exactly_one_position_clause_structure() {
     let mut cg = build("S0 . X", 10);
-    let (clauses, _) = cg.generate(1);
+    let (clauses, _) = cg.generate(1, SolveMode::Standard, false);
 
     let a00 = cg
         .literal(&VarKey::agent(0, pos(0, 0), 1))
@@ -143,7 +143,7 @@ fn test_exactly_one_position_clause_structure() {
 #[test]
 fn test_time_wise_adjacency_clause_structure() {
     let mut cg = build("S0 . X", 10);
-    let (clauses, _) = cg.generate(1);
+    let (clauses, _) = cg.generate(1, SolveMode::Standard, false);
 
     let cur = cg
         .literal(&VarKey::agent(0, pos(0, 1), 1))
@@ -172,7 +172,7 @@ fn test_no_overlap_binary_exclusion_clause() {
     //   exclusive to agent 0: {(0,0)}  → no exclusion clause
     //   exclusive to agent 1: {(0,2), (0,3)}  → no exclusion clause
     let mut cg = build("S0 . S1 X X", 5);
-    let (clauses, _) = cg.generate(1);
+    let (clauses, _) = cg.generate(1, SolveMode::Standard, false);
 
     // ── shared position (0,1): exclusion clause must exist ──────────────────
     let v0_01 = cg
@@ -219,7 +219,7 @@ fn test_no_following_conflict_encodes_swap_prohibition() {
     // S0 at (0,0), S1 at (0,1).
     // Opt 2: (0,0) is S0's start, so agent 1 cannot be there at t=1 — the variable is pruned.
     let mut cg = build("S0 S1 X X", 5);
-    let (_, _) = cg.generate(2);
+    let (_, _) = cg.generate(2, SolveMode::Standard, false);
 
     // Agent 1 cannot be at (0,0) at t=1 (Opt 2 prunes it entirely).
     assert!(
@@ -235,7 +235,7 @@ fn test_no_following_conflict_encodes_swap_prohibition() {
     let a1_t2 = cg
         .literal(&VarKey::agent(1, pos(0, 0), 2))
         .expect("agent 1 at (0,0) t=2");
-    let clauses = cg.generate(2).0;
+    let clauses = cg.generate(2, SolveMode::Standard, false).0;
     assert!(
         clauses
             .iter()
@@ -251,7 +251,7 @@ fn test_no_following_conflict_encodes_swap_prohibition() {
 fn test_stays_on_exit_implication_clause() {
     // "S0 . X": exit at (0,2). Agent can reach exit at t=2; at t=3 must stay.
     let mut cg = build("S0 . X", 4);
-    let (clauses, _) = cg.generate(3);
+    let (clauses, _) = cg.generate(3, SolveMode::Standard, false);
 
     let prev = cg
         .literal(&VarKey::agent(0, pos(0, 2), 2))
@@ -270,9 +270,9 @@ fn test_stays_on_exit_implication_clause() {
 #[apply(standard_levels)]
 fn test_objective_reaches_exit(level: usize) {
     let world = World::get_level(level).expect("Failed to parse world");
-    let mut generator = ClauseGenerator::new(&world, 21, SolveMode::Standard, false);
+    let mut generator = ClauseGenerator::new(&world, 21);
 
-    let obj_clauses = generator.objective(21);
+    let obj_clauses = generator.objective(21, false);
     assert_eq!(obj_clauses.len(), world.n_agents());
     for clause in obj_clauses {
         assert_eq!(clause.len(), world.n_exits());
@@ -282,9 +282,9 @@ fn test_objective_reaches_exit(level: usize) {
 #[test]
 fn test_objective_multiple_agents_multiple_exits() {
     let world = World::try_from("S0 S1 . .\n. . . .\nX X X X").expect("Failed to parse world");
-    let mut generator = ClauseGenerator::new(&world, 10, SolveMode::Standard, false);
+    let mut generator = ClauseGenerator::new(&world, 10);
 
-    let objective_clauses = generator.objective(10);
+    let objective_clauses = generator.objective(10, false);
     assert_eq!(objective_clauses.len(), 2, "One objective clause per agent");
     for clause in &objective_clauses {
         assert!(!clause.is_empty());
@@ -294,7 +294,7 @@ fn test_objective_multiple_agents_multiple_exits() {
 #[test]
 fn test_gem_must_be_collected_clause() {
     let world = World::try_from("S0 G X").expect("Failed to parse world");
-    let mut cg = ClauseGenerator::new(&world, 2, SolveMode::Standard, true);
+    let mut cg = ClauseGenerator::new(&world, 2);
     let clauses = cg.gems_must_be_collected(2);
     assert_eq!(
         clauses.len(),
@@ -320,7 +320,7 @@ fn test_gem_must_be_collected_clause_2agents() {
     )
     .expect("Failed to parse world");
     let gem_pos = pos(0, 1);
-    let mut cg = ClauseGenerator::new(&world, 2, SolveMode::Standard, true);
+    let mut cg = ClauseGenerator::new(&world, 2);
     let clauses = cg.gems_must_be_collected(2);
     assert_eq!(clauses.len(), 1, "There is one single gem");
     let a = cg.literal(&VarKey::agent(0, gem_pos, 1)).unwrap();
@@ -345,7 +345,7 @@ fn test_gem_must_be_collected_clause_2agents_longer_horizon() {
     )
     .expect("Failed to parse world");
     let gem_pos = pos(0, 1);
-    let mut cg = ClauseGenerator::new(&world, 3, SolveMode::Standard, true);
+    let mut cg = ClauseGenerator::new(&world, 3);
     let clauses = cg.gems_must_be_collected(3);
     assert_eq!(clauses.len(), 1, "There is one single gem !");
     // For both time steps, chack th
@@ -371,7 +371,7 @@ fn test_gem_must_be_collected_clause_3gems() {
     )
     .expect("Failed to parse world");
     let t_max = 5;
-    let mut cg = ClauseGenerator::new(&world, t_max, SolveMode::Standard, true);
+    let mut cg = ClauseGenerator::new(&world, t_max);
     let clauses = cg.gems_must_be_collected(t_max);
     for c in &clauses {
         println!("{c:?}");
@@ -427,8 +427,8 @@ fn test_beam_activation_first_tile_encodes_biconditional() {
     // L0N at (2,0) going North; beam path (1,0), (0,0). Agent 0 starts at (1,0).
     let world = World::try_from(". X\nS0 .\nL0N .").expect("Failed to parse world");
     let laser_id = world.sources()[0].1.laser_id();
-    let mut cg = ClauseGenerator::new(&world, 10, SolveMode::Standard, false);
-    let (clauses, _) = cg.generate(2);
+    let mut cg = ClauseGenerator::new(&world, 10);
+    let (clauses, _) = cg.generate(2, SolveMode::Standard, false);
 
     // At t=2 agent can reach (1,0): the first (and only) blockable tile.
     let active = cg.literal(&VarKey::laser(laser_id, pos(1, 0), 2));
@@ -457,8 +457,8 @@ fn test_beam_activation_first_tile_encodes_biconditional() {
 #[test]
 fn test_laser_blocking_same_colour() {
     let world = World::try_from(".   X\nS0  .\nL0N .").expect("Failed to parse world");
-    let mut generator = ClauseGenerator::new(&world, 10, SolveMode::Standard, false);
-    let (clauses, _) = generator.generate(2);
+    let mut generator = ClauseGenerator::new(&world, 10);
+    let (clauses, _) = generator.generate(2, SolveMode::Standard, false);
     assert!(!clauses.is_empty());
 
     assert_eq!(world.sources().len(), 1);
@@ -476,8 +476,8 @@ fn test_no_step_on_active_laser_binary_clause() {
     // reach (1,0) at t=1.  Agent 0 (colour 0) at (2,0) can block the beam at (1,0).
     let world = World::try_from("L0S . X\n.   S1 X\nS0  . .").expect("Failed to parse world");
     let laser_id = world.sources()[0].1.laser_id();
-    let mut cg = ClauseGenerator::new(&world, 2, SolveMode::Standard, false);
-    let (clauses, _) = cg.generate(1);
+    let mut cg = ClauseGenerator::new(&world, 2);
+    let (clauses, _) = cg.generate(1, SolveMode::Standard, false);
 
     let agent_1_at_10 = cg.literal(&VarKey::agent(1, pos(1, 0), 1));
     let laser_at_10 = cg.literal(&VarKey::laser(laser_id, pos(1, 0), 1));
@@ -510,8 +510,8 @@ fn test_unblockable_beam_tile_generates_unit_clause() {
     // Agent 1 at (1,2) can reach beam tile (0,2) at t=1.
     let world = World::try_from("L0E .  .  X\nS0  @  S1 X").expect("Failed to parse world");
     let laser_id = world.sources()[0].1.laser_id();
-    let mut cg = ClauseGenerator::new(&world, 4, SolveMode::Standard, false);
-    let (clauses, _) = cg.generate(2);
+    let mut cg = ClauseGenerator::new(&world, 4);
+    let (clauses, _) = cg.generate(2, SolveMode::Standard, false);
 
     // The beam tile (0,2) is downstream and unreachable by agent 0 → constant-active → no var.
     assert!(
@@ -532,8 +532,8 @@ fn test_unblockable_beam_tile_generates_unit_clause() {
 #[test]
 fn test_laser_blocks_different_colour_agent() {
     let world = World::try_from("L0S . X\n.   S1 X\nS0  . .").expect("Failed to parse world");
-    let mut generator = ClauseGenerator::new(&world, 2, SolveMode::Standard, false);
-    let (clauses, _) = generator.generate(1);
+    let mut generator = ClauseGenerator::new(&world, 2);
+    let (clauses, _) = generator.generate(1, SolveMode::Standard, false);
     assert!(!clauses.is_empty());
     assert_eq!(world.n_agents(), 2);
     let sources = world.sources();
@@ -544,8 +544,8 @@ fn test_laser_blocks_different_colour_agent() {
 #[test]
 fn test_unblockable_constant_active_laser() {
     let world = World::try_from("L0E .  .  X\nS0  @  S1 X").expect("Failed to parse world");
-    let mut generator = ClauseGenerator::new(&world, 4, SolveMode::Standard, false);
-    let (clauses, _) = generator.generate(2);
+    let mut generator = ClauseGenerator::new(&world, 4);
+    let (clauses, _) = generator.generate(2, SolveMode::Standard, false);
     assert!(!clauses.is_empty());
 
     assert!(!generator.exists(&VarKey::Laser {
@@ -562,8 +562,8 @@ fn test_unblockable_constant_active_laser() {
 fn test_two_lasers_stop_at_each_other() {
     // L0E at (0,0) → beam (0,1); L1W at (0,2) → beam (0,1). Neither reaches past the other's source.
     let world = World::try_from("L0E . L1W X X\nS0  . S1  . .").expect("Failed to parse world");
-    let mut generator = ClauseGenerator::new(&world, 10, SolveMode::Standard, false);
-    let (clauses, _) = generator.generate(2);
+    let mut generator = ClauseGenerator::new(&world, 10);
+    let (clauses, _) = generator.generate(2, SolveMode::Standard, false);
     assert!(!clauses.is_empty());
 
     let sources = world.sources();
@@ -600,8 +600,8 @@ fn test_multiple_same_colour_same_direction_lasers_get_independent_beams() {
     // Two colour-0 south lasers: source 0 at (0,1), source 1 at (0,3).
     let world = World::try_from(".  L0S .  L0S .\nS0 .   .  .   S1\nX  .   .  .   X")
         .expect("Failed to parse world");
-    let mut cg = ClauseGenerator::new(&world, 10, SolveMode::Standard, false);
-    let (clauses, _) = cg.generate(3);
+    let mut cg = ClauseGenerator::new(&world, 10);
+    let (clauses, _) = cg.generate(3, SolveMode::Standard, false);
     assert!(!clauses.is_empty());
 
     let sources = world.sources();
@@ -653,7 +653,7 @@ fn test_multiple_same_colour_same_direction_lasers_get_independent_beams() {
 #[test]
 fn test_opt2_start_tile_pruned_at_t1_only() {
     let mut cg = build("S0 S1 X X", 5);
-    cg.generate(2);
+    cg.generate(2, SolveMode::Standard, false);
 
     // At t=1: each agent's other-agent start is pruned.
     assert!(
@@ -697,8 +697,8 @@ fn test_opt2_start_tile_pruned_at_t1_only() {
 fn test_opt3_first_beam_tile_pruned_for_non_owner() {
     let world = World::try_from("L0S . X\n. S1 X\nS0 . .").expect("Failed to parse world");
     let laser_id = world.sources()[0].1.laser_id();
-    let mut cg = ClauseGenerator::new(&world, 10, SolveMode::Standard, false);
-    cg.generate(3);
+    let mut cg = ClauseGenerator::new(&world, 10);
+    cg.generate(3, SolveMode::Standard, false);
 
     // Non-owner (agent 1) must never have a variable at the first beam tile (1,0).
     for t in 0..=3 {
@@ -735,8 +735,8 @@ fn test_crossing_lasers_keep_independent_variables() {
         .    .   .    X",
     )
     .expect("Failed to parse world");
-    let mut cg = ClauseGenerator::new(&world, 20, SolveMode::Standard, false);
-    let (clauses, _) = cg.generate(10);
+    let mut cg = ClauseGenerator::new(&world, 20);
+    let (clauses, _) = cg.generate(10, SolveMode::Standard, false);
     assert!(!clauses.is_empty());
 
     // At each crossing position there must be at least two distinct laser variables

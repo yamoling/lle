@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use itertools::Itertools;
 
@@ -6,131 +6,138 @@ use crate::solver::errors::SolverError;
 use crate::{Action, AgentId, Position, World};
 
 use super::super::context::ConstraintContext;
-use super::Clause;
-use super::Literal;
-use super::solve_mode::SolveMode;
-use super::trails::enumerate_for_mode;
+use super::dependency_shapes::{enumerate_cycles, enumerate_paths};
+use super::{Clause, Literal, SolveMode};
 use super::{VarKey, VarPool};
 
-/// Generates the SAT clauses for a bounded planning horizon, combining initialization,
-/// movement, laser constraints, mode-specific constraints, and the objective.
+pub(super) struct ChainSupport {
+    pub(super) chains: Vec<Vec<AgentId>>,
+    pub(super) clause_buffer: Vec<Vec<Clause>>,
+    pub(super) generated_until: Option<usize>,
+}
+
+pub(super) struct InterdependenceSupport {
+    pub(super) possible_cycles: Vec<Vec<AgentId>>,
+    pub(super) clause_buffer: Vec<Vec<Clause>>,
+    pub(super) generated_until: Option<usize>,
+}
+
+/// Generates the SAT clauses for a bounded planning horizon.
+///
+/// Domain clauses are cached independently of solve mode. Cooperation-related support clauses are
+/// generated lazily per mode, allowing one generator to answer repeated queries with different
+/// [`SolveMode`]s and objective variants without rebuilding the shared world constraints.
 pub struct ClauseGenerator {
     pub(super) ctx: ConstraintContext,
     pub(super) pool: VarPool,
     pub(super) exits: HashSet<Position>,
     pub(super) gems: Vec<Position>,
-    pub(super) mode: SolveMode,
-    /// Whether gems should be collected in the objective function.
-    collect_gems: bool,
-    /// Directed trails/cycles detected by trail-progress tracking. Each entry is a vertex sequence
-    /// `[v0, …, v_m]` (edge `i` is `v_i → v_{i+1}`).  For `NoInterdependence`, entries are
-    /// closed cycles (`v_m == v_0`). For `NoChainedCooperation`, entries are open trails with no
-    /// repeated directed pairs.
-    pub(super) trails: Vec<Vec<AgentId>>,
-    /// Ordered `(helper, beneficiary)` pairs for which a `has_helped_by_time` indicator is
-    /// actually consumed — all owner-to-agent edges for asymmetric mode, mutual owner-pairs for
-    /// mutual mode, or each trail's first edge for interdependence and chain modes.
-    pub(super) has_helped_pairs: Vec<(AgentId, AgentId)>,
-    /// `clause_buffer[t]` = world-enforcing (+ mode-specific) clauses for step `t`.
-    clause_buffer: Vec<Vec<Clause>>,
-    /// `assumption_buffer[t]` = per-step assumptions for step `t`.
-    assumption_buffer: Vec<Vec<Literal>>,
+    pub(super) laser_owners: Vec<AgentId>,
+    pub(super) all_agents: Vec<AgentId>,
+    /// Every directed pair `(helper, beneficiary)` for which a help event is geometrically
+    /// meaningful. `helper` must own at least one laser and `beneficiary != helper`.
+    pub(super) tracked_help_pairs: Vec<(AgentId, AgentId)>,
+    /// `domain_clause_buffer[t]` = mode-independent world-enforcing clauses for step `t`.
+    domain_clause_buffer: Vec<Vec<Clause>>,
     /// Steps 0..=generated_until have been buffered; `None` means nothing buffered yet.
-    generated_until: Option<usize>,
+    domain_generated_until: Option<usize>,
+    /// Shared `has_helped_by_time` clauses for all tracked help pairs.
+    pub(super) help_tracking_clause_buffer: Vec<Vec<Clause>>,
+    pub(super) help_tracking_generated_until: Option<usize>,
+    pub(super) chain_support: HashMap<usize, ChainSupport>,
+    pub(super) interdependence_support: HashMap<usize, InterdependenceSupport>,
+    pub(super) no_cooperation_assumption_buffer: Vec<Vec<Literal>>,
+    pub(super) no_cooperation_generated_until: Option<usize>,
 }
 
 impl ClauseGenerator {
-    pub fn new(world: &World, t_max: usize, mode: SolveMode, collect_gems: bool) -> Self {
+    pub fn new(world: &World, t_max: usize) -> Self {
         let ctx = ConstraintContext::new(world, t_max);
-        // Agents that own a laser are the only ones that can ever help (the helper of every trail
-        // edge must block a beam).
-        let owners: Vec<AgentId> = ctx
+        // Agents that own a laser are the only ones that can ever help (the helper of every
+        // dependency edge must block a beam).
+        let laser_owners: Vec<AgentId> = ctx
             .laser_sources
             .iter()
             .map(|s| s.agent_id)
             .unique()
             .collect();
         let all_agents: Vec<AgentId> = (0..ctx.n_agents).collect();
-        let trails = enumerate_for_mode(mode, &owners, &all_agents);
-        // `has_helped_by_time` is generated only for directed pairs consumed by the selected
-        // cooperation mode: all owner-to-agent edges for asymmetric mode, mutual owner-pairs for
-        // mutual mode, or each trail's first edge for interdependence and chain modes.
-        let has_helped_pairs: Vec<(AgentId, AgentId)> = match mode {
-            SolveMode::NoAsymmetricCooperation => owners
-                .iter()
-                .flat_map(|&helper| {
-                    (0..ctx.n_agents)
-                        .filter(move |&beneficiary| beneficiary != helper)
-                        .map(move |beneficiary| (helper, beneficiary))
-                })
-                .collect(),
-            SolveMode::NoMutualCooperation => owners
-                .iter()
-                .flat_map(|&a| {
-                    owners
-                        .iter()
-                        .filter(move |&&b| b != a)
-                        .map(move |&b| (a, b))
-                })
-                .collect(),
-            SolveMode::NoInterdependence(_) | SolveMode::NoChainedCooperation(_) => {
-                let mut pairs: Vec<(AgentId, AgentId)> =
-                    trails.iter().map(|w| (w[0], w[1])).collect();
-                pairs.sort_unstable();
-                pairs.dedup();
-                pairs
-            }
-            _ => vec![],
-        };
+        let tracked_help_pairs: Vec<(AgentId, AgentId)> = laser_owners
+            .iter()
+            .flat_map(|&helper| {
+                all_agents
+                    .iter()
+                    .copied()
+                    .filter(move |&beneficiary| beneficiary != helper)
+                    .map(move |beneficiary| (helper, beneficiary))
+            })
+            .collect();
         Self {
             exits: world.exits_positions().into_iter().collect(),
             gems: world.gems_positions(),
             ctx,
             pool: VarPool::new(),
-            mode,
-            trails,
-            collect_gems,
-            has_helped_pairs,
-            clause_buffer: vec![Vec::new(); t_max + 1],
-            assumption_buffer: vec![Vec::new(); t_max + 1],
-            generated_until: None,
+            laser_owners,
+            all_agents,
+            tracked_help_pairs,
+            domain_clause_buffer: vec![Vec::new(); t_max + 1],
+            domain_generated_until: None,
+            help_tracking_clause_buffer: vec![Vec::new(); t_max + 1],
+            help_tracking_generated_until: None,
+            chain_support: HashMap::new(),
+            interdependence_support: HashMap::new(),
+            no_cooperation_assumption_buffer: vec![Vec::new(); t_max + 1],
+            no_cooperation_generated_until: None,
         }
     }
 
     /// Generate all clauses and assumptions required to solve the problem at step `t`.
     ///
-    /// Fills the internal buffers for any steps not yet cached, then returns:
-    /// - All buffered world-enforcing (and mode-specific) clauses for steps `0..=t`
-    /// - The objective clauses for horizon `t` (every agent on an exit)
-    /// - For `NoAsymmetricCooperation`: the current asymmetric-forbid clauses and assumptions
-    /// - For `NoMutualCooperation`: the current mutual-forbid clauses and assumptions
-    /// - For `NoCooperation`: per-step no-cooperation assumptions for steps `0..=t`
-    pub fn generate(&mut self, t: usize) -> (Vec<Clause>, Vec<Literal>) {
-        let start = self.generated_until.map_or(0, |u| u + 1);
-        for tt in start..=t {
-            self.ctx.update(tt);
-            self.generate_clauses(tt);
-            self.generate_assumptions(tt);
-        }
-        if start <= t {
-            self.generated_until = Some(t);
-        }
+    /// Fills internal buffers for any steps not yet cached, then returns:
+    /// - all mode-independent domain clauses for steps `0..=t`;
+    /// - mode support clauses needed by `mode` for steps `0..=t`;
+    /// - objective clauses for horizon `t`;
+    /// - horizon-scoped forbid clauses/assumptions for `mode`.
+    pub fn generate(
+        &mut self,
+        t: usize,
+        mode: SolveMode,
+        collect_gems: bool,
+    ) -> (Vec<Clause>, Vec<Literal>) {
+        self.ensure_domain(t);
+        self.ensure_mode_support(t, mode);
 
-        let mut clauses: Vec<Clause> = self.clause_buffer[..=t].iter().flatten().cloned().collect();
-        let mut assumptions: Vec<Literal> = self.assumption_buffer[..=t]
+        let mut clauses: Vec<Clause> = self.domain_clause_buffer[..=t]
             .iter()
             .flatten()
-            .copied()
+            .cloned()
             .collect();
-        clauses.extend(self.objective(t));
-        let (forbid_clauses, forbid_assumptions) = self.forbid_cooperation(t);
+        clauses.extend(self.mode_support_clauses(t, mode));
+        clauses.extend(self.objective(t, collect_gems));
+
+        let (forbid_clauses, assumptions) = self.mode_forbid(t, mode);
         clauses.extend(forbid_clauses);
-        assumptions.extend(forbid_assumptions);
 
         (clauses, assumptions)
     }
 
-    fn generate_clauses(&mut self, t: usize) {
+    pub(super) fn ensure_domain(&mut self, t: usize) {
+        assert!(
+            t <= self.ctx.t_max,
+            "Cannot generate clauses for t={t}; generator t_max is {}.",
+            self.ctx.t_max
+        );
+        let start = self.domain_generated_until.map_or(0, |u| u + 1);
+        for tt in start..=t {
+            self.ctx.update(tt);
+            self.domain_clause_buffer[tt] = self.generate_domain_clauses(tt);
+        }
+        if start <= t {
+            self.domain_generated_until = Some(t);
+        }
+    }
+
+    fn generate_domain_clauses(&mut self, t: usize) -> Vec<Clause> {
         let mut clauses = Vec::new();
         clauses.extend(self.initialization(t));
         clauses.extend(self.exactly_one_position(t));
@@ -141,30 +148,146 @@ impl ClauseGenerator {
         let (beam_clauses, active_lit) = self.beam_activation(t);
         clauses.extend(beam_clauses);
         clauses.extend(self.no_step_on_active_laser(t, &active_lit));
-        if self.mode.needs_has_helped() {
-            clauses.extend(self.has_helped_by_time_clauses(t));
-        }
-        if self.mode.uses_trails() {
-            clauses.extend(self.trail_clauses(t));
-        }
-        self.clause_buffer[t] = clauses;
+        clauses
     }
 
-    fn generate_assumptions(&mut self, t: usize) {
-        self.assumption_buffer[t] = match self.mode {
-            SolveMode::Standard
-            | SolveMode::NoAsymmetricCooperation
-            | SolveMode::NoMutualCooperation
-            | SolveMode::NoChainedCooperation(_)
-            | SolveMode::NoInterdependence(_) => vec![],
-            SolveMode::NoCooperation => self.assume_no_cooperation(t),
-        };
+    pub(super) fn ensure_help_tracking(&mut self, t: usize) {
+        self.ensure_domain(t);
+        let start = self.help_tracking_generated_until.map_or(0, |u| u + 1);
+        for tt in start..=t {
+            self.ctx.update(tt);
+            self.help_tracking_clause_buffer[tt] = self.has_helped_by_time_clauses(tt);
+        }
+        if start <= t {
+            self.help_tracking_generated_until = Some(t);
+        }
+    }
+
+    fn ensure_mode_support(&mut self, t: usize, mode: SolveMode) {
+        match mode {
+            SolveMode::Standard | SolveMode::NoCooperation => {}
+            SolveMode::NoAsymmetricCooperation | SolveMode::NoMutualCooperation => {
+                self.ensure_help_tracking(t);
+            }
+            SolveMode::NoChainedCooperation(length) => {
+                self.ensure_help_tracking(t);
+                self.ensure_chain_support(length, t);
+            }
+            SolveMode::NoInterdependence(order) => {
+                self.ensure_help_tracking(t);
+                self.ensure_interdependence_support(order, t);
+            }
+        }
+    }
+
+    fn ensure_chain_support(&mut self, length: usize, t: usize) {
+        self.chain_support
+            .entry(length)
+            .or_insert_with(|| ChainSupport {
+                chains: enumerate_paths(&self.laser_owners, &self.all_agents, length),
+                clause_buffer: vec![Vec::new(); self.ctx.t_max + 1],
+                generated_until: None,
+            });
+
+        let support = self
+            .chain_support
+            .get(&length)
+            .expect("chain support must exist after insertion");
+        let start = support.generated_until.map_or(0, |u| u + 1);
+        if start > t {
+            return;
+        }
+        let chains = support.chains.clone();
+
+        for tt in start..=t {
+            let clauses = self.chain_clauses(length, &chains, tt);
+            self.chain_support
+                .get_mut(&length)
+                .expect("chain support must exist while generating clauses")
+                .clause_buffer[tt] = clauses;
+        }
+        self.chain_support
+            .get_mut(&length)
+            .expect("chain support must exist after generating clauses")
+            .generated_until = Some(t);
+    }
+
+    fn ensure_interdependence_support(&mut self, order: usize, t: usize) {
+        self.interdependence_support
+            .entry(order)
+            .or_insert_with(|| InterdependenceSupport {
+                possible_cycles: enumerate_cycles(&self.laser_owners, order),
+                clause_buffer: vec![Vec::new(); self.ctx.t_max + 1],
+                generated_until: None,
+            });
+
+        let support = self
+            .interdependence_support
+            .get(&order)
+            .expect("interdependence support must exist after insertion");
+        let start = support.generated_until.map_or(0, |u| u + 1);
+        if start > t {
+            return;
+        }
+        let possible_cycles = support.possible_cycles.clone();
+
+        for tt in start..=t {
+            let clauses = self.cycle_rotation_clauses(order, &possible_cycles, tt);
+            self.interdependence_support
+                .get_mut(&order)
+                .expect("interdependence support must exist while generating clauses")
+                .clause_buffer[tt] = clauses;
+        }
+        self.interdependence_support
+            .get_mut(&order)
+            .expect("interdependence support must exist after generating clauses")
+            .generated_until = Some(t);
+    }
+
+    /// Generate the clauses used to support a specific `SolveMode`.
+    fn mode_support_clauses(&self, t: usize, mode: SolveMode) -> Vec<Clause> {
+        let mut clauses = Vec::new();
+        match mode {
+            SolveMode::Standard | SolveMode::NoCooperation => {}
+            SolveMode::NoAsymmetricCooperation | SolveMode::NoMutualCooperation => {
+                clauses.extend(
+                    self.help_tracking_clause_buffer[..=t]
+                        .iter()
+                        .flatten()
+                        .cloned(),
+                );
+            }
+            SolveMode::NoChainedCooperation(length) => {
+                clauses.extend(
+                    self.help_tracking_clause_buffer[..=t]
+                        .iter()
+                        .flatten()
+                        .cloned(),
+                );
+                if let Some(support) = self.chain_support.get(&length) {
+                    clauses.extend(support.clause_buffer[..=t].iter().flatten().cloned());
+                }
+            }
+            SolveMode::NoInterdependence(order) => {
+                clauses.extend(
+                    self.help_tracking_clause_buffer[..=t]
+                        .iter()
+                        .flatten()
+                        .cloned(),
+                );
+                //self.interdependence_support.entry(key).or_insert_with(|| {})
+                if let Some(support) = self.interdependence_support.get(&order) {
+                    clauses.extend(support.clause_buffer[..=t].iter().flatten().cloned());
+                }
+            }
+        }
+        clauses
     }
 
     /// Objective clauses for horizon `t`: every agent must be on an exit. Not cached.
-    pub fn objective(&mut self, t: usize) -> Vec<Clause> {
+    pub fn objective(&mut self, t: usize, collect_gems: bool) -> Vec<Clause> {
         self.ctx.update(t);
-        let mut clauses = if self.collect_gems {
+        let mut clauses = if collect_gems {
             self.gems_must_be_collected(t)
         } else {
             Vec::with_capacity(self.ctx.n_agents)

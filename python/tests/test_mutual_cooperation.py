@@ -4,7 +4,7 @@ Mutual cooperation between agents `a` and `b` holds when, in a plan, `a` helps `
 `a`'s laser beams at some point *and* `b` helps `a` likewise at some point. These tests cover:
 
 - `solve(mode="no-mutual")` (the public API), and
-- `ClauseGenerator(mode="no-mutual")` (the low-level Rust primitive),
+- `ClauseGenerator.generate(mode="no-mutual")` (the low-level Rust primitive),
 
 against oracles whose cooperation structure is already pinned by the codebase (levels 1/3/6) plus
 two hand-built corridors.
@@ -120,11 +120,11 @@ def test_no_mutual_cooperation_mode_always_mutual_is_unsat():
 def test_clause_generator_no_mutual_cooperation_mode():
     """ClauseGenerator with mode='no-mutual' must find the same answer as solve()."""
     world = World(ALWAYS_MUTUAL)
-    gen = ClauseGenerator(world, 10, mode="no-mutual")
+    gen = ClauseGenerator(world, 10)
     from lle.solver.solver import solve_model
 
     for t in range(gen.solution_lower_bound, gen.t_max + 1):
-        clauses, assumptions = gen.generate(t)
+        clauses, assumptions = gen.generate(t, mode="no-mutual")
         model = solve_model(clauses, assumptions=assumptions)
         if model is not None:
             plan = gen.decode_plan(model, t)

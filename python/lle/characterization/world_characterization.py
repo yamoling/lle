@@ -24,6 +24,10 @@ class WorldCharacterizer:
     t_max: int
     _no_chain_cache: dict[int, list | None] = field(default_factory=dict, init=False, repr=False)
     _no_interdependence_cache: dict[int, list | None] = field(default_factory=dict, init=False, repr=False)
+    _solver: solver.Solver = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        self._solver = solver.Solver(self.world, self.t_max)
 
     @cached_property
     def n_laser_colours(self) -> int:
@@ -167,12 +171,12 @@ class WorldCharacterizer:
 
     @cached_property
     def shortest_path(self):
-        return solver.solve(self.world, self.t_max)
+        return self._solver.solve()
 
     @cached_property
     def shortest_independent_path(self):
         """The length of the shortest valid plan within [lower_bound, t_max] that does not involve cooperation, or None if unsolvable."""
-        return solver.solve(self.world, self.t_max, mode="no-cooperation")
+        return self._solver.solve("no-cooperation")
 
     @cached_property
     def shortest_non_asymmetric_path(self):
@@ -180,11 +184,11 @@ class WorldCharacterizer:
             return self.shortest_path
         if "shortest_independent_path" in self.__dict__ and self.shortest_independent_path is not None:
             return self.shortest_independent_path
-        return solver.solve(self.world, self.t_max, mode="no-asymmetric")
+        return self._solver.solve("no-asymmetric")
 
     @cached_property
     def shortest_non_mutual_path(self):
-        return solver.solve(self.world, self.t_max, mode="no-mutual")
+        return self._solver.solve("no-mutual")
 
     def shortest_non_chained_path(self, length: int):
         """Shortest plan within `t_max` that avoids every chain of length >= `length`, or None."""
@@ -196,7 +200,7 @@ class WorldCharacterizer:
             self._no_chain_cache[length] = inferred
             return inferred
         if length not in self._no_chain_cache:
-            self._no_chain_cache[length] = solver.solve(self.world, self.t_max, mode=f"no-chain-{length}")
+            self._no_chain_cache[length] = self._solver.solve(f"no-chain-{length}")
             self._propagate_monotone_cache(self._no_chain_cache, length)
         return self._no_chain_cache[length]
 
@@ -212,7 +216,7 @@ class WorldCharacterizer:
             self._no_interdependence_cache[order] = inferred
             return inferred
         if order not in self._no_interdependence_cache:
-            self._no_interdependence_cache[order] = solver.solve(self.world, self.t_max, mode=f"no-interdependence-{order}")
+            self._no_interdependence_cache[order] = self._solver.solve(f"no-interdependence-{order}")
             self._propagate_monotone_cache(
                 self._no_interdependence_cache,
                 order,
