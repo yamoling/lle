@@ -2,7 +2,7 @@
 
 Welcome to the LLE contributing guidelines.
 
-## Code Style & Standards
+## Styles & Standards
 ### Language
 Everything should be documented in English with [Oxford spelling](https://en.wikipedia.org/wiki/Oxford_spelling). 
 
@@ -35,4 +35,7 @@ mod tests;
 ```
 
 ### Documentation
-Function documentation should be written in markdown format. Examples are appreciated if they help understand the function's behaviour.
+- Function documentation should be written in markdown format. 
+- Examples are appreciated if they help understand the function's behaviour. 
+- Function documentation can enumerate input arguments and explain their purpose, but not their type since they are already located in the function signature.
+- When an exception can be raised in the function, the documentation should briefly explain under which conditions.
