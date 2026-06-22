@@ -12,7 +12,7 @@ use crate::{
         levels,
         parsing::{WorldConfig, parse},
     },
-    tiles::{Gem, Laser, LaserSource, Tile},
+    tiles::{Gem, Laser, LaserId, LaserSource, Tile},
     utils::{find_duplicates, sample_different},
 };
 
@@ -83,11 +83,7 @@ impl World {
     }
 
     pub fn n_laser_colours(&self) -> usize {
-        self.sources()
-            .iter()
-            .map(|(_, s)| s.agent_id())
-            .unique()
-            .count()
+        self.sources().map(|(_, s)| s.agent_id()).unique().count()
     }
 
     pub fn seed(&mut self, seed: u64) {
@@ -95,11 +91,7 @@ impl World {
     }
 
     pub fn get_config(&self) -> WorldConfig {
-        let source_configs = self
-            .sources()
-            .into_iter()
-            .map(|(p, s)| (p, s.into()))
-            .collect();
+        let source_configs = self.sources().map(|(p, s)| (p, s.into())).collect();
         WorldConfig::new(
             self.width,
             self.height,
@@ -141,17 +133,22 @@ impl World {
             .collect()
     }
 
-    pub fn sources(&self) -> Vec<(Position, &LaserSource)> {
-        self.laser_source_positions
-            .iter()
-            .map(|pos| {
-                if let Tile::LaserSource(source) = &self.grid[pos.i][pos.j] {
-                    (*pos, source)
-                } else {
-                    unreachable!()
-                }
-            })
-            .collect()
+    pub fn sources(&self) -> impl Iterator<Item = (Position, &LaserSource)> + '_ {
+        self.laser_source_positions.iter().map(|&pos| {
+            if let Tile::LaserSource(source) = &self.grid[pos.i][pos.j] {
+                (pos, source)
+            } else {
+                unreachable!()
+            }
+        })
+    }
+
+    pub fn source_at(&self, pos: Position) -> Option<&LaserSource> {
+        if let Tile::LaserSource(source) = &self.grid[pos.i][pos.j] {
+            Some(source)
+        } else {
+            None
+        }
     }
 
     pub fn lasers(&self) -> Vec<(Position, &Laser)> {
@@ -167,6 +164,27 @@ impl World {
             }
         }
         lasers
+    }
+
+    /// Returns an iterator over the positions of the laser beam starting from the given laser id.
+    ///
+    /// If the provided laser id does not exist, returns `None`.
+    pub fn beam(&self, laser_id: LaserId) -> Option<impl Iterator<Item = Position>> {
+        if let Some((pos, laser)) = self.sources().nth(laser_id) {
+            let direction = laser.direction();
+            let mut pos = (pos + direction).ok();
+            Some(std::iter::from_fn(move || {
+                let current = pos?;
+                if let Some(Tile::Laser(_)) = self.at(&current) {
+                    pos = (current + direction).ok();
+                    Some(current)
+                } else {
+                    None
+                }
+            }))
+        } else {
+            None
+        }
     }
 
     pub fn set_exit_positions(&mut self, exits: Vec<Position>) -> Result<(), ParseError> {

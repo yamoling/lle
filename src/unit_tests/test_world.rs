@@ -8,6 +8,10 @@ use crate::{
 
 use super::World;
 
+fn pos(i: usize, j: usize) -> Position {
+    Position { i, j }
+}
+
 fn get_laser(world: &World, pos: Position) -> &Laser {
     for (p, laser) in world.lasers() {
         if pos == p {
@@ -39,7 +43,6 @@ fn test_tile_type() {
     );
     let source = world
         .sources()
-        .iter()
         .find(|(Position { i, j }, _)| *i == 1 && *j == 0)
         .unwrap()
         .1;
@@ -98,8 +101,8 @@ fn test_laser_blocked_by_wall() {
     let mut w = World::try_from(
         "
         . L0S .
-        .  .  . 
-        X  @  S0 
+        .  .  .
+        X  @  S0
         .  .  .",
     )
     .unwrap();
@@ -507,10 +510,10 @@ fn test_force_state_agent_dies() {
 fn test_no_exits() {
     let toml_content = r#"
 world_string = """
-. . S0 . S1 . . . . S2 
-. . .  . .  . . . . S3 
-. . .  . .  . . . . . 
-. . .  . .  . . . . . 
+. . S0 . S1 . . . . S2
+. . .  . .  . . . . S3
+. . .  . .  . . . . .
+. . .  . .  . . . . .
 """
 "#;
     match World::try_from(toml_content) {
@@ -653,4 +656,119 @@ fn set_exits_old_exit_inactive() {
 
     let events = world.step(&[Action::South]).unwrap();
     assert!(events.is_empty());
+}
+
+#[test]
+fn test_beam_single_source() {
+    let mut w = World::try_from(
+        "
+        L0E . L0S
+        S0  X  @",
+    )
+    .unwrap();
+    w.reset();
+
+    let src1 = w.source_at(pos(0, 0)).unwrap();
+    let positions: Vec<Position> = w.beam(src1.laser_id()).unwrap().collect();
+    assert_eq!(1, positions.len());
+    assert!(positions.contains(&Position { i: 0, j: 1 }));
+
+    let src2 = w.source_at(pos(0, 2)).unwrap();
+    let positions: Vec<Position> = w.beam(src2.laser_id()).unwrap().collect();
+    assert!(positions.is_empty());
+}
+
+#[test]
+fn check_source_laser_id_is_the_same_as_source_index() {
+    let w = World::try_from(
+        "
+S0  S1  S2  S3  S4  S5  S6  S7  S8  S9  S10
+L0S L1S L2S L3S L4S L5S L6S L7S L8S L9S L10S
+ .  .   .   .   .   .   .   .   .   .   .
+ X  X   X   X   X   X   X   X   X   X   X
+",
+    )
+    .unwrap();
+    w.sources().enumerate().for_each(|(i, (_, source))| {
+        assert_eq!(i, source.laser_id());
+    });
+}
+
+#[test]
+fn test_beam_long() {
+    let mut w = World::try_from(
+        "
+        L0E .  .  .  .  @
+        S0  .  .  .  X  @",
+    )
+    .unwrap();
+    w.reset();
+
+    let first = w.source_at((0, 0).into()).unwrap().laser_id();
+    let positions: Vec<Position> = w.beam(first).unwrap().collect();
+    assert_eq!(
+        positions,
+        vec![
+            Position { i: 0, j: 1 },
+            Position { i: 0, j: 2 },
+            Position { i: 0, j: 3 },
+            Position { i: 0, j: 4 },
+        ]
+    );
+}
+
+#[test]
+fn test_beam_south_direction() {
+    let mut w = World::try_from(
+        "
+        @  L0S @
+        .  .   .
+        .  .   .
+        S0 X   @",
+    )
+    .unwrap();
+    w.reset();
+
+    let first = w.source_at((0, 1).into()).unwrap().laser_id();
+    let positions: Vec<Position> = w.beam(first).unwrap().collect();
+    assert_eq!(positions, vec![pos(1, 1), pos(2, 1), pos(3, 1)]);
+}
+
+#[test]
+fn test_beam_agent_on_beam_tile() {
+    let mut w = World::try_from(
+        "
+        L0E .  .  .
+        .   S0 .  X
+        .   .  .  . ",
+    )
+    .unwrap();
+    w.reset();
+    w.step(&[Action::North]).unwrap();
+    assert_eq!(w.agents_positions()[0], Position { i: 0, j: 1 });
+
+    let first = w.source_at((0, 0).into()).unwrap().laser_id();
+    let positions: Vec<Position> = w.beam(first).unwrap().collect();
+    assert_eq!(positions.len(), 3);
+    assert_eq!(positions, vec![pos(0, 1), pos(0, 2), pos(0, 3)]);
+}
+
+#[test]
+fn test_beam_two_sources() {
+    let w = World::try_from(
+        "
+        @ L0E .  .  .
+        .  .  .  .  .
+        @ L1E .  @  @
+        S0 .  .  X  .
+        S1 .  .  X  .",
+    )
+    .unwrap();
+
+    let l0_first = w.source_at((0, 1).into()).unwrap().laser_id();
+    let l0_beam = w.beam(l0_first).unwrap();
+    assert_eq!(l0_beam.count(), 3);
+    let l1_first = w.source_at((2, 1).into()).unwrap().laser_id();
+    let l1_beam = w.beam(l1_first).unwrap();
+    assert_eq!(l1_beam.count(), 1);
 }

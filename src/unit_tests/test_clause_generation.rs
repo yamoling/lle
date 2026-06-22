@@ -426,7 +426,7 @@ fn test_gem_must_be_collected_clause_3gems() {
 fn test_beam_activation_first_tile_encodes_biconditional() {
     // L0N at (2,0) going North; beam path (1,0), (0,0). Agent 0 starts at (1,0).
     let world = World::try_from(". X\nS0 .\nL0N .").expect("Failed to parse world");
-    let laser_id = world.sources()[0].1.laser_id();
+    let laser_id = world.sources().collect::<Vec<_>>()[0].1.laser_id();
     let mut cg = ClauseGenerator::new(&world, 10);
     let (clauses, _) = cg.generate(2, SolveMode::Standard, false);
 
@@ -461,9 +461,9 @@ fn test_laser_blocking_same_colour() {
     let (clauses, _) = generator.generate(2, SolveMode::Standard, false);
     assert!(!clauses.is_empty());
 
-    assert_eq!(world.sources().len(), 1);
-    let (source_pos, _) = &world.sources()[0];
-    assert_eq!(*source_pos, pos(2, 0));
+    assert_eq!(world.sources().count(), 1);
+    let (source_pos, _) = world.sources().next().unwrap();
+    assert_eq!(source_pos, pos(2, 0));
 }
 
 // ─── no_step_on_active_laser ─────────────────────────────────────────────────
@@ -475,7 +475,7 @@ fn test_no_step_on_active_laser_binary_clause() {
     // L0S at (0,0) going South; beam at (1,0). Agent 1 (colour 1) starts at (1,1) and can
     // reach (1,0) at t=1.  Agent 0 (colour 0) at (2,0) can block the beam at (1,0).
     let world = World::try_from("L0S . X\n.   S1 X\nS0  . .").expect("Failed to parse world");
-    let laser_id = world.sources()[0].1.laser_id();
+    let laser_id = world.sources().next().unwrap().1.laser_id();
     let mut cg = ClauseGenerator::new(&world, 2);
     let (clauses, _) = cg.generate(1, SolveMode::Standard, false);
 
@@ -509,7 +509,7 @@ fn test_unblockable_beam_tile_generates_unit_clause() {
     // L0E at (0,0); agent 0 walled in by (1,1)=@ — cannot reach any beam tile.
     // Agent 1 at (1,2) can reach beam tile (0,2) at t=1.
     let world = World::try_from("L0E .  .  X\nS0  @  S1 X").expect("Failed to parse world");
-    let laser_id = world.sources()[0].1.laser_id();
+    let laser_id = world.sources().next().unwrap().1.laser_id();
     let mut cg = ClauseGenerator::new(&world, 4);
     let (clauses, _) = cg.generate(2, SolveMode::Standard, false);
 
@@ -536,7 +536,7 @@ fn test_laser_blocks_different_colour_agent() {
     let (clauses, _) = generator.generate(1, SolveMode::Standard, false);
     assert!(!clauses.is_empty());
     assert_eq!(world.n_agents(), 2);
-    let sources = world.sources();
+    let sources: Vec<_> = world.sources().collect();
     assert_eq!(sources.len(), 1);
     assert_eq!(sources[0].1.agent_id(), 0, "Laser is colour 0");
 }
@@ -566,7 +566,7 @@ fn test_two_lasers_stop_at_each_other() {
     let (clauses, _) = generator.generate(2, SolveMode::Standard, false);
     assert!(!clauses.is_empty());
 
-    let sources = world.sources();
+    let sources: Vec<_> = world.sources().collect();
     assert_eq!(sources.len(), 2);
     let (id0, id1) = (sources[0].1.laser_id(), sources[1].1.laser_id());
 
@@ -604,7 +604,7 @@ fn test_multiple_same_colour_same_direction_lasers_get_independent_beams() {
     let (clauses, _) = cg.generate(3, SolveMode::Standard, false);
     assert!(!clauses.is_empty());
 
-    let sources = world.sources();
+    let sources: Vec<_> = world.sources().collect();
     assert_eq!(sources.len(), 2);
     let id0 = sources[0].1.laser_id(); // source at (0,1)
     let id1 = sources[1].1.laser_id(); // source at (0,3)
@@ -696,7 +696,7 @@ fn test_opt2_start_tile_pruned_at_t1_only() {
 #[test]
 fn test_opt3_first_beam_tile_pruned_for_non_owner() {
     let world = World::try_from("L0S . X\n. S1 X\nS0 . .").expect("Failed to parse world");
-    let laser_id = world.sources()[0].1.laser_id();
+    let laser_id = world.sources().next().unwrap().1.laser_id();
     let mut cg = ClauseGenerator::new(&world, 10);
     cg.generate(3, SolveMode::Standard, false);
 
@@ -741,11 +741,11 @@ fn test_crossing_lasers_keep_independent_variables() {
 
     // At each crossing position there must be at least two distinct laser variables
     // (one per source whose beam passes through that cell).
-    let sources = world.sources();
+    let sources: Vec<_> = world.sources().collect();
     for (src_pos, src) in &sources {
         let id = src.laser_id();
         // Verify the variable for this source at an expected crossing position exists and is unique.
-        for other in sources.iter().filter(|(op, _)| *op != *src_pos) {
+        for other in sources.iter().filter(|(op, _)| op != src_pos) {
             let other_id = other.1.laser_id();
             // If both own variables at (1,1), they must be distinct.
             if cg.exists(&VarKey::laser(id, pos(1, 1), 10))

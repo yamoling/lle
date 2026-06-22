@@ -334,7 +334,6 @@ impl PyWorld {
         let world = self.world.lock().unwrap();
         world
             .sources()
-            .iter()
             .map(|(pos, laser_source)| {
                 PyLaserSource::new(arc_world.clone(), pos.into(), laser_source)
             })

@@ -53,7 +53,7 @@ fn test_laser_path_accessibility() {
     let world = World::try_from("S0 L0E X").expect("Failed to parse world");
     let ctx = ConstraintContext::new(&world, 5);
 
-    let sources = world.sources();
+    let sources = world.sources().collect::<Vec<_>>();
     assert_eq!(sources.len(), 1);
     let _source = &sources[0].1;
 

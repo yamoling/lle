@@ -342,7 +342,7 @@ fn change_laser_id() {
     w.reset();
     assert!(w.lasers().iter().all(|(_, l)| l.agent_id() == 0));
     {
-        let (_, source) = w.sources()[0];
+        let (_, source) = w.sources().next().unwrap();
         source.set_agent_id(1);
         assert_eq!(source.agent_id(), 1);
     }
@@ -371,7 +371,7 @@ fn disable_laser_source() {
     .unwrap();
     w.reset();
     assert!(w.lasers().iter().all(|(_, l)| l.is_on()));
-    let (_, source) = w.sources()[0];
+    let (_, source) = w.sources().next().unwrap();
     source.disable();
     assert!(w.lasers().iter().all(|(_, l)| l.is_off()));
     source.enable();
@@ -396,7 +396,7 @@ fn disable_laser_source_and_block_with_agent() {
     }
     let laser = get_laser_at(&w, (0, 1));
     assert!(laser.is_on());
-    w.sources()[0].1.disable();
+    w.sources().next().unwrap().1.disable();
     assert!(laser.is_off());
     w.step(&[Action::West]).unwrap();
     let laser = get_laser_at(&w, (0, 2));
@@ -447,7 +447,7 @@ fn test_laser_id() {
 fn test_disable_laser_then_reset_does_not_turn_on() {
     let mut w = World::try_from("L0E . S0 X").unwrap();
     w.reset();
-    w.sources()[0].1.disable();
+    w.sources().next().unwrap().1.disable();
     w.reset();
     let laser = w.lasers().iter().find(|(pos, _)| *pos == (0, 1)).unwrap().1;
     assert!(!laser.is_enabled());
@@ -459,11 +459,7 @@ fn test_disable_laser_then_reset_does_not_turn_on() {
 fn test_laser_sources_have_different_laser_ids() {
     let mut w = World::try_from("L0E . L0E . X S0").unwrap();
     w.reset();
-    let laser_ids = w
-        .sources()
-        .iter()
-        .map(|(_, l)| l.laser_id())
-        .collect::<Vec<_>>();
+    let laser_ids = w.sources().map(|(_, l)| l.laser_id()).collect::<Vec<_>>();
     assert_eq!(laser_ids.len(), 2);
     assert_ne!(laser_ids[0], laser_ids[1]);
 }
@@ -475,7 +471,7 @@ fn test_compute_world_string() {
     let current_string = world.world_string();
     assert_eq!(world_string, current_string);
 
-    let (_, source) = world.sources()[0];
+    let (_, source) = world.sources().next().unwrap();
     source.set_agent_id(1);
     let expected = "S0  L1S  X ";
     let res = world.world_string();
