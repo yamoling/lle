@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use strum::IntoEnumIterator;
 
 use super::position_set::PositionSet;
+use super::potential_cooperation::PotentialCooperationGraph;
 use crate::Position;
 use crate::{World, tiles::Direction};
 
@@ -48,12 +49,13 @@ pub struct ConstraintContext {
     pub predecessors: Vec<Vec<Vec<Position>>>,
     pub solution_lower_bound: usize,
     pub laser_sources: Vec<LaserSourceInfo>,
+    pub potential_cooperation: PotentialCooperationGraph,
     height: usize,
     width: usize,
     updated_until: usize,
 
     /// `neighbours[i][j]` = `[(i, j), ...reachable single-step neighbours]`.
-    neighbours: Vec<Vec<Vec<Position>>>,
+    pub(crate) neighbours: Vec<Vec<Vec<Position>>>,
 
     /// `distance_buckets[d]` = positions whose distance to the nearest exit is exactly `d`
     /// (only for `d <= t_max`, the only distances that ever matter). Used to incrementally
@@ -61,9 +63,8 @@ pub struct ConstraintContext {
     distance_buckets: Vec<Vec<Position>>,
 
     /// `exit_reachable[t]` = positions from which an exit can still be reached within
-    /// `t_max - t` steps. Lazily computed and cached per time step (in increasing order of
-    /// `t`, like `relevant_positions`): each entry is independent and never overwritten once
-    /// computed.
+    /// the remaining time budget (`t_max - t` steps).
+    /// Lazily computed and cached per time step (in increasing order of `t`).
     exit_reachable: Vec<PositionSet>,
 
     /// Cache for reachable positions per agent and time step: `relevant_positions[agent][t]`.
@@ -209,13 +210,14 @@ impl ConstraintContext {
             );
         }
 
-        ConstraintContext {
+        Self {
             t_max,
             n_agents,
             start_pos,
             predecessors,
             solution_lower_bound,
             laser_sources,
+            potential_cooperation: PotentialCooperationGraph::new(world, t_max),
             height,
             width,
             neighbours,
@@ -228,10 +230,10 @@ impl ConstraintContext {
         }
     }
 
-    /// Compute and cache `exit_reachable[t]` from `exit_reachable[t - 1]`: as `t` grows by one,
-    /// the remaining horizon `t_max - t` shrinks by one, so exactly the positions at distance
-    /// `t_max - t + 1` fall out of reach. Clones the previous entry and removes that bucket,
-    /// rather than mutating it in place, so every `exit_reachable[t]` stays independently cached.
+    /// Compute and cache `exit_reachable` in a backward flood manner.
+    /// At `exit_reachable[t - 1]`, only the exits themselves are reachable. Then,
+    /// the reachable positions at `t - 1` are the ones that are reachable at `t` or
+    /// that are direct neighbours of a reachable position at `t - 1`.
     fn update_exit_reachable(&mut self, t: usize) {
         let mut result = self.exit_reachable[t - 1].clone();
         let excluded_distance = self.t_max - t + 1;
@@ -288,7 +290,8 @@ impl ConstraintContext {
     }
 
     /// Pre-compute (and cache) every piece of on-demand data needed to generate constraints
-    /// for time step `t`: reachable positions for each agent and reachable laser paths for each source.
+    /// for time step `t`: reachable positions for each agent, reachable laser paths for each source,
+    /// and the potential cooperation graph adjacency matrix at that time step.
     pub fn update(&mut self, t: usize) {
         if t <= self.updated_until {
             return;
@@ -297,6 +300,8 @@ impl ConstraintContext {
             self.update_exit_reachable(tt);
             self.update_relevant_positions(tt);
             self.update_relevant_laser_paths(tt);
+            self.potential_cooperation
+                .update(tt, &self.relevant_positions)
         }
         self.updated_until = t;
     }
@@ -304,7 +309,6 @@ impl ConstraintContext {
     /// Relevant positions for a single agent at time `t`, i.e. positions that the agent
     /// can reach and from which it can still access the exit within due time.
     pub fn relevant_positions_for_agent(&self, agent: usize, t: usize) -> &PositionSet {
-        let _pos: Vec<_> = self.relevant_positions[agent][t].iter().collect();
         &self.relevant_positions[agent][t]
     }
 
