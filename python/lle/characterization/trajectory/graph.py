@@ -12,12 +12,11 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 from lle.types import AgentId
+from lle.world import World
 
-if TYPE_CHECKING:
-    from .profile import TrajectoryProfile
+from .types import Plan
 
 
 @dataclass(frozen=True)
@@ -47,6 +46,30 @@ class TemporalDependencyGraph:
         """The index of the last state, i.e. the number of actions in the trajectory."""
         self._edges = frozenset(edges)
 
+    @staticmethod
+    def from_plan(plan: Plan, world: World, *, reset: bool = True):
+        """
+        Build a temporal dependency graph by replaying `plan` on the `world`.
+
+        ## Parameters
+        - `plan`: The sequence of joint actions to replay. Each element is either a single
+            `Action` (for a single-agent world) or a sequence of one `Action` per agent.
+        - `world`: The world to analyse. It **is** mutated (reset).
+        - `reset`: Whether to reset the copied world before replaying. Keep the default unless the
+            trajectory is meant to continue from the world's current state.
+        """
+        from .analyser import detect_dependencies
+
+        if reset:
+            world.reset()
+        edges = [DependencyEdge(helper, beneficiary, 0) for helper, beneficiary in detect_dependencies(world)]
+        for t, joint_action in enumerate(plan, start=1):
+            world.step(joint_action)
+            for helper, beneficiary in detect_dependencies(world):
+                edges.append(DependencyEdge(helper, beneficiary, t))
+
+        return TemporalDependencyGraph(world.n_agents, edges, horizon=len(plan))
+
     # ------------------------------------------------------------------
     # Basic accessors
     # ------------------------------------------------------------------
@@ -60,52 +83,52 @@ class TemporalDependencyGraph:
         """Whether the trajectory contains no edge at all."""
         return len(self._edges) == 0
 
-    def edges_at(self, t: int) -> set[tuple[AgentId, AgentId]]:
+    def edges_at(self, t: int):
         """The`(helper, beneficiary)` pairs active exactly at time step`t`."""
         return {(e.helper, e.beneficiary) for e in self._edges if e.t == t}
 
-    def flattened_edges(self) -> set[tuple[AgentId, AgentId]]:
+    def flattened_edges(self):
         """The set of`(helper, beneficiary)` pairs across all time steps."""
         return {(e.helper, e.beneficiary) for e in self._edges}
 
-    def helpers_of(self, beneficiary: AgentId, t: int | None = None) -> set[AgentId]:
+    def helpers_of(self, beneficiary: AgentId, t: int | None = None):
         """The agents that help`beneficiary` (at time`t` if given, else ever)."""
         return {e.helper for e in self._edges if e.beneficiary == beneficiary and (t is None or e.t == t)}
 
-    def beneficiaries_of(self, helper: AgentId, t: int | None = None) -> set[AgentId]:
+    def beneficiaries_of(self, helper: AgentId, t: int | None = None):
         """The agents that`helper` helps (at time`t` if given, else ever)."""
         return {e.beneficiary for e in self._edges if e.helper == helper and (t is None or e.t == t)}
 
-    def asymmetric_edges(self) -> set[tuple[AgentId, AgentId]]:
+    def asymmetric_edges(self):
         """Flattened help edges whose helper is never helped by any other agent."""
         edges = self.flattened_edges()
         helped_agents = {beneficiary for _, beneficiary in edges}
         return {(helper, beneficiary) for helper, beneficiary in edges if helper not in helped_agents}
 
-    def has_asymmetric_edge(self) -> bool:
+    def has_asymmetric_edge(self):
         """Whether some agent helps another agent without ever being helped itself."""
         return len(self.asymmetric_edges()) > 0
 
     # ------------------------------------------------------------------
     # Fan-in / fan-out
     # ------------------------------------------------------------------
-    def fan_in(self, beneficiary: AgentId, t: int | None = None) -> int:
+    def fan_in(self, beneficiary: AgentId, t: int | None = None):
         """How many distinct agents help`beneficiary` (at time`t` if given)."""
         return len(self.helpers_of(beneficiary, t))
 
-    def fan_out(self, helper: AgentId, t: int | None = None) -> int:
+    def fan_out(self, helper: AgentId, t: int | None = None):
         """How many distinct agents`helper` helps (at time`t` if given)."""
         return len(self.beneficiaries_of(helper, t))
 
-    def max_fan_in(self, t: int | None = None) -> int:
+    def max_fan_in(self, t: int | None = None):
         """The largest fan-in over all agents (at time`t` if given)."""
         return max((self.fan_in(a, t) for a in range(self.n_agents)), default=0)
 
-    def max_fan_out(self, t: int | None = None) -> int:
+    def max_fan_out(self, t: int | None = None):
         """The largest fan-out over all agents (at time`t` if given)."""
         return max((self.fan_out(a, t) for a in range(self.n_agents)), default=0)
 
-    def longest_trail(self) -> int:
+    def longest_trail(self):
         """Return the length of the longest non-decreasing-time help-edge trail."""
         if len(self._edges) == 0:
             return 0
@@ -151,7 +174,7 @@ class TemporalDependencyGraph:
     # ------------------------------------------------------------------
     # Cycles
     # ------------------------------------------------------------------
-    def max_temporal_cycle_order(self, strict: bool = False) -> int:
+    def max_temporal_cycle_order(self, strict: bool = False):
         """Size of the largest simple directed cycle in the temporal graph with non-decreasing
         (or strictly increasing, if `strict=True`) timestamps, or 0 if no cycle exists.
 
@@ -187,7 +210,7 @@ class TemporalDependencyGraph:
 
         return best
 
-    def has_cycle(self) -> bool:
+    def has_cycle(self):
         """Whether a mutual-help cycle exists with strictly increasing time.
 
          A cycle is detected when there exist two agents`a` and`b` such that
@@ -205,11 +228,8 @@ class TemporalDependencyGraph:
                     return True
         return False
 
-    def profile(self) -> "TrajectoryProfile":
+    def profile(self):
         """Summarise the graph into a `TrajectoryProfile`."""
         from .profile import TrajectoryProfile
 
         return TrajectoryProfile(self)
-
-    def __repr__(self) -> str:
-        return f"TemporalDependencyGraph(n_agents={self.n_agents}, horizon={self.horizon}, n_edges={len(self._edges)})"

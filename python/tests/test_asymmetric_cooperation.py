@@ -9,22 +9,25 @@ solution under that mode.
 from __future__ import annotations
 
 import lle
-import lle.characterization.world_characterization as world_characterization
 from lle import World
 from lle.characterization import WorldCharacterizer
 from lle.characterization.trajectory import DependencyEdge, TemporalDependencyGraph
-from lle.solver import solve
-from pytest import MonkeyPatch
+from lle.solver import Solver
+
+from .mocks import MockSolver
 
 
 def test_trajectory_profile_detects_asymmetric_edges():
     graph = TemporalDependencyGraph(
         n_agents=3,
-        edges=[DependencyEdge(0, 1, 2), DependencyEdge(1, 2, 3)],
+        edges=[
+            DependencyEdge(0, 1, 2),
+            DependencyEdge(1, 2, 3),
+        ],
         horizon=3,
     )
     assert graph.asymmetric_edges() == {(0, 1)}
-    assert graph.profile().is_asymmetric is True
+    assert graph.profile().is_asymmetric
 
 
 def test_trajectory_profile_rejects_mutual_as_asymmetric():
@@ -43,8 +46,9 @@ def test_1_laser_world_requires_asymmetric_cooperation():
      @  S0 S1
     L0E .  .
      @  X  X""")
-    assert solve(world, 6) is not None
-    assert solve(world, 6, mode="no-asymmetric") is None
+    solver = Solver(world, 6)
+    assert solver.solve() is not None
+    assert solver.solve("no-asymmetric") is None
     assert lle.is_asymmetric(world, 6)
     assert lle.characterize(world, 6).is_asymmetric
 
@@ -55,8 +59,9 @@ def test_double_world_requires_asymmetric_cooperation():
     L0E .  .  @ L2E .  .
      @  X  X  @  @  X  X
     """)
-    assert solve(world, 6) is not None
-    assert solve(world, 6, mode="no-asymmetric") is None
+    solver = Solver(world, 6)
+    assert solver.solve() is not None
+    assert solver.solve("no-asymmetric") is None
     assert lle.is_asymmetric(world, 6) is True
 
 
@@ -65,51 +70,38 @@ def test_independent_world_is_not_asymmetric():
     S0 . S1
      . . .
      X . X""")
-    assert solve(world, 6, mode="no-asymmetric") is not None
+    solver = Solver(world, 6)
+    assert solver.solve("no-asymmetric") is not None
     assert lle.is_asymmetric(world, 6) is False
 
 
-def test_no_laser_world_short_circuits_without_no_asymmetric_solve(monkeypatch: MonkeyPatch):
+def test_no_laser_world_short_circuits_without_no_asymmetric_solve():
     world = World("""
     S0 . S1
      . . .
      X . X""")
-    calls = []
-
-    def fake_solve(_world, _t_max, *, mode="standard"):
-        calls.append(mode)
-        return []
-
-    monkeypatch.setattr(world_characterization.solver, "solve", fake_solve)
+    mock_solver = MockSolver(world, 6, responses={"standard": []})
     characterizer = WorldCharacterizer(world, 6)
+    characterizer._solver = mock_solver
 
     assert characterizer.is_asymmetric is False
     assert characterizer.shortest_non_asymmetric_path == []
-    assert calls == ["standard"]
+    assert mock_solver.calls == ["standard"]
 
 
-def test_known_independent_path_short_circuits_no_asymmetric_solve(monkeypatch: MonkeyPatch):
+def test_known_independent_path_short_circuits_no_asymmetric_solve():
     world = World("""
      @  S0 S1
     L0E .  .
      @  X  X""")
-    calls = []
     independent_path = [(lle.Action.STAY, lle.Action.STAY)]
-
-    def fake_solve(_world, _t_max, *, mode="standard"):
-        calls.append(mode)
-        if mode == "no-cooperation":
-            return independent_path
-        if mode == "no-asymmetric":
-            raise AssertionError("no-asymmetric solve should be skipped")
-        return []
-
-    monkeypatch.setattr(world_characterization.solver, "solve", fake_solve)
+    mock_solver = MockSolver(world, 6, responses={"no-cooperation": independent_path})
     characterizer = WorldCharacterizer(world, 6)
+    characterizer._solver = mock_solver
 
     assert characterizer.shortest_independent_path is independent_path
     assert characterizer.shortest_non_asymmetric_path is independent_path
-    assert calls == ["no-cooperation"]
+    assert mock_solver.calls == ["no-cooperation"]
 
 
 def test_pure_mutual_world_has_non_asymmetric_solution():
@@ -118,6 +110,7 @@ def test_pure_mutual_world_has_non_asymmetric_solution():
     L0E . . .
      .  . . L1W
      X  . . X""")
-    assert solve(world, 10) is not None
-    assert solve(world, 10, mode="no-asymmetric") is not None
+    solver = Solver(world, 10)
+    assert solver.solve() is not None
+    assert solver.solve("no-asymmetric") is not None
     assert not lle.is_asymmetric(world, 10)

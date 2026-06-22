@@ -24,17 +24,20 @@ from collections import defaultdict
 from lle.types import AgentId, LaserId
 from lle.world import World
 
-from .graph import DependencyEdge, TemporalDependencyGraph
-from .types import Trajectory
+from .graph import TemporalDependencyGraph
+from .types import Plan
 
 
 def detect_dependencies(world: World) -> set[tuple[AgentId, AgentId]]:
-    """Return the`(helper, beneficiary)` edges active in the world's current state."""
+    """
+    Return the`(helper, beneficiary)` edges active in the world's current state.
+
+    TODO: optimize this function to avoid re-constructing the beams dictionary at each call.
+    """
     beams: dict[LaserId, list] = defaultdict(list)
     for laser in world.lasers:
-        if laser.is_disabled:
-            continue
-        beams[laser.laser_id].append(laser)
+        if not laser.is_disabled:
+            beams[laser.laser_id].append(laser)
 
     edges: set[tuple[AgentId, AgentId]] = set()
     for tiles in beams.values():
@@ -57,26 +60,10 @@ def detect_dependencies(world: World) -> set[tuple[AgentId, AgentId]]:
     return edges
 
 
-def profile_trajectory(world: World, trajectory: Trajectory, *, reset: bool = True):
-    """Replay`trajectory` and build the temporal helper graph.
-
-    ## Parameters
-    - **world**: The world to analyse. It is **not** mutated; the analysis runs on a deep copy.
-    - **trajectory**: The sequence of joint actions to replay. Each element is either a single
-        `Action` (for a single-agent world) or a sequence of one `Action` per agent.
-    - **reset**: Whether to reset the copied world before replaying. Keep the default unless the
-        trajectory is meant to continue from the world's current state.
-
-    ## Returns
-    The `TrajectoryProfile` summarising the graph.
+def profile_trajectory(world: World, plan: Plan, *, reset: bool = True):
     """
-    if reset:
-        world.reset()
-
-    # Initialize edges with the dependencies at t=0
-    edges = [DependencyEdge(helper, beneficiary, 0) for helper, beneficiary in detect_dependencies(world)]
-    for t, joint_action in enumerate(trajectory, start=1):
-        world.step(joint_action)
-        for helper, beneficiary in detect_dependencies(world):
-            edges.append(DependencyEdge(helper, beneficiary, t))
-    return TemporalDependencyGraph(world.n_agents, edges, horizon=len(trajectory)).profile()
+    Compute the trajectory profile of the provided `plan` on the provided `world`.
+    Check `TemporalDependencyGraph.from_plan` for more details about arguments.
+    """
+    graph = TemporalDependencyGraph.from_plan(plan, world, reset=reset)
+    return graph.profile()

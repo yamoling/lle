@@ -185,7 +185,7 @@ The environment has been presented at [EWRL 2023](https://openreview.net/pdf?id=
 ```
 """
 
-from .lle import __version__, agent, exceptions, tiles, world  # noqa # prevent import reordering
+from .lle import *  # noqa -> prevent import reordering
 
 
 from .agent import Agent
@@ -196,6 +196,8 @@ from .solver import solve
 from .types import AgentId, LaserId, Position
 from .world import Action, EventType, World, WorldEvent, WorldState
 from .characterization import is_cooperative, characterize, is_asymmetric, is_mutual, is_chained
+from . import tiles, exceptions, world, agent, env, generator, characterization, solver, observations
+
 
 __version__: str
 from_file = LLE.from_file
