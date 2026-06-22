@@ -10,6 +10,13 @@ From Wikipedia: "Oxford spelling uses the spelling ‑ize alongside ‑lyse: org
 
 Additionally, words in "-our" such as "colour", "neighbour" or "behaviour" should be spelled with an "u" (e.g. "colour" not "color").
 
+### Numbering
+Number should be written in the international standard, i.e. numbers divided in groups of three separated by a blank space. The decimal point should be separated by a comma.
+For instance: 
+- `1 000` reads as "one thousand"
+- `1,000` reads as "one"
+- `2 000.18` and `2 000,18` both read as "two thousands and 18/100"
+
 ### Python typing
 - Python typing should be used extensively. Use `basedpyright` to type check your code.
 - Typing is mandatory for function/method input arguments. The accepted input type should be as loose as possible (e.g. prefer `Sequence[T]` over `list[T]` if only indexing is required).
