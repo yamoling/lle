@@ -281,6 +281,24 @@ def test_unsolvable_world_raises_on_is_mutual():
         _ = WorldCharacterizer(world, t_max=10).is_mutual()
 
 
+def test_unsolvable_world_raises_on_is_asymmetric():
+    world = World("S0 @ X")
+    with pytest.raises(ValueError):
+        _ = WorldCharacterizer(world, t_max=10).is_asymmetric()
+
+
+def test_unsolvable_world_raises_on_is_chained():
+    world = World("S0 @ X")
+    with pytest.raises(ValueError):
+        _ = WorldCharacterizer(world, t_max=10).is_chained(2)
+
+
+def test_unsolvable_world_raises_on_is_interdependent():
+    world = World("S0 @ X")
+    with pytest.raises(ValueError):
+        _ = WorldCharacterizer(world, t_max=10).is_interdependent(2)
+
+
 def test_1_laser_world_requires_asymmetric_cooperation():
     world = World("""
      @  S0 S1
@@ -320,3 +338,65 @@ def test_pure_mutual_world_has_non_asymmetric_solution():
      .  . . L1W
      X  . . X""")
     assert not lle.is_asymmetric(world, 6)
+
+
+# ---------------------------------------------------------------------------
+# Argument validation
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("length", [1, 0, -1])
+def test_is_chained_rejects_length_below_2(length: int):
+    wc = WorldCharacterizer(World.level(1), t_max=10)
+    with pytest.raises(ValueError):
+        wc.is_chained(length)
+
+
+@pytest.mark.parametrize("n_agents", [1, 0, -1])
+def test_is_interdependent_rejects_order_below_2(n_agents: int):
+    wc = WorldCharacterizer(World.level(1), t_max=10)
+    with pytest.raises(ValueError):
+        wc.is_interdependent(n_agents)
+
+
+@pytest.mark.parametrize("length", [1, 0])
+def test_compute_shortest_path_without_chain_rejects_length_below_2(length: int):
+    wc = WorldCharacterizer(World.level(1), t_max=10)
+    with pytest.raises(ValueError):
+        wc.compute_shortest_path_without_chain(length)
+
+
+@pytest.mark.parametrize("order", [1, 0])
+def test_compute_shortest_non_interdependent_path_rejects_order_below_2(order: int):
+    wc = WorldCharacterizer(World.level(1), t_max=10)
+    with pytest.raises(ValueError):
+        wc.compute_shortest_non_interdependent_path(order)
+
+
+# ---------------------------------------------------------------------------
+# Caching, equality and hashing
+# ---------------------------------------------------------------------------
+def test_is_interdependent_is_cached():
+    """A second query with the same order returns the cached result."""
+    wc = WorldCharacterizer(World(TWO_AGENT_MUTUAL), t_max=6)
+    first = wc.is_interdependent(2)
+    second = wc.is_interdependent(2)
+    assert first is second
+    assert first
+
+
+def test_eq_and_hash():
+    world = World.level(1)
+    a = WorldCharacterizer(world, t_max=10)
+    b = WorldCharacterizer(world, t_max=10)
+    different_t_max = WorldCharacterizer(world, t_max=11)
+    assert a == b
+    assert hash(a) == hash(b)
+    assert a != different_t_max
+    assert a != "not a characterizer"
+
+
+def test_asymmetric_profile_with_independent_path_is_not_asymmetric():
+    """When the shortest plan helps asymmetrically but an independent detour also exists
+    within `t_max`, the world does not *require* asymmetric cooperation."""
+    wc = WorldCharacterizer(World(ONE_WAY_COOPERATION), t_max=10)
+    assert wc.is_independent()
+    assert not wc.is_asymmetric()
