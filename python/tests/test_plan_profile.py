@@ -1,7 +1,7 @@
 import lle
 from lle import World
-from lle.characterization import profile_trajectory
-from lle.characterization.trajectory import DependencyEdge, TemporalDependencyGraph
+from lle.characterization import profile_plan
+from lle.characterization.plan import DependencyEdge, TemporalDependencyGraph
 
 
 def test_profile_empty_graph():
@@ -151,7 +151,7 @@ def test_not_interdependent():
     """)
     plan = lle.solve(world, 16)
     assert plan is not None
-    profile = profile_trajectory(world, plan)
+    profile = profile_plan(world, plan)
     assert profile.is_cooperative
     assert profile.is_chained
     assert not profile.is_independent

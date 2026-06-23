@@ -8,14 +8,14 @@ See `analyse_cooperation` for the dependency definition, `TemporalDependencyGrap
 for the graph queries, and `CooperationProfile` for the summary of properties.
 """
 
-from .analyser import detect_dependencies, profile_trajectory
+from .analyser import detect_dependencies, profile_plan
 from .graph import DependencyEdge, TemporalDependencyGraph
-from .profile import TrajectoryProfile
+from .profile import PlanProfile
 
 __all__ = [
-    "profile_trajectory",
+    "profile_plan",
     "detect_dependencies",
     "DependencyEdge",
     "TemporalDependencyGraph",
-    "TrajectoryProfile",
+    "PlanProfile",
 ]

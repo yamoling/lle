@@ -1,16 +1,21 @@
-from dataclasses import dataclass, field
 from functools import cached_property
+from typing import final
+
+from typing_extensions import override
+
+from lle.solver.constraints import SolveMode
 
 from .. import solver
 from ..world import World
-from .trajectory import profile_trajectory
+from .monotone_cache import MonotoneCache
+from .plan import profile_plan
 
 
 class NotSolvableError(ValueError):
     """Raised when a world is not solvable."""
 
 
-@dataclass
+@final
 class WorldCharacterizer:
     """
     Lazy world characterizer class. Computes the properties of the world on-demand.
@@ -20,14 +25,12 @@ class WorldCharacterizer:
     world may be independent for t_max=11.
     """
 
-    world: World
-    t_max: int
-    _no_chain_cache: dict[int, list | None] = field(default_factory=dict, init=False, repr=False)
-    _no_interdependence_cache: dict[int, list | None] = field(default_factory=dict, init=False, repr=False)
-    _solver: solver.Solver = field(init=False, repr=False)
-
-    def __post_init__(self) -> None:
+    def __init__(self, world: World, t_max: int) -> None:
+        self.world = world
+        self.t_max = t_max
         self._solver = solver.Solver(self.world, self.t_max)
+        self._is_chained_cache = MonotoneCache()
+        self._interdependence_cache = dict[int, bool]()
 
     @cached_property
     def n_laser_colours(self) -> int:
@@ -42,7 +45,7 @@ class WorldCharacterizer:
         # Raises
             -`NotSolvableError` if the world is not solvable
         """
-        if not self.is_solvable:
+        if not self.is_solvable():
             raise NotSolvableError("World is not solvable")
         return self.shortest_independent_path is None
 
@@ -54,7 +57,7 @@ class WorldCharacterizer:
         # Raises
             -`NotSolvableError` if the world is not solvable
         """
-        if not self.is_solvable:
+        if not self.is_solvable():
             raise NotSolvableError("World is not solvable.")
         return self.shortest_independent_path is not None
 
@@ -73,7 +76,7 @@ class WorldCharacterizer:
             raise NotSolvableError("Cannot determine if requires asymmetric cooperation if unsolvable.")
         if self.n_laser_colours == 0:
             return False
-        profile = profile_trajectory(self.world, path)
+        profile = profile_plan(self.world, path)
         if not profile.is_asymmetric:
             return False
         if self.shortest_independent_path is not None:
@@ -92,7 +95,7 @@ class WorldCharacterizer:
         path = self.shortest_path
         if path is None:
             raise NotSolvableError("Cannot determine if requires mutual cooperation if unsolvable.")
-        profile = profile_trajectory(self.world, path)
+        profile = profile_plan(self.world, path)
         # If the trajectory is not even mutual, then it cannot require mutual cooperation.
         if not profile.is_mutual:
             return False
@@ -113,21 +116,20 @@ class WorldCharacterizer:
         # Raises
             -`NotSolvableError` if the world is not solvable
         """
-        self._validate_dependency_order(length)
-        path = self.shortest_path
-        if path is None:
-            raise NotSolvableError("World is not solvable")
-        if self.shortest_independent_path is not None:
-            return False
-        cached = self._infer_from_monotone_cache(self._no_chain_cache, length)
+        if length < 2:
+            raise ValueError(f"Chain length must be >= 2, got {length}.")
+        cached = self._is_chained_cache.get(length)
         if cached is not None:
             return cached
-        profile = profile_trajectory(self.world, path)
+        if self.shortest_path is None:
+            raise NotSolvableError("World is not solvable")
+        profile = profile_plan(self.world, self.shortest_path)
         if not profile.is_chained(length):
-            return False
-        is_chained = self.shortest_non_chained_path(length) is None
-        self._propagate_monotone_cache(self._no_chain_cache, length)
-        return is_chained
+            res = False
+        else:
+            res = self.compute_shortest_path_without_chain(length) is None
+        self._is_chained_cache[length] = res
+        return res
 
     def is_interdependent(self, n_agents: int = 2) -> bool:
         """
@@ -141,28 +143,20 @@ class WorldCharacterizer:
         # Raises
             -`NotSolvableError` if the world is not solvable
         """
-        self._validate_dependency_order(n_agents)
-        path = self.shortest_path
-        if path is None:
-            raise NotSolvableError("World is not solvable")
-        if self.shortest_independent_path is not None:
-            return False
-        if n_agents > self.n_laser_colours:
-            self._no_interdependence_cache[n_agents] = path
-            return False
-        cached = self._infer_from_monotone_cache(self._no_interdependence_cache, n_agents)
+        if n_agents < 2:
+            raise ValueError(f"Interdependence only makes sens for >= 2 agents. Got {n_agents}.")
+        cached = self._interdependence_cache.get(n_agents)
         if cached is not None:
             return cached
-        profile = profile_trajectory(self.world, path)
+        if self.shortest_path is None:
+            raise NotSolvableError("World is not solvable")
+        profile = profile_plan(self.world, self.shortest_path)
         if not profile.is_interdependent(n_agents):
-            return False
-        is_interdependent = self.shortest_non_interdependent_path(n_agents) is None
-        self._propagate_monotone_cache(
-            self._no_interdependence_cache,
-            n_agents,
-            upper_bound=self.n_laser_colours,
-        )
-        return is_interdependent
+            res = False
+        else:
+            res = self.compute_shortest_non_interdependent_path(n_agents) is None
+        self._interdependence_cache[n_agents] = res
+        return res
 
     @cached_property
     def shortest_path(self):
@@ -171,85 +165,33 @@ class WorldCharacterizer:
     @cached_property
     def shortest_independent_path(self):
         """The length of the shortest valid plan within [lower_bound, t_max] that does not involve cooperation, or None if unsolvable."""
-        return self._solver.solve("no-cooperation")
+        return self._solver.solve(SolveMode.no_cooperation())
 
     @cached_property
     def shortest_non_asymmetric_path(self):
-        if self.n_laser_colours == 0:
-            return self.shortest_path
-        if "shortest_independent_path" in self.__dict__ and self.shortest_independent_path is not None:
-            return self.shortest_independent_path
-        return self._solver.solve("no-asymmetric")
+        return self._solver.solve(SolveMode.no_asymmetric())
 
     @cached_property
     def shortest_non_mutual_path(self):
-        return self._solver.solve("no-mutual")
+        return self._solver.solve(SolveMode.no_mutual())
 
-    def shortest_non_chained_path(self, length: int):
-        """Shortest plan within `t_max` that avoids every chain of length >= `length`, or None."""
-        self._validate_dependency_order(length)
-        if "shortest_independent_path" in self.__dict__ and self.shortest_independent_path is not None:
-            self._no_chain_cache[length] = self.shortest_independent_path
-        is_known, inferred = self._infer_no_dependency_result(self._no_chain_cache, length)
-        if is_known:
-            self._no_chain_cache[length] = inferred
-            return inferred
-        if length not in self._no_chain_cache:
-            self._no_chain_cache[length] = self._solver.solve(f"no-chain-{length}")
-            self._propagate_monotone_cache(self._no_chain_cache, length)
-        return self._no_chain_cache[length]
+    def compute_shortest_path_without_chain(self, length: int):
+        if length < 2:
+            raise ValueError(f"Chain length must be >= 2, got {length}.")
+        return self._solver.solve(SolveMode.no_chain(length))
 
-    def shortest_non_interdependent_path(self, order: int):
+    def compute_shortest_non_interdependent_path(self, order: int):
         """Shortest plan within `t_max` that avoids every cycle of order >= `order`, or None."""
-        self._validate_dependency_order(order)
-        if order > self.n_laser_colours:
-            self._no_interdependence_cache[order] = self.shortest_path
-        elif "shortest_independent_path" in self.__dict__ and self.shortest_independent_path is not None:
-            self._no_interdependence_cache[order] = self.shortest_independent_path
-        is_known, inferred = self._infer_no_dependency_result(self._no_interdependence_cache, order)
-        if is_known:
-            self._no_interdependence_cache[order] = inferred
-            return inferred
-        if order not in self._no_interdependence_cache:
-            self._no_interdependence_cache[order] = self._solver.solve(f"no-interdependence-{order}")
-            self._propagate_monotone_cache(
-                self._no_interdependence_cache,
-                order,
-                upper_bound=self.n_laser_colours,
-            )
-        return self._no_interdependence_cache[order]
-
-    @staticmethod
-    def _validate_dependency_order(order: int) -> None:
         if order < 2:
-            raise ValueError(f"Dependency order must be >= 2, got {order}.")
+            raise ValueError(f"Interdependence order must be >= 2, got {order}.")
+        return self._solver.solve(SolveMode.no_interdependence(order))
 
-    def _infer_from_monotone_cache(self, cache: dict[int, list | None], order: int) -> bool | None:
-        is_known, inferred = self._infer_no_dependency_result(cache, order)
-        if is_known:
-            cache[order] = inferred
-            return inferred is None
-        return None
+    @override
+    def __eq__(self, value: object, /):
+        if not isinstance(value, WorldCharacterizer):
+            return False
+        return self.world == value.world and self.t_max == value.t_max
 
-    def _infer_no_dependency_result(self, cache: dict[int, list | None], order: int):
-        for cached_order, path in cache.items():
-            if cached_order <= order and path is not None:
-                return True, path
-        if any(cached_order >= order and path is None for cached_order, path in cache.items()):
-            return True, None
-        return False, None
-
-    def _propagate_monotone_cache(
-        self,
-        cache: dict[int, list | None],
-        order: int,
-        *,
-        upper_bound: int | None = None,
-    ) -> None:
-        path = cache[order]
-        if path is None:
-            for lower_order in range(2, order):
-                cache.setdefault(lower_order, None)
-        elif upper_bound is not None:
-            for higher_order in range(order + 1, upper_bound + 1):
-                cache.setdefault(higher_order, path)
+    @override
+    def __hash__(self) -> int:
+        return hash((self.world, self.t_max))

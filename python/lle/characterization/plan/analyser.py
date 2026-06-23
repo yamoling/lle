@@ -60,9 +60,9 @@ def detect_dependencies(world: World) -> set[tuple[AgentId, AgentId]]:
     return edges
 
 
-def profile_trajectory(world: World, plan: Plan, *, reset: bool = True):
+def profile_plan(world: World, plan: Plan, *, reset: bool = True):
     """
-    Compute the trajectory profile of the provided `plan` on the provided `world`.
+    Compute the profile of `plan` on the provided `world`.
     Check `TemporalDependencyGraph.from_plan` for more details about arguments.
     """
     graph = TemporalDependencyGraph.from_plan(plan, world, reset=reset)

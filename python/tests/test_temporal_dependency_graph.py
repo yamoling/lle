@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from lle.characterization.trajectory.graph import DependencyEdge, TemporalDependencyGraph
+from lle.characterization.plan.graph import DependencyEdge, TemporalDependencyGraph
 
 
 @pytest.fixture
@@ -353,10 +353,10 @@ class TestTemporalCycleDetection:
         # 0 -> 1 -> 2 -> 0 with t increasing
         assert temporal_cycle_graph.has_cycle()
 
-    def test_temporal_cycle_static_not_detected(self, static_cycle_graph: TemporalDependencyGraph):
-        """Cycle at the same time step is NOT a temporal cycle."""
+    def test_temporal_cycle_static_is_detected(self, static_cycle_graph: TemporalDependencyGraph):
+        """Cycle at the same time step is a temporal cycle."""
         # 0 <-> 1 both at t=1: time is not strictly increasing
-        assert not static_cycle_graph.has_cycle()
+        assert static_cycle_graph.has_cycle()
 
     def test_temporal_cycle_disconnected(self, disconnected_graph: TemporalDependencyGraph):
         """No temporal cycle when components are separate."""

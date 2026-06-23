@@ -2,7 +2,7 @@
 
 from typing import Literal, overload
 
-from pysat.solvers import Minisat22
+from pysat.solvers import Minisat22  # pyright: ignore[reportMissingTypeStubs]
 
 from ..world import Action, World
 from .constraints import ClauseGenerator, SolveMode
@@ -99,7 +99,7 @@ def solve(
 def solve(
     world: World,
     /,
-    *min_max,
+    *min_max: int | Literal["auto"],
     mode: SolveModeLiteral | str | SolveMode = "standard",
     collect_gems: bool = False,
 ):
@@ -117,7 +117,7 @@ def solve(
             return Solver(world).solve(mode, collect_gems=collect_gems)
         case (t_max,):
             return Solver(world, t_max).solve(mode, collect_gems=collect_gems)
-        case (t_min, t_max):
+        case (int(t_min), t_max):
             return Solver(world, t_max).solve(mode, t_min=t_min, collect_gems=collect_gems)
         case _:
             raise ValueError(f"Invalid arguments: (world, {min_max})")
@@ -131,10 +131,11 @@ def solve_model(clauses: list[list[int]], *, assumptions: list[int] | None = Non
     if assumptions is None:
         assumptions = []
     with Minisat22(bootstrap_with=clauses) as sat_solver:
-        if sat_solver.solve(assumptions=assumptions):
-            model = sat_solver.get_model()
+        res = bool(sat_solver.solve(assumptions=assumptions))  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
+        if res:
+            model: list[int] | None = sat_solver.get_model()  # pyright: ignore[reportUnknownVariableType]
             assert model is not None
-            return model
+            return model  # pyright: ignore[reportUnknownVariableType]
 
 
 def _to_plan(joint_actions: list[list[Action]]) -> list[tuple[Action, ...]]:

@@ -302,9 +302,9 @@ class TemporalDependencyGraph:
 
     def profile(self):
         """Summarise the graph into a `TrajectoryProfile`."""
-        from .profile import TrajectoryProfile
+        from .profile import PlanProfile
 
-        return TrajectoryProfile(self)
+        return PlanProfile(self)
 
     @staticmethod
     def empty():

@@ -9,7 +9,8 @@ and is helped). `is_cooperative(world)` is the common-case shortcut.
 from typing import Literal
 
 from ..world import World
-from .trajectory import TrajectoryProfile, profile_trajectory
+from .monotone_cache import MonotoneCache
+from .plan import PlanProfile, profile_plan
 from .world_characterization import WorldCharacterizer
 
 __all__ = [
@@ -19,8 +20,9 @@ __all__ = [
     "is_mutual",
     "is_chained",
     "WorldCharacterizer",
-    "TrajectoryProfile",
-    "profile_trajectory",
+    "MonotoneCache",
+    "PlanProfile",
+    "profile_plan",
 ]
 
 
@@ -52,7 +54,7 @@ def is_asymmetric(world: World, t_max: int | Literal["auto"] = "auto"):
     help edge whose helper is never helped by another agent.
     """
     w = characterize(world, t_max)
-    return w.is_asymmetric
+    return w.is_asymmetric()
 
 
 def is_mutual(world: World, t_max: int | Literal["auto"] = "auto"):
@@ -62,7 +64,7 @@ def is_mutual(world: World, t_max: int | Literal["auto"] = "auto"):
     but not without laser blocking.
     """
     w = characterize(world, t_max)
-    return w.is_mutual
+    return w.is_mutual()
 
 
 def is_chained(world: World, t_max: int | Literal["auto"] = "auto", length: int = 2):

@@ -293,31 +293,25 @@ def test_typing_solve_mode_literal():
 
 
 def test_rust_solve_mode_values():
-    from lle.solver.constraints import SolveMode as RustSolveMode
-
-    assert RustSolveMode.standard().value == "standard"
-    assert RustSolveMode.no_cooperation().value == "no-cooperation"
-    assert RustSolveMode.no_mutual().value == "no-mutual"
-    assert str(RustSolveMode.no_cooperation()) == "no-cooperation"
+    assert SolveMode.standard().value == "standard"
+    assert SolveMode.no_cooperation().value == "no-cooperation"
+    assert SolveMode.no_mutual().value == "no-mutual"
+    assert str(SolveMode.no_cooperation()) == "no-cooperation"
 
 
 def test_rust_solve_mode_parametrized_values_round_trip():
-    from lle.solver.constraints import SolveMode as RustSolveMode
-
     # Default length renders without a suffix; explicit lengths are kept.
-    assert RustSolveMode.no_chain().value == "no-chain"
-    assert RustSolveMode.no_chain(3).value == "no-chain-3"
-    assert RustSolveMode.no_interdependence(4).value == "no-interdependence-4"
+    assert SolveMode.no_chain().value == "no-chain"
+    assert SolveMode.no_chain(3).value == "no-chain-3"
+    assert SolveMode.no_interdependence(4).value == "no-interdependence-4"
     # from_str is the inverse of value.
     for s in ("standard", "no-mutual", "no-chain", "no-chain-3", "no-interdependence", "no-interdependence-4"):
-        assert RustSolveMode.from_str(s).value == s
+        assert SolveMode.from_str(s).value == s
     # "no-interdependence-2" is the two-agent equivalent of "no-mutual".
-    assert RustSolveMode.from_str("no-interdependence-2") == RustSolveMode.no_interdependence(2)
+    assert SolveMode.from_str("no-interdependence-2") == SolveMode.no_interdependence(2)
 
 
 def test_rust_solve_mode_rejects_invalid_lengths():
-    from lle.solver.constraints import SolveMode
-
     for bad in ("no-chain-1", "no-chain-0", "no-chain-x", "no-interdependence-1", "bogus"):
         with pytest.raises(ValueError):
             SolveMode.from_str(bad)
@@ -344,12 +338,9 @@ def test_reusable_solver_across_modes():
 
 
 def test_solver_accepts_rust_solve_mode_objects():
-    from lle.solver.constraints import SolveMode as RustSolveMode
-
     world = World("S0 . . X")
     solver = Solver(world, 5)
-    plan = solver.solve(RustSolveMode.no_cooperation())
-
+    plan = solver.solve(SolveMode.no_cooperation())
     assert plan is not None
     assert len(plan) == 3
 
@@ -371,7 +362,6 @@ def test_solve_function_remains_compatible():
 
 def test_solver_override_t_max_cannot_exceed_construction_bound():
     solver = Solver(World("S0 . . X"), 5)
-
     with pytest.raises(ValueError, match="exceeds this solver's t_max"):
         solver.solve(override_t_max=6)
 
@@ -379,7 +369,6 @@ def test_solver_override_t_max_cannot_exceed_construction_bound():
 def test_collect_gems_is_per_solve_call():
     world = World("S0 G X")
     solver = Solver(world, 2)
-
     assert solver.solve(collect_gems=False) is not None
     assert solver.solve(collect_gems=True) is not None
 

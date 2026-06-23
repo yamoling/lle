@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from typing import Literal
 
 from lle.solver import Solver
 from lle.solver.constraints import SolveMode
 from lle.solver.types import SolveModeLiteral
 from lle.world import Action, World
+from typing_extensions import override
 
 
 class MockSolver(Solver):
@@ -14,19 +16,20 @@ class MockSolver(Solver):
     def __init__(
         self,
         world: World,
-        t_max: int | str = "auto",
+        t_max: int | Literal["auto"] = "auto",
         *,
         responses: Mapping[str, list[tuple[Action, ...]] | None] | None = None,
     ) -> None:
-        self.world = world
-        self.t_max: int = (world.width * world.height) // 2 if t_max == "auto" else int(t_max)
-        self.responses = dict(responses or {})
-        self.calls: list[str] = []
+        super().__init__(world, t_max)
+        self._responses: dict[str, list[tuple[Action, ...]] | None] = dict(responses or {})
+        self._calls: list[str] = []
 
     @property
+    @override
     def solution_lower_bound(self) -> int:
         return 0
 
+    @override
     def solve(
         self,
         mode: SolveModeLiteral | str | SolveMode = "standard",
@@ -37,7 +40,7 @@ class MockSolver(Solver):
     ) -> list[tuple[Action, ...]] | None:
         """Return the configured result for `mode` and record the call."""
         mode_str = str(mode)
-        self.calls.append(mode_str)
-        if mode_str not in self.responses:
+        self._calls.append(mode_str)
+        if mode_str not in self._responses:
             raise AssertionError(f"Unexpected solver mode: {mode_str}")
-        return self.responses[mode_str]
+        return self._responses[mode_str]

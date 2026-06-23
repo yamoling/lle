@@ -27,7 +27,7 @@ unavoidable in either of them.
 from __future__ import annotations
 
 from lle import World, solver
-from lle.characterization.trajectory import profile_trajectory
+from lle.characterization.plan import profile_plan
 from lle.characterization.world_characterization import WorldCharacterizer
 
 T_MAX = 6
@@ -59,9 +59,9 @@ def test_interdependence_2_detected_in_canonical_rotation():
 
     plan = solver.solve(world, T_MAX)
     assert plan is not None
-    assert profile_trajectory(world, plan).interdependence_order() >= 2
+    assert profile_plan(world, plan).interdependence_order() >= 2
     # Earliest help edge starts at agent 0 -> canonical rotation.
-    earliest = min(profile_trajectory(world, plan).graph.edges, key=lambda e: e.t)
+    earliest = min(profile_plan(world, plan).graph.edges, key=lambda e: e.t)
     assert earliest.helper == 0
 
     # The forbid works for this rotation.
@@ -96,9 +96,9 @@ def test_interdependence_2_detected_in_reversed_rotation():
 
     plan = solver.solve(world, T_MAX)
     assert plan is not None
-    assert profile_trajectory(world, plan).interdependence_order() >= 2
+    assert profile_plan(world, plan).interdependence_order() >= 2
     # Earliest help edge starts at agent 1 -> the rotation the bug misses.
-    earliest = min(profile_trajectory(world, plan).graph.edges, key=lambda e: e.t)
+    earliest = min(profile_plan(world, plan).graph.edges, key=lambda e: e.t)
     assert earliest.helper == 1
 
     # The world requires a mutual / order-2 cycle, so no-interdependence-2 must

@@ -1,7 +1,7 @@
 from .graph import TemporalDependencyGraph
 
 
-class TrajectoryProfile:
+class PlanProfile:
     def __init__(self, graph: TemporalDependencyGraph) -> None:
         self.graph = graph
 
@@ -53,8 +53,6 @@ class TrajectoryProfile:
            - `a -> b -> a` returns `True`;
            - `a -> b` and `b -> a` at the same time step returns `True` (trail uses each edge once);
            - an independent graph returns `False`.
-
-        @ai-generated
         """
         if length < 2:
             raise ValueError("A chain must have at least 2 edges")
