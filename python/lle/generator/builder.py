@@ -396,22 +396,22 @@ class GeneratorBuilder:
         to suit the behavioural constraint (cooperation favours opposite-side layouts)."""
         if self._layout_explicit:
             return self._starts, self._exits
-        requirements = self._constraint.requirements
-        if requirements.mutual:
-            return "clustered", "opposite"
-        if requirements.cooperation:
-            return "edge", "opposite"
+        # requirements = self._constraint.requirements
+        # if requirements.mutual:
+        #     return "clustered", "opposite"
+        # if requirements.cooperation:
+        #     return "edge", "opposite"
         return self._starts, self._exits
 
     def _resolve_placement(self, starts: StartsMode) -> ResolvedPlacement:
         """Derive a laser placement from the layout when left on`"auto"`."""
         if self._laser_placement != "auto":
             return self._laser_placement
-        if self._constraint.requirements.cooperation:
-            if starts == "clustered":
-                return "cross-cluster"
-            if starts == "edge":
-                return "cross-agent"
+        # if self._constraint.requirements.cooperation:
+        #     if starts == "clustered":
+        #         return "cross-cluster"
+        #     if starts == "edge":
+        #         return "cross-agent"
         return "free"
 
     def _resolve_n_lasers(self, placement: ResolvedPlacement) -> int:
@@ -420,8 +420,8 @@ class GeneratorBuilder:
         requirements = self._constraint.requirements
         if requirements.min_lasers > 0:
             return min(self._n_agents, max(requirements.min_lasers, self._n_agents - 1))
-        if requirements.cooperation or placement in ("cross-agent", "cross-cluster"):
-            return min(self._n_agents, max(1, self._n_agents - 1))
+        # if requirements.cooperation or placement in ("cross-agent", "cross-cluster"):
+        #     return min(self._n_agents, max(1, self._n_agents - 1))
         return random.randint(0, self._n_agents)
 
     def _resolve_n_jobs(self, n_jobs: int | Literal["auto"]) -> int:

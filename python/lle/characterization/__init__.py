@@ -42,7 +42,7 @@ def is_cooperative(world: World, t_max: int | Literal["auto"] = "auto"):
     but not without laser blocking.
     """
     w = characterize(world, t_max)
-    return w.is_cooperative
+    return w.is_cooperative()
 
 
 def is_asymmetric(world: World, t_max: int | Literal["auto"] = "auto"):

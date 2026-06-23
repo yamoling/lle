@@ -1,4 +1,4 @@
-from .graph import TemporalDependencyGraph
+from .graph import TDG as TemporalDependencyGraph
 
 
 class TrajectoryProfile:
@@ -42,29 +42,30 @@ class TrajectoryProfile:
         A chain must have at least 2 edges; a single help edge is cooperative but not chained.
 
         # Returns
-        Returns `0` when the longest trail has fewer than two edges (a single help edge is
-        cooperation, but not a chain).
+        Returns `False` when the longest trail has fewer edges than `length`.
 
         # Examples
-           - `a -> b` returns 0 (single edge, not a chain);
-           - `a -> b -> c` returns `2`;
-           - `a -> b -> c -> a` returns `3`;
-           - `a -> b -> c -> d -> b` returns `4`;
-           - `a -> b`, and `a -> c` returns `0` (no path of length ≥ 2 from either branch);
-           - `a -> b -> a` returns `2`;
-           - `a -> b` and `b -> a` at the same time step returns `2` (trail uses each edge once);
-           - an independent graph returns `0`.
+           - `a -> b` returns `False` for the default length;
+           - `a -> b -> c` returns `True` for the default length;
+           - `a -> b -> c -> a` has a longest trail of length `3`;
+           - `a -> b -> c -> d -> b` has a longest trail of length `4`;
+           - `a -> b`, and `a -> c` returns `False` (no path of length ≥ 2 from either branch);
+           - `a -> b -> a` returns `True`;
+           - `a -> b` and `b -> a` at the same time step returns `True` (trail uses each edge once);
+           - an independent graph returns `False`.
+
+        @ai-generated
         """
         if length < 2:
             raise ValueError("A chain must have at least 2 edges")
-        return self.graph.longest_trail() >= length
+        return self.graph.longest_trail_length() >= length
 
     def interdependence_order(self) -> int:
         """The order of the largest temporal cycle in this trajectory (0 if none)."""
-        return self.graph.max_temporal_cycle_order()
+        return self.graph.longest_cycle_order()
 
     def is_interdependent(self, n_agents: int = 2) -> bool:
         """
         Whether this trajectory's dependency graph contains a cycle of length >= `n_agents`.
         """
-        return self.graph.max_temporal_cycle_order() >= n_agents
+        return self.graph.longest_cycle_order() >= n_agents

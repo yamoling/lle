@@ -19,17 +19,22 @@ from ..world import World
 
 @dataclass(frozen=True)
 class WorldRequirements:
-    """Static generation requirements inferred from a predicate expression.
+    """Minimum requirements for a world derived from predicates.
+
+    For instance, a `Cooperative` predicate requires at least 2 agents,
+    otherwise it can never be satisfied.
 
     These requirements are used for upfront validation and generator defaults.
     They are not a substitute for evaluating the predicate against a candidate
-    world with :meth:`Constraint.is_satisfied_by`.
+    world with `Constraint.is_satisfied_by`.
     """
 
     min_lasers: int = 0
     min_agents: int = 1
-    cooperation: bool = False
-    mutual: bool = False
+
+    def __post_init__(self):
+        assert self.min_lasers >= 0
+        assert self.min_agents >= 1
 
     @staticmethod
     def all(requirements: Iterable[WorldRequirements]) -> WorldRequirements:
@@ -40,8 +45,6 @@ class WorldRequirements:
         return WorldRequirements(
             min_lasers=max(r.min_lasers for r in rs),
             min_agents=max(r.min_agents for r in rs),
-            cooperation=any(r.cooperation for r in rs),
-            mutual=any(r.mutual for r in rs),
         )
 
     @staticmethod
@@ -53,8 +56,6 @@ class WorldRequirements:
         return WorldRequirements(
             min_lasers=min(r.min_lasers for r in rs),
             min_agents=min(r.min_agents for r in rs),
-            cooperation=all(r.cooperation for r in rs),
-            mutual=all(r.mutual for r in rs),
         )
 
 
@@ -66,7 +67,7 @@ class Predicate(ABC):
         """Return whether a solvable world characterized by ``c`` satisfies this predicate."""
 
     @property
-    def requirements(self) -> WorldRequirements:
+    def requirements(self):
         """Static resource requirements implied by this predicate."""
         return WorldRequirements()
 
@@ -106,7 +107,7 @@ class Solvable(Predicate):
     """
 
     def holds(self, c: WorldCharacterizer) -> bool:
-        return True
+        return c.is_solvable()
 
 
 @dataclass(frozen=True)
@@ -114,7 +115,7 @@ class Independent(Predicate):
     """Matches worlds solvable without cooperation."""
 
     def holds(self, c: WorldCharacterizer) -> bool:
-        return c.is_independent
+        return c.is_independent()
 
     @property
     def cost(self) -> int:
@@ -126,11 +127,11 @@ class Cooperative(Predicate):
     """Matches worlds that require at least one laser-blocking cooperation."""
 
     def holds(self, c: WorldCharacterizer) -> bool:
-        return c.is_cooperative
+        return c.is_cooperative()
 
     @property
     def requirements(self) -> WorldRequirements:
-        return WorldRequirements(min_lasers=1, min_agents=2, cooperation=True)
+        return WorldRequirements(min_lasers=1, min_agents=2)
 
     @property
     def cost(self) -> int:
@@ -142,11 +143,11 @@ class Asymmetric(Predicate):
     """Matches worlds that require asymmetric cooperation."""
 
     def holds(self, c: WorldCharacterizer) -> bool:
-        return c.is_asymmetric
+        return c.is_asymmetric()
 
     @property
     def requirements(self) -> WorldRequirements:
-        return WorldRequirements(min_lasers=1, min_agents=2, cooperation=True)
+        return WorldRequirements(min_lasers=1, min_agents=2)
 
     @property
     def cost(self) -> int:
@@ -168,7 +169,7 @@ class Chained(Predicate):
 
     @property
     def requirements(self) -> WorldRequirements:
-        return WorldRequirements(min_lasers=self.length, min_agents=2, cooperation=True)
+        return WorldRequirements(min_lasers=self.length, min_agents=2)
 
     @property
     def cost(self) -> int:
@@ -180,11 +181,11 @@ class Mutual(Predicate):
     """Matches worlds that require mutual cooperation."""
 
     def holds(self, c: WorldCharacterizer) -> bool:
-        return c.is_mutual
+        return c.is_mutual()
 
     @property
     def requirements(self) -> WorldRequirements:
-        return WorldRequirements(min_lasers=2, min_agents=2, cooperation=True, mutual=True)
+        return WorldRequirements(min_lasers=2, min_agents=2)
 
     @property
     def cost(self) -> int:
@@ -206,7 +207,7 @@ class Interdependent(Predicate):
 
     @property
     def requirements(self) -> WorldRequirements:
-        return WorldRequirements(min_lasers=self.order, min_agents=self.order, cooperation=True, mutual=True)
+        return WorldRequirements(min_lasers=self.order, min_agents=self.order)
 
     @property
     def cost(self) -> int:
@@ -282,17 +283,17 @@ class Constraint:
     t_min: int | None = None
 
     @property
-    def requirements(self) -> WorldRequirements:
+    def requirements(self):
         return self.predicate.requirements
 
-    def is_satisfied_by(self, world: World) -> bool:
+    def is_satisfied_by(self, world: World):
         if self.t_min is not None and self.t_min > 0:
             from .. import solver
 
             if solver.solve(world, self.t_min - 1) is not None:
                 return False
         c = WorldCharacterizer(world, self.t_max)
-        if not c.is_solvable:
+        if not c.is_solvable():
             return False
         return self.predicate.holds(c)
 

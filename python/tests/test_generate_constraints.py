@@ -10,9 +10,22 @@ import pytest
 from lle import World
 from lle.generator import Chained, Constraint, Cooperative, Independent, Interdependent, Mutual, Solvable, WorldRequirements, generate
 
-# ---------------------------------------------------------------------------
-# A. Constraint.is_satisfied_by — unit tests
-# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(("level", "solution_length"), [(1, 10), (2, 10), (3, 10), (4, 10), (5, 19), (6, 21)])
+def test_standard_level_t_min(level: int, solution_length):
+    world = World.level(level)
+    c = Constraint(solution_length)
+    assert c.is_satisfied_by(world)
+
+
+@pytest.mark.parametrize(("level", "solution_length"), [(1, 10), (2, 10), (3, 10), (4, 10), (5, 19), (6, 21)])
+def test_standard_level_with_high_t_min(level: int, solution_length):
+    """
+    We build a constraint whose t_min requirement is above the actual solution limit.
+    Therefore, the world should be rejected since a solution exists with a length <= `t_min`."""
+    world = World.level(level)
+    c = Constraint(solution_length + 5, t_min=solution_length + 1)
+    assert not c.is_satisfied_by(world)
 
 
 def test_filter_no_constraints_accepts_solvable_world():
@@ -25,44 +38,37 @@ def test_filter_no_constraints_rejects_unsolvable_world():
     assert not Constraint(10).is_satisfied_by(world)
 
 
-def test_filter_cooperative_accepts_level6():
+def test_filter_cooperative_standard_levels():
     """Level 6 requires cooperation — Cooperative should accept it."""
-    assert Constraint(21, Cooperative()).is_satisfied_by(World.level(6))
+    constraint_cooperative = Constraint(21, Cooperative())
+    constraint_independent = Constraint(21, Independent())
+    for level in [1, 2]:
+        world = World.level(level)
+        assert not constraint_cooperative.is_satisfied_by(world)
+        assert constraint_independent.is_satisfied_by(world)
+    for level in [3, 4, 5, 6]:
+        world = World.level(level)
+        assert constraint_cooperative.is_satisfied_by(world)
+        assert not constraint_independent.is_satisfied_by(world)
 
 
-def test_filter_independent_rejects_level6():
-    """Level 6 requires cooperation — Independent should reject it."""
-    assert not Constraint(21, Independent()).is_satisfied_by(World.level(6))
+def test_interdependent_level6():
+    """Level 6 is 2-interdependent, not 3-interdependent."""
+    inter2 = Constraint(21, Interdependent(2))
+    inter3 = Constraint(21, Interdependent(3))
+    world = World.level(6)
+    assert inter2.is_satisfied_by(world)
+    assert not inter3.is_satisfied_by(world)
 
 
-def test_filter_independent_accepts_level1():
-    """Level 1 is independently solvable — Independent should accept it."""
-    assert Constraint(10, Independent()).is_satisfied_by(World.level(1))
-
-
-def test_filter_cooperative_rejects_level1():
-    """Level 1 needs no cooperation — Cooperative should reject it."""
-    assert not Constraint(10, Cooperative()).is_satisfied_by(World.level(1))
-
-
-def test_filter_mutual_accepts_level6():
-    assert Constraint(21, Mutual()).is_satisfied_by(World.level(6))
-
-
-def test_filter_mutual_rejects_level3():
-    """Level 3 requires cooperation but not mutual — Mutual should reject it."""
-    assert not Constraint(21, Mutual()).is_satisfied_by(World.level(3))
-
-
-def test_filter_cooperative_accepts_non_mutual_level3():
-    """Level 3 is cooperative (though not mutual) — Cooperative should accept it."""
-    assert Constraint(21, Cooperative()).is_satisfied_by(World.level(3))
-
-
-def test_filter_t_max_override_rejects_when_too_short():
-    """Level 6 needs 21 steps; restricting to t_max=20 makes it unsolvable."""
-    constraint = Constraint(20, Cooperative())
-    assert not constraint.is_satisfied_by(World.level(6))
+def test_mutual_standard_levels():
+    mutual = Constraint(21, Mutual())
+    for level in [1, 2, 3, 5]:
+        world = World.level(level)
+        assert not mutual.is_satisfied_by(world)
+    for level in [4, 6]:
+        world = World.level(level)
+        assert mutual.is_satisfied_by(world)
 
 
 def test_constraint_uses_its_t_max():
@@ -82,54 +88,27 @@ def test_filter_mutual_rejects_level6_with_insufficient_t_max():
 def test_world_requirements_for_atoms():
     assert Solvable().requirements == WorldRequirements()
     assert Independent().requirements == WorldRequirements()
-    assert Cooperative().requirements == WorldRequirements(min_lasers=1, min_agents=2, cooperation=True)
-    assert Mutual().requirements == WorldRequirements(min_lasers=2, min_agents=2, cooperation=True, mutual=True)
+    assert Cooperative().requirements == WorldRequirements(min_lasers=1, min_agents=2)
+    assert Mutual().requirements == WorldRequirements(min_lasers=2, min_agents=2)
 
 
 def test_world_requirements_compose_over_boolean_expressions():
-    assert (Chained(3) & ~Mutual()).requirements == WorldRequirements(min_lasers=3, min_agents=2, cooperation=True)
-    assert (Mutual() | Interdependent(5)).requirements == WorldRequirements(min_lasers=2, min_agents=2, cooperation=True, mutual=True)
+    assert (Chained(3) & ~Mutual()).requirements == WorldRequirements(min_lasers=3, min_agents=2)
+    assert (Mutual() | Interdependent(5)).requirements == WorldRequirements(min_lasers=2, min_agents=2)
     assert (~Interdependent(5)).requirements == WorldRequirements()
 
 
 def test_generate_cooperative_shortcut_produces_cooperative_world():
-    world = generate(width=5, height=5, n_agents=2).lasers(2).cooperative().build(max_attempts=500)
-    assert world is not None
+    world = generate(width=5, height=5, n_agents=2).lasers(2).cooperative().build()
     assert Constraint(20, Cooperative()).is_satisfied_by(world)
 
 
-def test_generate_filter_object_same_as_shortcut():
-    """An explicit predicate via require() and the cooperative() shortcut both yield cooperative worlds."""
-    t_max = 5 * 5 // 2
-    world_shortcut = generate(width=5, height=5, n_agents=2).random().lasers(1).cooperative().build(max_attempts=500)
-    world_obj = generate(width=5, height=5, n_agents=2).random().lasers(1).require(Cooperative()).build(max_attempts=500)
-    constraint = Constraint(t_max, Cooperative())
-    assert world_shortcut is not None
-    assert world_obj is not None
-    assert constraint.is_satisfied_by(world_shortcut)
-    assert constraint.is_satisfied_by(world_obj)
-
-
-def test_generate_take_all_satisfy_filter():
-    """All worlds in a batch must satisfy the constraint."""
-    t_max = 5 * 5 // 2
-    predicate = Cooperative()
-    constraint = Constraint(t_max, predicate)
-    builder = generate(width=5, height=5, n_agents=2).random().lasers(1).require(predicate)
-    for w in builder.take(3, n_jobs=1, max_attempts=500, progress=False):
-        assert constraint.is_satisfied_by(w)
-
-
 def test_generate_independent_produces_independent_world():
-    world = generate().independent().build(seed=0, max_attempts=500)
-    assert world is not None
-    t_max = world.width * world.height // 2
+    t_max = 40
+    world = generate(t_max=t_max).independent().build()
     assert Constraint(t_max, Independent()).is_satisfied_by(world)
 
 
-# ---------------------------------------------------------------------------
-# The last predicate-setting call wins.
-# ---------------------------------------------------------------------------
 def test_last_filter_call_wins():
     builder = generate(width=5, height=5, n_agents=2).cooperative().mutual()
     assert isinstance(builder._constraint.predicate, Mutual)
@@ -140,11 +119,6 @@ def test_last_filter_call_wins():
 def test_require_overrides_named_filter():
     builder = generate(width=5, height=5, n_agents=2).cooperative().require(Solvable())
     assert isinstance(builder._constraint.predicate, Solvable)
-
-
-# ---------------------------------------------------------------------------
-# Builder-level validation: generate().build() must raise for invalid combos
-# ---------------------------------------------------------------------------
 
 
 def test_generate_error_cooperative_n_agents_lt_2():

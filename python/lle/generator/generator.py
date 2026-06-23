@@ -137,6 +137,7 @@ class WorldGenerator:
             raise ValueError(f"lasers must be <= agents (one laser source per colour). Got lasers={n_lasers}, agents={n_agents}.")
         self.n_lasers = n_lasers
 
+        # Verify that minimal requirements are met
         if constraint is not None:
             requirements = constraint.requirements
             if n_agents < requirements.min_agents:

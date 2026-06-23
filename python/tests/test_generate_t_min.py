@@ -30,7 +30,7 @@ def _gen(t_min: int, t_max: int = 20):
 
 
 def test_accept_world_rejects_world_solvable_below_t_min():
-    """A world solvable in 2 steps must be rejected when t_min=4."""
+    """A world solvable in 2 steps must be rejected when t_min=4 since a lower solution exists."""
     # S0 . X → agent at (0,0), exit at (0,2); shortest solution is 2 East steps
     world = World("S0 . X")
     assert solve(world, 2) is not None, "sanity: world is solvable in 2 steps"

@@ -7,10 +7,13 @@ exactly.
 
 from __future__ import annotations
 
+import lle
 import pytest
 from lle import World
 from lle.characterization import world_characterization
 from lle.characterization.world_characterization import WorldCharacterizer
+
+from .mocks import MockSolver
 
 ONE_WAY_COOPERATION = """
  .  . S0 S1 . .
@@ -364,3 +367,73 @@ def test_unsolvable_world_raises_on_is_mutual():
     world = World("S0 @ X")
     with pytest.raises(ValueError):
         _ = WorldCharacterizer(world, t_max=10).is_mutual
+
+
+def test_1_laser_world_requires_asymmetric_cooperation():
+    world = World("""
+     @  S0 S1
+    L0E .  .
+     @  X  X""")
+    wc = lle.characterize(world, t_max=6)
+    assert wc.is_solvable()
+    assert wc.is_cooperative()
+    assert wc.is_asymmetric()
+    assert not wc.is_chained()
+    assert not wc.is_mutual()
+    assert not wc.is_interdependent()
+
+
+def test_double_world_requires_asymmetric_cooperation():
+    world = World("""
+     @  S0 S1 @  @  S2 S3
+    L0E .  .  @ L2E .  .
+     @  X  X  @  @  X  X
+    """)
+    wc = lle.characterize(world, 6)
+    assert wc.is_asymmetric()
+
+
+def test_independent_world_is_not_asymmetric():
+    world = World("""
+    S0 . S1
+     . . .
+     X . X""")
+    assert not lle.is_asymmetric(world, 6)
+
+
+def test_no_laser_world_short_circuits_without_no_asymmetric_solve():
+    world = World("""
+    S0 . S1
+     . . .
+     X . X""")
+    mock_solver = MockSolver(world, 6, responses={"standard": []})
+    characterizer = WorldCharacterizer(world, 6)
+    characterizer._solver = mock_solver
+
+    assert characterizer.is_asymmetric is False
+    assert characterizer.shortest_non_asymmetric_path == []
+    assert mock_solver.calls == ["standard"]
+
+
+def test_known_independent_path_short_circuits_no_asymmetric_solve():
+    world = World("""
+     @  S0 S1
+    L0E .  .
+     @  X  X""")
+    independent_path = [(lle.Action.STAY, lle.Action.STAY)]
+    mock_solver = MockSolver(world, 6, responses={"no-cooperation": independent_path})
+    characterizer = WorldCharacterizer(world, 6)
+    characterizer._solver = mock_solver
+
+    assert characterizer.shortest_independent_path is independent_path
+    assert characterizer.shortest_non_asymmetric_path is independent_path
+    assert mock_solver.calls == ["no-cooperation"]
+
+
+def test_pure_mutual_world_has_non_asymmetric_solution():
+    world = World("""
+     S0 . . S1
+    L0E . . .
+     .  . . L1W
+     X  . . X""")
+    assert not lle.is_asymmetric(world, 6)

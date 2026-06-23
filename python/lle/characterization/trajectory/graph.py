@@ -1,17 +1,9 @@
-"""The temporal helper graph and the structural properties extracted from it.
-
-A *dependency* (or *helper*) edge`helper -> beneficiary` at time step`t`
-means that, at time`t`,`helper` blocks a laser of its own colour while
-`beneficiary` stands on a tile of that beam without dying (the beam is blocked
-for the beneficiary).  See `lle.cooperation.analyser` for how these edges are
-detected from a trajectory.
-"""
-
 from __future__ import annotations
 
-from collections import defaultdict
+from bisect import bisect_left, bisect_right
 from collections.abc import Iterable
 from dataclasses import dataclass
+from functools import cache
 
 from lle.types import AgentId
 from lle.world import World
@@ -21,7 +13,7 @@ from .types import Plan
 
 @dataclass(frozen=True)
 class DependencyEdge:
-    """A single`helper -> beneficiary` relationship at one time step."""
+    """A single `helper -> beneficiary` relationship at one time step."""
 
     helper: AgentId
     """The agent that blocks its own laser."""
@@ -31,20 +23,75 @@ class DependencyEdge:
     """The time step (state index) at which the help occurs."""
 
 
-class TemporalDependencyGraph:
-    """The time-wise agent dependency graph of a single trajectory.
+@dataclass(frozen=True)
+class TimeLayer:
+    """All beneficiaries helped by one helper at one time step."""
 
-    Edges are directed from the *helper* to the *beneficiary*, so that the
-    out-degree of a vertex is its fan-out (how many agents it helps) and the
-    in-degree is its fan-in (by how many agents it is helped).
-    """
+    t: int
+    helper: AgentId
+    beneficiaries: tuple[AgentId, ...]
 
-    def __init__(self, n_agents: int, edges: Iterable[DependencyEdge], horizon: int):
-        self.n_agents = n_agents
+    def edges(self):
+        """
+        Yield the concrete dependency edges represented by this layer.
+        """
+        for beneficiary in self.beneficiaries:
+            yield DependencyEdge(self.helper, beneficiary, self.t)
+
+
+@dataclass(frozen=True)
+class AgentVertex:
+    """A temporal vertex schedule for one helper agent."""
+
+    agent_id: AgentId
+    layers: tuple[TimeLayer, ...] = ()
+
+
+class TDG:
+    """Temporal Directed Graph over dependency edges."""
+
+    def __init__(self, edges: Iterable[DependencyEdge]):
+        """
+        Build deterministic temporal-adjacency indexes from dependency edges.
+
+        Duplicate temporal triples are collapsed. Layers are grouped by helper,
+        then by time, and beneficiaries in each layer are sorted to make trail
+        tie-breaking deterministic.
+
+        @ai-generated
+        """
         """The number of agents in the world."""
-        self.horizon = horizon
-        """The index of the last state, i.e. the number of actions in the trajectory."""
-        self._edges = frozenset(edges)
+        self._sorted_edges = tuple(sorted(frozenset(edges), key=lambda edge: (edge.t, edge.helper, edge.beneficiary)))
+        self._edges = frozenset(self._sorted_edges)
+
+        by_helper_time: dict[AgentId, dict[int, set[AgentId]]] = {}
+        by_time_helper: dict[int, dict[AgentId, set[AgentId]]] = {}
+        edge_ids_by_helper: dict[AgentId, list[int]] = {}
+
+        for edge_id, edge in enumerate(self._sorted_edges):
+            by_helper_time.setdefault(edge.helper, {}).setdefault(edge.t, set()).add(edge.beneficiary)
+            by_time_helper.setdefault(edge.t, {}).setdefault(edge.helper, set()).add(edge.beneficiary)
+            edge_ids_by_helper.setdefault(edge.helper, []).append(edge_id)
+
+        agent_ids = sorted(set(e.helper for e in edges) | set(e.beneficiary for e in edges))
+        self.vertices = {
+            agent_id: AgentVertex(
+                agent_id,
+                tuple(
+                    TimeLayer(t, agent_id, tuple(sorted(beneficiaries)))
+                    for t, beneficiaries in sorted(by_helper_time.get(agent_id, {}).items())
+                ),
+            )
+            for agent_id in agent_ids
+        }
+        self._by_time = {
+            t: {helper: tuple(sorted(beneficiaries)) for helper, beneficiaries in sorted(by_helper.items())}
+            for t, by_helper in sorted(by_time_helper.items())
+        }
+        self._edge_ids_by_helper = {helper: tuple(edge_ids) for helper, edge_ids in edge_ids_by_helper.items()}
+        self._edge_times_by_helper = {
+            helper: tuple(self._sorted_edges[edge_id].t for edge_id in edge_ids) for helper, edge_ids in self._edge_ids_by_helper.items()
+        }
 
     @staticmethod
     def from_plan(plan: Plan, world: World, *, reset: bool = True):
@@ -67,12 +114,8 @@ class TemporalDependencyGraph:
             world.step(joint_action)
             for helper, beneficiary in detect_dependencies(world):
                 edges.append(DependencyEdge(helper, beneficiary, t))
+        return TDG(edges)
 
-        return TemporalDependencyGraph(world.n_agents, edges, horizon=len(plan))
-
-    # ------------------------------------------------------------------
-    # Basic accessors
-    # ------------------------------------------------------------------
     @property
     def edges(self):
         """All temporal dependency edges."""
@@ -83,153 +126,208 @@ class TemporalDependencyGraph:
         """Whether the trajectory contains no edge at all."""
         return len(self._edges) == 0
 
-    def edges_at(self, t: int):
-        """The`(helper, beneficiary)` pairs active exactly at time step`t`."""
-        return {(e.helper, e.beneficiary) for e in self._edges if e.t == t}
+    def active_times(self):
+        """
+        Return all time steps that contain at least one dependency edge.
+        """
+        return tuple(self._by_time.keys())
+
+    def layers_for(self, helper: AgentId):
+        """Return the sorted temporal layers for `helper`."""
+        return self.vertices[helper].layers
+
+    def beneficiaries_at(self, helper: AgentId, t: int):
+        """Return the beneficiaries helped by `helper` exactly at time `t`."""
+        return self._by_time.get(t, {}).get(helper, ())
 
     def flattened_edges(self):
-        """The set of`(helper, beneficiary)` pairs across all time steps."""
-        return {(e.helper, e.beneficiary) for e in self._edges}
+        """
+        Return the set of `(helper, beneficiary)` pairs across all time steps.
 
-    def helpers_of(self, beneficiary: AgentId, t: int | None = None):
-        """The agents that help`beneficiary` (at time`t` if given, else ever)."""
-        return {e.helper for e in self._edges if e.beneficiary == beneficiary and (t is None or e.t == t)}
-
-    def beneficiaries_of(self, helper: AgentId, t: int | None = None):
-        """The agents that`helper` helps (at time`t` if given, else ever)."""
-        return {e.beneficiary for e in self._edges if e.helper == helper and (t is None or e.t == t)}
+        @ai-generated
+        """
+        return {(edge.helper, edge.beneficiary) for edge in self._sorted_edges}
 
     def asymmetric_edges(self):
-        """Flattened help edges whose helper is never helped by any other agent."""
+        """Return flattened help edges whose helper is never helped by any other agent."""
         edges = self.flattened_edges()
         helped_agents = {beneficiary for _, beneficiary in edges}
         return {(helper, beneficiary) for helper, beneficiary in edges if helper not in helped_agents}
 
     def has_asymmetric_edge(self):
-        """Whether some agent helps another agent without ever being helped itself."""
+        """Return whether some helper is never helped by another agent."""
         return len(self.asymmetric_edges()) > 0
 
-    # ------------------------------------------------------------------
-    # Fan-in / fan-out
-    # ------------------------------------------------------------------
-    def fan_in(self, beneficiary: AgentId, t: int | None = None):
-        """How many distinct agents help`beneficiary` (at time`t` if given)."""
-        return len(self.helpers_of(beneficiary, t))
-
-    def fan_out(self, helper: AgentId, t: int | None = None):
-        """How many distinct agents`helper` helps (at time`t` if given)."""
-        return len(self.beneficiaries_of(helper, t))
-
-    def max_fan_in(self, t: int | None = None):
-        """The largest fan-in over all agents (at time`t` if given)."""
-        return max((self.fan_in(a, t) for a in range(self.n_agents)), default=0)
-
-    def max_fan_out(self, t: int | None = None):
-        """The largest fan-out over all agents (at time`t` if given)."""
-        return max((self.fan_out(a, t) for a in range(self.n_agents)), default=0)
-
-    def longest_trail(self):
-        """Return the length of the longest non-decreasing-time help-edge trail."""
-        if len(self._edges) == 0:
-            return 0
-
-        best_ending_at: dict[AgentId, int] = defaultdict(int)
-        longest = 0
-
-        sorted_edges = sorted(self._edges, key=lambda edge: edge.t)
-        idx = 0
-        while idx < len(sorted_edges):
-            t = sorted_edges[idx].t
-            bucket: list[DependencyEdge] = []
-            while idx < len(sorted_edges) and sorted_edges[idx].t == t:
-                bucket.append(sorted_edges[idx])
-                idx += 1
-
-            adj: dict[AgentId, set[AgentId]] = defaultdict(set)
-            for edge in bucket:
-                adj[edge.helper].add(edge.beneficiary)
-
-            # Carry forward existing depths; the DFS below may only improve them.
-            new_depths: dict[AgentId, int] = defaultdict(int, best_ending_at)
-
-            def dfs(current: AgentId, depth: int, edges_used: set, longest: int):
-                new_depths[current] = max(new_depths[current], depth)
-                longest = max(longest, depth)
-                for nxt in adj.get(current, ()):
-                    edge = (current, nxt)
-                    if edge not in edges_used:
-                        edges_used.add(edge)
-                        longest = max(dfs(nxt, depth + 1, edges_used, longest), longest)
-                        edges_used.discard(edge)
-                return longest
-
-            # Start DFS from every vertex that has outgoing edges in this bucket.
-            for start in adj:
-                dfs(start, best_ending_at[start], set(), 0)
-
-            best_ending_at = new_depths
-
-        return longest
-
-    # ------------------------------------------------------------------
-    # Cycles
-    # ------------------------------------------------------------------
-    def max_temporal_cycle_order(self, strict: bool = False):
-        """Size of the largest simple directed cycle in the temporal graph with non-decreasing
-        (or strictly increasing, if `strict=True`) timestamps, or 0 if no cycle exists.
-
-        A temporal cycle of order`k` visits`k` distinct agents and returns to its start,
-        with each edge's timestamp ≥ the previous one (non-strict) or > (strict).
+    def _edge_ids_after(self, helper: AgentId, t: int, *, strict: bool = False):
         """
-        by_helper: dict[AgentId, list[tuple[AgentId, int]]] = defaultdict(list)
-        for e in self._edges:
-            by_helper[e.helper].append((e.beneficiary, e.t))
+        Return outgoing edge ids for `helper` with time `>= t` or `> t`.
 
-        best = 0
+        @ai-generated
+        """
+        edge_ids = self._edge_ids_by_helper.get(helper, ())
+        edge_times = self._edge_times_by_helper.get(helper, ())
+        start = bisect_right(edge_times, t) if strict else bisect_left(edge_times, t)
+        return edge_ids[start:]
 
-        def dfs(start: AgentId, node: AgentId, visited: set[AgentId], last_t: int) -> None:
+    def outgoing_after(self, helper: AgentId, t: int, *, strict: bool = False):
+        """
+        Yield outgoing temporal edges for `helper` in ascending timestamp order.
+
+        With the default `strict=False`, edges at the same timestamp can be
+        chained. With `strict=True`, the next edge must occur later than `t`.
+
+        @ai-generated
+        """
+        for edge_id in self._edge_ids_after(helper, t, strict=strict):
+            yield self._sorted_edges[edge_id]
+
+    def longest_trail(self) -> list[DependencyEdge]:
+        """
+        Return the longest non-decreasing-time trail as a sequence of edges.
+
+        A trail may revisit agents, but each temporal edge triple can appear at
+        most once. The exact search state therefore includes the current agent,
+        the minimum allowed time, and a bit mask of used edges that are still
+        reusable at that time. Caching only by current agent would be unsound:
+        after a same-time cycle, reaching the same agent with different edges
+        already used can leave different suffixes available.
+
+        This is exact, but longest-trail search is exponential in the worst case
+        when same-time cycles are present. The used-edge mask is normalised by
+        timestamp so edges that can no longer be reused do not fragment the
+        memoization cache.
+
+        @ai-generated
+        """
+        if len(self._sorted_edges) == 0:
+            return []
+
+        first_time = self._sorted_edges[0].t
+        edge_ids_by_time: dict[int, list[int]] = {}
+        for edge_id, edge in enumerate(self._sorted_edges):
+            edge_ids_by_time.setdefault(edge.t, []).append(edge_id)
+
+        reusable_mask_by_time: dict[int, int] = {}
+        reusable_mask = 0
+        for t in sorted(edge_ids_by_time, reverse=True):
+            for edge_id in edge_ids_by_time[t]:
+                reusable_mask |= 1 << edge_id
+            reusable_mask_by_time[t] = reusable_mask
+
+        @cache
+        def best_suffix(current: AgentId, min_t: int, used_mask: int):
+            """
+            Return the best edge-id suffix from this exact trail state.
+
+            @ai-generated
+            """
+            best: tuple[int, ...] = ()
+            for edge_id in self._edge_ids_after(current, min_t):
+                edge_bit = 1 << edge_id
+                if used_mask & edge_bit:
+                    continue
+
+                edge = self._sorted_edges[edge_id]
+                next_used_mask = (used_mask | edge_bit) & reusable_mask_by_time[edge.t]
+                suffix = best_suffix(edge.beneficiary, edge.t, next_used_mask)
+                candidate = (edge_id, *suffix)
+                if len(candidate) > len(best):
+                    best = candidate
+            return best
+
+        best_trail_ids: tuple[int, ...] = ()
+        for helper in sorted(self._edge_ids_by_helper):
+            candidate = best_suffix(helper, first_time, 0)
+            if len(candidate) > len(best_trail_ids):
+                best_trail_ids = candidate
+
+        return [self._sorted_edges[edge_id] for edge_id in best_trail_ids]
+
+    def longest_trail_length(self):
+        """
+        Return the number of edges in the longest temporal trail.
+
+        @ai-generated
+        """
+        return len(self.longest_trail())
+
+    def longest_cycle(self, strict: bool = False) -> list[DependencyEdge]:
+        """
+        Return one of the longest simple temporal cycles, or an empty list.
+
+        Cycle edges follow non-decreasing timestamps by default. Set
+        `strict=True` to require strictly increasing timestamps. The returned
+        cycle is represented by its edge sequence; the last edge's beneficiary
+        is the first edge's helper.
+
+        @ai-generated
+        """
+        if len(self._sorted_edges) == 0:
+            return []
+
+        first_time = self._sorted_edges[0].t
+        first_edge_floor = first_time - 1
+        best: list[DependencyEdge] = []
+
+        def dfs(
+            start: AgentId,
+            current: AgentId,
+            min_t: int,
+            visited_agents: set[AgentId],
+            used_edges: set[DependencyEdge],
+            path: list[DependencyEdge],
+        ) -> None:
+            """
+            Explore simple temporal cycles rooted at `start`.
+
+            @ai-generated
+            """
             nonlocal best
-            for nxt, t in by_helper.get(node, []):
-                if strict:
-                    if t <= last_t:
-                        continue
-                else:
-                    if t < last_t:
-                        continue
-                if nxt == start and len(visited) >= 2:
-                    best = max(best, len(visited))
+            for edge in self.outgoing_after(current, min_t, strict=strict):
+                if edge in used_edges:
                     continue
-                if nxt in visited:
+                if edge.beneficiary == start and len(visited_agents) >= 2:
+                    candidate = [*path, edge]
+                    if len(candidate) > len(best):
+                        best = candidate
                     continue
-                visited.add(nxt)
-                dfs(start, nxt, visited, t)
-                visited.remove(nxt)
+                if edge.beneficiary in visited_agents:
+                    continue
 
-        for start in range(self.n_agents):
-            dfs(start, start, {start}, -1)
+                used_edges.add(edge)
+                visited_agents.add(edge.beneficiary)
+                path.append(edge)
+                dfs(start, edge.beneficiary, edge.t, visited_agents, used_edges, path)
+                path.pop()
+                visited_agents.remove(edge.beneficiary)
+                used_edges.remove(edge)
+
+        for start in self.vertices:
+            dfs(start, start, first_edge_floor, {start}, set(), [])
 
         return best
 
-    def has_cycle(self):
-        """Whether a mutual-help cycle exists with strictly increasing time.
-
-         A cycle is detected when there exist two agents`a` and`b` such that
-        `a` helps`b` at time`t1` and`b` helps`a` at time`t2 > t1`.
-         Same-timestep mutual edges (`t1 == t2`) are not counted because the
-         strictly-increasing requirement is not satisfied.
+    def longest_cycle_order(self, strict: bool = False):
         """
-        by_helper: dict[AgentId, set[tuple[AgentId, int]]] = defaultdict(set)
-        for e in self._edges:
-            by_helper[e.helper].add((e.beneficiary, e.t))
+        Return the largest simple temporal cycle order, or `0` if none exists.
 
-        for e in self._edges:
-            for nxt, t_reverse in by_helper.get(e.beneficiary, set()):
-                if nxt == e.helper and t_reverse > e.t:
-                    return True
-        return False
+        @ai-generated
+        """
+        return len(self.longest_cycle(strict=strict))
+
+    def has_cycle(self):
+        """Return whether a strictly increasing temporal help cycle exists."""
+        return self.longest_cycle_order(strict=True) >= 2
 
     def profile(self):
         """Summarise the graph into a `TrajectoryProfile`."""
         from .profile import TrajectoryProfile
 
         return TrajectoryProfile(self)
+
+    @staticmethod
+    def empty():
+        return TDG([])
+
+
+TemporalDependencyGraph = TDG

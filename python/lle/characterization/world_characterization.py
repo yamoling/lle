@@ -34,7 +34,6 @@ class WorldCharacterizer:
         """Number of distinct agent colours that own a laser source."""
         return len({source.agent_id for source in self.world.laser_sources})
 
-    @property
     def is_cooperative(self):
         """
         # Returns
@@ -47,11 +46,9 @@ class WorldCharacterizer:
             raise NotSolvableError("World is not solvable")
         return self.shortest_independent_path is None
 
-    @property
     def is_solvable(self):
         return self.shortest_path is not None
 
-    @property
     def is_independent(self):
         """
         # Raises
@@ -61,7 +58,6 @@ class WorldCharacterizer:
             raise NotSolvableError("World is not solvable.")
         return self.shortest_independent_path is not None
 
-    @property
     def is_asymmetric(self):
         """
         Whether the world requires asymmetric cooperation:
@@ -84,7 +80,6 @@ class WorldCharacterizer:
             return False
         return self.shortest_non_asymmetric_path is None
 
-    @property
     def is_mutual(self):
         """
         - The world is solvable

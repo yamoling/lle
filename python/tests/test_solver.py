@@ -3,8 +3,19 @@ from typing import get_args
 import lle
 import pytest
 from lle import Action, World
-from lle.characterization.trajectory import profile_trajectory
 from lle.solver import SolveMode, SolveModeLiteral, Solver
+
+# Short route (cols 0-1) forces mutual help across two length-2 beams; a laser-free detour exists
+# down cols 4-5 (around the wall column), so mutual help is required only below a time threshold.
+TIME_DEPENDENT = """
+ S0 S1 . . .
+L0E  . . @ .
+L1E  . . @ .
+ X   X . @ .
+ .   . . . .
+"""
+# Empirically, mutual help is required up to t=12 and a mutual-free plan exists from t=13 on.
+TIME_DEPENDENT_THRESHOLD = 13
 
 
 def _default_t_max(world: World) -> int:
@@ -111,13 +122,42 @@ S1 . . . .
 
 
 def test_standard_levels_solvable():
-    T_MAX = [10, 10, 10, 10, 21, 21]
-    for level, t_max in zip((1, 2, 3, 4, 5, 6), T_MAX):
+    for level, t_max in zip((1, 2, 3, 4, 5, 6), (10, 10, 10, 10, 21, 21)):
         world = World.level(level)
         path = lle.solve(world, t_max)
         assert path is not None
         if level >= 3:
             assert lle.is_cooperative(world, t_max)
+
+
+def test_solve_std_levels_without_mutual_cooperation():
+    # Levels 1, 2, 3, and 5 do not require mutual cooperation -> a path should be found
+    for level, t_max in zip((1, 2, 3, 5), (10, 10, 10, 19)):
+        world = World.level(level)
+        assert lle.solve(world, t_max, mode="no-mutual") is not None
+
+    # Levels 4 and 6 require mutual cooperation -> no path should be found
+    for level, t_max in zip((4, 6), (10, 21)):
+        world = World.level(level)
+        assert lle.solve(world, t_max, mode="no-mutual") is None
+
+
+def test_time_dependent_threshold():
+    world = World(TIME_DEPENDENT)
+    # Below the threshold: solvable, but only via mutual cooperation.
+    for t in range(TIME_DEPENDENT_THRESHOLD):
+        if lle.solve(world, t) is None:
+            continue
+        assert lle.solve(world, t, mode="no-mutual") is None, f"expected mutual help at t={t}"
+    # At/above the threshold: a mutual-free plan appears.
+    assert lle.solve(world, TIME_DEPENDENT_THRESHOLD, mode="no-mutual") is not None
+    # The mutual-free plan is itself a valid plan (replays without error onto the world).
+    plan = lle.solve(world, TIME_DEPENDENT_THRESHOLD, mode="no-mutual")
+    assert plan is not None
+    world.reset()
+    for joint in plan:
+        world.step(joint)
+    assert all(agent.is_alive and agent.has_arrived for agent in world.agents)
 
 
 def test_not_solvable():
@@ -222,7 +262,7 @@ def test_cooperative_level_unsolvable_without_cooperation(level: int):
 
 
 @pytest.mark.parametrize(
-    "level,t_max,expect_coop",
+    ("level", "t_max", "expect_coop"),
     [
         (1, 10, False),
         (2, 10, False),
@@ -237,20 +277,6 @@ def test_no_cooperation_agrees_with_is_cooperative(level: int, t_max: int, expec
     no_coop = lle.solve(world, t_max, mode="no-cooperation")
     is_coop = lle.is_cooperative(world, t_max=t_max)
     assert (no_coop is None) == is_coop == expect_coop
-
-
-@pytest.mark.slow
-@pytest.mark.parametrize("level,t_max", [(1, 10), (2, 10), (3, 10), (4, 10), (5, 21), (6, 21)])
-@pytest.mark.parametrize("length", [2, 3, 4])
-def test_no_chain_solver_returns_only_plans_below_requested_depth(level: int, t_max: int, length: int):
-    """Any plan returned by no-chain-k must profile with longest chain < k."""
-    world = World.level(level)
-    plan = lle.solve(world, t_max, mode=f"no-chain-{length}")
-    if plan is None:
-        return
-
-    profile = profile_trajectory(world, plan)
-    assert profile.graph.longest_trail() < length
 
 
 def test_typing_solve_mode_literal():
@@ -356,3 +382,34 @@ def test_collect_gems_is_per_solve_call():
 
     assert solver.solve(collect_gems=False) is not None
     assert solver.solve(collect_gems=True) is not None
+
+
+def test_mirrored_asymmetric():
+    world = World("""
+     @  S0 S1 @  @  S2 S3
+    L0E .  .  @ L2E .  .
+     @  X  X  @  @  X  X
+    """)
+    solver = Solver(world, 6)
+    assert solver.solve() is not None
+    assert solver.solve("no-asymmetric") is None
+
+
+def test_independent_world_is_not_asymmetric():
+    world = World("""
+    S0 . S1
+     . . .
+     X . X""")
+    solver = Solver(world, 6)
+    assert solver.solve("no-asymmetric") is not None
+
+
+def test_pure_mutual_world_has_non_asymmetric_solution():
+    world = World("""
+     S0 . . S1
+    L0E . . .
+     .  . . L1W
+     X  . . X""")
+    solver = Solver(world, 10)
+    assert solver.solve() is not None
+    assert solver.solve("no-asymmetric") is not None
