@@ -19,17 +19,8 @@ class MonotoneCache:
 
     values: dict[int, bool] = field(default_factory=dict)
 
-    def __contains__(self, order: int):
-        return order in self.values
-
-    def __getitem__(self, order: int):
-        return self.values[order]
-
     def __setitem__(self, order: int, value: bool):
         self.values[order] = value
-
-    def setdefault(self, order: int, value: bool):
-        return self.values.setdefault(order, value)
 
     def get(self, order: int):
         """Infer a cached solver result for ``order`` from monotone neighbours."""

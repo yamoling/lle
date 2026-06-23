@@ -1,8 +1,8 @@
 //! Direct tests of the `has_helped_by_time` / mutual-cooperation clause generation.
 //!
 //! These exercise the *structure* of the generated literals and clauses, independently of any
-//! SAT solver (solving is delegated to Python). SAT/UNSAT behaviour is covered by the Python
-//! tests in `python/tests/test_mutual_cooperation.py`.
+//! SAT solver (solving is delegated to Python). SAT/UNSAT behaviour is covered by Python
+//! tests.
 //!
 //! Note: `has_helped_by_time` is now a shared primitive tracked for every laser-owner helper and
 //! non-self beneficiary. Mode-specific forbid logic decides which of those directed pairs matter.

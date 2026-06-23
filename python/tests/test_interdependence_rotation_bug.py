@@ -68,7 +68,7 @@ def test_interdependence_2_detected_in_canonical_rotation():
     assert solver.solve(world, T_MAX, mode="no-interdependence-2") is None
 
     wc = WorldCharacterizer(world, t_max=T_MAX)
-    assert wc.is_mutual
+    assert wc.is_mutual()
     assert wc.is_interdependent(2)
 
 
@@ -79,11 +79,6 @@ def test_interdependence_2_detected_in_reversed_rotation():
     but its only feasible order has agent 1 help agent 0 first. A correct
     ``no-interdependence-2`` must reject it just like the positive case, because a
     two-agent mutual world *is* an order-2 temporal cycle.
-
-    This test asserts the CORRECT behaviour, so it FAILS on the current solver
-    (bug F3): ``enumerate_directed_cycles`` only emits the canonical ``[0, 1, 0]``
-    walk, which cannot represent the ``1 -> 0`` first rotation, so the forbid
-    leaks. It will pass once the solver enumerates all cycle rotations.
     """
     world = World("""
      .  . . S1 S0  .  . . .
@@ -106,6 +101,6 @@ def test_interdependence_2_detected_in_reversed_rotation():
     assert solver.solve(world, T_MAX, mode="no-interdependence-2") is None
 
     wc = WorldCharacterizer(world, t_max=T_MAX)
-    assert wc.is_mutual
+    assert wc.is_mutual()
     # For a two-agent world is_interdependent(2) must equal is_mutual.
     assert wc.is_interdependent(2)
