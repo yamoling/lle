@@ -44,3 +44,11 @@ image = { version = "0.25.5", default-features = false, features = ["png"] }
 
 [features]
 python-bindings = ["dep:numpy", "dep:pyo3", "dep:pyo3-stub-gen"]
+
+[profile.dev]
+opt-level = 0
+debug = true
+
+[profile.test]
+opt-level = 0
+debug = true

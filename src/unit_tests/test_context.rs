@@ -48,6 +48,67 @@ fn test_reachable_positions_grow_with_time() {
     );
 }
 
+/// Agent 1 should only keep positions from which it can still reach its bottom-right exit.
+/// - the only way for agent 1 to go down is via the rightmost column, because the centre
+///   column is the first laser tile of a different colour. As a result, this tile is never
+///   walkable for agent 1.
+/// - since agent 1 must go down the rightmost column, it will reach the bottom right exit,
+///   and will never be able to leave it.
+///
+/// This is why, the only "relevant positions" for agent 1 are:
+///  - the top row `[(0, 0), (0, 1), (0, 2)]`;
+///  - the rightmost tile of the second row `[(1, 2)]`;
+///  - and the bottom right exit tile `[(2, 2)]`.
+#[test]
+fn agent_1_relevant_positions_exclude_blocked_laser_route() {
+    let t_max = 10;
+    let world = World::try_from(
+        " S0 . S1
+         L0E . .
+          X  . X",
+    )
+    .expect("failed to parse world");
+    let mut ctx = ConstraintContext::new(&world, t_max);
+    ctx.update(t_max);
+
+    let expected: HashSet<Position> = [pos(0, 0), pos(0, 1), pos(0, 2), pos(1, 2), pos(2, 2)]
+        .into_iter()
+        .collect();
+    let actual: HashSet<Position> = ctx.relevant_positions_for_agent(1, 5).into_iter().collect();
+    assert_eq!(actual, expected);
+}
+
+/// In this tested world, tile (1, 2) shoud no longer be considered as "relevant"
+/// to agent 1 at time step `t_max-1` because it is impossible for agent 0 to
+/// be blocking the laser at that time step AND to reach the exit.
+#[test]
+fn unblockable_laser_tiles_should_not_be_relevant_to_foreign_colour_agents() {
+    let t_max = 10;
+    let world = World::try_from(
+        " S0 . S1
+         L0E . .
+          X  . X",
+    )
+    .expect("failed to parse world");
+    let mut ctx = ConstraintContext::new(&world, t_max);
+    ctx.update(t_max);
+
+    // It is present at t_max-2
+    assert!(
+        ctx.relevant_positions_for_agent(1, t_max - 2)
+            .contains(&pos(1, 2))
+    );
+    // But not at t_max-1 nor at t_max
+    assert!(
+        !ctx.relevant_positions_for_agent(1, t_max - 1)
+            .contains(&pos(1, 2))
+    );
+    assert!(
+        !ctx.relevant_positions_for_agent(1, t_max)
+            .contains(&pos(1, 2))
+    );
+}
+
 #[test]
 fn test_laser_path_accessibility() {
     let world = World::try_from("S0 L0E X").expect("Failed to parse world");

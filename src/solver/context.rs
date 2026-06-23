@@ -194,9 +194,9 @@ impl ConstraintContext {
                     PositionSet::singleton(height, width, start_pos[agent]);
             }
         }
-        // Seed the `t = 0` laser-path slots from the `t = 0` reachable-positions seed above
-        // (mirroring `update_relevant_laser_paths`); `update` only fills in `t >= 1`, since its
-        // loop range `(updated_until + 1)..=t` is empty for `t = 0`.
+        // Seed the `t = 0` laser-path slots from the `t = 0` reachable-positions seed above;
+        // `update` only fills in `t >= 1`, since its loop range `(updated_until + 1)..=t` is empty
+        // for `t = 0`.
         let mut relevant_laser_paths =
             vec![vec![PositionSet::empty(height, width); t_max + 1]; laser_sources.len()];
         for (laser_idx, source) in laser_sources.iter().enumerate() {
@@ -257,7 +257,7 @@ impl ConstraintContext {
                 }
             }
             result.intersect_with(&self.exit_reachable[t]);
-            // Opt 2: at t=1 no agent can occupy another agent's t=0 start position.
+            // At t=1 no agent can occupy another agent's t=0 start position.
             // The no-following-conflict rule forbids agent A from being at start_B at t=1
             // because B was there at t=0 (implies(-a_cur, -b_prev) ⇒ ¬A here when B was here).
             if t == 1 {
@@ -267,7 +267,7 @@ impl ConstraintContext {
                     }
                 }
             }
-            // Opt 3: non-owner agents can never stand on the first tile of another agent's beam.
+            // Non-owner agents can never stand on the first tile of another agent's beam.
             for &forbidden in &self.forbidden_first_beam_tiles[agent] {
                 result.remove(&forbidden);
             }
@@ -275,8 +275,35 @@ impl ConstraintContext {
         }
     }
 
-    /// See [`ConstraintContext::compute_relevant_laser_path`] for the semantics.
-    fn update_relevant_laser_paths(&mut self, t: usize) {
+    /// Update every laser-derived relevance cache for time `t`.
+    ///
+    /// This first removes foreign-colour agent positions on beam tiles that cannot be made safe by
+    /// an upstream owner block, then computes the relevant laser paths from the pruned position
+    /// sets. Keeping all pruning before all path computation avoids order-dependent results when
+    /// laser paths overlap or cross.
+    fn update_laser_relevance(&mut self, t: usize) {
+        for source in &self.laser_sources {
+            // We use `split_at_mut` to avoid cloning the owner positions while respecting ownership rules.
+            let (before_owner, owner_and_after) =
+                self.relevant_positions.split_at_mut(source.agent_id);
+            let (owner_positions, after_owner) = owner_and_after
+                .split_first_mut()
+                .expect("laser owner index must refer to an existing agent");
+            let owner_reachable = &owner_positions[t];
+
+            let mut blockable_upstream = false;
+            for &pos in &source.path {
+                if !blockable_upstream {
+                    for positions in before_owner.iter_mut().chain(after_owner.iter_mut()) {
+                        positions[t].remove(&pos);
+                    }
+                }
+                if owner_reachable.contains(&pos) {
+                    blockable_upstream = true;
+                }
+            }
+        }
+
         for laser_idx in 0..self.laser_sources.len() {
             self.relevant_laser_paths[laser_idx][t] = compute_relevant_laser_path(
                 &self.laser_sources[laser_idx].path,
@@ -299,9 +326,12 @@ impl ConstraintContext {
         for tt in (self.updated_until + 1)..=t {
             self.update_exit_reachable(tt);
             self.update_relevant_positions(tt);
-            self.update_relevant_laser_paths(tt);
-            self.potential_cooperation
-                .update(tt, &self.relevant_positions)
+            self.update_laser_relevance(tt);
+            self.potential_cooperation.update(
+                tt,
+                &self.relevant_positions,
+                &self.relevant_laser_paths,
+            )
         }
         self.updated_until = t;
     }

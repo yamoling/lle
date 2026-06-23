@@ -1,9 +1,7 @@
 use std::collections::HashSet;
 
 use super::position_set::PositionSet;
-use crate::{AgentId, Position, World};
-use itertools::Itertools;
-use std::iter::zip;
+use crate::{AgentId, World, tiles::LaserId};
 
 /// A potential-help edge at one time step. An `PotentialHelpEdge`
 /// indicates that it is possible for agent `helper` to help agent
@@ -95,29 +93,31 @@ impl AdjacencyMatrix {
 pub struct PotentialCooperationGraph {
     n_agents: usize,
     adjacency_matrices: Vec<AdjacencyMatrix>,
-    laser_colours: Vec<AgentId>,
-    laser_paths: Vec<Vec<Position>>,
+    laser_colours: Vec<(LaserId, AgentId)>,
 }
 
 impl PotentialCooperationGraph {
+    /// Build an empty potential-cooperation graph for a bounded horizon.
+    ///
+    /// Laser ownership is stored by laser id so later updates can align owners with the
+    /// context-computed `relevant_lasers[laser_id]` cache.
     pub fn new(world: &World, t_max: usize) -> Self {
         let n_agents = world.n_agents();
-        let laser_colours = world
+        let mut laser_colours: Vec<(usize, AgentId)> = world
             .sources()
-            .map(|(_, source)| source.agent_id())
-            .unique()
+            .map(|(_, source)| (source.laser_id(), source.agent_id()))
             .collect();
-        let laser_paths = world
-            .sources()
-            .map(|(_, laser)| world.beam(laser.laser_id()).unwrap().collect())
-            .collect();
+        laser_colours.sort_by_key(|(laser_id, _)| *laser_id);
+        // let laser_colours = laser_colours
+        //     .into_iter()
+        //     .map(|(_, agent_id)| agent_id)
+        //     .collect();
         Self {
             n_agents,
             adjacency_matrices: (0..=t_max)
                 .map(|_| AdjacencyMatrix::new(n_agents))
                 .collect(),
             laser_colours,
-            laser_paths,
         }
     }
 
@@ -126,25 +126,32 @@ impl PotentialCooperationGraph {
             n_agents: matrices[0].n_agents,
             adjacency_matrices: matrices,
             laser_colours: Vec::new(),
-            laser_paths: Vec::new(),
         }
     }
 
     /// Compute and store the adjacency matrix for a single time step.
-    pub fn update(&mut self, t: usize, relevant_positions: &[Vec<PositionSet>]) {
+    ///
+    /// Arguments:
+    ///   - `relevant_positions`: `relevant_positions[agent][t]` contains the positions relevant to
+    ///     an agent at `t`.
+    ///   - `relevant_lasers`: `relevant_lasers[laser_id][t]` contains the laser tiles relevant to
+    ///     cooperation at `t`.
+    pub fn update(
+        &mut self,
+        t: usize,
+        relevant_positions: &[Vec<PositionSet>],
+        relevant_lasers: &[Vec<PositionSet>],
+    ) {
         let mut adjacency = AdjacencyMatrix::new(self.n_agents);
-        for (&owner, path) in zip(&self.laser_colours, &self.laser_paths) {
-            let owner_reachable = &relevant_positions[owner][t];
-            let mut blockable_upstream = false;
-            for pos in path {
-                if blockable_upstream {
-                    for (beneficiary, positions) in relevant_positions.iter().enumerate() {
-                        if beneficiary != owner && positions[t].contains(pos) {
-                            adjacency.insert(owner, beneficiary);
-                        }
-                    }
-                } else if owner_reachable.contains(pos) {
-                    blockable_upstream = true;
+        for &(laser_id, helper) in &self.laser_colours {
+            let laser_tiles = &relevant_lasers[laser_id][t];
+            if laser_tiles.is_empty() {
+                continue;
+            }
+            for (beneficiary, positions) in relevant_positions.iter().enumerate() {
+                if beneficiary != helper && laser_tiles.intersection(&positions[t]).next().is_some()
+                {
+                    adjacency.insert(helper, beneficiary);
                 }
             }
         }
