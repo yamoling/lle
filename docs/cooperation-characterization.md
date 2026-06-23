@@ -368,28 +368,3 @@ a -> b, b -> a, c -> a
 ```
 
 The pair `a`/`b` is mutual, while `c -> a` is asymmetric if `c` is never helped.
-
-## Public entry points
-
-The main public functions are available from `lle.characterization` and re-exported at package level:
-
-- `characterize(world, t_max="auto")` returns a lazy `WorldCharacterizer`;
-- `is_cooperative(world, t_max="auto")`;
-- `is_asymmetric(world, t_max="auto")`;
-- `is_mutual(world, t_max="auto")`;
-- `is_chained(world, t_max="auto", length=2)`.
-
-Trajectory-level analysis is available through:
-
-- `profile_trajectory(world, trajectory)`;
-- `TrajectoryProfile`;
-- `TemporalDependencyGraph`.
-
-The low-level SAT solve modes are:
-
-- `"standard"`;
-- `"no-cooperation"`;
-- `"no-asymmetric"`;
-- `"no-mutual"`;
-- `"no-chain"` / `"no-chain-N"`;
-- `"no-interdependence"` / `"no-interdependence-N"`.

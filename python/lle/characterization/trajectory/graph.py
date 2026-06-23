@@ -47,20 +47,16 @@ class AgentVertex:
     layers: tuple[TimeLayer, ...] = ()
 
 
-class TDG:
-    """Temporal Directed Graph over dependency edges."""
+class TemporalDependencyGraph:
+    """
+    A Temporal Dependency Graph represents the help dependencies between agents
+    over time.
+
+    Layers are grouped by helper, then by time, and beneficiaries in each
+    layer are sorted to make trail tie-breaking deterministic.
+    """
 
     def __init__(self, edges: Iterable[DependencyEdge]):
-        """
-        Build deterministic temporal-adjacency indexes from dependency edges.
-
-        Duplicate temporal triples are collapsed. Layers are grouped by helper,
-        then by time, and beneficiaries in each layer are sorted to make trail
-        tie-breaking deterministic.
-
-        @ai-generated
-        """
-        """The number of agents in the world."""
         self._sorted_edges = tuple(sorted(frozenset(edges), key=lambda edge: (edge.t, edge.helper, edge.beneficiary)))
         self._edges = frozenset(self._sorted_edges)
 
@@ -114,7 +110,7 @@ class TDG:
             world.step(joint_action)
             for helper, beneficiary in detect_dependencies(world):
                 edges.append(DependencyEdge(helper, beneficiary, t))
-        return TDG(edges)
+        return TemporalDependencyGraph(edges)
 
     @property
     def edges(self):
@@ -143,8 +139,6 @@ class TDG:
     def flattened_edges(self):
         """
         Return the set of `(helper, beneficiary)` pairs across all time steps.
-
-        @ai-generated
         """
         return {(edge.helper, edge.beneficiary) for edge in self._sorted_edges}
 
@@ -160,9 +154,7 @@ class TDG:
 
     def _edge_ids_after(self, helper: AgentId, t: int, *, strict: bool = False):
         """
-        Return outgoing edge ids for `helper` with time `>= t` or `> t`.
-
-        @ai-generated
+        Return outgoing edge ids for `helper` with time `>= t` (or `> t` if `strict`).
         """
         edge_ids = self._edge_ids_by_helper.get(helper, ())
         edge_times = self._edge_times_by_helper.get(helper, ())
@@ -173,10 +165,8 @@ class TDG:
         """
         Yield outgoing temporal edges for `helper` in ascending timestamp order.
 
-        With the default `strict=False`, edges at the same timestamp can be
-        chained. With `strict=True`, the next edge must occur later than `t`.
-
-        @ai-generated
+        With the default `strict=False`, edges at the same timestamp are yielded.
+        With `strict=True`, the next edge must occur later than `t`.
         """
         for edge_id in self._edge_ids_after(helper, t, strict=strict):
             yield self._sorted_edges[edge_id]
@@ -244,19 +234,14 @@ class TDG:
         return [self._sorted_edges[edge_id] for edge_id in best_trail_ids]
 
     def longest_trail_length(self):
-        """
-        Return the number of edges in the longest temporal trail.
-
-        @ai-generated
-        """
+        """Return the number of edges in the longest temporal trail."""
         return len(self.longest_trail())
 
-    def longest_cycle(self, strict: bool = False) -> list[DependencyEdge]:
+    def longest_cycle(self) -> list[DependencyEdge]:
         """
         Return one of the longest simple temporal cycles, or an empty list.
 
-        Cycle edges follow non-decreasing timestamps by default. Set
-        `strict=True` to require strictly increasing timestamps. The returned
+        Cycle edges follow non-decreasing timestamps. The returned
         cycle is represented by its edge sequence; the last edge's beneficiary
         is the first edge's helper.
 
@@ -283,7 +268,7 @@ class TDG:
             @ai-generated
             """
             nonlocal best
-            for edge in self.outgoing_after(current, min_t, strict=strict):
+            for edge in self.outgoing_after(current, min_t, strict=False):
                 if edge in used_edges:
                     continue
                 if edge.beneficiary == start and len(visited_agents) >= 2:
@@ -307,17 +292,13 @@ class TDG:
 
         return best
 
-    def longest_cycle_order(self, strict: bool = False):
-        """
-        Return the largest simple temporal cycle order, or `0` if none exists.
-
-        @ai-generated
-        """
-        return len(self.longest_cycle(strict=strict))
+    def longest_cycle_order(self):
+        """Return the largest simple temporal cycle order, or `0` if none exists."""
+        return len(self.longest_cycle())
 
     def has_cycle(self):
-        """Return whether a strictly increasing temporal help cycle exists."""
-        return self.longest_cycle_order(strict=True) >= 2
+        """Return whether a help cycle exists."""
+        return self.longest_cycle_order() >= 2
 
     def profile(self):
         """Summarise the graph into a `TrajectoryProfile`."""
@@ -327,7 +308,4 @@ class TDG:
 
     @staticmethod
     def empty():
-        return TDG([])
-
-
-TemporalDependencyGraph = TDG
+        return TemporalDependencyGraph([])

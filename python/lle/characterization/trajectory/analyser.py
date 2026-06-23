@@ -24,7 +24,7 @@ from collections import defaultdict
 from lle.types import AgentId, LaserId
 from lle.world import World
 
-from .graph import TDG as TemporalDependencyGraph
+from .graph import TemporalDependencyGraph
 from .types import Plan
 
 

@@ -9,8 +9,7 @@ for the graph queries, and `CooperationProfile` for the summary of properties.
 """
 
 from .analyser import detect_dependencies, profile_trajectory
-from .graph import TDG as TemporalDependencyGraph
-from .graph import DependencyEdge
+from .graph import DependencyEdge, TemporalDependencyGraph
 from .profile import TrajectoryProfile
 
 __all__ = [

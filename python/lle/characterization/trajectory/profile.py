@@ -1,4 +1,4 @@
-from .graph import TDG as TemporalDependencyGraph
+from .graph import TemporalDependencyGraph
 
 
 class TrajectoryProfile:
