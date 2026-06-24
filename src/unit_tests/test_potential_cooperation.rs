@@ -164,6 +164,85 @@ fn update_records_one_way_help_edge() {
     assert!(!graph.has_edge(0, 1, t_max));
 }
 
+/// In this test, we enumerate all the possible help events that can occur within [0, t_max].
+/// This test assumes some optimizations related to the accessibility of some tiles:
+///     - the bottom left exit should only be accessible by agent 2 because its neighbouring tiles
+///       are either only accessible to agent 2 (first laser beam) or an exit.
+///     - time-wise reachability (from the start and to the exits)
+#[test]
+fn potential_graph_3agents() {
+    let world = World::try_from(
+        "
+ @  S0  S1  S2
+L0E  .   .  .
+L1E  .   .  .
+L2E  .   .  .
+ @   X   X  X
+",
+    )
+    .unwrap();
+
+    fn verify_edges(t: usize, ctx: &mut ConstraintContext, edges: &Vec<(usize, usize)>) {
+        eprintln!("\nt={t}");
+        ctx.update(t);
+        for agent in 0..ctx.n_agents {
+            let positions = ctx.relevant_positions_for_agent(agent, t);
+            eprintln!("\tAgent {agent} ({} positions)", positions.size());
+            for pos in positions {
+                eprintln!("\t\t- {pos:?}");
+            }
+        }
+        let adj = ctx.potential_cooperation.at(t);
+        eprintln!("\tEdges:");
+        for e in adj.edges() {
+            eprintln!("\t\t- {e:?}");
+        }
+        for &(helper, beneficiary) in edges {
+            assert!(
+                adj.contains(helper, beneficiary),
+                "({helper}, {beneficiary}) should be present at t={t}"
+            );
+        }
+        assert_eq!(edges.len(), adj.n_edges());
+    }
+    let t_max = 9;
+    let mut ctx = ConstraintContext::new(&world, t_max);
+    let mut edges = vec![];
+    // t=0 -> nothing
+    assert!(ctx.potential_cooperation.at(0).is_empty());
+    // t=1 -> agent 0 can help 1 and 2
+    edges.extend([(0, 1), (0, 2)]);
+    verify_edges(1, &mut ctx, &edges);
+
+    // At t=2, 1 can help 2
+    // Importantly, agent 1 can **NOT** help agent 0 because agent 0 cannot reach any laser tile of
+    // colour 1 at t=2 (tile 0 of a beam is forbidden for foreign coloured agents, and foreign start
+    //  tiles are forbidden at t=1).
+    edges.push((1, 2));
+    verify_edges(2, &mut ctx, &edges);
+
+    // At t=3, 1 can also help 0
+    edges.push((1, 0));
+    verify_edges(3, &mut ctx, &edges);
+    // At t=4, 2 can help 1
+    edges.push((2, 1));
+    verify_edges(4, &mut ctx, &edges);
+    // At t=5, 2 can help 0
+    edges.push((2, 0));
+    verify_edges(5, &mut ctx, &edges);
+    // At t=6, remains identical
+    verify_edges(6, &mut ctx, &edges);
+    // At t=7, Agent 0 can no longer block its laser, or it will be late to the exit
+    edges.retain(|&(h, _)| h != 0); // Only retain edges where the helper is not 0
+    verify_edges(7, &mut ctx, &edges);
+    // At t=8, Agent 1 can no longer block its laser, or it will be late to the exit
+    edges.retain(|&(h, _)| h != 1); // Only retain edges where the helper is not 1
+    verify_edges(8, &mut ctx, &edges);
+    // At t=t_max, all agents must be on their respective exits
+    edges.clear();
+    assert!(ctx.potential_cooperation.at(t_max).is_empty());
+}
+
 /// `horizon` is one less than the number of stored matrices, and `at`/`has_edge` agree with the
 /// matrices the graph was built from.
 #[test]

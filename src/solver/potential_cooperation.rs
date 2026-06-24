@@ -69,6 +69,10 @@ impl AdjacencyMatrix {
             .collect()
     }
 
+    pub fn n_edges(&self) -> usize {
+        self.edges.iter().filter(|&edge| *edge).count()
+    }
+
     pub fn edges(&self) -> Vec<(AgentId, AgentId)> {
         let mut edges = Vec::new();
         for helper in 0..self.n_agents {
