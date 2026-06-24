@@ -271,22 +271,14 @@ impl VarPool {
                 let (prev, current) = (positions[&agent][&t], positions[&agent][&(t + 1)]);
                 let Position { i: y1, j: x1 } = prev;
                 let Position { i: y2, j: x2 } = current;
-                let (dx, dy) = (x2 as i64 - x1 as i64, y2 as i64 - y1 as i64);
-                let action = match (dx, dy) {
-                    (0, 0) => Action::Stay,
-                    (0, -1) => Action::North,
-                    (0, 1) => Action::South,
-                    (1, 0) => Action::East,
-                    (-1, 0) => Action::West,
-                    _ => {
-                        return Err(SolverError::InvalidTrajectory {
-                            prev_pos: prev,
-                            current_pos: current,
-                            agent,
-                            index: t + 1,
-                        });
-                    }
-                };
+                let (dx, dy) = (x2 as i32 - x1 as i32, y2 as i32 - y1 as i32);
+                let action =
+                    Action::try_from((dx, dy)).map_err(|_| SolverError::InvalidTrajectory {
+                        prev_pos: prev,
+                        current_pos: current,
+                        agent,
+                        index: t + 1,
+                    })?;
                 row.push(action);
             }
             plan.push(row);
