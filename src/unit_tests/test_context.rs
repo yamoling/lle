@@ -109,6 +109,53 @@ fn unblockable_laser_tiles_should_not_be_relevant_to_foreign_colour_agents() {
     );
 }
 
+/// Checks that adjacent exits do not let agents bypass a forbidden first beam tile.
+#[test]
+fn only_owner_can_reach_exit_behind_first_beam_tile() {
+    let t_max = 10;
+    let world = World::try_from(
+        " @  S0 S1 S2
+         L0E .  .  .
+         L1E .  .  .
+         L2E .  .  .
+          @  X  X  X",
+    )
+    .expect("failed to parse world");
+    let mut ctx = ConstraintContext::new(&world, t_max);
+    ctx.update(t_max);
+
+    let blocked_exit = pos(4, 1);
+    let agents_that_can_reach_blocked_exit: Vec<usize> = (0..world.n_agents())
+        .filter(|&agent| {
+            ctx.relevant_positions_for_agent(agent, t_max)
+                .contains(&blocked_exit)
+        })
+        .collect();
+
+    assert_eq!(agents_that_can_reach_blocked_exit, vec![2]);
+}
+
+/// Checks that an agent forced onto a unique exit does not keep variables for other exits.
+#[test]
+fn agent_with_unique_exit_cannot_reach_other_exits() {
+    let t_max = 10;
+    let world = World::try_from(
+        " @  S0 S1 S2
+         L0E .  .  .
+         L1E .  .  .
+         L2E .  .  .
+          @  X  X  X",
+    )
+    .expect("failed to parse world");
+    let mut ctx = ConstraintContext::new(&world, t_max);
+    ctx.update(t_max);
+
+    let agent_2_reachable = ctx.relevant_positions_for_agent(2, t_max);
+    assert!(agent_2_reachable.contains(&pos(4, 1)));
+    assert!(!agent_2_reachable.contains(&pos(4, 2)));
+    assert!(!agent_2_reachable.contains(&pos(4, 3)));
+}
+
 #[test]
 fn test_laser_path_accessibility() {
     let world = World::try_from("S0 L0E X").expect("Failed to parse world");

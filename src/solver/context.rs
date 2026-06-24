@@ -50,6 +50,7 @@ pub struct ConstraintContext {
     pub solution_lower_bound: usize,
     pub laser_sources: Vec<LaserSourceInfo>,
     pub potential_cooperation: PotentialCooperationGraph,
+    exits: Vec<Position>,
     height: usize,
     width: usize,
     updated_until: usize,
@@ -90,7 +91,8 @@ impl ConstraintContext {
         let n_agents = world.n_agents();
         let walls: HashSet<Position> = world.walls().into_iter().collect();
         let voids: HashSet<Position> = world.void_positions().into_iter().collect();
-        let exits: HashSet<Position> = world.exits_positions().into_iter().collect();
+        let exit_positions = world.exits_positions();
+        let exits: HashSet<Position> = exit_positions.iter().copied().collect();
         let start_pos: Vec<Position> = world.starts().into_iter().collect();
 
         let mut valid_positions = HashSet::new();
@@ -218,6 +220,7 @@ impl ConstraintContext {
             solution_lower_bound,
             laser_sources,
             potential_cooperation: PotentialCooperationGraph::new(world, t_max),
+            exits: exit_positions,
             height,
             width,
             neighbours,
@@ -316,6 +319,53 @@ impl ConstraintContext {
         }
     }
 
+    /// Remove exit positions that are incompatible with uniquely forced exit assignments.
+    ///
+    /// When there are exactly as many exits as agents, every exit tile must be occupied in any
+    /// satisfying objective state because all agents must end on distinct exits. If an exit is
+    /// reachable by exactly one agent at a timestep, and that agent is not the sole candidate for
+    /// any other exit, then the agent is forced to use that exit and cannot have previously stopped
+    /// on another exit.
+    ///
+    /// @ai-generated
+    fn update_forced_exit_relevance(&mut self, t: usize) {
+        if self.exits.len() != self.n_agents {
+            return;
+        }
+
+        let mut forced_exit_by_agent = vec![None; self.n_agents];
+        let mut unique_exit_count_by_agent = vec![0; self.n_agents];
+
+        for &exit in &self.exits {
+            let mut unique_agent = None;
+            let mut n_reachable_agents = 0;
+            for agent in 0..self.n_agents {
+                if self.relevant_positions[agent][t].contains(&exit) {
+                    unique_agent = Some(agent);
+                    n_reachable_agents += 1;
+                }
+            }
+            if n_reachable_agents == 1 {
+                let agent = unique_agent.expect("unique reachable exit must have an agent");
+                forced_exit_by_agent[agent] = Some(exit);
+                unique_exit_count_by_agent[agent] += 1;
+            }
+        }
+
+        for agent in 0..self.n_agents {
+            if unique_exit_count_by_agent[agent] != 1 {
+                continue;
+            }
+            let forced_exit = forced_exit_by_agent[agent]
+                .expect("agent with one uniquely reachable exit must have a forced exit");
+            for &exit in &self.exits {
+                if exit != forced_exit {
+                    self.relevant_positions[agent][t].remove(&exit);
+                }
+            }
+        }
+    }
+
     /// Pre-compute (and cache) every piece of on-demand data needed to generate constraints
     /// for time step `t`: reachable positions for each agent, reachable laser paths for each source,
     /// and the potential cooperation graph adjacency matrix at that time step.
@@ -327,6 +377,7 @@ impl ConstraintContext {
             self.update_exit_reachable(tt);
             self.update_relevant_positions(tt);
             self.update_laser_relevance(tt);
+            self.update_forced_exit_relevance(tt);
             self.potential_cooperation.update(
                 tt,
                 &self.relevant_positions,
