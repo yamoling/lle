@@ -11,10 +11,6 @@ pub struct Position {
 }
 
 impl Position {
-    pub fn as_xy(&self) -> (usize, usize) {
-        (self.j, self.i)
-    }
-
     pub fn as_ij(&self) -> (usize, usize) {
         (self.i, self.j)
     }

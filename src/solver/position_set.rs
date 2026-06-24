@@ -114,21 +114,6 @@ impl PositionSet {
         }
     }
 
-    /// Drop every position for which `f` returns `false`.
-    pub fn retain(&mut self, mut f: impl FnMut(&Position) -> bool) {
-        for (word_idx, word) in self.words.iter_mut().enumerate() {
-            let mut remaining = *word;
-            while remaining != 0 {
-                let bit = remaining.trailing_zeros();
-                remaining &= remaining - 1;
-                let pos = position_of(self.width, word_idx, bit);
-                if !f(&pos) {
-                    *word &= !(1u64 << bit);
-                }
-            }
-        }
-    }
-
     pub fn iter(&self) -> Iter<'_> {
         Iter {
             width: self.width,

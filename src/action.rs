@@ -1,7 +1,6 @@
 use std::{
     fmt::{Display, Formatter},
     ops::Add,
-    slice::Iter,
 };
 
 use crate::{Position, RuntimeWorldError};
@@ -37,19 +36,6 @@ impl Action {
     }
 }
 
-impl Action {
-    pub fn iter() -> Iter<'static, Action> {
-        [
-            Action::North,
-            Action::South,
-            Action::East,
-            Action::West,
-            Action::Stay,
-        ]
-        .iter()
-    }
-}
-
 impl From<u32> for Action {
     fn from(value: u32) -> Self {
         match value {
@@ -74,19 +60,6 @@ impl TryFrom<(i32, i32)> for Action {
             (0, -1) => Ok(Action::West),
             (0, 0) => Ok(Action::Stay),
             (di, dj) => Err(RuntimeWorldError::InvalidActionDelta { di, dj }),
-        }
-    }
-}
-
-impl From<&str> for Action {
-    fn from(value: &str) -> Self {
-        match value {
-            "North" | "N" => Action::North,
-            "South" | "S" => Action::South,
-            "East" | "E" => Action::East,
-            "West" | "W" => Action::West,
-            "Stay" => Action::Stay,
-            _ => panic!("Invalid value for action: {}", value),
         }
     }
 }

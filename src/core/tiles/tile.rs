@@ -1,7 +1,6 @@
 use crate::{
     RuntimeWorldError, WorldEvent,
     agent::{Agent, AgentId},
-    rendering::{TileVisitor, VisitorData},
 };
 use core::panic;
 
@@ -122,14 +121,5 @@ impl Tile {
             }
         }
         .to_string()
-    }
-
-    pub fn accept(&self, visitor: &dyn TileVisitor, data: &mut VisitorData) {
-        match self {
-            Self::Gem(gem) => visitor.visit_gem(gem, data),
-            Self::Laser(laser) => visitor.visit_laser(laser, data),
-            Self::LaserSource(source) => visitor.visit_laser_source(source, data),
-            _ => {} // Nothing to do
-        };
     }
 }

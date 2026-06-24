@@ -1,10 +1,10 @@
 use image::{GenericImage, Rgb, RgbImage, RgbaImage};
 use itertools::izip;
 
-use super::{BLACK, GRID_GREY, TileVisitor, sprites};
+use super::{BLACK, GRID_GREY, sprites};
 use crate::{
     core::World,
-    tiles::{Direction, Gem, Laser, LaserSource},
+    tiles::{Direction, Gem, Laser, LaserSource, Tile},
 };
 
 use super::{BACKGROUND_GREY, TILE_SIZE};
@@ -72,7 +72,7 @@ impl Renderer {
                 y: pos.y() as u32 * TILE_SIZE,
                 frame: &mut frame,
             };
-            self.visit_laser(laser, &mut data);
+            self.draw_laser(laser, &mut data);
         }
         for (pos, gem) in izip!(world.gems_positions(), world.gems()) {
             let mut data = VisitorData {
@@ -80,7 +80,7 @@ impl Renderer {
                 y: pos.y() as u32 * TILE_SIZE,
                 frame: &mut frame,
             };
-            self.visit_gem(gem, &mut data);
+            self.draw_gem(gem, &mut data);
         }
         for (id, pos) in world.agents_positions().iter().enumerate() {
             let x = pos.x() as u32 * TILE_SIZE;
@@ -93,7 +93,7 @@ impl Renderer {
                 y: pos.y() as u32 * TILE_SIZE,
                 frame: &mut frame,
             };
-            self.visit_laser_source(source, &mut data);
+            self.draw_laser_source(source, &mut data);
         }
         draw_grid(&mut frame);
         frame
@@ -159,14 +159,26 @@ fn draw_rectangle(
         .unwrap();
 }
 
-impl TileVisitor for Renderer {
-    fn visit_gem(&self, gem: &Gem, data: &mut VisitorData) {
+impl Renderer {
+    /// Draw whichever tile sits at this cell, dispatching on its variant.
+    ///
+    /// @ai-generated
+    fn draw_tile(&self, tile: &Tile, data: &mut VisitorData) {
+        match tile {
+            Tile::Gem(gem) => self.draw_gem(gem, data),
+            Tile::Laser(laser) => self.draw_laser(laser, data),
+            Tile::LaserSource(source) => self.draw_laser_source(source, data),
+            _ => {} // Nothing to draw.
+        }
+    }
+
+    fn draw_gem(&self, gem: &Gem, data: &mut VisitorData) {
         if !gem.is_collected() {
             add_transparent_image(data.frame, &sprites::GEM, data.x, data.y);
         }
     }
 
-    fn visit_laser(&self, laser: &Laser, data: &mut VisitorData) {
+    fn draw_laser(&self, laser: &Laser, data: &mut VisitorData) {
         if laser.is_on() {
             let agent_id = laser.agent_id();
             let laser_sprite = match laser.direction() {
@@ -176,10 +188,10 @@ impl TileVisitor for Renderer {
             add_transparent_image(data.frame, laser_sprite, data.x, data.y);
         }
         // Draw the tile below the laser
-        laser.wrapped().accept(self, data);
+        self.draw_tile(laser.wrapped(), data);
     }
 
-    fn visit_laser_source(&self, source: &LaserSource, data: &mut VisitorData) {
+    fn draw_laser_source(&self, source: &LaserSource, data: &mut VisitorData) {
         let agent_id = source.agent_id();
         let source_sprite = match source.direction() {
             Direction::North => sprites::laser_source_north(agent_id),

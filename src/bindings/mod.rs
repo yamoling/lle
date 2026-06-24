@@ -67,12 +67,10 @@ mod lle {
 
     #[pymodule_init]
     fn init(m: &Bound<'_, PyModule>) -> PyResult<()> {
-        use super::utils::RegisterSubmodules;
-
         let py = m.py();
         // Workaround for to be able to write `from lle.tiles import X`.
         // See https://github.com/PyO3/pyo3/issues/759
-        m.register_submodules("lle")?;
+        super::utils::register_submodules(m, "lle")?;
         m.add("__version__", crate::VERSION)?;
 
         // `lle.solver` is a regular Python package (`python/lle/solver/__init__.py`), so unlike

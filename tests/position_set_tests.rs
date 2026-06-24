@@ -141,33 +141,6 @@ fn test_subtract() {
 }
 
 #[test]
-fn test_retain() {
-    let mut set = PositionSet::empty(4, 4);
-    set.insert(pos(0, 0));
-    set.insert(pos(1, 1));
-    set.insert(pos(2, 2));
-    set.insert(pos(3, 3));
-
-    // Keep only positions on rows >= 2.
-    set.retain(|p| p.i >= 2);
-
-    assert!(!set.contains(&pos(0, 0)));
-    assert!(!set.contains(&pos(1, 1)));
-    assert!(set.contains(&pos(2, 2)));
-    assert!(set.contains(&pos(3, 3)));
-}
-
-#[test]
-fn test_retain_all_false_yields_empty() {
-    let mut set = PositionSet::empty(3, 3);
-    set.insert(pos(0, 0));
-    set.insert(pos(1, 1));
-
-    set.retain(|_| false);
-    assert!(set.is_empty());
-}
-
-#[test]
 fn test_lazy_intersection() {
     let mut a = PositionSet::empty(4, 4);
     let mut b = PositionSet::empty(4, 4);
