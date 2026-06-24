@@ -121,6 +121,14 @@ impl ClauseGenerator {
     }
 
     /// If an agent was on an exit at `t - 1`, it must remain on an exit at `t`.
+    ///
+    /// The clause is only emitted for exits that remain in the agent's relevant set at `t`.
+    /// An exit may be pruned from the relevant set at `t` (e.g. by forced-exit or laser
+    /// relevance) while still being reachable at `t - 1`; referencing it here would create a
+    /// `agent(pos, t)` variable outside `exactly_one_position`, i.e. a phantom the SAT solver
+    /// could freely set true, corrupting the decoded trajectory. Soundness is preserved because
+    /// an exit tile's only successor is itself: `time_wise_adjacency` already forbids an agent
+    /// from leaving an exit, so the pruned exit cannot be occupied at `t - 1` either.
     pub(super) fn stays_on_exit(&mut self, t: usize) -> Vec<Clause> {
         if t == 0 {
             return Vec::new();
@@ -132,12 +140,15 @@ impl ClauseGenerator {
                 .exits
                 .iter()
                 .copied()
-                .filter(|p| reachable.contains(p))
+                .filter(|p| {
+                    reachable.contains(p)
+                        && self.ctx.relevant_positions_for_agent(agent, t).contains(p)
+                })
                 .collect();
             for pos in exit_positions {
                 let prev = self.pool.agent(agent, pos, t - 1);
                 let cur = self.pool.agent(agent, pos, t);
-                clauses.push(vec![-prev, cur]);
+                clauses.push(implies(prev, cur));
             }
         }
         clauses

@@ -761,3 +761,46 @@ fn test_crossing_lasers_keep_independent_variables() {
         }
     }
 }
+
+/// Every agent position variable that exists at time `t` must be governed by
+/// `exactly_one_position`, i.e. its position must belong to the agent's relevant set at `t`.
+///
+/// A variable created outside the relevant set is a "phantom": it is constrained neither by
+/// `exactly_one_position` nor by `time_wise_adjacency`, so the SAT solver may freely set it
+/// true. The decoder then sees the agent at two positions at the same step and may pick the
+/// phantom, yielding an impossible (e.g. diagonal) move in the returned plan.
+///
+/// @ai-generated
+#[test]
+fn test_no_phantom_agent_variables() {
+    // Two exits, two agents and two length-1 beams: forced-exit and laser relevance pruning both
+    // shrink agents' relevant sets as `t` grows, which previously left phantom exit variables.
+    let map = "
+S0 S1 . . .
+L0E . . @ .
+L1E . . @ .
+X X . @ .
+. . . . .";
+    let t_max = 13;
+    let mut cg = build(map, t_max);
+    // Drive the incremental solve exactly like the Python solver: generate at every horizon.
+    for t in cg.solution_lower_bound()..=t_max {
+        cg.generate(t, SolveMode::Standard, false);
+    }
+    for agent in 0..2 {
+        for t in 0..=t_max {
+            for i in 0..5 {
+                for j in 0..5 {
+                    let p = pos(i, j);
+                    if cg.exists(&VarKey::agent(agent, p, t)) {
+                        assert!(
+                            cg.ctx.relevant_positions_for_agent(agent, t).contains(&p),
+                            "phantom agent variable: agent={agent} pos={p:?} t={t} exists but is \
+                             not in the agent's relevant set, so it escapes exactly_one_position"
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
