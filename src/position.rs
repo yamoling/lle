@@ -1,4 +1,4 @@
-use std::ops::Add;
+use std::ops::{Add, Sub};
 
 use serde::{Deserialize, Serialize};
 
@@ -70,6 +70,16 @@ impl Add<&Action> for &Position {
             j: j as usize,
             i: i as usize,
         })
+    }
+}
+
+impl Sub<Position> for Position {
+    type Output = Result<Action, RuntimeWorldError>;
+
+    fn sub(self, rhs: Position) -> Self::Output {
+        let di = self.i as i32 - rhs.i as i32;
+        let dj = self.j as i32 - rhs.j as i32;
+        Action::try_from((di, dj))
     }
 }
 

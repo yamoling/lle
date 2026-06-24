@@ -43,3 +43,7 @@ impl ClauseGenerator {
             .collect()
     }
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/test_assumptions.rs"]
+mod tests;

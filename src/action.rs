@@ -64,7 +64,7 @@ impl From<u32> for Action {
 }
 
 impl TryFrom<(i32, i32)> for Action {
-    type Error = String;
+    type Error = RuntimeWorldError;
 
     fn try_from(value: (i32, i32)) -> Result<Self, Self::Error> {
         match value {
@@ -73,7 +73,7 @@ impl TryFrom<(i32, i32)> for Action {
             (0, 1) => Ok(Action::East),
             (0, -1) => Ok(Action::West),
             (0, 0) => Ok(Action::Stay),
-            _ => Err("Invalid delta for action".to_string()),
+            (di, dj) => Err(RuntimeWorldError::InvalidActionDelta { di, dj }),
         }
     }
 }

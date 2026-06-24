@@ -46,9 +46,6 @@ module-name = "lle"
 python-source = "python"
 
 [tool.pytest.ini_options]
-markers = [
-  "slow: marks tests that invoke the SAT solver or full generation loops",
-]
 testpaths = ["python/tests"]
 
 [tool.ruff]

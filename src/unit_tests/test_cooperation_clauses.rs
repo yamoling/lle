@@ -286,3 +286,70 @@ fn level_6_dependency_is_bidirectional() {
         "level 6 must have at least one bidirectional dependency pair"
     );
 }
+
+/// `NoInterdependence(2)` on the MUTUAL world must enumerate the two cycle rotations of the only
+/// order-2 cycle, allocate a `CycleRealized` variable for each, and forbid them with negative
+/// assumptions.
+///
+/// @ai-generated
+#[test]
+fn no_interdependence_enumerates_and_forbids_cycle_rotations() {
+    let cg = build(MUTUAL, 10, SolveMode::NoInterdependence(2));
+
+    let support = cg
+        .interdependence_support
+        .get(&2)
+        .expect("interdependence support for order 2 must exist after generate()");
+    assert_eq!(
+        support.possible_cycles.len(),
+        2,
+        "the single order-2 cycle of a 2-owner world expands to 2 rotations"
+    );
+
+    assert!(
+        cg.exists(&VarKey::CycleRealized {
+            order: 2,
+            cycle_id: 0
+        }) && cg.exists(&VarKey::CycleRealized {
+            order: 2,
+            cycle_id: 1
+        }),
+        "both cycle-rotation realized variables must be allocated"
+    );
+
+    let (clauses, assumptions) = cg.forbid_cycle_rotations(2);
+    assert!(clauses.is_empty(), "forbid_cycle_rotations adds no clauses");
+    assert!(
+        !assumptions.is_empty(),
+        "a realizable order-2 cycle must be forbidden by assumption"
+    );
+    for lit in assumptions {
+        assert!(lit < 0, "cycle-forbid assumptions must be negative");
+        assert!(
+            matches!(cg.pool.key(-lit), Some(VarKey::CycleRealized { .. })),
+            "cycle-forbid assumption must negate a CycleRealized variable"
+        );
+    }
+}
+
+/// The cycle-support clauses must actually constrain the `CycleRealized` variable: at least one
+/// generated clause must contain it as a positive literal (the closing edge implication
+/// `[-last_prog, -agent, realized]`).
+///
+/// @ai-generated
+#[test]
+fn no_interdependence_support_clauses_define_realized() {
+    let world = World::try_from(MUTUAL).expect("failed to parse world");
+    let mut cg = ClauseGenerator::new(&world, 10);
+    let (clauses, _assumptions) = cg.generate(10, SolveMode::NoInterdependence(2), false);
+
+    let defines_realized = clauses.iter().any(|clause| {
+        clause
+            .iter()
+            .any(|&lit| lit > 0 && matches!(cg.pool.key(lit), Some(VarKey::CycleRealized { .. })))
+    });
+    assert!(
+        defines_realized,
+        "the support clauses must define each CycleRealized variable via its closing edge"
+    );
+}

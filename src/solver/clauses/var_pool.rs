@@ -247,6 +247,10 @@ impl VarPool {
     }
 
     /// Decode a SAT model (list of signed literals) into a joint action plan of length `t_end`.
+    ///
+    /// Returns [`SolverError::MissingPosition`] if the model does not pin down every agent's
+    /// position at each step `0..=t_end`, and [`SolverError::InvalidTrajectory`] if two
+    /// consecutive positions are not connected by a single action.
     pub fn decode_plan(
         &self,
         literals: &[i32],
@@ -264,21 +268,24 @@ impl VarPool {
         let mut agent_ids: Vec<usize> = positions.keys().copied().collect();
         agent_ids.sort_unstable();
 
+        let position_at = |agent: usize, t: usize| -> Result<Position, SolverError> {
+            positions[&agent]
+                .get(&t)
+                .copied()
+                .ok_or(SolverError::MissingPosition { agent, t })
+        };
+
         let mut plan = Vec::with_capacity(t_end);
         for t in 0..t_end {
             let mut row = Vec::with_capacity(agent_ids.len());
             for &agent in &agent_ids {
-                let (prev, current) = (positions[&agent][&t], positions[&agent][&(t + 1)]);
-                let Position { i: y1, j: x1 } = prev;
-                let Position { i: y2, j: x2 } = current;
-                let (dx, dy) = (x2 as i32 - x1 as i32, y2 as i32 - y1 as i32);
-                let action =
-                    Action::try_from((dx, dy)).map_err(|_| SolverError::InvalidTrajectory {
-                        prev_pos: prev,
-                        current_pos: current,
-                        agent,
-                        index: t + 1,
-                    })?;
+                let (prev, current) = (position_at(agent, t)?, position_at(agent, t + 1)?);
+                let action = (current - prev).map_err(|_| SolverError::InvalidTrajectory {
+                    prev_pos: prev,
+                    current_pos: current,
+                    agent,
+                    index: t + 1,
+                })?;
                 row.push(action);
             }
             plan.push(row);
@@ -286,3 +293,7 @@ impl VarPool {
         Ok(plan)
     }
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/test_var_pool.rs"]
+mod tests;

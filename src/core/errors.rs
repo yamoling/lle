@@ -33,6 +33,14 @@ pub enum RuntimeWorldError {
         state: WorldState,
     },
     TileNotWalkable,
+    PositionsNotAdjacent {
+        pos_0: Position,
+        pos1: Position,
+    },
+    InvalidActionDelta {
+        di: i32,
+        dj: i32,
+    },
     MutexPoisoned,
 }
 
