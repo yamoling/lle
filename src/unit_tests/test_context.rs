@@ -1,7 +1,8 @@
-use crate::{Position, Tile, World, solver::context::ConstraintContext};
+use crate::{Position, Tile, World, solver::context::ConstraintContext, tiles::Direction};
 use rstest::rstest;
 use rstest_reuse::{self, apply, template};
 use std::collections::HashSet;
+use strum::IntoEnumIterator;
 
 fn pos(i: usize, j: usize) -> Position {
     Position { i, j }
@@ -311,16 +312,17 @@ fn exit_reachable_basic(#[case] map_str: &str, #[case] distance: usize) {
 }
 
 #[apply(standard_levels)]
-fn valid_positions_exclude_walls_and_void_in_std_levels(level: usize) {
+fn valid_positions_exclude_walls_voids_and_laser_sources_in_std_levels(level: usize) {
     let world = World::get_level(level).expect("Failed to load level");
     let ctx = ConstraintContext::new(&world, 10);
     let walls: HashSet<Position> = world.walls().into_iter().collect();
     let voids: HashSet<Position> = world.void_positions().into_iter().collect();
+    let laser_sources: HashSet<Position> = world.sources().map(|(pos, _)| pos).collect();
     for i in 0..world.height() {
         for j in 0..world.width() {
             let p = pos(i, j);
-            let is_valid = !ctx.predecessors[i][j].is_empty();
-            if walls.contains(&p) || voids.contains(&p) {
+            let is_valid = !ctx.neighbours[i][j].is_empty();
+            if walls.contains(&p) || voids.contains(&p) || laser_sources.contains(&p) {
                 assert!(!is_valid, "level {level}: ({i},{j}) should not be valid");
             } else {
                 assert!(is_valid, "level {level}: ({i},{j}) should be valid");
@@ -338,11 +340,181 @@ fn valid_positions_exclude_void() {
     )
     .expect("Failed to parse world");
     let ctx = ConstraintContext::new(&world, 10);
-    let is_valid = |i: usize, j: usize| !ctx.predecessors[i][j].is_empty();
+    let is_valid = |i: usize, j: usize| !ctx.neighbours[i][j].is_empty();
     assert!(!is_valid(0, 1));
     assert!(!is_valid(1, 1));
     assert!(is_valid(0, 0));
     assert!(is_valid(1, 0));
+}
+
+/// Laser sources are invalid positions for movement graph generation, like walls and voids.
+#[test]
+fn valid_positions_exclude_laser_sources() {
+    let world = World::try_from(
+        "
+        S0 L0E .
+        .   .  X",
+    )
+    .expect("Failed to parse world");
+    let ctx = ConstraintContext::new(&world, 10);
+
+    assert!(ctx.neighbours[0][1].is_empty());
+    assert!(ctx.predecessors[0][1].is_empty());
+    assert!(!ctx.neighbours[0][0].contains(&pos(0, 1)));
+    assert!(!ctx.neighbours[0][2].contains(&pos(0, 1)));
+    assert!(!ctx.neighbours[1][1].contains(&pos(0, 1)));
+}
+
+// ==================== neighbours ====================
+
+/// Neighbours for regular floor-like tiles include staying in place and every walkable cardinal
+/// neighbour inside the world bounds.
+#[test]
+fn neighbours_include_stay_and_walkable_cardinal_tiles() {
+    for level in 1..=6 {
+        let world = World::get_level(level).unwrap();
+        let ctx = ConstraintContext::new(&world, 10);
+        let walls: HashSet<Position> = world.walls().into_iter().collect();
+        let voids: HashSet<Position> = world.void_positions().into_iter().collect();
+        let laser_sources: HashSet<Position> = world.sources().map(|(pos, _)| pos).collect();
+        let exits: HashSet<Position> = world.exits_positions().into_iter().collect();
+        let is_invalid =
+            |p: &Position| walls.contains(p) || voids.contains(p) || laser_sources.contains(p);
+
+        for i in 0..world.height() {
+            for j in 0..world.width() {
+                let p = pos(i, j);
+                let actual_neighbours = &ctx.neighbours[i][j];
+                if is_invalid(&p) {
+                    assert!(
+                        actual_neighbours.is_empty(),
+                        "Level {level}: invalid tile ({i},{j}) should not have neighbours"
+                    );
+                    continue;
+                }
+
+                let expected: HashSet<Position> = if exits.contains(&p) {
+                    HashSet::from([p])
+                } else {
+                    // Neighbours are the position itself + the non-walls neighbours
+                    std::iter::once(p)
+                        .chain(
+                            Direction::iter()
+                                .filter_map(|d| (p + d).ok())
+                                .filter(|n| n.i < world.height() && n.j < world.width())
+                                .filter(|n| !is_invalid(n)),
+                        )
+                        .collect()
+                };
+                let actual: HashSet<Position> = actual_neighbours.iter().collect();
+                assert_eq!(actual, expected, "Level {level}: neighbours[{i}][{j}]");
+            }
+        }
+    }
+}
+
+/// Neighbour generation should not cross world boundaries and should not expose walls or voids as
+/// walkable successors.
+#[test]
+fn neighbours_exclude_boundaries_walls_and_voids() {
+    let world = World::try_from(
+        "
+        S0 @ .
+        V  . X",
+    )
+    .expect("Failed to parse world");
+    let ctx = ConstraintContext::new(&world, 10);
+
+    let start_neighbours: HashSet<Position> = ctx.neighbours[0][0].iter().collect();
+    assert_eq!(start_neighbours, HashSet::from([pos(0, 0)]));
+
+    let centre_neighbours: HashSet<Position> = ctx.neighbours[1][1].iter().collect();
+    assert_eq!(centre_neighbours, HashSet::from([pos(1, 1), pos(1, 2)]));
+    assert!(
+        !centre_neighbours.contains(&pos(0, 1)),
+        "walls should not be successors"
+    );
+    assert!(
+        !centre_neighbours.contains(&pos(1, 0)),
+        "voids should not be successors"
+    );
+    assert!(
+        ctx.neighbours[0][1].is_empty(),
+        "walls should have no neighbours"
+    );
+    assert!(
+        ctx.neighbours[1][0].is_empty(),
+        "voids should have no neighbours"
+    );
+}
+
+/// `prev_neighbours` should return only predecessors that were relevant to the agent one step
+/// earlier, not every geometrically possible predecessor.
+#[test]
+fn prev_neighbours_filters_by_previous_relevant_positions() {
+    let world = World::try_from("S0 . X").expect("Failed to parse world");
+    let mut ctx = ConstraintContext::new(&world, 5);
+    ctx.update(1);
+
+    assert!(ctx.prev_neighbours(0, &pos(0, 1), 0).is_empty());
+    assert_eq!(
+        ctx.prev_neighbours(0, &pos(0, 1), 1)
+            .iter()
+            .collect::<HashSet<_>>(),
+        HashSet::from([pos(0, 0)])
+    );
+    assert_eq!(
+        ctx.prev_neighbours(0, &pos(0, 0), 1)
+            .iter()
+            .collect::<HashSet<_>>(),
+        HashSet::from([pos(0, 0)])
+    );
+    assert!(ctx.prev_neighbours(0, &pos(0, 2), 1).is_empty());
+}
+
+/// Laser source tiles are not walkable: they should not be successors of adjacent walkable tiles,
+/// and they should not have neighbours themselves.
+#[test]
+fn laser_source_neighbours_are_empty_and_unreachable() {
+    let world = World::try_from(
+        "
+        S0 L0E .
+        .   .  X",
+    )
+    .expect("Failed to parse world");
+    let ctx = ConstraintContext::new(&world, 10);
+
+    let start_neighbours: HashSet<Position> = ctx.neighbours[0][0].iter().collect();
+    assert_eq!(start_neighbours, HashSet::from([pos(0, 0), pos(1, 0)]));
+
+    let centre_neighbours: HashSet<Position> = ctx.neighbours[1][1].iter().collect();
+    assert_eq!(
+        centre_neighbours,
+        HashSet::from([pos(1, 1), pos(1, 0), pos(1, 2)])
+    );
+
+    assert!(
+        ctx.neighbours[0][1].is_empty(),
+        "laser sources should have no neighbours"
+    );
+}
+
+/// Exit tiles are terminal for neighbour generation: once an agent reaches an exit, it can only
+/// remain there.
+///
+/// @ai-generated
+#[test]
+fn exit_neighbours_only_allow_staying() {
+    let world = World::try_from(
+        "
+        .  X .
+        S0 . .",
+    )
+    .expect("Failed to parse world");
+    let ctx = ConstraintContext::new(&world, 10);
+
+    let exit_neighbours: HashSet<Position> = ctx.neighbours[0][1].iter().collect();
+    assert_eq!(exit_neighbours, HashSet::from([pos(0, 1)]));
 }
 
 // ==================== laser_sources / paths ====================

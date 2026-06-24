@@ -51,6 +51,18 @@ impl PositionSet {
         }
     }
 
+    pub fn from_positions(
+        height: usize,
+        width: usize,
+        positions: impl Iterator<Item = Position>,
+    ) -> Self {
+        let mut set = Self::empty(height, width);
+        for pos in positions {
+            set.insert(pos);
+        }
+        set
+    }
+
     /// A set containing only `pos`, over a `height x width` grid.
     pub fn singleton(height: usize, width: usize, pos: Position) -> Self {
         let mut set = Self::empty(height, width);
@@ -96,7 +108,7 @@ impl PositionSet {
     }
 
     /// Remove every position in `other` from this set in place (`self -= other`).
-    pub fn subtract(&mut self, other: &PositionSet) {
+    pub fn subtract_with(&mut self, other: &PositionSet) {
         for (a, &b) in self.words.iter_mut().zip(&other.words) {
             *a &= !b;
         }

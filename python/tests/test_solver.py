@@ -5,18 +5,6 @@ import pytest
 from lle import Action, World
 from lle.solver import SolveMode, SolveModeLiteral, Solver
 
-# Short route (cols 0-1) forces mutual help across two length-2 beams; a laser-free detour exists
-# down cols 4-5 (around the wall column), so mutual help is required only below a time threshold.
-TIME_DEPENDENT = """
- S0 S1 . . .
-L0E  . . @ .
-L1E  . . @ .
- X   X . @ .
- .   . . . .
-"""
-# Empirically, mutual help is required up to t=12 and a mutual-free plan exists from t=13 on.
-TIME_DEPENDENT_THRESHOLD = 13
-
 
 def _default_t_max(world: World) -> int:
     return (world.width * world.height) // 2
@@ -143,16 +131,28 @@ def test_solve_std_levels_without_mutual_cooperation():
 
 
 def test_time_dependent_threshold():
-    world = World(TIME_DEPENDENT)
+    # Short route (cols 0-1) forces mutual help across two length-2 beams; a laser-free detour exists
+    # down cols 4-5 (around the wall column), so mutual help is required only below a time threshold.
+    world = World("""
+     S0 S1 . . .
+    L0E  . . @ .
+    L1E  . . @ .
+      X  X . @ .
+      .  . . . .
+    """)
+    # Empirically, mutual help is required up to t=12 and a mutual-free plan exists from t=13 on.
+    threshold = 13
     # Below the threshold: solvable, but only via mutual cooperation.
-    for t in range(TIME_DEPENDENT_THRESHOLD):
+    for t in range(threshold):
+        if t == 11:
+            print()
         if lle.solve(world, t) is None:
             continue
         assert lle.solve(world, t, mode="no-mutual") is None, f"expected mutual help at t={t}"
     # At/above the threshold: a mutual-free plan appears.
-    assert lle.solve(world, TIME_DEPENDENT_THRESHOLD, mode="no-mutual") is not None
+    assert lle.solve(world, threshold, mode="no-mutual") is not None
     # The mutual-free plan is itself a valid plan (replays without error onto the world).
-    plan = lle.solve(world, TIME_DEPENDENT_THRESHOLD, mode="no-mutual")
+    plan = lle.solve(world, threshold, mode="no-mutual")
     assert plan is not None
     world.reset()
     for joint in plan:

@@ -133,7 +133,7 @@ fn test_subtract() {
     b.insert(pos(1, 1));
     b.insert(pos(3, 3));
 
-    a.subtract(&b);
+    a.subtract_with(&b);
 
     assert!(a.contains(&pos(0, 0)));
     assert!(!a.contains(&pos(1, 1)));

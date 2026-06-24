@@ -443,3 +443,103 @@ fn enumerate_cycles_acyclic_graph_is_empty() {
     assert!(graph.enumerate_cycles_of_length(2).is_empty());
     assert!(graph.enumerate_cycles_of_length(3).is_empty());
 }
+
+/// Check that all possible trails are enumerated on a 3-agents world
+/// This test is there for a potential future optimization where only realistic
+/// trails are followed. In this example, combinations [0,2,0], [2,0,0], [2,0,1]
+/// and [0,2,1] are actually impossible to achieve and should therefore be absent
+/// of the enumerated trails.
+///
+/// Such optimization is not yet implemented (and may never be).
+#[test]
+#[ignore = "This optimization not implemented yet"]
+fn potential_graph_3agents_trails_of_length2_optimized() {
+    let world = World::try_from(
+        "
+ @  S0  S1  S2
+L0E  .   .  .
+L1E  .   .  .
+L2E  .   .  .
+ @   X   X  X
+",
+    )
+    .unwrap();
+    let t_max = 10;
+    let mut ctx = ConstraintContext::new(&world, t_max);
+    ctx.update(t_max);
+    let graph = ctx.potential_cooperation;
+
+    fn to_vertex_trail(r: Vec<Vec<PotentialHelpEdge>>) -> Vec<Vec<usize>> {
+        r.into_iter()
+            .map(|trail| {
+                std::iter::once(trail[0].helper)
+                    .chain(trail.iter().map(|e| e.beneficiary))
+                    .collect()
+            })
+            .collect()
+    }
+    let trails = graph.enumerate_trails_of_length(2);
+    let trails = to_vertex_trail(trails);
+    let unrealistic_trails = [vec![0, 2, 0], vec![2, 0, 0], vec![2, 0, 1], vec![0, 2, 1]];
+    for trail in unrealistic_trails {
+        assert!(!trails.contains(&trail));
+    }
+}
+
+#[test]
+fn potential_graph_3agents_trails_of_length2() {
+    let world = World::try_from(
+        "
+ @  S0  S1  S2
+L0E  .   .  .
+L1E  .   .  .
+L2E  .   .  .
+ @   X   X  X
+",
+    )
+    .unwrap();
+    let t_max = 10;
+    let mut ctx = ConstraintContext::new(&world, t_max);
+    ctx.update(t_max);
+    let graph = ctx.potential_cooperation;
+
+    fn to_vertex_trail(r: Vec<Vec<PotentialHelpEdge>>) -> Vec<Vec<usize>> {
+        r.into_iter()
+            .map(|trail| {
+                std::iter::once(trail[0].helper)
+                    .chain(trail.iter().map(|e| e.beneficiary))
+                    .collect()
+            })
+            .collect()
+    }
+
+    let mut valid = vec![];
+    for a1 in 0..world.n_agents() {
+        for a2 in 0..world.n_agents() {
+            for a3 in 0..world.n_agents() {
+                if a1 != a2 && a2 != a3 {
+                    valid.push(vec![a1, a2, a3])
+                }
+            }
+        }
+    }
+    let trails = graph.enumerate_trails_of_length(2);
+    let trails = to_vertex_trail(trails);
+    for trail in valid {
+        assert!(trails.contains(&trail));
+    }
+}
+
+#[test]
+fn cooperation_at_t0() {
+    let world = World::try_from(
+        "
+    L0E S0 S1
+     @  X  X",
+    )
+    .unwrap();
+    let mut ctx = ConstraintContext::new(&world, 5);
+    ctx.update(0);
+    let graph = ctx.potential_cooperation;
+    assert!(!graph.at(0).is_empty());
+}
