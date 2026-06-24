@@ -13,19 +13,19 @@ fn neighbours_of(
     height: usize,
     width: usize,
     walls: &PositionSet,
-) -> Vec<Position> {
+) -> PositionSet {
+    let mut result = PositionSet::empty(height, width);
     if exits.contains(&pos) {
         // Once an agent reaches an exit, it can no longer move.
-        return vec![pos];
+        return result;
     }
-    let mut result = Vec::new();
     for d in Direction::iter() {
         if let Ok(n) = pos + d
             && n.i < height
             && n.j < width
             && !walls.contains(&n)
         {
-            result.push(n);
+            result.insert(n);
         }
     }
     result
@@ -81,7 +81,7 @@ pub struct ConstraintContext {
     /// active ↔ ¬owner, so non-owner requires owner present — impossible by no_overlap; otherwise
     /// the beam is constant-active and the non-owner dies. This is pre-computed once and applied at
     /// every time step during `update_relevant_positions`.
-    forbidden_first_beam_tiles: Vec<Vec<Position>>,
+    forbidden_first_beam_tiles: Vec<PositionSet>,
 }
 
 impl ConstraintContext {
@@ -153,12 +153,13 @@ impl ConstraintContext {
             });
         }
         // Opt 3: pre-compute first beam tiles forbidden for non-owner agents.
-        let mut forbidden_first_beam_tiles: Vec<Vec<Position>> = vec![Vec::new(); n_agents];
+        let mut forbidden_first_beam_tiles: Vec<PositionSet> =
+            vec![PositionSet::empty(height, width); n_agents];
         for source in &laser_sources {
             if let Some(&first_tile) = source.path.first() {
                 for (agent, forbidden) in forbidden_first_beam_tiles.iter_mut().enumerate() {
                     if agent != source.agent_id {
-                        forbidden.push(first_tile);
+                        forbidden.insert(first_tile);
                     }
                 }
             }
@@ -252,9 +253,7 @@ impl ConstraintContext {
                 }
             }
             // Non-owner agents can never stand on the first tile of another agent's beam.
-            for &forbidden in &self.forbidden_first_beam_tiles[agent] {
-                result.remove(&forbidden);
-            }
+            result.subtract_with(&self.forbidden_first_beam_tiles[agent]);
             self.relevant_positions[agent][t] = result;
         }
     }

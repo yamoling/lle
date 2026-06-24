@@ -1,7 +1,5 @@
 use itertools::Itertools;
 
-use crate::Position;
-
 use super::Clause;
 use super::generator::ClauseGenerator;
 use super::utils::{PAIRWISE_ATMOST_MAX, at_most_one_sequential, implies};
@@ -24,12 +22,8 @@ impl ClauseGenerator {
     pub(super) fn exactly_one_position(&mut self, t: usize) -> Vec<Clause> {
         let mut clauses = Vec::new();
         for agent in 0..self.ctx.n_agents {
-            let positions: Vec<Position> = self
-                .ctx
-                .relevant_positions_for_agent(agent, t)
-                .into_iter()
-                .collect();
-            if positions.len() <= 1 {
+            let positions = self.ctx.relevant_positions_for_agent(agent, t);
+            if positions.size() <= 1 {
                 continue;
             }
             let vars: Vec<i32> = positions
@@ -57,11 +51,7 @@ impl ClauseGenerator {
         }
         let mut clauses = Vec::new();
         for agent in 0..self.ctx.n_agents {
-            let positions: Vec<Position> = self
-                .ctx
-                .relevant_positions_for_agent(agent, t)
-                .into_iter()
-                .collect();
+            let positions = self.ctx.relevant_positions_for_agent(agent, t);
             for pos in positions {
                 let prev_positions = self.ctx.prev_neighbours(agent, &pos, t);
                 let current_var = self.pool.agent(agent, pos, t);
@@ -80,12 +70,7 @@ impl ClauseGenerator {
         let mut clauses = Vec::new();
         for c1 in 0..self.ctx.n_agents {
             for c2 in c1 + 1..self.ctx.n_agents {
-                let positions: Vec<Position> = self
-                    .ctx
-                    .relevant_positions(t, &[c1, c2])
-                    .into_iter()
-                    .collect();
-                for pos in positions {
+                for pos in self.ctx.relevant_positions(t, &[c1, c2]) {
                     let v1 = self.pool.agent(c1, pos, t);
                     let v2 = self.pool.agent(c2, pos, t);
                     clauses.push(vec![-v1, -v2]);
@@ -135,17 +120,12 @@ impl ClauseGenerator {
         }
         let mut clauses = Vec::new();
         for agent in 0..self.ctx.n_agents {
-            let reachable = self.ctx.relevant_positions(t - 1, &[agent]);
-            let exit_positions: Vec<Position> = self
-                .exits
-                .iter()
-                .copied()
-                .filter(|p| {
-                    reachable.contains(p)
-                        && self.ctx.relevant_positions_for_agent(agent, t).contains(p)
-                })
-                .collect();
-            for pos in exit_positions {
+            let prev_relevant_pos = self.ctx.relevant_positions_for_agent(agent, t - 1);
+            let curr_relevant_pos = self.ctx.relevant_positions_for_agent(agent, t);
+            let mut exits = self.exits.clone();
+            exits.intersect_with(prev_relevant_pos);
+            exits.intersect_with(curr_relevant_pos);
+            for pos in exits {
                 let prev = self.pool.agent(agent, pos, t - 1);
                 let cur = self.pool.agent(agent, pos, t);
                 clauses.push(implies(prev, cur));

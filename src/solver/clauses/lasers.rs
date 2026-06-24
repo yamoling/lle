@@ -33,7 +33,7 @@ impl ClauseGenerator {
         let mut active_lit = HashMap::new();
         let sources = self.laser_source_snapshot();
         for (agent_id, laser_id, path) in sources {
-            let blockable = self.ctx.relevant_positions(t, &[agent_id]);
+            let blockable = self.ctx.relevant_positions_for_agent(agent_id, t);
             let mut prev_active: Option<i32> = None;
             for pos in path {
                 if blockable.contains(&pos) {

@@ -17,9 +17,9 @@ impl ClauseGenerator {
                     .filter(|&(tau, agent)| {
                         self.ctx
                             .relevant_positions_for_agent(agent, tau)
-                            .contains(gem_pos)
+                            .contains(&gem_pos)
                     })
-                    .map(|(tau, agent)| self.pool.agent(agent, *gem_pos, tau))
+                    .map(|(tau, agent)| self.pool.agent(agent, gem_pos, tau))
                     .collect()
             })
             .collect()

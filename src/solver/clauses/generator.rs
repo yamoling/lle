@@ -1,9 +1,10 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use itertools::Itertools;
 
 use crate::solver::errors::SolverError;
-use crate::{Action, AgentId, Position, World};
+use crate::solver::position_set::PositionSet;
+use crate::{Action, AgentId, World};
 
 use super::super::context::ConstraintContext;
 use super::dependency_shapes::{enumerate_cycles, enumerate_paths};
@@ -30,8 +31,8 @@ pub(super) struct InterdependenceSupport {
 pub struct ClauseGenerator {
     pub(super) ctx: ConstraintContext,
     pub(super) pool: VarPool,
-    pub(super) exits: HashSet<Position>,
-    pub(super) gems: Vec<Position>,
+    pub(super) exits: PositionSet,
+    pub(super) gems: PositionSet,
     pub(super) laser_owners: Vec<AgentId>,
     pub(super) all_agents: Vec<AgentId>,
     /// Every directed pair `(helper, beneficiary)` for which a help event is geometrically
@@ -73,8 +74,16 @@ impl ClauseGenerator {
             })
             .collect();
         Self {
-            exits: world.exits_positions().into_iter().collect(),
-            gems: world.gems_positions(),
+            exits: PositionSet::from_positions(
+                world.height(),
+                world.width(),
+                world.exits_positions().into_iter(),
+            ),
+            gems: PositionSet::from_positions(
+                world.height(),
+                world.width(),
+                world.gems_positions().into_iter(),
+            ),
             ctx,
             pool: VarPool::new(),
             laser_owners,
@@ -294,15 +303,11 @@ impl ClauseGenerator {
         };
         for agent in 0..self.ctx.n_agents {
             let reachable = self.ctx.relevant_positions_for_agent(agent, t);
-            let positions: Vec<Position> = self
-                .exits
-                .iter()
-                .copied()
-                .filter(|p| reachable.contains(p))
-                .collect();
+            let mut positions = self.exits.clone();
+            positions.intersect_with(reachable);
             clauses.push(
                 positions
-                    .into_iter()
+                    .iter()
                     .map(|p| self.pool.agent(agent, p, t))
                     .collect(),
             );
