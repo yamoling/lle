@@ -28,7 +28,7 @@ impl ClauseGenerator {
 
     /// Return all no-cooperation assumptions for steps `0..=t`.
     pub(crate) fn assume_no_cooperation_until(&mut self, t: usize) -> Vec<Literal> {
-        self.ensure_domain(t);
+        self.ensure_domain(t, false);
         let start = self.no_cooperation_generated_until.map_or(0, |u| u + 1);
         for tt in start..=t {
             self.no_cooperation_assumption_buffer[tt] = self.assume_no_cooperation_at(tt);

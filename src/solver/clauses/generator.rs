@@ -113,24 +113,38 @@ impl ClauseGenerator {
         mode: SolveMode,
         collect_gems: bool,
     ) -> (Vec<Clause>, Vec<Literal>) {
-        self.ensure_domain(t);
-        self.ensure_mode_support(t, mode);
+        if mode == SolveMode::NoCooperation {
+            //
+            self.ensure_domain(t, true);
 
-        let mut clauses: Vec<Clause> = self.domain_clause_buffer[..=t]
-            .iter()
-            .flatten()
-            .cloned()
-            .collect();
-        clauses.extend(self.mode_support_clauses(t, mode));
-        clauses.extend(self.objective(t, collect_gems));
+            let mut clauses: Vec<Clause> = self.domain_clause_buffer[..=t]
+                .iter()
+                .flatten()
+                .cloned()
+                .collect();
 
-        let (forbid_clauses, assumptions) = self.mode_forbid(t, mode);
-        clauses.extend(forbid_clauses);
+            clauses.extend(self.objective(t, collect_gems));
+            (clauses, Vec::new())
+        } else {
+            self.ensure_domain(t, false);
+            self.ensure_mode_support(t, mode);
 
-        (clauses, assumptions)
+            let mut clauses: Vec<Clause> = self.domain_clause_buffer[..=t]
+                .iter()
+                .flatten()
+                .cloned()
+                .collect();
+            clauses.extend(self.mode_support_clauses(t, mode));
+            clauses.extend(self.objective(t, collect_gems));
+
+            let (forbid_clauses, assumptions) = self.mode_forbid(t, mode);
+            clauses.extend(forbid_clauses);
+
+            (clauses, assumptions)
+        }
     }
 
-    pub(super) fn ensure_domain(&mut self, t: usize) {
+    pub(super) fn ensure_domain(&mut self, t: usize, coop_detection: bool) {
         assert!(
             t <= self.ctx.t_max,
             "Cannot generate clauses for t={t}; generator t_max is {}.",
@@ -139,14 +153,14 @@ impl ClauseGenerator {
         let start = self.domain_generated_until.map_or(0, |u| u + 1);
         for tt in start..=t {
             self.ctx.update(tt);
-            self.domain_clause_buffer[tt] = self.generate_domain_clauses(tt);
+            self.domain_clause_buffer[tt] = self.generate_domain_clauses(tt, coop_detection);
         }
         if start <= t {
             self.domain_generated_until = Some(t);
         }
     }
 
-    fn generate_domain_clauses(&mut self, t: usize) -> Vec<Clause> {
+    fn generate_domain_clauses(&mut self, t: usize, coop_detection: bool) -> Vec<Clause> {
         let mut clauses = Vec::new();
         clauses.extend(self.initialization(t));
         clauses.extend(self.exactly_one_position(t));
@@ -155,13 +169,15 @@ impl ClauseGenerator {
         clauses.extend(self.no_following_conflict(t));
         clauses.extend(self.stays_on_exit(t));
         let (beam_clauses, active_lit) = self.beam_activation(t);
-        clauses.extend(beam_clauses);
+        if !coop_detection {
+            clauses.extend(beam_clauses);
+        }
         clauses.extend(self.no_step_on_active_laser(t, &active_lit));
         clauses
     }
 
     pub(super) fn ensure_help_tracking(&mut self, t: usize) {
-        self.ensure_domain(t);
+        self.ensure_domain(t, false);
         let start = self.help_tracking_generated_until.map_or(0, |u| u + 1);
         for tt in start..=t {
             self.ctx.update(tt);
