@@ -227,15 +227,6 @@ class WorldGenerator:
             b.add_laser(owner, pos, direction)
         return b.build()
 
-    def _accept_world(self, world: World) -> bool:
-        if self.constraint is None:
-            return True
-        return self.constraint.is_satisfied_by(world)
-
-    # ------------------------------------------------------------------
-    # Generation loop
-    # ------------------------------------------------------------------
-
     def _try_generate(self, seed: int | None) -> World | None:
         if seed is not None:
             self._rng.seed(seed)
@@ -245,15 +236,14 @@ class WorldGenerator:
             return None
         if layout is None:
             return None
+        world = self._build_world(layout)
+        if self.constraint is None:
+            return world
         try:
-            world = self._build_world(layout)
-        except Exception:
-            return None
-        try:
-            if self._accept_world(world):
+            if self.constraint.is_satisfied_by(world):
                 return world
-        except Exception:
-            return None
+        except BaseException as e:
+            raise RuntimeError(f"Error while checking world constraints: {e}") from e
         return None
 
     def generate(self, max_attempts: int | None, seed: int | None = None) -> World | None:

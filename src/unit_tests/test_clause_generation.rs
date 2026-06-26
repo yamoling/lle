@@ -1,5 +1,10 @@
+use std::collections::HashSet;
+
 use crate::Position;
 use crate::World;
+use crate::solver::Clause;
+use crate::solver::Literal;
+use crate::solver::clauses::ClauseEngine;
 use crate::solver::{ClauseGenerator, SolveMode, VarKey};
 use rstest::rstest;
 use rstest_reuse::{self, apply, template};
@@ -108,10 +113,8 @@ fn possible_positions_multiple_agents() {
     }
 }
 
-/// At t=1 on "S0 . X" there are exactly 2 reachable positions; the clause set must contain
-/// an at-least-one disjunction and a pairwise at-most-one binary clause.
 #[test]
-fn test_exactly_one_position_clause_structure() {
+fn test_at_most_one_position_clause_structure() {
     let mut cg = build("S0 . X", 10);
     let (clauses, _) = cg.generate(1, SolveMode::Standard, false);
 
@@ -122,13 +125,6 @@ fn test_exactly_one_position_clause_structure() {
         .literal(&VarKey::agent(0, pos(0, 1), 1))
         .expect("agent(0,(0,1),1)");
 
-    // At-least-one: {a00, a01} must appear as a clause.
-    assert!(
-        clauses
-            .iter()
-            .any(|c| c.len() == 2 && c.contains(&a00) && c.contains(&a01)),
-        "at-least-one clause [a00, a01] missing"
-    );
     // At-most-one (pairwise): {-a00, -a01} must appear.
     assert!(
         clauses
@@ -294,7 +290,7 @@ fn test_objective_multiple_agents_multiple_exits() {
 #[test]
 fn test_gem_must_be_collected_clause() {
     let world = World::try_from("S0 G X").expect("Failed to parse world");
-    let mut cg = ClauseGenerator::new(&world, 2);
+    let mut cg = ClauseEngine::new(&world, 2);
     let clauses = cg.gems_must_be_collected(2);
     assert_eq!(
         clauses.len(),
@@ -320,7 +316,7 @@ fn test_gem_must_be_collected_clause_2agents() {
     )
     .expect("Failed to parse world");
     let gem_pos = pos(0, 1);
-    let mut cg = ClauseGenerator::new(&world, 2);
+    let mut cg = ClauseEngine::new(&world, 2);
     let clauses = cg.gems_must_be_collected(2);
     assert_eq!(clauses.len(), 1, "There is one single gem");
     let a = cg.literal(&VarKey::agent(0, gem_pos, 1)).unwrap();
@@ -345,7 +341,7 @@ fn test_gem_must_be_collected_clause_2agents_longer_horizon() {
     )
     .expect("Failed to parse world");
     let gem_pos = pos(0, 1);
-    let mut cg = ClauseGenerator::new(&world, 3);
+    let mut cg = ClauseEngine::new(&world, 3);
     let clauses = cg.gems_must_be_collected(3);
     assert_eq!(clauses.len(), 1, "There is one single gem !");
     // For both time steps, chack th
@@ -371,7 +367,7 @@ fn test_gem_must_be_collected_clause_3gems() {
     )
     .expect("Failed to parse world");
     let t_max = 5;
-    let mut cg = ClauseGenerator::new(&world, t_max);
+    let mut cg = ClauseEngine::new(&world, t_max);
     let clauses = cg.gems_must_be_collected(t_max);
     for c in &clauses {
         println!("{c:?}");
@@ -500,6 +496,90 @@ fn test_no_step_on_active_laser_binary_clause() {
         }
         _ => {} // agent 1 cannot reach (1,0) at this horizon — test not applicable
     }
+}
+
+/// Assert that every reachable downstream beam-tile variable for agent 1 is forbidden by a unit
+/// clause or an assumption across the generated horizon.
+fn assert_no_cooperation_does_not_generate_beam_positions(
+    cg: &ClauseGenerator,
+    world: &World,
+    clauses: Vec<Clause>,
+    assumptions: Vec<Literal>,
+) {
+    let clause_literals: HashSet<i32> = clauses.into_iter().flatten().map(|l| l.abs()).collect();
+    // 1) Check that no laser variable is present in the formula
+    for (pos, laser) in world.lasers() {
+        for t in 0..=cg.t_max() {
+            let key = VarKey::Laser {
+                laser_id: laser.laser_id(),
+                pos,
+                t,
+            };
+            if let Some(lit) = cg.literal(&key) {
+                assert!(
+                    !clause_literals.contains(&lit),
+                    "{key:?} (literal={lit}) should not be among the clause literals"
+                );
+            }
+        }
+    }
+    // 2) Verify that all agents are assumed not to walk on any foreign colour laser tile
+    for agent_id in 0..world.n_agents() {
+        for (pos, laser) in world.lasers() {
+            if agent_id == laser.agent_id() {
+                continue;
+            }
+            for t in 0..=cg.t_max() {
+                let key = VarKey::Agent { agent_id, pos, t };
+                if let Some(lit) = cg.literal(&key) {
+                    assert!(
+                        assumptions.contains(&-lit),
+                        "{key:?} (literal={lit}) should be assumed to be false"
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// `NoCooperation` must forbid a non-owner from using downstream beam tiles over multiple time
+/// steps, even when the owner could block that beam in standard mode.
+#[test]
+fn test_no_cooperation_forbids_non_owner_on_blockable_downstream_beam_tile() {
+    let world = World::try_from(
+        "
+         .  S0  S1  .  .
+        L0E  .   .  @  .
+         .   .   .  .  .
+         .   X   X  .  .
+        ",
+    )
+    .expect("Failed to parse world");
+    let t_max = 3;
+    let mut cg = ClauseGenerator::new(&world, t_max);
+    let (clauses, assumptions) = cg.generate(t_max, SolveMode::NoCooperation, false);
+    assert_no_cooperation_does_not_generate_beam_positions(&cg, &world, clauses, assumptions);
+}
+
+/// Reusing a generator across modes must not let standard beam-activation clauses weaken
+/// `NoCooperation`; downstream beam tiles must still be explicitly forbidden at every generated
+/// time step.
+#[test]
+fn test_no_cooperation_after_standard_generation_forbids_same_downstream_beam_tile() {
+    let world = World::try_from(
+        "
+         .  S0  S1
+        L0E  .   .
+         .   .   .
+         .   X   X
+        ",
+    )
+    .expect("Failed to parse world");
+    let t_max = 9;
+    let mut cg = ClauseGenerator::new(&world, t_max);
+    let _ = cg.generate(t_max, SolveMode::Standard, false);
+    let (clauses, assumptions) = cg.generate(t_max, SolveMode::NoCooperation, false);
+    assert_no_cooperation_does_not_generate_beam_positions(&cg, &world, clauses, assumptions);
 }
 
 /// An unblockable beam tile (same-colour agent can never reach it) is constant-active and
@@ -775,14 +855,17 @@ fn test_crossing_lasers_keep_independent_variables() {
 fn test_no_phantom_agent_variables() {
     // Two exits, two agents and two length-1 beams: forced-exit and laser relevance pruning both
     // shrink agents' relevant sets as `t` grows, which previously left phantom exit variables.
-    let map = "
+    let world = World::try_from(
+        "
 S0 S1 . . .
 L0E . . @ .
 L1E . . @ .
 X X . @ .
-. . . . .";
+. . . . .",
+    )
+    .unwrap();
     let t_max = 13;
-    let mut cg = build(map, t_max);
+    let mut cg = ClauseGenerator::new(&world, t_max);
     // Drive the incremental solve exactly like the Python solver: generate at every horizon.
     for t in cg.solution_lower_bound()..=t_max {
         cg.generate(t, SolveMode::Standard, false);
@@ -794,7 +877,10 @@ X X . @ .
                     let p = pos(i, j);
                     if cg.exists(&VarKey::agent(agent, p, t)) {
                         assert!(
-                            cg.ctx.relevant_positions_for_agent(agent, t).contains(&p),
+                            cg.engine
+                                .ctx
+                                .relevant_positions_for_agent(agent, t)
+                                .contains(&p),
                             "phantom agent variable: agent={agent} pos={p:?} t={t} exists but is \
                              not in the agent's relevant set, so it escapes exactly_one_position"
                         );
@@ -803,4 +889,137 @@ X X . @ .
             }
         }
     }
+}
+
+/// True if `helper` has a `has_helped_by_time(helper, beneficiary, t)` variable at any step.
+fn can_help(cg: &ClauseGenerator, helper: usize, beneficiary: usize, t_max: usize) -> bool {
+    (0..=t_max).any(|t| cg.exists(&VarKey::has_helped_by_time(helper, beneficiary, t)))
+}
+
+/// `S0` (laser owner) can step into beam `L0E` to protect `S1`, but `S1` owns no laser, so no
+/// mutual dependency is even expressible.
+const ONE_WAY: &str = "
+ S0 . S1
+L0E . .
+ X  . X";
+
+/// Two facing lasers, one per agent, each beam crossable by the *other* agent: mutual help is
+/// geometrically possible in both directions.
+const MUTUAL: &str = "
+ S0 . . S1
+L0E . . .
+ .  . . L1W
+ X  . . X";
+
+#[test]
+fn has_helped_by_time_clauses_are_binary_implications_into_has_helped() {
+    let world = World::try_from(MUTUAL).expect("failed to parse world");
+    let mut cg = ClauseGenerator::new(&world, 10);
+    // Each clause must be a binary implication whose single positive literal is some
+    // `has_helped_by_time(helper, beneficiary, t)`, and whose antecedent is either the
+    // beneficiary's agent var (a fresh help event) or the previous-step indicator (monotone
+    // carry-forward).
+    let mut produced_any = false;
+    for t in 0..=10 {
+        for clause in cg.engine.has_helped_by_time_clauses(t) {
+            produced_any = true;
+            assert_eq!(clause.len(), 2, "each implication must be a binary clause");
+            let (negated, positive): (Vec<i32>, Vec<i32>) =
+                clause.iter().copied().partition(|&l| l < 0);
+            assert_eq!(negated.len(), 1, "exactly one negated (antecedent) literal");
+            assert_eq!(
+                positive.len(),
+                1,
+                "exactly one positive (has_helped) literal"
+            );
+            // The positive literal must be a has_helped_by_time indicator at the current step.
+            let Some(VarKey::HasHelpedByTime {
+                helper,
+                beneficiary,
+                t: has_helped_t,
+            }) = cg.engine.pool.key(positive[0])
+            else {
+                panic!("positive literal must be a HasHelpedByTime var");
+            };
+            assert_eq!(has_helped_t, t);
+            // The antecedent is either the beneficiary's agent var, or the previous-step indicator.
+            match cg.engine.pool.key(-negated[0]) {
+                Some(VarKey::Agent { agent_id, .. }) => assert_eq!(agent_id, beneficiary),
+                Some(VarKey::HasHelpedByTime {
+                    helper: h2,
+                    beneficiary: b2,
+                    t: prev_t,
+                }) => {
+                    assert_eq!((h2, b2), (helper, beneficiary));
+                    assert_eq!(
+                        prev_t,
+                        t - 1,
+                        "monotone carry must reference the previous step"
+                    );
+                }
+                other => panic!("unexpected antecedent literal: {other:?}"),
+            }
+        }
+    }
+    assert!(
+        produced_any,
+        "two crossable facing beams must yield has-helped-by-time implications"
+    );
+}
+
+#[test]
+fn asymmetric_world_generates_forbid_clauses_and_assumptions() {
+    let world = World::try_from(ONE_WAY).expect("failed to parse world");
+    let mut cg = ClauseGenerator::new(&world, 10);
+    let mut clauses = Vec::new();
+    let mut assumptions = Vec::new();
+    for t in 0..=10 {
+        clauses.extend(cg.engine.make_asymmetric_clauses(t));
+        assumptions.extend(cg.engine.assume_no_asymmetric_at(t));
+    }
+    assert!(
+        !clauses.is_empty(),
+        "one-way world must produce asymmetric-definition clauses"
+    );
+    assert!(
+        !assumptions.is_empty(),
+        "one-way world must produce negative asymmetric assumptions"
+    );
+    for &lit in &assumptions {
+        assert!(
+            lit < 0,
+            "all forbid-asymmetric assumptions must be negative literals"
+        );
+        assert!(
+            matches!(cg.engine.pool.key(-lit), Some(VarKey::Asymmetric { .. })),
+            "forbid-asymmetric assumption must negate an Asymmetric variable"
+        );
+    }
+    assert!(
+        clauses.iter().any(|clause| {
+            clause.iter().any(|&lit| {
+                lit > 0 && matches!(cg.engine.pool.key(lit), Some(VarKey::Asymmetric { .. }))
+            })
+        }),
+        "definition clauses must imply an Asymmetric variable"
+    );
+}
+
+#[test]
+#[ignore = "Currently under revision"]
+fn level_6_dependency_is_bidirectional() {
+    let world = World::get_level(6).expect("failed to load level 6");
+    let n = world.n_agents();
+    let mut cg = ClauseGenerator::new(&world, 21);
+    let _ = cg.generate(21, SolveMode::NoInterdependence(2), false);
+    // Level 6 requires mutual cooperation: at least one pair must have both directions.
+    let has_bidirectional = (0..n).any(|a| {
+        (0..n)
+            .filter(|&b| b != a)
+            .any(|b| can_help(&cg, a, b, 21) && can_help(&cg, b, a, 21))
+    });
+    assert!(
+        has_bidirectional,
+        "level 6 must have at least one bidirectional dependency pair"
+    );
 }

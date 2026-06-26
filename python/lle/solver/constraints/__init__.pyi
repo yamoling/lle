@@ -2,8 +2,10 @@
 # ruff: noqa: E501, F401, F403, F405
 
 import builtins
-from lle import world
 import typing
+
+from lle import world
+
 __all__ = [
     "ClauseGenerator",
     "SolveMode",
@@ -14,17 +16,17 @@ class ClauseGenerator:
     r"""
     Generates the SAT clauses (CNF, as lists of signed integer literals) used by
     `lle.solver.Solver` and decodes solver models back into joint-action plans.
-    
+
     The constraint generation itself (agent movement, collisions, laser propagation and blocking)
     is implemented in Rust for performance; SAT solving remains delegated to Python (e.g.
     `pysat.solvers.Minisat22`). One generator can be reused across modes because domain clauses are
     cached independently from cooperation-specific support clauses.
-    
+
     ```python
     from pysat.solvers import Minisat22
     from lle import World
     from lle.solver.constraints import ClauseGenerator
-    
+
     world = World.level(1)
     gen = ClauseGenerator(world, t_max=20)
     clauses, assumptions = gen.generate(10, mode="standard", collect_gems=False)
@@ -54,20 +56,30 @@ class ClauseGenerator:
         r"""
         Build a clause generator for the given `world`, considering plans of length up to `t_max`.
         """
-    def generate(self, t: builtins.int, mode: typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-mutual', 'no-chain', 'no-interdependence'] | builtins.str | SolveMode | None = None, collect_gems: builtins.bool = False) -> tuple[builtins.list[builtins.list[builtins.int]], builtins.list[builtins.int]]:
+    def generate(
+        self,
+        t: builtins.int,
+        mode: typing.Literal["standard", "no-cooperation", "no-asymmetric", "no-mutual", "no-chain", "no-interdependence"]
+        | builtins.str
+        | SolveMode
+        | None = None,
+        collect_gems: builtins.bool = False,
+    ) -> tuple[builtins.list[builtins.list[builtins.int]], builtins.list[builtins.int]]:
         r"""
         Generate all clauses and assumptions required to solve the problem at horizon `t`.
-        
+
         `mode` accepts either a `SolveMode` instance or its canonical string (`"standard"`,
         `"no-cooperation"`, `"no-asymmetric"`, `"no-mutual"`, `"no-chain[-N]"`,
         `"no-interdependence[-N]"`). `collect_gems` adds gem-collection clauses to the objective.
-        
+
         Returns `(clauses, assumptions)` ready to be fed to `solve_model`.
         """
-    def objective(self, t: builtins.int, collect_gems: builtins.bool = False) -> tuple[builtins.list[builtins.list[builtins.int]], builtins.list[builtins.int]]:
+    def objective(
+        self, t: builtins.int, collect_gems: builtins.bool = False
+    ) -> tuple[builtins.list[builtins.list[builtins.int]], builtins.list[builtins.int]]:
         r"""
         Generate only the objective clauses for horizon `t`.
-        
+
         Returns `(clauses, [])`. Useful for callers that manage the SAT solver directly and want to
         append the objective separately.
         """
@@ -75,7 +87,7 @@ class ClauseGenerator:
         r"""
         Decode a SAT model (as returned by `solver.get_model()`) into a joint-action plan
         of length `t_end`, i.e. a list of `t_end` joint actions (one action per agent).
-        
+
         Raises:
             `ValueError`: if the model does not encode a coherent sequence of moves.
         """
@@ -84,11 +96,11 @@ class ClauseGenerator:
 class SolveMode:
     r"""
     The solving mode used by `ClauseGenerator`.
-    
+
     Build one with the factory methods (`SolveMode.standard()`, `SolveMode.no_chain(length=3)`,
     …) or parse one from its canonical string with `SolveMode.from_str("no-chain-3")`. The
     available modes control which extra constraints and assumptions are emitted by `generate(t)`:
-    
+
     - `standard()` — world rules only; agents may cooperate freely.
     - `no_cooperation()` — forbids any non-owner agent from occupying a laser span. Equivalent to
       treating every beam as permanently active.
@@ -99,11 +111,11 @@ class SolveMode:
     - `no_interdependence(order=2)` — rules out plans whose dependency graph contains a temporal
       cycle visiting `order` distinct agents or more. For two-agent worlds this coincides with
       `no_mutual()`.
-    
+
     ```python
     from lle.solver.constraints import ClauseGenerator, SolveMode
     from lle import World
-    
+
     gen = ClauseGenerator(World.level(6), t_max=21)
     for t in range(gen.solution_lower_bound, gen.t_max + 1):
         clauses, assumptions = gen.generate(t, mode=SolveMode.no_mutual())
@@ -149,19 +161,14 @@ class SolveMode:
         Forbid any temporal cycle visiting `order` distinct agents or more. `order` must be `>= 2`.
         """
     @staticmethod
-    def from_str(value: typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-chain', 'no-interdependence', 'no-mutual'] | builtins.str) -> SolveMode:
+    def from_str(
+        value: typing.Literal["standard", "no-cooperation", "no-asymmetric", "no-chain", "no-interdependence", "no-mutual"] | builtins.str,
+    ) -> SolveMode:
         r"""
         Parse a canonical string (e.g. `"standard"`, `"no-chain-3"`, `"no-interdependence-2"`).
-        
+
         `"no-chain"` and `"no-interdependence"` both accept a `"-n"` suffix to specify the minimum chain length or interdependence order.
         Note that `"no-chain"` and `"no-interdependence"` are aliases for `"no-chain-2"` and `"no-interdependence-2"` respectively.
         """
-    @staticmethod
-    def variants() -> builtins.list[SolveMode]:
-        r"""
-        The base modes, each with their default length. Parametrized modes with a non-default
-        length must be built explicitly via `no_chain(...)` / `no_interdependence(...)`.
-        """
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...
-

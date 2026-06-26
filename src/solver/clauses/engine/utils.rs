@@ -1,6 +1,4 @@
-use crate::solver::Clause;
-
-use super::VarPool;
+use crate::solver::{Clause, clauses::VarPool};
 
 /// At-most-one encoding crossover: for small variable sets, the naive pairwise encoding
 /// (n(n-1)/2 binary clauses, no auxiliary variables) uses fewer-or-equal clauses *and* zero
@@ -38,5 +36,5 @@ pub fn at_most_one_sequential(vars: &[i32], pool: &mut VarPool) -> Vec<Clause> {
 }
 
 #[cfg(test)]
-#[path = "../../unit_tests/test_clause_utils.rs"]
+#[path = "../../../unit_tests/test_clause_utils.rs"]
 mod tests;
