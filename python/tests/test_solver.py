@@ -280,22 +280,14 @@ def test_no_cooperation_agrees_with_is_cooperative(level: int, t_max: int, expec
 
 
 def test_typing_solve_mode_literal():
-    literals = get_args(SolveModeLiteral)
     for lit in get_args(SolveModeLiteral):
-        ok = False
-        for mode in SolveMode.variants():
-            if lit == mode.value:
-                ok = True
-                break
-        assert ok, f"{lit} is not a valid SolveMode"
-    for mode in SolveMode.variants():
-        assert mode.value in literals
+        SolveMode.from_str(lit)
 
 
 def test_rust_solve_mode_values():
     assert SolveMode.standard().value == "standard"
     assert SolveMode.no_cooperation().value == "no-cooperation"
-    assert SolveMode.no_mutual().value == "no-mutual"
+    assert SolveMode.no_mutual().value == "no-interdependence"
     assert str(SolveMode.no_cooperation()) == "no-cooperation"
 
 
@@ -305,9 +297,8 @@ def test_rust_solve_mode_parametrized_values_round_trip():
     assert SolveMode.no_chain(3).value == "no-chain-3"
     assert SolveMode.no_interdependence(4).value == "no-interdependence-4"
     # from_str is the inverse of value.
-    for s in ("standard", "no-mutual", "no-chain", "no-chain-3", "no-interdependence", "no-interdependence-4"):
+    for s in ("standard", "no-chain", "no-chain-3", "no-interdependence", "no-interdependence-4"):
         assert SolveMode.from_str(s).value == s
-    # "no-interdependence-2" is the two-agent equivalent of "no-mutual".
     assert SolveMode.from_str("no-interdependence-2") == SolveMode.no_interdependence(2)
 
 

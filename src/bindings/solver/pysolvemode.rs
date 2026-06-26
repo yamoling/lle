@@ -91,6 +91,8 @@ impl PySolveMode {
     }
 
     /// Forbid plans where two agents each help the other.
+    ///
+    /// Equivalent to [`SolveMode::NoInterdependence(2)`].
     #[staticmethod]
     fn no_mutual() -> Self {
         SolveMode::NoInterdependence(2).into()
