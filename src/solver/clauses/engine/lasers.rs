@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
-use crate::Position;
+use crate::{
+    Position,
+    solver::{Clause, VarKey, clauses::ClauseEngine},
+};
 
-use super::Clause;
-use super::VarKey;
-use super::engine::ClauseEngine;
 use super::utils::{equals, implies};
 
 impl ClauseEngine {

@@ -36,12 +36,6 @@ impl<E, S: StepSource<E>> StepBuffer<E, S> {
         }
     }
 
-    /// The generation rule backing this buffer. Lets the façade inspect auxiliary source data
-    /// (e.g. how many chains were enumerated) without duplicating it.
-    pub fn source(&self) -> &S {
-        &self.source
-    }
-
     /// Gather every item from step `0` through step `t`, generating and caching any step not yet
     /// produced by calling the [`StepSource`] for each missing step in order.
     pub fn gather_until(&mut self, engine: &mut E, t: usize) -> impl Iterator<Item = S::Item> {

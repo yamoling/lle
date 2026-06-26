@@ -1,5 +1,4 @@
-use super::engine::ClauseEngine;
-use super::{Literal, VarKey};
+use crate::solver::{Literal, VarKey, clauses::ClauseEngine};
 
 impl ClauseEngine {
     /// Return literals asserting no cooperation at exactly time `t`: for every laser, every
@@ -29,5 +28,5 @@ impl ClauseEngine {
 }
 
 #[cfg(test)]
-#[path = "../../unit_tests/test_assumptions.rs"]
+#[path = "../../../unit_tests/test_assumptions.rs"]
 mod tests;

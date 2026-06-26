@@ -1,19 +1,18 @@
-use std::collections::HashMap;
-
+use crate::solver::SolveMode;
 use crate::solver::clauses::sources::NoCooperationAssumptionSource;
 use crate::solver::errors::SolverError;
 use crate::{Action, World};
 
 use super::VarKey;
 use super::engine::ClauseEngine;
-use super::sources::{ChainSource, CycleSource, HelpTrackingSource, LaserSource, MovementSource};
-use super::{Clause, Literal, SolveMode, StepBuffer};
+use super::sources::{HelpTrackingSource, LaserSource, MovementSource};
+use super::{Clause, Literal, StepBuffer};
 
 type MovementBuffer = StepBuffer<ClauseEngine, MovementSource>;
 type LaserBuffer = StepBuffer<ClauseEngine, LaserSource>;
 type HelpBuffer = StepBuffer<ClauseEngine, HelpTrackingSource>;
-type ChainBuffer = StepBuffer<ClauseEngine, ChainSource>;
-type CycleBuffer = StepBuffer<ClauseEngine, CycleSource>;
+// type ChainBuffer = StepBuffer<ClauseEngine, ChainSource>;
+// type CycleBuffer = StepBuffer<ClauseEngine, CycleSource>;
 type NoCooperationAssumptionBuffer = StepBuffer<ClauseEngine, NoCooperationAssumptionSource>;
 
 /// Generates the SAT clauses for a bounded planning horizon.
@@ -34,9 +33,9 @@ pub struct ClauseGenerator {
     /// Shared `has_helped_by_time` clauses for all tracked help pairs.
     help_tracking: HelpBuffer,
     /// Chain-progress clauses, keyed by the forbidden chain length.
-    chains: HashMap<usize, ChainBuffer>,
+    // chains: HashMap<usize, ChainBuffer>,
     /// Cycle-rotation clauses, keyed by the forbidden cycle order.
-    cycles: HashMap<usize, CycleBuffer>,
+    // cycles: HashMap<usize, CycleBuffer>,
     no_cooperation_assumptions: NoCooperationAssumptionBuffer,
 }
 
@@ -53,8 +52,8 @@ impl ClauseGenerator {
                 capacity,
             ),
             help_tracking: StepBuffer::new(HelpTrackingSource, capacity),
-            chains: HashMap::new(),
-            cycles: HashMap::new(),
+            // chains: HashMap::new(),
+            // cycles: HashMap::new(),
             no_cooperation_assumptions: StepBuffer::new(NoCooperationAssumptionSource, capacity),
         }
     }
@@ -86,17 +85,19 @@ impl ClauseGenerator {
                 clauses.extend(self.lasers.gather_until(&mut self.engine, t));
                 clauses.extend(self.help_tracking.gather_until(&mut self.engine, t));
             }
-            SolveMode::NoChainedCooperation(length) => {
-                clauses.extend(self.lasers.gather_until(&mut self.engine, t));
-                clauses.extend(self.help_tracking.gather_until(&mut self.engine, t));
-                let buf = Self::chain_buffer(&mut self.chains, &self.engine, length);
-                clauses.extend(buf.gather_until(&mut self.engine, t));
+            SolveMode::NoChainedCooperation(_) => {
+                todo!();
+                // clauses.extend(self.lasers.gather_until(&mut self.engine, t));
+                // clauses.extend(self.help_tracking.gather_until(&mut self.engine, t));
+                // let buf = Self::chain_buffer(&mut self.chains, &self.engine, length);
+                // clauses.extend(buf.gather_until(&mut self.engine, t));
             }
-            SolveMode::NoInterdependence(order) => {
-                clauses.extend(self.lasers.gather_until(&mut self.engine, t));
-                clauses.extend(self.help_tracking.gather_until(&mut self.engine, t));
-                let buf = Self::cycle_buffer(&mut self.cycles, &self.engine, order);
-                clauses.extend(buf.gather_until(&mut self.engine, t));
+            SolveMode::NoInterdependence(_) => {
+                todo!();
+                // clauses.extend(self.lasers.gather_until(&mut self.engine, t));
+                // clauses.extend(self.help_tracking.gather_until(&mut self.engine, t));
+                // let buf = Self::cycle_buffer(&mut self.cycles, &self.engine, order);
+                // clauses.extend(buf.gather_until(&mut self.engine, t));
             }
         }
 
@@ -114,51 +115,9 @@ impl ClauseGenerator {
         match mode {
             SolveMode::Standard | SolveMode::NoCooperation => (vec![], vec![]),
             SolveMode::NoAsymmetricCooperation => self.engine.forbid_asymmetric_cooperation(t),
-            SolveMode::NoChainedCooperation(length) => {
-                let n = self
-                    .chains
-                    .get(&length)
-                    .map_or(0, |b| b.source().chains().len());
-                self.engine.forbid_chains(length, n)
-            }
-            SolveMode::NoInterdependence(order) => {
-                let n = self
-                    .cycles
-                    .get(&order)
-                    .map_or(0, |b| b.source().cycles().len());
-                self.engine.forbid_cycle_rotations(order, n)
-            }
+            SolveMode::NoChainedCooperation(_) => todo!(),
+            SolveMode::NoInterdependence(_) => todo!(),
         }
-    }
-
-    /// The chain buffer for `length`, enumerating its chains on first use. Takes the map and engine
-    /// as disjoint borrows so the caller can keep mutating the engine through the returned buffer.
-    ///
-    /// Note: this function (instead of method) is a trick to circumvent borrow checker limitations.
-    fn chain_buffer<'a>(
-        chains: &'a mut HashMap<usize, ChainBuffer>,
-        engine: &ClauseEngine,
-        length: usize,
-    ) -> &'a mut ChainBuffer {
-        let capacity = engine.t_max() + 1;
-        chains.entry(length).or_insert_with(|| {
-            let source = ChainSource::new(length, &engine.laser_owners, &engine.all_agents);
-            StepBuffer::new(source, capacity)
-        })
-    }
-
-    /// The cycle buffer for `order`, enumerating its rotations on first use.
-    ///
-    /// Note: this function (instead of method) is a trick to circumvent borrow checker limitations.
-    fn cycle_buffer<'a>(
-        cycles: &'a mut HashMap<usize, CycleBuffer>,
-        engine: &ClauseEngine,
-        order: usize,
-    ) -> &'a mut CycleBuffer {
-        let capacity = engine.t_max() + 1;
-        cycles.entry(order).or_insert_with(|| {
-            StepBuffer::new(CycleSource::new(order, &engine.laser_owners), capacity)
-        })
     }
 
     /// Objective clauses for horizon `t`. Not cached.
@@ -200,57 +159,6 @@ impl ClauseGenerator {
     }
 }
 
-/// Test-only access to engine internals that unit tests inspect directly.
 #[cfg(test)]
-impl ClauseGenerator {
-    pub(crate) fn pool(&self) -> &super::VarPool {
-        &self.engine.pool
-    }
-
-    pub(crate) fn relevant_positions_for_agent(
-        &self,
-        agent: crate::AgentId,
-        t: usize,
-    ) -> &crate::solver::position_set::PositionSet {
-        self.engine.ctx.relevant_positions_for_agent(agent, t)
-    }
-
-    pub(crate) fn gems_must_be_collected(&mut self, t: usize) -> Vec<Clause> {
-        self.engine.gems_must_be_collected(t)
-    }
-
-    pub(crate) fn has_helped_by_time_clauses(&mut self, t: usize) -> Vec<Clause> {
-        self.engine.has_helped_by_time_clauses(t)
-    }
-
-    pub(crate) fn forbid_asymmetric_cooperation(
-        &mut self,
-        t: usize,
-    ) -> (Vec<Clause>, Vec<Literal>) {
-        self.engine.forbid_asymmetric_cooperation(t)
-    }
-
-    pub(crate) fn forbid_chains(&self, length: usize) -> (Vec<Clause>, Vec<Literal>) {
-        let n = self
-            .chains
-            .get(&length)
-            .map_or(0, |b| b.source().chains().len());
-        self.engine.forbid_chains(length, n)
-    }
-
-    pub(crate) fn forbid_cycle_rotations(&self, order: usize) -> (Vec<Clause>, Vec<Literal>) {
-        let n = self
-            .cycles
-            .get(&order)
-            .map_or(0, |b| b.source().cycles().len());
-        self.engine.forbid_cycle_rotations(order, n)
-    }
-
-    pub(crate) fn chains(&self, length: usize) -> Option<&[Vec<crate::AgentId>]> {
-        self.chains.get(&length).map(|b| b.source().chains())
-    }
-
-    pub(crate) fn cycles(&self, order: usize) -> Option<&[Vec<crate::AgentId>]> {
-        self.cycles.get(&order).map(|b| b.source().cycles())
-    }
-}
+#[path = "../../unit_tests/test_clause_generation.rs"]
+mod tests;

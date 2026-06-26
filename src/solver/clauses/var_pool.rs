@@ -189,26 +189,6 @@ impl VarPool {
         self.id(VarKey::has_helped_by_time(helper, beneficiary, t))
     }
 
-    /// Progress indicator: the first `step` edges of chain `chain_id` have fired by time `t`.
-    pub fn chain_progress(&mut self, length: usize, chain_id: u32, step: u8, t: usize) -> i32 {
-        self.id(VarKey::chain_progress(length, chain_id, step, t))
-    }
-
-    /// Whether chain `chain_id` has been fully realized.
-    pub fn chain_realized(&mut self, length: usize, chain_id: u32) -> i32 {
-        self.id(VarKey::chain_realized(length, chain_id))
-    }
-
-    /// Progress indicator: the first `step` edges of cycle rotation `cycle_id` have fired by time `t`.
-    pub fn cycle_progress(&mut self, order: usize, cycle_id: u32, step: u8, t: usize) -> i32 {
-        self.id(VarKey::cycle_progress(order, cycle_id, step, t))
-    }
-
-    /// Whether cycle rotation `cycle_id` has been fully realized.
-    pub fn cycle_realized(&mut self, order: usize, cycle_id: u32) -> i32 {
-        self.id(VarKey::cycle_realized(order, cycle_id))
-    }
-
     /// Variable id already assigned to `key`, or `None` if it was never created.
     ///
     /// Unlike the factory methods above, this never *creates* a variable, so it is safe to use

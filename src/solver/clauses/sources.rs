@@ -8,10 +8,8 @@
 //! [`ClauseGenerator`]: super::ClauseGenerator
 
 use super::Clause;
-use super::dependency_shapes::{enumerate_cycles, enumerate_paths};
 use super::engine::ClauseEngine;
 use super::step_buffer::StepSource;
-use crate::AgentId;
 use crate::solver::Literal;
 
 pub struct NoCooperationAssumptionSource;
@@ -56,63 +54,5 @@ impl StepSource<ClauseEngine> for HelpTrackingSource {
 
     fn generate_step(&self, engine: &mut ClauseEngine, t: usize) -> Vec<Clause> {
         engine.has_helped_by_time_clauses(t)
-    }
-}
-
-/// Chain-progress clauses for every directed help chain of the given `length`.
-pub(super) struct ChainSource {
-    length: usize,
-    chains: Vec<Vec<AgentId>>,
-}
-
-impl ChainSource {
-    /// Enumerate the chains of `length` over the world's laser owners.
-    pub(super) fn new(length: usize, owners: &[AgentId], all_agents: &[AgentId]) -> Self {
-        Self {
-            length,
-            chains: enumerate_paths(owners, all_agents, length),
-        }
-    }
-
-    /// The enumerated chains, so the façade can forbid each realized variable.
-    pub(super) fn chains(&self) -> &[Vec<AgentId>] {
-        &self.chains
-    }
-}
-
-impl StepSource<ClauseEngine> for ChainSource {
-    type Item = Clause;
-
-    fn generate_step(&self, engine: &mut ClauseEngine, t: usize) -> Vec<Clause> {
-        engine.chain_clauses(self.length, &self.chains, t)
-    }
-}
-
-/// Cycle-rotation clauses for every directed dependency cycle of the given `order`.
-pub(super) struct CycleSource {
-    order: usize,
-    cycles: Vec<Vec<AgentId>>,
-}
-
-impl CycleSource {
-    /// Enumerate the cycle rotations of `order` over the world's laser owners.
-    pub(super) fn new(order: usize, owners: &[AgentId]) -> Self {
-        Self {
-            order,
-            cycles: enumerate_cycles(owners, order),
-        }
-    }
-
-    /// The enumerated cycle rotations, so the façade can forbid each realized variable.
-    pub(super) fn cycles(&self) -> &[Vec<AgentId>] {
-        &self.cycles
-    }
-}
-
-impl StepSource<ClauseEngine> for CycleSource {
-    type Item = Clause;
-
-    fn generate_step(&self, engine: &mut ClauseEngine, t: usize) -> Vec<Clause> {
-        engine.cycle_rotation_clauses(self.order, &self.cycles, t)
     }
 }

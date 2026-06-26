@@ -1,12 +1,11 @@
 use itertools::Itertools;
 
+use crate::solver::clauses::VarPool;
+use crate::solver::context::ConstraintContext;
 use crate::solver::errors::SolverError;
 use crate::solver::position_set::PositionSet;
+use crate::solver::{Clause, VarKey};
 use crate::{Action, AgentId, World};
-
-use super::super::context::ConstraintContext;
-use super::Clause;
-use super::{VarKey, VarPool};
 
 /// Mutable substrate shared by every clause-producing routine.
 ///
@@ -18,20 +17,20 @@ use super::{VarKey, VarPool};
 ///
 /// [`StepBuffer`]: super::StepBuffer
 /// [`ClauseGenerator`]: super::ClauseGenerator
-pub(super) struct ClauseEngine {
-    pub(super) ctx: ConstraintContext,
-    pub(super) pool: VarPool,
-    pub(super) exits: PositionSet,
-    pub(super) gems: PositionSet,
-    pub(super) laser_owners: Vec<AgentId>,
-    pub(super) all_agents: Vec<AgentId>,
+pub struct ClauseEngine {
+    pub ctx: ConstraintContext,
+    pub pool: VarPool,
+    pub exits: PositionSet,
+    pub gems: PositionSet,
+    pub laser_owners: Vec<AgentId>,
+    pub all_agents: Vec<AgentId>,
     /// Every directed pair `(helper, beneficiary)` for which a help event is geometrically
     /// meaningful. `helper` must own at least one laser and `beneficiary != helper`.
-    pub(super) tracked_help_pairs: Vec<(AgentId, AgentId)>,
+    pub tracked_help_pairs: Vec<(AgentId, AgentId)>,
 }
 
 impl ClauseEngine {
-    pub(super) fn new(world: &World, t_max: usize) -> Self {
+    pub fn new(world: &World, t_max: usize) -> Self {
         let ctx = ConstraintContext::new(world, t_max);
         // Agents that own a laser are the only ones that can ever help (the helper of every
         // dependency edge must block a beam).
@@ -74,7 +73,7 @@ impl ClauseEngine {
     /// Movement-only world-enforcing clauses for a single step `t`.
     ///
     /// @ai-generated
-    pub(super) fn generate_movement_clauses(&mut self, t: usize) -> Vec<Clause> {
+    pub fn generate_movement_clauses(&mut self, t: usize) -> Vec<Clause> {
         self.ctx.update(t);
         let mut clauses = Vec::new();
         clauses.extend(self.initialization(t));
@@ -93,7 +92,7 @@ impl ClauseEngine {
     /// beam-activation clauses.
     ///
     /// @ai-generated
-    pub(super) fn generate_laser_clauses(&mut self, t: usize, coop_detection: bool) -> Vec<Clause> {
+    pub fn generate_laser_clauses(&mut self, t: usize, coop_detection: bool) -> Vec<Clause> {
         self.ctx.update(t);
         let mut clauses = Vec::new();
         let (beam_clauses, active_lit) = self.beam_activation(t);
@@ -111,7 +110,7 @@ impl ClauseEngine {
     }
 
     /// Objective clauses for horizon `t`: every agent must be on an exit. Not cached.
-    pub(super) fn objective(&mut self, t: usize, collect_gems: bool) -> Vec<Clause> {
+    pub fn objective(&mut self, t: usize, collect_gems: bool) -> Vec<Clause> {
         self.ctx.update(t);
         let mut clauses = if collect_gems {
             self.gems_must_be_collected(t)
@@ -133,7 +132,7 @@ impl ClauseEngine {
     }
 
     #[inline]
-    pub(super) fn decode_plan(
+    pub fn decode_plan(
         &self,
         literals: &[i32],
         t_end: usize,
@@ -142,25 +141,25 @@ impl ClauseEngine {
     }
 
     #[inline]
-    pub(super) fn t_max(&self) -> usize {
+    pub fn t_max(&self) -> usize {
         self.ctx.t_max
     }
 
     #[inline]
-    pub(super) fn solution_lower_bound(&self) -> usize {
+    pub fn solution_lower_bound(&self) -> usize {
         self.ctx.solution_lower_bound
     }
 
-    pub(super) fn exists(&self, key: &VarKey) -> bool {
+    pub fn exists(&self, key: &VarKey) -> bool {
         self.pool.exists(key)
     }
 
-    pub(super) fn n_vars(&self) -> usize {
+    pub fn n_vars(&self) -> usize {
         self.pool.n_vars()
     }
 
     /// Return the SAT literal assigned to `key`, or `None` if it was never created.
-    pub(super) fn literal(&self, key: &VarKey) -> Option<i32> {
+    pub fn literal(&self, key: &VarKey) -> Option<i32> {
         self.pool.get(key)
     }
 }

@@ -1,7 +1,7 @@
 use itertools::Itertools;
 
-use super::Clause;
-use super::engine::ClauseEngine;
+use crate::solver::{Clause, clauses::ClauseEngine};
+
 use super::utils::{PAIRWISE_ATMOST_MAX, at_most_one_sequential, implies};
 
 impl ClauseEngine {
