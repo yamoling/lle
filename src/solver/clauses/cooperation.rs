@@ -1,5 +1,4 @@
-use super::generator::ClauseGenerator;
-use super::solve_mode::SolveMode;
+use super::engine::ClauseEngine;
 use super::utils::implies;
 use super::{Clause, Literal, VarKey};
 use crate::{AgentId, Position};
@@ -10,19 +9,7 @@ enum DependencyKind {
     Cycle { order: usize },
 }
 
-impl ClauseGenerator {
-    /// Horizon-specific forbid clauses/assumptions for `mode`.
-    pub(crate) fn mode_forbid(&mut self, t: usize, mode: SolveMode) -> (Vec<Clause>, Vec<Literal>) {
-        match mode {
-            SolveMode::Standard => (vec![], vec![]),
-            SolveMode::NoCooperation => (vec![], self.assume_no_cooperation_until(t)),
-            SolveMode::NoAsymmetricCooperation => self.forbid_asymmetric_cooperation(t),
-            SolveMode::NoMutualCooperation => self.forbid_mutual_cooperation(t),
-            SolveMode::NoChainedCooperation(length) => self.forbid_chains(length),
-            SolveMode::NoInterdependence(order) => self.forbid_cycle_rotations(order),
-        }
-    }
-
+impl ClauseEngine {
     /// Positions where `beneficiary` can legally stand on one of `helper`'s beams at time `t`.
     ///
     /// Such an occupancy is a *help edge* `helper → beneficiary`: [`no_step_on_active_laser`]
@@ -103,7 +90,6 @@ impl ClauseGenerator {
         &mut self,
         t: usize,
     ) -> (Vec<Clause>, Vec<Literal>) {
-        self.ensure_help_tracking(t);
         let mut clauses = Vec::new();
         let mut assumptions = Vec::new();
         for tau in 0..=t {
@@ -128,27 +114,6 @@ impl ClauseGenerator {
                     clause.push(asymmetric);
                     clauses.push(clause);
                     assumptions.push(-asymmetric);
-                }
-            }
-        }
-        (clauses, assumptions)
-    }
-
-    /// Clauses and assumptions that forbid *mutual* cooperation between every pair of agents, at
-    /// horizon `t`.
-    pub(crate) fn forbid_mutual_cooperation(&mut self, t: usize) -> (Vec<Clause>, Vec<Literal>) {
-        self.ensure_help_tracking(t);
-        let n_agents = self.ctx.n_agents;
-        let mut clauses = Vec::new();
-        let mut assumptions = Vec::new();
-        for a in 0..n_agents {
-            for b in (a + 1)..n_agents {
-                let a_helps_b = self.pool.get(&VarKey::has_helped_by_time(a, b, t));
-                let b_helps_a = self.pool.get(&VarKey::has_helped_by_time(b, a, t));
-                if let (Some(d_ab), Some(d_ba)) = (a_helps_b, b_helps_a) {
-                    let mutual = self.pool.mutual(a, b);
-                    clauses.push(vec![-d_ab, -d_ba, mutual]);
-                    assumptions.push(-mutual);
                 }
             }
         }
@@ -306,25 +271,28 @@ impl ClauseGenerator {
         self.dependency_clauses(DependencyKind::Cycle { order }, cycle_rotations, t)
     }
 
-    /// Assumptions `¬chain_realized(chain)` for every chain whose realized variable was created.
-    pub(crate) fn forbid_chains(&self, length: usize) -> (Vec<Clause>, Vec<Literal>) {
-        let Some(support) = self.chain_support.get(&length) else {
-            return (vec![], vec![]);
-        };
-        let assumptions = (0..support.chains.len())
+    /// Assumptions `¬chain_realized(chain)` for every one of the `n_chains` chains of `length`
+    /// whose realized variable was created.
+    pub(crate) fn forbid_chains(
+        &self,
+        length: usize,
+        n_chains: usize,
+    ) -> (Vec<Clause>, Vec<Literal>) {
+        let assumptions = (0..n_chains)
             .filter_map(|id| self.pool.get(&VarKey::chain_realized(length, id as u32)))
             .map(|v| -v)
             .collect();
         (vec![], assumptions)
     }
 
-    /// Assumptions `¬cycle_realized(rotation)` for every cycle rotation whose realized variable was
-    /// created.
-    pub(crate) fn forbid_cycle_rotations(&self, order: usize) -> (Vec<Clause>, Vec<Literal>) {
-        let Some(support) = self.interdependence_support.get(&order) else {
-            return (vec![], vec![]);
-        };
-        let assumptions = (0..support.possible_cycles.len())
+    /// Assumptions `¬cycle_realized(rotation)` for every one of the `n_cycles` cycle rotations of
+    /// `order` whose realized variable was created.
+    pub(crate) fn forbid_cycle_rotations(
+        &self,
+        order: usize,
+        n_cycles: usize,
+    ) -> (Vec<Clause>, Vec<Literal>) {
+        let assumptions = (0..n_cycles)
             .filter_map(|id| self.pool.get(&VarKey::cycle_realized(order, id as u32)))
             .map(|v| -v)
             .collect();

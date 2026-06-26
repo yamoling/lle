@@ -9,8 +9,6 @@ pub enum SolveMode {
     /// No help edge `a → b` may appear unless `a` is helped by some other agent somewhere in the
     /// same trajectory. Equivalently, forbids asymmetric cooperation events.
     NoAsymmetricCooperation,
-    /// No pair of agents may mutually cooperate (each helping the other).
-    NoMutualCooperation,
     /// No non-decreasing-time temporal chain of length `>= n` may appear, where the length counts
     /// help edges (`a → b → c` is a chain of length 2). Agents and lasers may repeat; edge times
     /// may be equal, so simultaneous help events can form or extend chains. The wrapped value is
@@ -51,7 +49,7 @@ impl std::str::FromStr for SolveMode {
             "standard" => Ok(SolveMode::Standard),
             "no-cooperation" => Ok(SolveMode::NoCooperation),
             "no-asymmetric" => Ok(SolveMode::NoAsymmetricCooperation),
-            "no-mutual" => Ok(SolveMode::NoMutualCooperation),
+            "no-mutual" => Ok(SolveMode::NoInterdependence(2)),
             other => {
                 if let Some(res) = parametrized(s, "no-chain") {
                     return res.map(SolveMode::NoChainedCooperation);
@@ -77,7 +75,6 @@ impl SolveMode {
             SolveMode::Standard => "standard".to_string(),
             SolveMode::NoCooperation => "no-cooperation".to_string(),
             SolveMode::NoAsymmetricCooperation => "no-asymmetric".to_string(),
-            SolveMode::NoMutualCooperation => "no-mutual".to_string(),
             SolveMode::NoChainedCooperation(n) => suffixed("no-chain", *n),
             SolveMode::NoInterdependence(n) => suffixed("no-interdependence", *n),
         }
@@ -113,7 +110,7 @@ mod tests {
         );
         assert_eq!(
             SolveMode::from_str("no-mutual").unwrap(),
-            SolveMode::NoMutualCooperation
+            SolveMode::NoInterdependence(2)
         );
     }
 

@@ -1,351 +1,169 @@
 use std::collections::HashMap;
 
-use itertools::Itertools;
-
+use crate::solver::clauses::sources::NoCooperationAssumptionSource;
 use crate::solver::errors::SolverError;
-use crate::solver::position_set::PositionSet;
-use crate::{Action, AgentId, World};
+use crate::{Action, World};
 
-use super::super::context::ConstraintContext;
-use super::dependency_shapes::{enumerate_cycles, enumerate_paths};
-use super::{Clause, Literal, SolveMode};
-use super::{VarKey, VarPool};
+use super::VarKey;
+use super::engine::ClauseEngine;
+use super::sources::{ChainSource, CycleSource, HelpTrackingSource, LaserSource, MovementSource};
+use super::{Clause, Literal, SolveMode, StepBuffer};
 
-pub(super) struct ChainSupport {
-    pub(super) chains: Vec<Vec<AgentId>>,
-    pub(super) clause_buffer: Vec<Vec<Clause>>,
-    pub(super) generated_until: Option<usize>,
-}
-
-pub(super) struct InterdependenceSupport {
-    pub(super) possible_cycles: Vec<Vec<AgentId>>,
-    pub(super) clause_buffer: Vec<Vec<Clause>>,
-    pub(super) generated_until: Option<usize>,
-}
+type MovementBuffer = StepBuffer<ClauseEngine, MovementSource>;
+type LaserBuffer = StepBuffer<ClauseEngine, LaserSource>;
+type HelpBuffer = StepBuffer<ClauseEngine, HelpTrackingSource>;
+type ChainBuffer = StepBuffer<ClauseEngine, ChainSource>;
+type CycleBuffer = StepBuffer<ClauseEngine, CycleSource>;
+type NoCooperationAssumptionBuffer = StepBuffer<ClauseEngine, NoCooperationAssumptionSource>;
 
 /// Generates the SAT clauses for a bounded planning horizon.
 ///
-/// Domain clauses are cached independently of solve mode. Cooperation-related support clauses are
-/// generated lazily per mode, allowing one generator to answer repeated queries with different
-/// [`SolveMode`]s and objective variants without rebuilding the shared world constraints.
+/// The generator is a thin façade over a [`ClauseEngine`] (which knows how to produce the clauses
+/// for one step) and a set of [`StepBuffer`]s (which cache those clauses per time step). Each mode
+/// simply declares which buffers feed it; the buffers fill themselves on demand. The generator
+/// itself is oblivious to the caching mechanism: it never tracks how far generation has progressed.
+///
+/// One generator answers repeated queries with different [`SolveMode`]s without rebuilding the
+/// shared world constraints, because the relevant buffers persist between calls.
 pub struct ClauseGenerator {
-    pub(super) ctx: ConstraintContext,
-    pub(super) pool: VarPool,
-    pub(super) exits: PositionSet,
-    pub(super) gems: PositionSet,
-    pub(super) laser_owners: Vec<AgentId>,
-    pub(super) all_agents: Vec<AgentId>,
-    /// Every directed pair `(helper, beneficiary)` for which a help event is geometrically
-    /// meaningful. `helper` must own at least one laser and `beneficiary != helper`.
-    pub(super) tracked_help_pairs: Vec<(AgentId, AgentId)>,
-    /// `domain_clause_buffer[t]` = mode-independent world-enforcing clauses for step `t`.
-    domain_clause_buffer: Vec<Vec<Clause>>,
-    /// Steps 0..=generated_until have been buffered; `None` means nothing buffered yet.
-    domain_generated_until: Option<usize>,
+    engine: ClauseEngine,
+    /// Movement constraints shared by every solve mode.
+    movements: MovementBuffer,
+    /// Laser constraints with beam activation
+    lasers: LaserBuffer,
     /// Shared `has_helped_by_time` clauses for all tracked help pairs.
-    pub(super) help_tracking_clause_buffer: Vec<Vec<Clause>>,
-    pub(super) help_tracking_generated_until: Option<usize>,
-    pub(super) chain_support: HashMap<usize, ChainSupport>,
-    pub(super) interdependence_support: HashMap<usize, InterdependenceSupport>,
-    pub(super) no_cooperation_assumption_buffer: Vec<Vec<Literal>>,
-    pub(super) no_cooperation_generated_until: Option<usize>,
-    domain_last_coop_detection: Option<bool>,
+    help_tracking: HelpBuffer,
+    /// Chain-progress clauses, keyed by the forbidden chain length.
+    chains: HashMap<usize, ChainBuffer>,
+    /// Cycle-rotation clauses, keyed by the forbidden cycle order.
+    cycles: HashMap<usize, CycleBuffer>,
+    no_cooperation_assumptions: NoCooperationAssumptionBuffer,
 }
 
 impl ClauseGenerator {
     pub fn new(world: &World, t_max: usize) -> Self {
-        let ctx = ConstraintContext::new(world, t_max);
-        // Agents that own a laser are the only ones that can ever help (the helper of every
-        // dependency edge must block a beam).
-        let laser_owners: Vec<AgentId> = ctx
-            .laser_sources
-            .iter()
-            .map(|s| s.agent_id)
-            .unique()
-            .collect();
-        let all_agents: Vec<AgentId> = (0..ctx.n_agents).collect();
-        let tracked_help_pairs: Vec<(AgentId, AgentId)> = laser_owners
-            .iter()
-            .flat_map(|&helper| {
-                all_agents
-                    .iter()
-                    .copied()
-                    .filter(move |&beneficiary| beneficiary != helper)
-                    .map(move |beneficiary| (helper, beneficiary))
-            })
-            .collect();
+        let capacity = t_max + 1;
         Self {
-            exits: PositionSet::from_positions(
-                world.height(),
-                world.width(),
-                world.exits_positions().into_iter(),
+            engine: ClauseEngine::new(world, t_max),
+            movements: StepBuffer::new(MovementSource, capacity),
+            lasers: StepBuffer::new(
+                LaserSource {
+                    coop_detection: false,
+                },
+                capacity,
             ),
-            gems: PositionSet::from_positions(
-                world.height(),
-                world.width(),
-                world.gems_positions().into_iter(),
-            ),
-            ctx,
-            pool: VarPool::new(),
-            laser_owners,
-            all_agents,
-            tracked_help_pairs,
-            domain_clause_buffer: vec![Vec::new(); t_max + 1],
-            domain_generated_until: None,
-            help_tracking_clause_buffer: vec![Vec::new(); t_max + 1],
-            help_tracking_generated_until: None,
-            chain_support: HashMap::new(),
-            interdependence_support: HashMap::new(),
-            no_cooperation_assumption_buffer: vec![Vec::new(); t_max + 1],
-            no_cooperation_generated_until: None,
-            domain_last_coop_detection: None,
+            help_tracking: StepBuffer::new(HelpTrackingSource, capacity),
+            chains: HashMap::new(),
+            cycles: HashMap::new(),
+            no_cooperation_assumptions: StepBuffer::new(NoCooperationAssumptionSource, capacity),
         }
     }
 
-    /// Generate all clauses and assumptions required to solve the problem at step `t`.
+    /// Generate all clauses and assumptions required to solve the problem at horizon `t`.
     ///
-    /// Fills internal buffers for any steps not yet cached, then returns:
-    /// - all mode-independent domain clauses for steps `0..=t`;
-    /// - mode support clauses needed by `mode` for steps `0..=t`;
-    /// - objective clauses for horizon `t`;
-    /// - horizon-scoped forbid clauses/assumptions for `mode`.
+    /// Gathers the movement clauses, laser clauses, any cooperation-support clauses the `mode` needs,
+    /// the objective, and the horizon-scoped forbid clauses/assumptions. Every per-step buffer lazily
+    /// produces and caches the steps it has not seen yet.
     pub fn generate(
         &mut self,
         t: usize,
         mode: SolveMode,
         collect_gems: bool,
     ) -> (Vec<Clause>, Vec<Literal>) {
-        if mode == SolveMode::NoCooperation {
-            //
-            self.ensure_domain(t, true);
-
-            let mut clauses: Vec<Clause> = self.domain_clause_buffer[..=t]
-                .iter()
-                .flatten()
-                .cloned()
-                .collect();
-
-            clauses.extend(self.objective(t, collect_gems));
-            (clauses, Vec::new())
-        } else {
-            self.ensure_domain(t, false);
-            self.ensure_mode_support(t, mode);
-
-            let mut clauses: Vec<Clause> = self.domain_clause_buffer[..=t]
-                .iter()
-                .flatten()
-                .cloned()
-                .collect();
-            clauses.extend(self.mode_support_clauses(t, mode));
-            clauses.extend(self.objective(t, collect_gems));
-
-            let (forbid_clauses, assumptions) = self.mode_forbid(t, mode);
-            clauses.extend(forbid_clauses);
-
-            (clauses, assumptions)
-        }
-    }
-
-    pub(super) fn ensure_domain(&mut self, t: usize, coop_detection: bool) {
-        assert!(
-            t <= self.ctx.t_max,
-            "Cannot generate clauses for t={t}; generator t_max is {}.",
-            self.ctx.t_max
-        );
-        let coop_mismatch = self
-            .domain_last_coop_detection
-            .map_or(true, |last| last != coop_detection);
-        let start = if coop_mismatch {
-            self.domain_last_coop_detection = Some(coop_detection);
-            0 // regenerate from scratch
-        } else {
-            self.domain_generated_until.map_or(0, |u| u + 1)
-        };
-        for tt in start..=t {
-            self.ctx.update(tt);
-            self.domain_clause_buffer[tt] = self.generate_domain_clauses(tt, coop_detection);
-        }
-        if start <= t {
-            self.domain_generated_until = Some(t);
-        }
-    }
-
-    fn generate_domain_clauses(&mut self, t: usize, coop_detection: bool) -> Vec<Clause> {
-        let mut clauses = Vec::new();
-        clauses.extend(self.initialization(t));
-        clauses.extend(self.exactly_one_position(t));
-        clauses.extend(self.time_wise_adjacency(t));
-        clauses.extend(self.no_overlap(t));
-        clauses.extend(self.no_following_conflict(t));
-        clauses.extend(self.stays_on_exit(t));
-        let (beam_clauses, active_lit) = self.beam_activation(t);
-
-        if coop_detection {
-            // add a clause whith each lit in active_lit to ensure that each laser is active
-            let mut active_lits: Vec<Literal> = active_lit.values().copied().collect();
-            for lit in &mut active_lits {
-                clauses.push(vec![*lit]);
-            }
-        } else {
-            clauses.extend(beam_clauses);
-        }
-        clauses.extend(self.no_step_on_active_laser(t, &active_lit));
-        clauses
-    }
-
-    pub(super) fn ensure_help_tracking(&mut self, t: usize) {
-        self.ensure_domain(t, false);
-        let start = self.help_tracking_generated_until.map_or(0, |u| u + 1);
-        for tt in start..=t {
-            self.ctx.update(tt);
-            self.help_tracking_clause_buffer[tt] = self.has_helped_by_time_clauses(tt);
-        }
-        if start <= t {
-            self.help_tracking_generated_until = Some(t);
-        }
-    }
-
-    fn ensure_mode_support(&mut self, t: usize, mode: SolveMode) {
+        let mut clauses: Vec<_> = self.movements.gather_until(&mut self.engine, t).collect();
+        let mut assumptions = vec![];
         match mode {
-            SolveMode::Standard | SolveMode::NoCooperation => {}
-            SolveMode::NoAsymmetricCooperation | SolveMode::NoMutualCooperation => {
-                self.ensure_help_tracking(t);
+            SolveMode::Standard => {
+                clauses.extend(self.lasers.gather_until(&mut self.engine, t));
+            }
+            SolveMode::NoCooperation => {
+                assumptions.extend(
+                    self.no_cooperation_assumptions
+                        .gather_until(&mut self.engine, t),
+                );
+            }
+            SolveMode::NoAsymmetricCooperation => {
+                clauses.extend(self.lasers.gather_until(&mut self.engine, t));
+                clauses.extend(self.help_tracking.gather_until(&mut self.engine, t));
             }
             SolveMode::NoChainedCooperation(length) => {
-                self.ensure_help_tracking(t);
-                self.ensure_chain_support(length, t);
+                clauses.extend(self.lasers.gather_until(&mut self.engine, t));
+                clauses.extend(self.help_tracking.gather_until(&mut self.engine, t));
+                let buf = Self::chain_buffer(&mut self.chains, &self.engine, length);
+                clauses.extend(buf.gather_until(&mut self.engine, t));
             }
             SolveMode::NoInterdependence(order) => {
-                self.ensure_help_tracking(t);
-                self.ensure_interdependence_support(order, t);
+                clauses.extend(self.lasers.gather_until(&mut self.engine, t));
+                clauses.extend(self.help_tracking.gather_until(&mut self.engine, t));
+                let buf = Self::cycle_buffer(&mut self.cycles, &self.engine, order);
+                clauses.extend(buf.gather_until(&mut self.engine, t));
             }
         }
+
+        clauses.extend(self.engine.objective(t, collect_gems));
+
+        let (forbid_clauses, assumptions) = self.mode_forbid(t, mode);
+        clauses.extend(forbid_clauses);
+
+        (clauses, assumptions)
     }
 
-    fn ensure_chain_support(&mut self, length: usize, t: usize) {
-        self.chain_support
-            .entry(length)
-            .or_insert_with(|| ChainSupport {
-                chains: enumerate_paths(&self.laser_owners, &self.all_agents, length),
-                clause_buffer: vec![Vec::new(); self.ctx.t_max + 1],
-                generated_until: None,
-            });
-
-        let support = self
-            .chain_support
-            .get(&length)
-            .expect("chain support must exist after insertion");
-        let start = support.generated_until.map_or(0, |u| u + 1);
-        if start > t {
-            return;
-        }
-        let chains = support.chains.clone();
-
-        for tt in start..=t {
-            let clauses = self.chain_clauses(length, &chains, tt);
-            self.chain_support
-                .get_mut(&length)
-                .expect("chain support must exist while generating clauses")
-                .clause_buffer[tt] = clauses;
-        }
-        self.chain_support
-            .get_mut(&length)
-            .expect("chain support must exist after generating clauses")
-            .generated_until = Some(t);
-    }
-
-    fn ensure_interdependence_support(&mut self, order: usize, t: usize) {
-        self.interdependence_support
-            .entry(order)
-            .or_insert_with(|| InterdependenceSupport {
-                possible_cycles: enumerate_cycles(&self.laser_owners, order),
-                clause_buffer: vec![Vec::new(); self.ctx.t_max + 1],
-                generated_until: None,
-            });
-
-        let support = self
-            .interdependence_support
-            .get(&order)
-            .expect("interdependence support must exist after insertion");
-        let start = support.generated_until.map_or(0, |u| u + 1);
-        if start > t {
-            return;
-        }
-        let possible_cycles = support.possible_cycles.clone();
-
-        for tt in start..=t {
-            let clauses = self.cycle_rotation_clauses(order, &possible_cycles, tt);
-            self.interdependence_support
-                .get_mut(&order)
-                .expect("interdependence support must exist while generating clauses")
-                .clause_buffer[tt] = clauses;
-        }
-        self.interdependence_support
-            .get_mut(&order)
-            .expect("interdependence support must exist after generating clauses")
-            .generated_until = Some(t);
-    }
-
-    /// Generate the clauses used to support a specific `SolveMode`.
-    fn mode_support_clauses(&self, t: usize, mode: SolveMode) -> Vec<Clause> {
-        let mut clauses = Vec::new();
+    /// Horizon-scoped forbid clauses/assumptions for `mode`. These read variables created as a
+    /// side effect of the buffers gathered in [`generate`](Self::generate), so they must run after.
+    fn mode_forbid(&mut self, t: usize, mode: SolveMode) -> (Vec<Clause>, Vec<Literal>) {
         match mode {
-            SolveMode::Standard | SolveMode::NoCooperation => {}
-            SolveMode::NoAsymmetricCooperation | SolveMode::NoMutualCooperation => {
-                clauses.extend(
-                    self.help_tracking_clause_buffer[..=t]
-                        .iter()
-                        .flatten()
-                        .cloned(),
-                );
-            }
+            SolveMode::Standard | SolveMode::NoCooperation => (vec![], vec![]),
+            SolveMode::NoAsymmetricCooperation => self.engine.forbid_asymmetric_cooperation(t),
             SolveMode::NoChainedCooperation(length) => {
-                clauses.extend(
-                    self.help_tracking_clause_buffer[..=t]
-                        .iter()
-                        .flatten()
-                        .cloned(),
-                );
-                if let Some(support) = self.chain_support.get(&length) {
-                    clauses.extend(support.clause_buffer[..=t].iter().flatten().cloned());
-                }
+                let n = self
+                    .chains
+                    .get(&length)
+                    .map_or(0, |b| b.source().chains().len());
+                self.engine.forbid_chains(length, n)
             }
             SolveMode::NoInterdependence(order) => {
-                clauses.extend(
-                    self.help_tracking_clause_buffer[..=t]
-                        .iter()
-                        .flatten()
-                        .cloned(),
-                );
-                //self.interdependence_support.entry(key).or_insert_with(|| {})
-                if let Some(support) = self.interdependence_support.get(&order) {
-                    clauses.extend(support.clause_buffer[..=t].iter().flatten().cloned());
-                }
+                let n = self
+                    .cycles
+                    .get(&order)
+                    .map_or(0, |b| b.source().cycles().len());
+                self.engine.forbid_cycle_rotations(order, n)
             }
         }
-        clauses
     }
 
-    /// Objective clauses for horizon `t`: every agent must be on an exit. Not cached.
+    /// The chain buffer for `length`, enumerating its chains on first use. Takes the map and engine
+    /// as disjoint borrows so the caller can keep mutating the engine through the returned buffer.
+    ///
+    /// Note: this function (instead of method) is a trick to circumvent borrow checker limitations.
+    fn chain_buffer<'a>(
+        chains: &'a mut HashMap<usize, ChainBuffer>,
+        engine: &ClauseEngine,
+        length: usize,
+    ) -> &'a mut ChainBuffer {
+        let capacity = engine.t_max() + 1;
+        chains.entry(length).or_insert_with(|| {
+            let source = ChainSource::new(length, &engine.laser_owners, &engine.all_agents);
+            StepBuffer::new(source, capacity)
+        })
+    }
+
+    /// The cycle buffer for `order`, enumerating its rotations on first use.
+    ///
+    /// Note: this function (instead of method) is a trick to circumvent borrow checker limitations.
+    fn cycle_buffer<'a>(
+        cycles: &'a mut HashMap<usize, CycleBuffer>,
+        engine: &ClauseEngine,
+        order: usize,
+    ) -> &'a mut CycleBuffer {
+        let capacity = engine.t_max() + 1;
+        cycles.entry(order).or_insert_with(|| {
+            StepBuffer::new(CycleSource::new(order, &engine.laser_owners), capacity)
+        })
+    }
+
+    /// Objective clauses for horizon `t`. Not cached.
     pub fn objective(&mut self, t: usize, collect_gems: bool) -> Vec<Clause> {
-        self.ctx.update(t);
-        let mut clauses = if collect_gems {
-            self.gems_must_be_collected(t)
-        } else {
-            Vec::with_capacity(self.ctx.n_agents)
-        };
-        for agent in 0..self.ctx.n_agents {
-            let reachable = self.ctx.relevant_positions_for_agent(agent, t);
-            let mut positions = self.exits.clone();
-            positions.intersect_with(reachable);
-            clauses.push(
-                positions
-                    .iter()
-                    .map(|p| self.pool.agent(agent, p, t))
-                    .collect(),
-            );
-        }
-        clauses
+        self.engine.objective(t, collect_gems)
     }
 
     #[inline]
@@ -354,30 +172,85 @@ impl ClauseGenerator {
         literals: &[i32],
         t_end: usize,
     ) -> Result<Vec<Vec<Action>>, SolverError> {
-        self.pool.decode_plan(literals, t_end)
+        self.engine.decode_plan(literals, t_end)
     }
 
     #[inline]
     pub fn t_max(&self) -> usize {
-        self.ctx.t_max
+        self.engine.t_max()
     }
 
     #[inline]
     pub fn solution_lower_bound(&self) -> usize {
-        self.ctx.solution_lower_bound
+        self.engine.solution_lower_bound()
     }
 
     pub fn exists(&self, key: &VarKey) -> bool {
-        self.pool.exists(key)
+        self.engine.exists(key)
     }
 
     pub fn n_vars(&self) -> usize {
-        self.pool.n_vars()
+        self.engine.n_vars()
     }
 
     /// Return the SAT literal assigned to `key`, or `None` if it was never created.
     /// Useful in tests to inspect clause literals without accessing the pool directly.
     pub fn literal(&self, key: &VarKey) -> Option<i32> {
-        self.pool.get(key)
+        self.engine.literal(key)
+    }
+}
+
+/// Test-only access to engine internals that unit tests inspect directly.
+#[cfg(test)]
+impl ClauseGenerator {
+    pub(crate) fn pool(&self) -> &super::VarPool {
+        &self.engine.pool
+    }
+
+    pub(crate) fn relevant_positions_for_agent(
+        &self,
+        agent: crate::AgentId,
+        t: usize,
+    ) -> &crate::solver::position_set::PositionSet {
+        self.engine.ctx.relevant_positions_for_agent(agent, t)
+    }
+
+    pub(crate) fn gems_must_be_collected(&mut self, t: usize) -> Vec<Clause> {
+        self.engine.gems_must_be_collected(t)
+    }
+
+    pub(crate) fn has_helped_by_time_clauses(&mut self, t: usize) -> Vec<Clause> {
+        self.engine.has_helped_by_time_clauses(t)
+    }
+
+    pub(crate) fn forbid_asymmetric_cooperation(
+        &mut self,
+        t: usize,
+    ) -> (Vec<Clause>, Vec<Literal>) {
+        self.engine.forbid_asymmetric_cooperation(t)
+    }
+
+    pub(crate) fn forbid_chains(&self, length: usize) -> (Vec<Clause>, Vec<Literal>) {
+        let n = self
+            .chains
+            .get(&length)
+            .map_or(0, |b| b.source().chains().len());
+        self.engine.forbid_chains(length, n)
+    }
+
+    pub(crate) fn forbid_cycle_rotations(&self, order: usize) -> (Vec<Clause>, Vec<Literal>) {
+        let n = self
+            .cycles
+            .get(&order)
+            .map_or(0, |b| b.source().cycles().len());
+        self.engine.forbid_cycle_rotations(order, n)
+    }
+
+    pub(crate) fn chains(&self, length: usize) -> Option<&[Vec<crate::AgentId>]> {
+        self.chains.get(&length).map(|b| b.source().chains())
+    }
+
+    pub(crate) fn cycles(&self, order: usize) -> Option<&[Vec<crate::AgentId>]> {
+        self.cycles.get(&order).map(|b| b.source().cycles())
     }
 }

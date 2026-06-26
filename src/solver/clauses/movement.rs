@@ -1,10 +1,10 @@
 use itertools::Itertools;
 
 use super::Clause;
-use super::generator::ClauseGenerator;
+use super::engine::ClauseEngine;
 use super::utils::{PAIRWISE_ATMOST_MAX, at_most_one_sequential, implies};
 
-impl ClauseGenerator {
+impl ClauseEngine {
     /// Clauses fixing each agent at its start position at `t == 0`.
     pub(super) fn initialization(&mut self, t: usize) -> Vec<Clause> {
         if t != 0 {
@@ -30,7 +30,6 @@ impl ClauseGenerator {
                 .into_iter()
                 .map(|p| self.pool.agent(agent, p, t))
                 .collect();
-            clauses.push(vars.clone());
             if vars.len() <= PAIRWISE_ATMOST_MAX {
                 for i in 0..vars.len() {
                     for j in i + 1..vars.len() {

@@ -1,8 +1,9 @@
 use itertools::Itertools;
 
-use crate::solver::{Clause, ClauseGenerator};
+use super::Clause;
+use super::engine::ClauseEngine;
 
-impl ClauseGenerator {
+impl ClauseEngine {
     /// In comparison to other clauses, gem collection should be expressed at a single time-step.
     /// The most intuitive formulation of the clause is simply a large OR-clause that checks if
     /// at some point in time, an agent is standing on the gem tile.

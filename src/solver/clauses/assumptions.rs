@@ -1,6 +1,7 @@
-use super::{ClauseGenerator, Literal, VarKey};
+use super::engine::ClauseEngine;
+use super::{Literal, VarKey};
 
-impl ClauseGenerator {
+impl ClauseEngine {
     /// Return literals asserting no cooperation at exactly time `t`: for every laser, every
     /// non-owner agent that could stand on a relevant beam tile is assumed not to be there.
     pub(crate) fn assume_no_cooperation_at(&mut self, t: usize) -> Vec<Literal> {
@@ -24,23 +25,6 @@ impl ClauseGenerator {
             }
         }
         assumptions
-    }
-
-    /// Return all no-cooperation assumptions for steps `0..=t`.
-    pub(crate) fn assume_no_cooperation_until(&mut self, t: usize) -> Vec<Literal> {
-        self.ensure_domain(t, false);
-        let start = self.no_cooperation_generated_until.map_or(0, |u| u + 1);
-        for tt in start..=t {
-            self.no_cooperation_assumption_buffer[tt] = self.assume_no_cooperation_at(tt);
-        }
-        if start <= t {
-            self.no_cooperation_generated_until = Some(t);
-        }
-        self.no_cooperation_assumption_buffer[..=t]
-            .iter()
-            .flatten()
-            .copied()
-            .collect()
     }
 }
 

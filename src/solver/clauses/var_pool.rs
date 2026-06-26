@@ -173,11 +173,6 @@ impl VarPool {
         self.id(VarKey::Laser { laser_id, pos, t })
     }
 
-    /// Indicator "`a` and `b` mutually depend on each other" (canonical, `a < b`).
-    pub fn mutual(&mut self, a: AgentId, b: AgentId) -> i32 {
-        self.id(VarKey::mutual(a, b))
-    }
-
     /// Indicator "this concrete help event is asymmetric".
     pub fn asymmetric(
         &mut self,

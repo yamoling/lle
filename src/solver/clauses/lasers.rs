@@ -4,10 +4,10 @@ use crate::Position;
 
 use super::Clause;
 use super::VarKey;
-use super::generator::ClauseGenerator;
+use super::engine::ClauseEngine;
 use super::utils::{equals, implies};
 
-impl ClauseGenerator {
+impl ClauseEngine {
     /// Owned `(agent_id, laser_id, path)` copy of every laser source. Cloning detaches the data
     /// from the `&self.ctx` borrow so the loops below can take `&mut self.pool`.
     fn laser_source_snapshot(&self) -> Vec<(usize, usize, Vec<Position>)> {

@@ -40,29 +40,6 @@ L0E . . .
  .  . . L1W
  X  . . X";
 
-/// No laser at all: nobody can ever help anyone.
-const NO_LASER: &str = "
-S0 . S1
- . . .
- X . X";
-
-#[test]
-fn single_owner_world_tracks_no_dependency() {
-    // Only agent 0 owns a laser, so only the one-way help indicator can be created. No mutual
-    // dependency is expressible and nothing is forbidden.
-    let mut cg = build(ONE_WAY, 10, SolveMode::NoMutualCooperation);
-    assert!(
-        can_help(&cg, 0, 1, 10),
-        "owner-to-non-owner help is tracked"
-    );
-    assert!(!can_help(&cg, 1, 0, 10), "a non-owner can never help");
-    let (clauses, assumptions) = cg.forbid_mutual_cooperation(10);
-    assert!(
-        clauses.is_empty() && assumptions.is_empty(),
-        "a single-owner world cannot be mutual, so nothing is forbidden"
-    );
-}
-
 #[test]
 fn has_helped_by_time_clauses_are_binary_implications_into_has_helped() {
     let world = World::try_from(MUTUAL).expect("failed to parse world");
@@ -89,13 +66,13 @@ fn has_helped_by_time_clauses_are_binary_implications_into_has_helped() {
                 helper,
                 beneficiary,
                 t: has_helped_t,
-            }) = cg.pool.key(positive[0])
+            }) = cg.pool().key(positive[0])
             else {
                 panic!("positive literal must be a HasHelpedByTime var");
             };
             assert_eq!(has_helped_t, t);
             // The antecedent is either the beneficiary's agent var, or the previous-step indicator.
-            match cg.pool.key(-negated[0]) {
+            match cg.pool().key(-negated[0]) {
                 Some(VarKey::Agent { agent_id, .. }) => assert_eq!(agent_id, beneficiary),
                 Some(VarKey::HasHelpedByTime {
                     helper: h2,
@@ -120,55 +97,6 @@ fn has_helped_by_time_clauses_are_binary_implications_into_has_helped() {
 }
 
 #[test]
-fn no_laser_has_no_dependencies() {
-    let world = World::try_from(NO_LASER).expect("failed to parse world");
-    let mut cg = ClauseGenerator::new(&world, 10);
-    for t in 0..=10 {
-        assert!(
-            cg.has_helped_by_time_clauses(t).is_empty(),
-            "no laser means no help events"
-        );
-    }
-    let (clauses, assumptions) = cg.forbid_mutual_cooperation(10);
-    assert!(clauses.is_empty() && assumptions.is_empty());
-}
-
-#[test]
-fn mutual_world_creates_both_directions() {
-    let cg = build(MUTUAL, 10, SolveMode::NoMutualCooperation);
-    // agent 0 (L0E owner) can help agent 1 cross its east beam
-    assert!(
-        can_help(&cg, 0, 1, 10),
-        "agent 0 should be able to help agent 1"
-    );
-    // agent 1 (L1W owner) can help agent 0 cross its west beam
-    assert!(
-        can_help(&cg, 1, 0, 10),
-        "agent 1 should be able to help agent 0"
-    );
-}
-
-#[test]
-fn mutual_world_generates_forbid_clauses_and_assumptions() {
-    let mut cg = build(MUTUAL, 10, SolveMode::NoMutualCooperation);
-    let (clauses, assumptions) = cg.forbid_mutual_cooperation(10);
-    assert!(
-        !clauses.is_empty(),
-        "mutual world must produce forbid clauses"
-    );
-    assert!(
-        !assumptions.is_empty(),
-        "mutual world must produce negative assumptions"
-    );
-    for &lit in &assumptions {
-        assert!(
-            lit < 0,
-            "all forbid-mutual assumptions must be negative literals"
-        );
-    }
-}
-
-#[test]
 fn asymmetric_world_generates_forbid_clauses_and_assumptions() {
     let mut cg = build(ONE_WAY, 10, SolveMode::NoAsymmetricCooperation);
     let (clauses, assumptions) = cg.forbid_asymmetric_cooperation(10);
@@ -186,15 +114,15 @@ fn asymmetric_world_generates_forbid_clauses_and_assumptions() {
             "all forbid-asymmetric assumptions must be negative literals"
         );
         assert!(
-            matches!(cg.pool.key(-lit), Some(VarKey::Asymmetric { .. })),
+            matches!(cg.pool().key(-lit), Some(VarKey::Asymmetric { .. })),
             "forbid-asymmetric assumption must negate an Asymmetric variable"
         );
     }
     assert!(
         clauses.iter().any(|clause| {
-            clause
-                .iter()
-                .any(|&lit| lit > 0 && matches!(cg.pool.key(lit), Some(VarKey::Asymmetric { .. })))
+            clause.iter().any(|&lit| {
+                lit > 0 && matches!(cg.pool().key(lit), Some(VarKey::Asymmetric { .. }))
+            })
         }),
         "definition clauses must imply an Asymmetric variable"
     );
@@ -208,7 +136,7 @@ fn chained_mode_k2_enumerates_two_chains_for_mutual_world() {
     // MUTUAL world: owners = [0, 1], all_agents = [0, 1].
     // Length-2 chains with no repeated directed pair: [0,1,0] and [1,0,1].
     assert_eq!(
-        cg.chain_support.get(&2).unwrap().chains.len(),
+        cg.chains(2).unwrap().len(),
         2,
         "two distinct length-2 chains in a 2-owner world"
     );
@@ -222,7 +150,7 @@ fn chained_mode_k3_has_no_chains_for_two_agent_world() {
     // Only 2 distinct directed pairs (0->1) and (1->0) exist; a length-3 chain needs 3 distinct
     // directed pairs, which is impossible with 2 agents.
     assert!(
-        cg.chain_support.get(&3).unwrap().chains.is_empty(),
+        cg.chains(3).unwrap().is_empty(),
         "no length-3 chain can exist with only 2 agents and 2 possible directed pairs"
     );
 }
@@ -263,7 +191,7 @@ fn chained_mode_forbid_chains_produces_negative_assumptions() {
     for &lit in &assumptions {
         assert!(lit < 0, "all chain-forbid assumptions must be negative");
         assert!(
-            matches!(cg.pool.key(-lit), Some(VarKey::ChainRealized { .. })),
+            matches!(cg.pool().key(-lit), Some(VarKey::ChainRealized { .. })),
             "assumption must negate a ChainRealized variable"
         );
     }
@@ -274,7 +202,7 @@ fn level_6_dependency_is_bidirectional() {
     let world = World::get_level(6).expect("failed to load level 6");
     let n = world.n_agents();
     let mut cg = ClauseGenerator::new(&world, 21);
-    let _ = cg.generate(21, SolveMode::NoMutualCooperation, false);
+    let _ = cg.generate(21, SolveMode::NoInterdependence(2), false);
     // Level 6 requires mutual cooperation: at least one pair must have both directions.
     let has_bidirectional = (0..n).any(|a| {
         (0..n)
@@ -296,12 +224,11 @@ fn level_6_dependency_is_bidirectional() {
 fn no_interdependence_enumerates_and_forbids_cycle_rotations() {
     let cg = build(MUTUAL, 10, SolveMode::NoInterdependence(2));
 
-    let support = cg
-        .interdependence_support
-        .get(&2)
+    let cycles = cg
+        .cycles(2)
         .expect("interdependence support for order 2 must exist after generate()");
     assert_eq!(
-        support.possible_cycles.len(),
+        cycles.len(),
         2,
         "the single order-2 cycle of a 2-owner world expands to 2 rotations"
     );
@@ -326,7 +253,7 @@ fn no_interdependence_enumerates_and_forbids_cycle_rotations() {
     for lit in assumptions {
         assert!(lit < 0, "cycle-forbid assumptions must be negative");
         assert!(
-            matches!(cg.pool.key(-lit), Some(VarKey::CycleRealized { .. })),
+            matches!(cg.pool().key(-lit), Some(VarKey::CycleRealized { .. })),
             "cycle-forbid assumption must negate a CycleRealized variable"
         );
     }
@@ -346,7 +273,7 @@ fn no_interdependence_support_clauses_define_realized() {
     let defines_realized = clauses.iter().any(|clause| {
         clause
             .iter()
-            .any(|&lit| lit > 0 && matches!(cg.pool.key(lit), Some(VarKey::CycleRealized { .. })))
+            .any(|&lit| lit > 0 && matches!(cg.pool().key(lit), Some(VarKey::CycleRealized { .. })))
     });
     assert!(
         defines_realized,
