@@ -1,5 +1,9 @@
+use std::collections::HashSet;
+
 use crate::Position;
 use crate::World;
+use crate::solver::Clause;
+use crate::solver::Literal;
 use crate::solver::{ClauseGenerator, SolveMode, VarKey};
 use rstest::rstest;
 use rstest_reuse::{self, apply, template};
@@ -502,6 +506,90 @@ fn test_no_step_on_active_laser_binary_clause() {
     }
 }
 
+/// Assert that every reachable downstream beam-tile variable for agent 1 is forbidden by a unit
+/// clause or an assumption across the generated horizon.
+fn assert_no_cooperation_does_not_generate_beam_positions(
+    cg: &ClauseGenerator,
+    world: &World,
+    clauses: Vec<Clause>,
+    assumptions: Vec<Literal>,
+) {
+    let clause_literals: HashSet<i32> = clauses.into_iter().flatten().map(|l| l.abs()).collect();
+    // 1) Check that no laser variable is present in the formula
+    for (pos, laser) in world.lasers() {
+        for t in 0..=cg.t_max() {
+            let key = VarKey::Laser {
+                laser_id: laser.laser_id(),
+                pos,
+                t,
+            };
+            if let Some(lit) = cg.literal(&key) {
+                assert!(
+                    !clause_literals.contains(&lit),
+                    "{key:?} (literal={lit}) should not be among the clause literals"
+                );
+            }
+        }
+    }
+    // 2) Verify that all agents are assumed not to walk on any foreign colour laser tile
+    for agent_id in 0..world.n_agents() {
+        for (pos, laser) in world.lasers() {
+            if agent_id == laser.agent_id() {
+                continue;
+            }
+            for t in 0..=cg.t_max() {
+                let key = VarKey::Agent { agent_id, pos, t };
+                if let Some(lit) = cg.literal(&key) {
+                    assert!(
+                        assumptions.contains(&-lit),
+                        "{key:?} (literal={lit}) should be assumed to be false"
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// `NoCooperation` must forbid a non-owner from using downstream beam tiles over multiple time
+/// steps, even when the owner could block that beam in standard mode.
+#[test]
+fn test_no_cooperation_forbids_non_owner_on_blockable_downstream_beam_tile() {
+    let world = World::try_from(
+        "
+         .  S0  S1  .  .
+        L0E  .   .  @  .
+         .   .   .  .  .
+         .   X   X  .  .
+        ",
+    )
+    .expect("Failed to parse world");
+    let t_max = 3;
+    let mut cg = ClauseGenerator::new(&world, t_max);
+    let (clauses, assumptions) = cg.generate(t_max, SolveMode::NoCooperation, false);
+    assert_no_cooperation_does_not_generate_beam_positions(&cg, &world, clauses, assumptions);
+}
+
+/// Reusing a generator across modes must not let standard beam-activation clauses weaken
+/// `NoCooperation`; downstream beam tiles must still be explicitly forbidden at every generated
+/// time step.
+#[test]
+fn test_no_cooperation_after_standard_generation_forbids_same_downstream_beam_tile() {
+    let world = World::try_from(
+        "
+         .  S0  S1
+        L0E  .   .
+         .   .   .
+         .   X   X
+        ",
+    )
+    .expect("Failed to parse world");
+    let t_max = 9;
+    let mut cg = ClauseGenerator::new(&world, t_max);
+    let _ = cg.generate(t_max, SolveMode::Standard, false);
+    let (clauses, assumptions) = cg.generate(t_max, SolveMode::NoCooperation, false);
+    assert_no_cooperation_does_not_generate_beam_positions(&cg, &world, clauses, assumptions);
+}
+
 /// An unblockable beam tile (same-colour agent can never reach it) is constant-active and
 /// must generate a unit clause `[-agent]` forbidding every other-colour agent from it.
 #[test]
@@ -794,7 +882,7 @@ X X . @ .
                     let p = pos(i, j);
                     if cg.exists(&VarKey::agent(agent, p, t)) {
                         assert!(
-                            cg.ctx.relevant_positions_for_agent(agent, t).contains(&p),
+                            cg.relevant_positions_for_agent(agent, t).contains(&p),
                             "phantom agent variable: agent={agent} pos={p:?} t={t} exists but is \
                              not in the agent's relevant set, so it escapes exactly_one_position"
                         );
