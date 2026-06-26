@@ -49,6 +49,7 @@ pub struct ClauseGenerator {
     pub(super) interdependence_support: HashMap<usize, InterdependenceSupport>,
     pub(super) no_cooperation_assumption_buffer: Vec<Vec<Literal>>,
     pub(super) no_cooperation_generated_until: Option<usize>,
+    domain_last_coop_detection: Option<bool>,
 }
 
 impl ClauseGenerator {
@@ -97,6 +98,7 @@ impl ClauseGenerator {
             interdependence_support: HashMap::new(),
             no_cooperation_assumption_buffer: vec![Vec::new(); t_max + 1],
             no_cooperation_generated_until: None,
+            domain_last_coop_detection: None,
         }
     }
 
@@ -150,7 +152,15 @@ impl ClauseGenerator {
             "Cannot generate clauses for t={t}; generator t_max is {}.",
             self.ctx.t_max
         );
-        let start = self.domain_generated_until.map_or(0, |u| u + 1);
+        let coop_mismatch = self
+            .domain_last_coop_detection
+            .map_or(true, |last| last != coop_detection);
+        let start = if coop_mismatch {
+            self.domain_last_coop_detection = Some(coop_detection);
+            0 // regenerate from scratch
+        } else {
+            self.domain_generated_until.map_or(0, |u| u + 1)
+        };
         for tt in start..=t {
             self.ctx.update(tt);
             self.domain_clause_buffer[tt] = self.generate_domain_clauses(tt, coop_detection);
@@ -169,7 +179,14 @@ impl ClauseGenerator {
         clauses.extend(self.no_following_conflict(t));
         clauses.extend(self.stays_on_exit(t));
         let (beam_clauses, active_lit) = self.beam_activation(t);
-        if !coop_detection {
+
+        if coop_detection {
+            // add a clause whith each lit in active_lit to ensure that each laser is active
+            let mut active_lits: Vec<Literal> = active_lit.values().copied().collect();
+            for lit in &mut active_lits {
+                clauses.push(vec![*lit]);
+            }
+        } else {
             clauses.extend(beam_clauses);
         }
         clauses.extend(self.no_step_on_active_laser(t, &active_lit));
