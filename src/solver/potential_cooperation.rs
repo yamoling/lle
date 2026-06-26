@@ -112,10 +112,6 @@ impl PotentialCooperationGraph {
             .map(|(_, source)| (source.laser_id(), source.agent_id()))
             .collect();
         laser_colours.sort_by_key(|(laser_id, _)| *laser_id);
-        // let laser_colours = laser_colours
-        //     .into_iter()
-        //     .map(|(_, agent_id)| agent_id)
-        //     .collect();
         Self {
             n_agents,
             adjacency_matrices: (0..=t_max)
