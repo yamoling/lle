@@ -106,24 +106,7 @@ impl ClauseGenerator {
         }
 
         clauses.extend(self.engine.objective(t, collect_gems));
-
-        let (forbid_clauses, forbid_assumptions) = self.mode_forbid(t, mode);
-        clauses.extend(forbid_clauses);
-        assumptions.extend(forbid_assumptions);
-
         (clauses, assumptions)
-    }
-
-    /// Horizon-scoped forbid clauses/assumptions for `mode`. These read variables created as a
-    /// side effect of the buffers gathered in [`generate`](Self::generate), so they must run after.
-    fn mode_forbid(&mut self, _t: usize, mode: SolveMode) -> (Vec<Clause>, Vec<Literal>) {
-        match mode {
-            SolveMode::Standard | SolveMode::NoCooperation | SolveMode::NoAsymmetricCooperation => {
-                (vec![], vec![])
-            }
-            SolveMode::NoChainedCooperation(_) => todo!(),
-            SolveMode::NoInterdependence(_) => todo!(),
-        }
     }
 
     /// Objective clauses for horizon `t`. Not cached.
