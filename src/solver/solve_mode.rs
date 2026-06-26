@@ -156,7 +156,6 @@ mod tests {
         for s in [
             "standard",
             "no-cooperation",
-            "no-mutual",
             "no-asymmetric",
             "no-chain",
             "no-chain-3",

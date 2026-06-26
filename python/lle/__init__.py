@@ -66,18 +66,18 @@ The cooperation requirements of a world can be characterized by calling `lle.cha
 which returns a `WorldCharacterizer` that can be queried to determine the intrinsic cooperative properties
 of the world (i.e. every solution to the world within `t_max` steps has these properties).
 
-Helper functions such as `lle.is_cooperative` or `lle.is_mutual` can also be used. Note that if multiple properties
+Helper functions such as `lle.is_cooperative` or `lle.is_interdependent(k)` can also be used. Note that if multiple properties
 should be checked, it is more efficient to use `lle.characterize` and query the `WorldCharacterizer` because it
 avoids redundant recomputation of the same properties.
 
 ```python
 specs = lle.characterize(World.level(6), t_max=21)
-assert not specs.is_independent
-assert specs.is_cooperative
-assert specs.is_mutual
+assert not specs.is_independent()
+assert specs.is_cooperative()
+assert specs.is_interdependent(2)
 assert not lle.is_cooperative(World.level(1))
 assert lle.is_cooperative(World.level(3))
-assert not lle.is_mutual(World.level(3), t_max=21)
+assert not lle.is_interdependent(World.level(3), 2, t_max=21)
 ```
 
 
@@ -92,13 +92,13 @@ gen = lle.generate(width=5, height=5, n_agents=2)
 world = gen.build()         # One single world
 worlds = list(gen.take(3))  # Three worlds
 builder = lle.generate(width=4, height=4, n_agents=2).lasers(1).cooperative().cap(10)
-builder = lle.generate(width=4, height=4, n_agents=2).lasers(2).mutual().cap(10)
+builder = lle.generate(width=4, height=4, n_agents=2).lasers(2).interdependent(2).cap(10)
 two_worlds = list(lle.generate(width=4, height=4, n_agents=2).lasers(1).cooperative().cap(10).take(2))
 ```
 
 **Builder options** — layout: `random()`, `lanes()`, `clustered()`, `starts(...)` / `exits(...)`.
 Obstacles: `lasers(n, placement=..., span=...)`, `walls(n, style=...)`.
-Behaviour: `solvable()` (default), `independent()`, `cooperative()`, `chained(n)`, `mutual()`, `interdependent(n)`, or `require(...)`.
+Behaviour: `solvable()` (default), `independent()`, `cooperative()`, `chained(n)`, `interdependent(n)`, or `require(...)`.
 
 See `lle.generator` for the full method reference.
 
@@ -195,7 +195,7 @@ from .observations import ObservationType
 from .solver import solve
 from .types import AgentId, LaserId, Position
 from .world import Action, EventType, World, WorldEvent, WorldState
-from .characterization import is_cooperative, characterize, is_asymmetric, is_mutual, is_chained
+from .characterization import is_cooperative, characterize, is_asymmetric, is_chained
 from . import tiles, exceptions, world, agent, env, generator, characterization, solver, observations
 
 
@@ -233,7 +233,6 @@ __all__ = [
     "solve",
     "is_cooperative",
     "is_asymmetric",
-    "is_mutual",
     "is_chained",
     "generate",
     "GeneratorBuilder",

@@ -1,24 +1,12 @@
-"""Proof of concept: preventing *mutual* cooperation in the SAT solver.
-
-Mutual cooperation between two agents `a` and `b` is the conjunction
-
-    "a helps b cross one of a's laser beams at some point"   AND
-    "b helps a cross one of b's laser beams at some point".
-
-`lle.solve(world, t_max, "no-mutual")` searches for the shortest plan in which *no*
-pair of agents mutually cooperates.
-
-Run with:  python examples/world_characterization.py
-"""
-
 from __future__ import annotations
 
 import lle
 from lle import World
+from lle.solver import SolveMode
 
-# A map where the two facing length-2 beams must each be crossed (mutual help) on the short
+# A map where the two facing length-2 beams must each be crossed (interdependence) on the short
 # route through columns 0-1, but a longer detour exists down the laser-free highway in columns
-# 4-5 (reached over the top row, around the wall column `@`). So mutual cooperation is *required*
+# 4-5 (reached over the top row, around the wall column `@`). So interdependent(2) cooperation is *required*
 # only while the time budget is too small to take the detour.
 TIME_DEPENDENT = """
  . S0 S1 . . .
@@ -28,9 +16,9 @@ L1E .  . @ . .
  .  X  X . . .
 """
 
-# Two facing beams spanning the whole corridor: there is no detour, so mutual cooperation is
+# Two facing beams spanning the whole corridor: there is no detour, so cooperation is
 # required at every solvable horizon.
-ALWAYS_MUTUAL = """
+ALWAYS_INTERDEPENDENT = """
  S0 . . S1
 L0E . . .
  .  . . L1W
@@ -43,21 +31,21 @@ def report(name: str, world: World, t_max: int) -> None:
     for t in range(t_max + 1):
         if lle.solve(world, t) is None:
             continue  # no plan of this length at all
-        free = lle.solve(world, t, mode="no-mutual") is not None
-        verdict = "free of mutual help" if free else "MUTUAL HELP REQUIRED"
-        print(f"  t={t:2}: solvable, shortest plan is {verdict}")
-    print(f"  -> requires_mutual_cooperation(t_max={t_max}) = {lle.characterize(world, t_max).is_mutual}")
+        free = lle.solve(world, t, mode=SolveMode.no_interdependence(2)) is not None
+        verdict = "is free of interdependent help" if free else "requires interdendence"
+        print(f"  t={t:2}: solvable, shortest plan {verdict}")
+    print(f"  -> requires_interdependence(t_max={t_max}) = {lle.characterize(world, t_max).is_interdependent(2)}")
 
 
 def main() -> None:
-    # Canonical levels: 1 is independent, 3 is *asymmetric* cooperation (one-directional, so NOT
-    # mutual), 6 genuinely needs two agents to help each other.
+    # Canonical levels: 1 is independent, 3 is *asymmetric* cooperation),
+    # 6 genuinely needs two agents to help each other.
     report("level 1 (independent)", World.level(1), 10)
     report("level 3 (asymmetric coop)", World.level(3), 12)
-    report("level 6 (mutual)", World.level(6), 21)
+    report("level 6 (interdependent-2)", World.level(6), 21)
 
-    report("always-mutual corridor", World(ALWAYS_MUTUAL), 10)
-    report("time-dependent mutual", World(TIME_DEPENDENT), 16)
+    report("always-interdependent corridor", World(ALWAYS_INTERDEPENDENT), 10)
+    report("time-dependent", World(TIME_DEPENDENT), 16)
 
 
 if __name__ == "__main__":

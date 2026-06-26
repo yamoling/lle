@@ -1,47 +1,31 @@
-use std::marker::PhantomData;
-
-/// A rule that produces the items for one time step, given mutable access to an engine `E`.
-///
-/// Implementors own whatever auxiliary data a clause family needs (e.g. the enumerated chains of a
-/// given length) and delegate the actual work to the engine. Because `generate_step` takes the
-/// source by shared reference and the engine by exclusive reference, a [`StepBuffer`] can call it
-/// while it is itself a field of a larger struct that also owns the engine — the two borrows are
-/// disjoint.
-pub trait StepSource<E> {
-    type Item: Clone;
-
-    /// Produce every item belonging to step `t`.
-    fn generate_step(&self, engine: &mut E, t: usize) -> Vec<Self::Item>;
-}
+use super::ClauseEngine;
 
 /// A self-filling, per-time-step cache.
 ///
 /// `StepBuffer` is the single home of the "fill lazily up to `t`, then gather steps `0..=t`"
 /// pattern. Callers ask for [`gather_until`](Self::gather_until); the buffer transparently calls its
-/// [`StepSource`] for any step it has not produced yet, caches the result, and returns the whole
-/// prefix. Nothing outside the buffer needs to track how far generation has progressed.
-pub struct StepBuffer<E, S: StepSource<E>> {
-    source: S,
-    items: Vec<Vec<S::Item>>,
-    _engine: PhantomData<fn(&mut E)>,
+/// generation function for any step it has not produced yet, caches the result, and returns the
+/// whole prefix. Nothing outside the buffer needs to track how far generation has progressed.
+pub struct StepBuffer<T: Clone> {
+    generate: fn(&mut ClauseEngine, usize) -> Vec<T>,
+    items: Vec<Vec<T>>,
 }
 
-impl<E, S: StepSource<E>> StepBuffer<E, S> {
-    /// Create a buffer driven by `source`, reserving room for `capacity` time steps.
-    pub fn new(source: S, capacity: usize) -> Self {
+impl<T: Clone> StepBuffer<T> {
+    /// Create a buffer driven by `generate`, reserving room for `capacity` time steps.
+    pub fn new(generate: fn(&mut ClauseEngine, usize) -> Vec<T>, capacity: usize) -> Self {
         Self {
-            source,
+            generate,
             items: Vec::with_capacity(capacity),
-            _engine: PhantomData,
         }
     }
 
     /// Gather every item from step `0` through step `t`, generating and caching any step not yet
-    /// produced by calling the [`StepSource`] for each missing step in order.
-    pub fn gather_until(&mut self, engine: &mut E, t: usize) -> impl Iterator<Item = S::Item> {
+    /// produced by calling the generation function for each missing step in order.
+    pub fn gather_until(&mut self, engine: &mut ClauseEngine, t: usize) -> impl Iterator<Item = T> {
         while self.items.len() <= t {
             let next = self.items.len();
-            let step = self.source.generate_step(engine, next);
+            let step = (self.generate)(engine, next);
             self.items.push(step);
         }
         self.items[..=t].iter().flatten().cloned()

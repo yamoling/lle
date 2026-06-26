@@ -70,48 +70,52 @@ impl ClauseEngine {
         clauses
     }
 
-    /// Clauses and assumptions that forbid *asymmetric* cooperation at horizon `t`.
+    /// Clauses that reify asymmetric cooperation at exactly time step `t`.
     ///
-    /// A help event `helper → beneficiary` is asymmetric if `helper` is never helped by any other
-    /// agent anywhere in the trajectory. This method reifies each concrete asymmetric event into an
+    /// A help event `helper → beneficiary` is asymmetric when `helper` has not been helped by any
+    /// other agent by the same time step. Each concrete event is encoded into an
     /// [`asymmetric`](VarKey::asymmetric) variable:
     ///
     /// ```text
-    /// ¬agent(beneficiary, q, τ) ∨ OR_k has_helped_by_time(k, helper, t) ∨ asymmetric(...)
+    /// ¬agent(beneficiary, q, t) ∨ OR_k has_helped_by_time(k, helper, t) ∨ asymmetric(...)
     /// ```
     ///
-    /// The returned assumptions contain `¬asymmetric(...)` for every such variable.
-    pub(crate) fn forbid_asymmetric_cooperation(
-        &mut self,
-        t: usize,
-    ) -> (Vec<Clause>, Vec<Literal>) {
+    /// The solve mode forbids these events separately by assuming every generated asymmetric
+    /// variable to be false.
+    pub fn make_asymmetric_clauses(&mut self, t: usize) -> Vec<Clause> {
+        self.ctx.update(t);
         let mut clauses = Vec::new();
-        let mut assumptions = Vec::new();
-        for tau in 0..=t {
-            self.ctx.update(tau);
-            for (helper, beneficiary) in self.tracked_help_pairs.clone() {
-                let positions = self.help_edge_positions(helper, beneficiary, tau);
-                if positions.is_empty() {
-                    continue;
-                }
-                let incoming: Vec<Literal> = (0..self.ctx.n_agents)
-                    .filter(|&other| other != helper)
-                    .filter_map(|other| {
-                        self.pool.get(&VarKey::has_helped_by_time(other, helper, t))
-                    })
-                    .collect();
-                for pos in positions {
-                    let agent_var = self.pool.agent(beneficiary, pos, tau);
-                    let asymmetric = self.pool.asymmetric(helper, beneficiary, pos, tau);
-                    let mut clause = Vec::with_capacity(incoming.len() + 2);
-                    clause.push(-agent_var);
-                    clause.extend(incoming.iter().copied());
-                    clause.push(asymmetric);
-                    clauses.push(clause);
-                    assumptions.push(-asymmetric);
-                }
+        for (helper, beneficiary) in self.tracked_help_pairs.clone() {
+            let positions = self.help_edge_positions(helper, beneficiary, t);
+            if positions.is_empty() {
+                continue;
+            }
+            let incoming: Vec<Literal> = (0..self.ctx.n_agents)
+                .filter(|&other| other != helper)
+                .filter_map(|other| self.pool.get(&VarKey::has_helped_by_time(other, helper, t)))
+                .collect();
+            for pos in positions {
+                let agent_var = self.pool.agent(beneficiary, pos, t);
+                let asymmetric = self.pool.asymmetric(helper, beneficiary, pos, t);
+                let mut clause = Vec::with_capacity(incoming.len() + 2);
+                clause.push(-agent_var);
+                clause.extend(incoming.iter().copied());
+                clause.push(asymmetric);
+                clauses.push(clause);
             }
         }
-        (clauses, assumptions)
+        clauses
+    }
+
+    /// Assumptions forbidding asymmetric cooperation variables generated for exactly time step `t`.
+    pub fn assume_no_asymmetric_at(&mut self, t: usize) -> Vec<Literal> {
+        self.ctx.update(t);
+        let mut assumptions = Vec::new();
+        for (helper, beneficiary) in self.tracked_help_pairs.clone() {
+            for pos in self.help_edge_positions(helper, beneficiary, t) {
+                assumptions.push(-self.pool.asymmetric(helper, beneficiary, pos, t));
+            }
+        }
+        assumptions
     }
 }

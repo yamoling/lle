@@ -156,12 +156,6 @@ class SolveMode:
         `"no-chain"` and `"no-interdependence"` both accept a `"-n"` suffix to specify the minimum chain length or interdependence order.
         Note that `"no-chain"` and `"no-interdependence"` are aliases for `"no-chain-2"` and `"no-interdependence-2"` respectively.
         """
-    @staticmethod
-    def variants() -> builtins.list[SolveMode]:
-        r"""
-        The base modes, each with their default length. Parametrized modes with a non-default
-        length must be built explicitly via `no_chain(...)` / `no_interdependence(...)`.
-        """
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...
 

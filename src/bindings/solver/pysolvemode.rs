@@ -118,7 +118,7 @@ impl PySolveMode {
     #[pyo3(name = "from_str")]
     pub fn parse(
         #[gen_stub(override_type(
-            type_repr = "typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-chain', 'no-interdependence', 'no-mutual'] | builtins.str"
+            type_repr = "typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-chain', 'no-interdependence'] | builtins.str"
         ))]
         value: &str,
     ) -> PyResult<Self> {

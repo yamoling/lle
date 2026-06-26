@@ -81,6 +81,7 @@ def test_docblock(code: str) -> None:
     import sys
 
     try:
+        sys.stderr.write(f"testing: {code}\n")
         exec(compile(code, "<docblock>", "exec"), GLOBALS)
     except Exception:
         print(code, file=sys.stderr)

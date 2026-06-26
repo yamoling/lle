@@ -1,19 +1,13 @@
 use crate::solver::SolveMode;
-use crate::solver::clauses::sources::NoCooperationAssumptionSource;
 use crate::solver::errors::SolverError;
 use crate::{Action, World};
 
 use super::VarKey;
 use super::engine::ClauseEngine;
-use super::sources::{HelpTrackingSource, LaserSource, MovementSource};
 use super::{Clause, Literal, StepBuffer};
 
-type MovementBuffer = StepBuffer<ClauseEngine, MovementSource>;
-type LaserBuffer = StepBuffer<ClauseEngine, LaserSource>;
-type HelpBuffer = StepBuffer<ClauseEngine, HelpTrackingSource>;
-// type ChainBuffer = StepBuffer<ClauseEngine, ChainSource>;
-// type CycleBuffer = StepBuffer<ClauseEngine, CycleSource>;
-type NoCooperationAssumptionBuffer = StepBuffer<ClauseEngine, NoCooperationAssumptionSource>;
+type ClauseBuffer = StepBuffer<Clause>;
+type LiteralBuffer = StepBuffer<Literal>;
 
 /// Generates the SAT clauses for a bounded planning horizon.
 ///
@@ -27,16 +21,20 @@ type NoCooperationAssumptionBuffer = StepBuffer<ClauseEngine, NoCooperationAssum
 pub struct ClauseGenerator {
     engine: ClauseEngine,
     /// Movement constraints shared by every solve mode.
-    movements: MovementBuffer,
-    /// Laser constraints with beam activation
-    lasers: LaserBuffer,
+    movements: ClauseBuffer,
+    /// Laser constraints with beam activation.
+    lasers: ClauseBuffer,
     /// Shared `has_helped_by_time` clauses for all tracked help pairs.
-    help_tracking: HelpBuffer,
+    help_tracking: ClauseBuffer,
     /// Chain-progress clauses, keyed by the forbidden chain length.
-    // chains: HashMap<usize, ChainBuffer>,
+    // chains: HashMap<usize, ClauseBuffer>,
     /// Cycle-rotation clauses, keyed by the forbidden cycle order.
-    // cycles: HashMap<usize, CycleBuffer>,
-    no_cooperation_assumptions: NoCooperationAssumptionBuffer,
+    // cycles: HashMap<usize, ClauseBuffer>,
+    no_cooperation_assumptions: LiteralBuffer,
+    /// Reification clauses for concrete asymmetric-cooperation variables.
+    no_asymmetric_clauses: ClauseBuffer,
+    /// Negative assumptions for concrete asymmetric-cooperation variables.
+    no_asymmetric_assumptions: LiteralBuffer,
 }
 
 impl ClauseGenerator {
@@ -44,17 +42,18 @@ impl ClauseGenerator {
         let capacity = t_max + 1;
         Self {
             engine: ClauseEngine::new(world, t_max),
-            movements: StepBuffer::new(MovementSource, capacity),
-            lasers: StepBuffer::new(
-                LaserSource {
-                    coop_detection: false,
-                },
+            movements: StepBuffer::new(ClauseEngine::generate_movement_clauses, capacity),
+            lasers: StepBuffer::new(ClauseEngine::generate_laser_clauses, capacity),
+            help_tracking: StepBuffer::new(ClauseEngine::has_helped_by_time_clauses, capacity),
+            no_cooperation_assumptions: StepBuffer::new(
+                ClauseEngine::assume_no_cooperation_at,
                 capacity,
             ),
-            help_tracking: StepBuffer::new(HelpTrackingSource, capacity),
-            // chains: HashMap::new(),
-            // cycles: HashMap::new(),
-            no_cooperation_assumptions: StepBuffer::new(NoCooperationAssumptionSource, capacity),
+            no_asymmetric_clauses: StepBuffer::new(ClauseEngine::make_asymmetric_clauses, capacity),
+            no_asymmetric_assumptions: StepBuffer::new(
+                ClauseEngine::assume_no_asymmetric_at,
+                capacity,
+            ),
         }
     }
 
@@ -84,6 +83,11 @@ impl ClauseGenerator {
             SolveMode::NoAsymmetricCooperation => {
                 clauses.extend(self.lasers.gather_until(&mut self.engine, t));
                 clauses.extend(self.help_tracking.gather_until(&mut self.engine, t));
+                clauses.extend(self.no_asymmetric_clauses.gather_until(&mut self.engine, t));
+                assumptions.extend(
+                    self.no_asymmetric_assumptions
+                        .gather_until(&mut self.engine, t),
+                );
             }
             SolveMode::NoChainedCooperation(_) => {
                 todo!();
@@ -103,18 +107,20 @@ impl ClauseGenerator {
 
         clauses.extend(self.engine.objective(t, collect_gems));
 
-        let (forbid_clauses, assumptions) = self.mode_forbid(t, mode);
+        let (forbid_clauses, forbid_assumptions) = self.mode_forbid(t, mode);
         clauses.extend(forbid_clauses);
+        assumptions.extend(forbid_assumptions);
 
         (clauses, assumptions)
     }
 
     /// Horizon-scoped forbid clauses/assumptions for `mode`. These read variables created as a
     /// side effect of the buffers gathered in [`generate`](Self::generate), so they must run after.
-    fn mode_forbid(&mut self, t: usize, mode: SolveMode) -> (Vec<Clause>, Vec<Literal>) {
+    fn mode_forbid(&mut self, _t: usize, mode: SolveMode) -> (Vec<Clause>, Vec<Literal>) {
         match mode {
-            SolveMode::Standard | SolveMode::NoCooperation => (vec![], vec![]),
-            SolveMode::NoAsymmetricCooperation => self.engine.forbid_asymmetric_cooperation(t),
+            SolveMode::Standard | SolveMode::NoCooperation | SolveMode::NoAsymmetricCooperation => {
+                (vec![], vec![])
+            }
             SolveMode::NoChainedCooperation(_) => todo!(),
             SolveMode::NoInterdependence(_) => todo!(),
         }

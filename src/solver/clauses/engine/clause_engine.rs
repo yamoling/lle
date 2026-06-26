@@ -22,8 +22,6 @@ pub struct ClauseEngine {
     pub pool: VarPool,
     pub exits: PositionSet,
     pub gems: PositionSet,
-    pub laser_owners: Vec<AgentId>,
-    pub all_agents: Vec<AgentId>,
     /// Every directed pair `(helper, beneficiary)` for which a help event is geometrically
     /// meaningful. `helper` must own at least one laser and `beneficiary != helper`.
     pub tracked_help_pairs: Vec<(AgentId, AgentId)>,
@@ -64,15 +62,11 @@ impl ClauseEngine {
             ),
             ctx,
             pool: VarPool::new(),
-            laser_owners,
-            all_agents,
             tracked_help_pairs,
         }
     }
 
     /// Movement-only world-enforcing clauses for a single step `t`.
-    ///
-    /// @ai-generated
     pub fn generate_movement_clauses(&mut self, t: usize) -> Vec<Clause> {
         self.ctx.update(t);
         let mut clauses = Vec::new();
@@ -86,25 +80,10 @@ impl ClauseEngine {
     }
 
     /// Laser-only world-enforcing clauses for a single step `t`.
-    ///
-    /// When `coop_detection` is set, every laser is forced active by a unit clause (used to detect
-    /// whether a solution exists *without* any cooperation), instead of emitting the regular
-    /// beam-activation clauses.
-    ///
-    /// @ai-generated
-    pub fn generate_laser_clauses(&mut self, t: usize, coop_detection: bool) -> Vec<Clause> {
+    pub fn generate_laser_clauses(&mut self, t: usize) -> Vec<Clause> {
         self.ctx.update(t);
-        let mut clauses = Vec::new();
         let (beam_clauses, active_lit) = self.beam_activation(t);
-
-        if coop_detection {
-            // Force every laser active so no agent can ever benefit from a blocked beam.
-            for lit in active_lit.values() {
-                clauses.push(vec![*lit]);
-            }
-        } else {
-            clauses.extend(beam_clauses);
-        }
+        let mut clauses = beam_clauses;
         clauses.extend(self.no_step_on_active_laser(t, &active_lit));
         clauses
     }
