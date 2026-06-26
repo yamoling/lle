@@ -91,9 +91,11 @@ impl PySolveMode {
     }
 
     /// Forbid plans where two agents each help the other.
+    ///
+    /// Equivalent to [`SolveMode::NoInterdependence(2)`].
     #[staticmethod]
     fn no_mutual() -> Self {
-        SolveMode::NoMutualCooperation.into()
+        SolveMode::NoInterdependence(2).into()
     }
 
     /// Forbid any non-decreasing-time temporal chain of `length` help edges or more. `length` must be `>= 2`.
@@ -118,7 +120,7 @@ impl PySolveMode {
     #[pyo3(name = "from_str")]
     pub fn parse(
         #[gen_stub(override_type(
-            type_repr = "typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-chain', 'no-interdependence', 'no-mutual'] | builtins.str"
+            type_repr = "typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-chain', 'no-interdependence'] | builtins.str"
         ))]
         value: &str,
     ) -> PyResult<Self> {
@@ -130,23 +132,6 @@ impl PySolveMode {
     #[getter]
     pub fn value(&self) -> String {
         self.inner.canonical()
-    }
-
-    /// The base modes, each with their default length. Parametrized modes with a non-default
-    /// length must be built explicitly via `no_chain(...)` / `no_interdependence(...)`.
-    #[staticmethod]
-    fn variants() -> Vec<PySolveMode> {
-        [
-            SolveMode::Standard,
-            SolveMode::NoCooperation,
-            SolveMode::NoAsymmetricCooperation,
-            SolveMode::NoMutualCooperation,
-            SolveMode::NoChainedCooperation(2),
-            SolveMode::NoInterdependence(2),
-        ]
-        .into_iter()
-        .map(Into::into)
-        .collect()
     }
 
     fn __str__(&self) -> String {
