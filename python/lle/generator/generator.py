@@ -237,14 +237,19 @@ class WorldGenerator:
         if layout is None:
             return None
         world = self._build_world(layout)
-        if self.constraint is None:
+        if self._accept_world(world):
             return world
+        return None
+
+    def _accept_world(self, world: World):
+        if self.constraint is None:
+            return True
         try:
             if self.constraint.is_satisfied_by(world):
-                return world
+                return True
         except BaseException as e:
             raise RuntimeError(f"Error while checking world constraints: {e}") from e
-        return None
+        return False
 
     def generate(self, max_attempts: int | None, seed: int | None = None) -> World | None:
         if seed is not None:
