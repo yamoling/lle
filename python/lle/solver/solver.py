@@ -65,12 +65,21 @@ class Solver:
         t_min = max(self.solution_lower_bound, t_min)
         if t_min > t_max:
             return None
-        for t in range(t_min, t_max + 1):
-            clauses, assumptions = self.generator.generate(t, mode=parsed_mode, collect_gems=collect_gems)
+
+        low = t_min
+        high = t_max
+        best_plan = None
+        while low <= high:
+            mid = (low + high) // 2
+            clauses, assumptions = self.generator.generate(mid, mode=parsed_mode, collect_gems=collect_gems)
             model = solve_model(clauses, assumptions=assumptions)
             if model is not None:
-                return _to_plan(self.generator.decode_plan(model, t))
-        return None
+                best_plan = _to_plan(self.generator.decode_plan(model, mid))
+                high = mid - 1
+            else:
+                low = mid + 1
+
+        return best_plan
 
 
 @overload
