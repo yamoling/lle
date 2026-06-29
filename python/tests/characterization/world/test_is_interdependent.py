@@ -1,4 +1,4 @@
-"""Regression/reproduction tests for the interdependence cycle-rotation bug (F3).
+"""Regression/reproduction tests for the interdependence cycle-rotation bug.
 
 `no-interdependence-n` enumerates every temporal cycle with its start fixed at
 the smallest-id agent (`enumerate_directed_cycles` in
@@ -26,6 +26,7 @@ unavoidable in either of them.
 
 from __future__ import annotations
 
+import pytest
 from lle import World, solver
 from lle.characterization.plan import profile_plan
 from lle.characterization.world_characterization import WorldCharacterizer
@@ -104,3 +105,115 @@ def test_interdependence_2_detected_in_reversed_rotation():
     assert wc.is_mutual()
     # For a two-agent world is_interdependent(2) must equal is_mutual.
     assert wc.is_interdependent(2)
+
+
+def test_is_interdependent_rejects_order_below_2():
+    wc = WorldCharacterizer(World.level(1), t_max=10)
+    for n_agents in [-1, 0, 1]:
+        with pytest.raises(ValueError):
+            wc.is_interdependent(n_agents)
+
+
+def test_compute_shortest_non_interdependent_path_rejects_order_below_2():
+    wc = WorldCharacterizer(World.level(1), t_max=10)
+    for order in [-1, 0, 1]:
+        with pytest.raises(ValueError):
+            wc.compute_shortest_non_interdependent_path(order)
+
+
+def test_unsolvable_world_raises_on_is_interdependent():
+    world = World("S0 @ X")
+    with pytest.raises(ValueError):
+        _ = WorldCharacterizer(world, t_max=10).is_interdependent(2)
+
+
+def test_no_3interdependent_because_of_temporality():
+    """
+    We want to show that temporality is important and that a temporally-flattened graph
+    cannot represent the actual cooperation graph.
+
+    The below World is organized is such that:
+       - the two bottom exits are only available to agents 0 and 2 because they stand in a laser beam;
+       - agents 1 and 3 have no choice but to walk on the exit tile two steps below them
+       - agents 1 and 3 block a laser from their respective exit tiles.
+
+    In this world, we have a first step where two independent help events occur:
+        - help(0, 1, t=1)
+        - help(2, 3, t=1)
+    Then, we have agent 2 going from right to left:
+        - help(3, 2, t=4)
+        - help(1, 2, t=6)
+        - help(1, 2, t=7,8,9,10,11)
+    And finally agent 0 going from left to right
+        - help(1, 0, t=8)
+        - help(3, 0, t=10)
+        - help(3, 0, t=11)
+    In a flattened graph, we would have a cycle 0 -> 1 -> 2 -> 3 -> 0 while there is actually
+    no dependency between 1 and 3.
+    """
+    world = World("""
+ @  @  L1S @ L3S  @   @
+ @  S0 S1  @ S3  S2   @
+L0E .   .  @  .   .  L2W
+ @  .   X  @  X   .   @
+ @  .   .  .  .   .   @
+ @ L2E  X  @  X  L0W  @
+""")
+    wc = WorldCharacterizer(world, 20)
+    assert wc.is_cooperative()
+    assert not wc.is_independent()
+    assert not wc.is_asymmetric()
+    assert wc.is_mutual()  # 0 helps 1 and vice-versa
+    assert wc.is_chained(2)  # Equivalent to is_mutual
+    assert not wc.is_chained(3)
+    assert wc.is_interdependent(2)  # Equivalent to is_mutual
+    assert not wc.is_interdependent(3)
+
+
+def test_three_agent_cycle_is_3_interdependent_but_not_4_interdependent():
+    """A 3-agent cycle exercises the parametrized chain/interdependence upper edge."""
+    wc = WorldCharacterizer(
+        World("""
+     @ L0S L2S L1S .
+    S0  .   .   .  X
+    S1  .   .   .  X
+    S2  .   .   .  X
+    """),
+        t_max=15,
+    )
+    assert wc.is_solvable()
+    assert wc.is_chained(2)
+    assert wc.is_chained(3)
+    assert not wc.is_chained(4)
+    assert wc.is_interdependent(2)
+    assert wc.is_interdependent(3)
+    assert not wc.is_interdependent(4)
+
+
+def test_two_agent_cycle_in_three_agent_world_is_not_3_interdependent():
+    """
+    The world requires a mutual cycle between 0 and 2, but agent 1 can avoid joining the 3-cycle
+    by taking the way on the left. Agent 1 is the only ont that can take the way left because there
+    is a colour-1 laser beaming left.
+
+    The resulting dependencies are:
+        - 0 depends on 2
+        - 1 depends on 2
+        - 2 depends on 0
+    """
+    wc = WorldCharacterizer(
+        World("""
+     .  S1  S0 S2 @ @
+     . L0E  .  .  @ @
+     .  .  L1W .  . .
+     @  .   .  @ . .
+    L2E .   .  .  . .
+     @  @   .  X  X X
+    """),
+        t_max=16,
+    )
+    assert wc.is_solvable()
+    assert wc.is_chained(2)
+    assert not wc.is_chained(3)
+    assert wc.is_interdependent(2)
+    assert not wc.is_interdependent(3)

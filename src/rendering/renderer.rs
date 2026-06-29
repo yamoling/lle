@@ -24,8 +24,8 @@ pub struct Renderer {
 
 impl Renderer {
     pub fn new(core: &World) -> Self {
-        let pixel_width = core.width() as u32 * TILE_SIZE;
-        let pixel_height = core.height() as u32 * TILE_SIZE;
+        let pixel_width = core.width() as u32 * TILE_SIZE + 1;
+        let pixel_height = core.height() as u32 * TILE_SIZE + 1;
         let mut renderer = Self {
             static_frame: image::RgbImage::new(pixel_width, pixel_height),
             pixel_width,
@@ -52,7 +52,15 @@ impl Renderer {
         for pos in world.exits_positions() {
             let x = pos.x() as u32 * TILE_SIZE;
             let y = pos.y() as u32 * TILE_SIZE;
-            draw_rectangle(&mut self.static_frame, x, y, TILE_SIZE, TILE_SIZE, BLACK, 3);
+            draw_rectangle(
+                &mut self.static_frame,
+                x + 1,
+                y + 1,
+                TILE_SIZE - 1,
+                TILE_SIZE - 1,
+                BLACK,
+                2,
+            );
         }
 
         // Void
@@ -113,10 +121,10 @@ fn draw_grid(img: &mut RgbImage) {
     let height = img.height();
     let horizontal_line = RgbImage::from_pixel(width, 1, GRID_GREY);
     let vertical_line = RgbImage::from_pixel(1, height, GRID_GREY);
-    for i in (TILE_SIZE..height).step_by(TILE_SIZE as usize) {
+    for i in (0..height).step_by(TILE_SIZE as usize) {
         img.copy_from(&horizontal_line, 0, i).unwrap();
     }
-    for j in (TILE_SIZE..width).step_by(TILE_SIZE as usize) {
+    for j in (0..width).step_by(TILE_SIZE as usize) {
         img.copy_from(&vertical_line, j, 0).unwrap();
     }
 }
