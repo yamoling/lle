@@ -10,7 +10,7 @@
 @readme.md
 @contributing.md
 
-You MUST read the [readme.md](readme.md) and [contributing.md](contributing.md) before writing any code, if it is not yet done.
+You MUST read the [readme.md](readme.md) and [contributing.md](contributing.md) before writing any code, if you haven't already.
 
 ## Project Description
 LLE (Laser Learning Environment) is a multi-agent reinforcement learning gridworld implemented as a Rust library with Python bindings via PyO3/maturin. Agents navigate a grid, collect gems, and reach exit tiles while avoiding or blocking laser beams.
@@ -25,6 +25,12 @@ Each Rust type gets a `Py*` wrapper in `src/bindings/` deriving `#[pyclass]`. Cu
 - **TOML (v2):** Richer format supporting random start positions. Automatically detected by the presence of a `[world]` header.
 - Built-in levels 1–6 are statically embedded via `build.rs` and `src/core/levels.rs`.
 
+## Behaviour
+### Prompt output
+At the end of a prompt, you should not explicitly state that you have formatted the code or used the 60 seconds timeout since these are expected from you. Only report useful information related to the prompt or failing tests, if applicable.
+
+### Testing
+For Rust tests, you should use the short output format with `cargo test --format terse`, unless you are debugging a specific test case.
 
 ## Watermark Examples
 

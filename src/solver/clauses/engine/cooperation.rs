@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use super::utils::implies;
 use crate::{
     AgentId, Position,
-    solver::{Clause, clauses::ClauseEngine, position_set::PositionSet},
+    solver::{Clause, Literal, clauses::ClauseEngine, position_set::PositionSet},
 };
 
 impl ClauseEngine {
@@ -87,6 +87,76 @@ impl ClauseEngine {
         }
 
         clauses
+    }
+
+    /// Encode whether any help event is asymmetric within the prefix `0..=horizon`.
+    ///
+    /// For each concrete help event `help(i, j, t)`, the clause
+    /// `¬help(i, j, t) ∨ asymmetric ∨ incoming_help_to_i` says that if agent `i` helps someone
+    /// while no one helps `i` anywhere in the same horizon, the global `Asymmetric` variable must be
+    /// true. `NoAsymmetricCooperation` then forbids that variable by assumption.
+    ///
+    /// This method must run after the help buffer has created all `Help` variables up to `horizon`.
+    /// It only probes existing help variables, so it never creates unconstrained future help events.
+    pub fn encode_asymmetry(&mut self, horizon: usize) -> Vec<Clause> {
+        self.ctx.update(horizon);
+        let asymmetric = self.pool.asymmetric();
+        let mut clauses = Vec::new();
+        for t in 0..=horizon {
+            // Iterate only over geometrically possible help events at this time step. The potential
+            // graph tells us which directed help edges can exist; the variable pool tells us which
+            // ones were actually materialized by `help_clauses`.
+            for edge in self.ctx.potential_cooperation.edges_at(t) {
+                let Some(help) = self.pool.get(&crate::solver::VarKey::Help {
+                    helper: edge.helper,
+                    beneficiary: edge.beneficiary,
+                    t,
+                }) else {
+                    continue;
+                };
+
+                // Gather every concrete help event, anywhere in the horizon, where `edge.helper`
+                // is the beneficiary. If this list is empty, then `edge.helper` was never helped.
+                let mut incoming_help = Vec::new();
+                for t2 in 0..=horizon {
+                    for incoming_helper in self
+                        .ctx
+                        .potential_cooperation
+                        .at(t2)
+                        .incoming_to(edge.helper)
+                    {
+                        if let Some(incoming) = self.pool.get(&crate::solver::VarKey::Help {
+                            helper: incoming_helper,
+                            beneficiary: edge.helper,
+                            t: t2,
+                        }) {
+                            incoming_help.push(incoming);
+                        }
+                    }
+                }
+
+                // Encode: help(edge.helper -> edge.beneficiary at t) ∧ no incoming help to
+                // edge.helper over the whole horizon -> asymmetric.
+                //
+                // CNF form:
+                //   ¬help ∨ asymmetric ∨ incoming_help_1 ∨ ... ∨ incoming_help_n
+                //
+                // If `help` is true and every incoming help literal is false, the only way to satisfy
+                // this clause is to set the global `asymmetric` variable to true. The
+                // `NoAsymmetricCooperation` mode then forbids such plans by assuming `¬asymmetric`.
+                let mut clause = Vec::with_capacity(incoming_help.len() + 2);
+                clause.push(-help);
+                clause.push(asymmetric);
+                clause.extend(incoming_help);
+                clauses.push(clause);
+            }
+        }
+        clauses
+    }
+
+    /// Return the assumption that forbids asymmetric help events.
+    pub fn assume_no_asymmetry(&mut self, _horizon: usize) -> Vec<Literal> {
+        vec![-self.pool.asymmetric()]
     }
 }
 

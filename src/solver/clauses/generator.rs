@@ -34,7 +34,7 @@ pub struct ClauseGenerator {
     // Reification clauses for concrete asymmetric-cooperation variables.
     // no_asymmetric_clauses: ClauseBuffer,
     // /// Negative assumptions for concrete asymmetric-cooperation variables.
-    // no_asymmetric_assumptions: LiteralBuffer,
+    // no_asymmetric_literals: LiteralBuffer,
 }
 
 impl ClauseGenerator {
@@ -50,7 +50,7 @@ impl ClauseGenerator {
                 capacity,
             ),
             // no_asymmetric_clauses: StepBuffer::new(ClauseEngine::make_asymmetric_clauses, capacity),
-            // no_asymmetric_assumptions: StepBuffer::new(
+            // no_asymmetric_literals: StepBuffer::new(
             //     ClauseEngine::assume_no_asymmetric_at,
             //     capacity,
             // ),
@@ -83,13 +83,8 @@ impl ClauseGenerator {
             SolveMode::NoAsymmetricCooperation => {
                 clauses.extend(self.lasers.gather_until(&mut self.engine, t));
                 clauses.extend(self.help.gather_until(&mut self.engine, t));
-                // todo!();
-                // clauses.extend(self.help_tracking.gather_until(&mut self.engine, t));
-                // clauses.extend(self.no_asymmetric_clauses.gather_until(&mut self.engine, t));
-                // assumptions.extend(
-                //     self.no_asymmetric_assumptions
-                //         .gather_until(&mut self.engine, t),
-                // );
+                clauses.extend(self.engine.encode_asymmetry(t));
+                assumptions.extend(self.engine.assume_no_asymmetry(t));
             }
             SolveMode::NoChainedCooperation(_) => {
                 todo!();
