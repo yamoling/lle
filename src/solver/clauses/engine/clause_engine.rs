@@ -1,11 +1,9 @@
-use itertools::Itertools;
-
 use crate::solver::clauses::VarPool;
 use crate::solver::context::ConstraintContext;
 use crate::solver::errors::SolverError;
 use crate::solver::position_set::PositionSet;
 use crate::solver::{Clause, VarKey};
-use crate::{Action, AgentId, World};
+use crate::{Action, World};
 
 /// Mutable substrate shared by every clause-producing routine.
 ///
@@ -22,33 +20,11 @@ pub struct ClauseEngine {
     pub pool: VarPool,
     pub exits: PositionSet,
     pub gems: PositionSet,
-    /// Every directed pair `(helper, beneficiary)` for which a help event is geometrically
-    /// meaningful. `helper` must own at least one laser and `beneficiary != helper`.
-    pub tracked_help_pairs: Vec<(AgentId, AgentId)>,
 }
 
 impl ClauseEngine {
     pub fn new(world: &World, t_max: usize) -> Self {
         let ctx = ConstraintContext::new(world, t_max);
-        // Agents that own a laser are the only ones that can ever help (the helper of every
-        // dependency edge must block a beam).
-        let laser_owners: Vec<AgentId> = ctx
-            .laser_sources
-            .iter()
-            .map(|s| s.agent_id)
-            .unique()
-            .collect();
-        let all_agents: Vec<AgentId> = (0..ctx.n_agents).collect();
-        let tracked_help_pairs: Vec<(AgentId, AgentId)> = laser_owners
-            .iter()
-            .flat_map(|&helper| {
-                all_agents
-                    .iter()
-                    .copied()
-                    .filter(move |&beneficiary| beneficiary != helper)
-                    .map(move |beneficiary| (helper, beneficiary))
-            })
-            .collect();
         Self {
             exits: PositionSet::from_positions(
                 world.height(),
@@ -62,7 +38,6 @@ impl ClauseEngine {
             ),
             ctx,
             pool: VarPool::new(),
-            tracked_help_pairs,
         }
     }
 
