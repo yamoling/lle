@@ -24,17 +24,17 @@ pub struct ClauseGenerator {
     movements: ClauseBuffer,
     /// Laser constraints with beam activation.
     lasers: ClauseBuffer,
-    /// Shared `has_helped_by_time` clauses for all tracked help pairs.
-    help_tracking: ClauseBuffer,
+    /// Shared `help(h, b, t)` clauses encoding for all tracked help pairs.
+    help: ClauseBuffer,
     /// Chain-progress clauses, keyed by the forbidden chain length.
     // chains: HashMap<usize, ClauseBuffer>,
     /// Cycle-rotation clauses, keyed by the forbidden cycle order.
     // cycles: HashMap<usize, ClauseBuffer>,
     no_cooperation_assumptions: LiteralBuffer,
-    /// Reification clauses for concrete asymmetric-cooperation variables.
-    no_asymmetric_clauses: ClauseBuffer,
-    /// Negative assumptions for concrete asymmetric-cooperation variables.
-    no_asymmetric_assumptions: LiteralBuffer,
+    // Reification clauses for concrete asymmetric-cooperation variables.
+    // no_asymmetric_clauses: ClauseBuffer,
+    // /// Negative assumptions for concrete asymmetric-cooperation variables.
+    // no_asymmetric_assumptions: LiteralBuffer,
 }
 
 impl ClauseGenerator {
@@ -44,16 +44,16 @@ impl ClauseGenerator {
             engine: ClauseEngine::new(world, t_max),
             movements: StepBuffer::new(ClauseEngine::generate_movement_clauses, capacity),
             lasers: StepBuffer::new(ClauseEngine::generate_laser_clauses, capacity),
-            help_tracking: StepBuffer::new(ClauseEngine::has_helped_by_time_clauses, capacity),
+            help: StepBuffer::new(ClauseEngine::help_clauses, capacity),
             no_cooperation_assumptions: StepBuffer::new(
                 ClauseEngine::assume_no_cooperation_at,
                 capacity,
             ),
-            no_asymmetric_clauses: StepBuffer::new(ClauseEngine::make_asymmetric_clauses, capacity),
-            no_asymmetric_assumptions: StepBuffer::new(
-                ClauseEngine::assume_no_asymmetric_at,
-                capacity,
-            ),
+            // no_asymmetric_clauses: StepBuffer::new(ClauseEngine::make_asymmetric_clauses, capacity),
+            // no_asymmetric_assumptions: StepBuffer::new(
+            //     ClauseEngine::assume_no_asymmetric_at,
+            //     capacity,
+            // ),
         }
     }
 
@@ -82,12 +82,14 @@ impl ClauseGenerator {
             }
             SolveMode::NoAsymmetricCooperation => {
                 clauses.extend(self.lasers.gather_until(&mut self.engine, t));
-                clauses.extend(self.help_tracking.gather_until(&mut self.engine, t));
-                clauses.extend(self.no_asymmetric_clauses.gather_until(&mut self.engine, t));
-                assumptions.extend(
-                    self.no_asymmetric_assumptions
-                        .gather_until(&mut self.engine, t),
-                );
+                clauses.extend(self.help.gather_until(&mut self.engine, t));
+                // todo!();
+                // clauses.extend(self.help_tracking.gather_until(&mut self.engine, t));
+                // clauses.extend(self.no_asymmetric_clauses.gather_until(&mut self.engine, t));
+                // assumptions.extend(
+                //     self.no_asymmetric_assumptions
+                //         .gather_until(&mut self.engine, t),
+                // );
             }
             SolveMode::NoChainedCooperation(_) => {
                 todo!();

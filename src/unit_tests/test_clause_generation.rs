@@ -462,6 +462,49 @@ fn test_laser_blocking_same_colour() {
     assert_eq!(source_pos, pos(2, 0));
 }
 
+/// Help tracking ties `Help(h, b, t)` to the beneficiary standing on a helper beam and the helper
+/// occupying an upstream blocker position.
+///
+/// @ai-generated
+#[test]
+fn test_help_event_clauses_track_blocked_beam_usage() {
+    let world = World::try_from(
+        "
+        L0E .  .  X
+        S0  .  S1 X",
+    )
+    .expect("Failed to parse world");
+    let mut cg = ClauseGenerator::new(&world, 4);
+    let (clauses, _) = cg.generate(2, SolveMode::NoAsymmetricCooperation, false);
+
+    let help = cg
+        .literal(&VarKey::Help {
+            helper: 0,
+            beneficiary: 1,
+            t: 2,
+        })
+        .expect("help(0,1,2) should be tracked");
+    let beneficiary_on_beam = cg
+        .literal(&VarKey::agent(1, pos(0, 2), 2))
+        .expect("agent 1 can use the downstream beam tile");
+    let helper_blocker = cg
+        .literal(&VarKey::agent(0, pos(0, 1), 2))
+        .expect("agent 0 can block upstream");
+
+    assert!(
+        clauses
+            .iter()
+            .any(|c| c.len() == 2 && c.contains(&-beneficiary_on_beam) && c.contains(&help)),
+        "beneficiary on helper beam must imply the help event"
+    );
+    assert!(
+        clauses.iter().any(|c| c.contains(&-help)
+            && c.contains(&-beneficiary_on_beam)
+            && c.contains(&helper_blocker)),
+        "help plus this beneficiary beam position must require an upstream helper blocker"
+    );
+}
+
 // ─── no_step_on_active_laser ─────────────────────────────────────────────────
 
 /// A different-colour agent on a blockable beam tile and the laser variable must be jointly
@@ -893,7 +936,8 @@ X X . @ .
 
 /// True if `helper` has a `has_helped_by_time(helper, beneficiary, t)` variable at any step.
 fn can_help(cg: &ClauseGenerator, helper: usize, beneficiary: usize, t_max: usize) -> bool {
-    (0..=t_max).any(|t| cg.exists(&VarKey::has_helped_by_time(helper, beneficiary, t)))
+    todo!()
+    // (0..=t_max).any(|t| cg.exists(&VarKey::has_helped_by_time(helper, beneficiary, t)))
 }
 
 /// `S0` (laser owner) can step into beam `L0E` to protect `S1`, but `S1` owns no laser, so no
@@ -921,7 +965,7 @@ fn has_helped_by_time_clauses_are_binary_implications_into_has_helped() {
     // carry-forward).
     let mut produced_any = false;
     for t in 0..=10 {
-        for clause in cg.engine.has_helped_by_time_clauses(t) {
+        for clause in cg.engine.help_clauses(t) {
             produced_any = true;
             assert_eq!(clause.len(), 2, "each implication must be a binary clause");
             let (negated, positive): (Vec<i32>, Vec<i32>) =
@@ -971,11 +1015,12 @@ fn has_helped_by_time_clauses_are_binary_implications_into_has_helped() {
 fn asymmetric_world_generates_forbid_clauses_and_assumptions() {
     let world = World::try_from(ONE_WAY).expect("failed to parse world");
     let mut cg = ClauseGenerator::new(&world, 10);
-    let mut clauses = Vec::new();
-    let mut assumptions = Vec::new();
+    let mut clauses: Vec<Clause> = Vec::new();
+    let mut assumptions: Vec<Literal> = Vec::new();
     for t in 0..=10 {
-        clauses.extend(cg.engine.make_asymmetric_clauses(t));
-        assumptions.extend(cg.engine.assume_no_asymmetric_at(t));
+        todo!()
+        // clauses.extend(cg.engine.make_asymmetric_clauses(t));
+        // assumptions.extend(cg.engine.assume_no_asymmetric_at(t));
     }
     assert!(
         !clauses.is_empty(),
@@ -1023,3 +1068,6 @@ fn level_6_dependency_is_bidirectional() {
         "level 6 must have at least one bidirectional dependency pair"
     );
 }
+
+#[test]
+fn help_literals() {}

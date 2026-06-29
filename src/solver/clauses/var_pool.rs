@@ -17,6 +17,12 @@ pub enum VarKey {
         pos: Position,
         t: usize,
     },
+    /// Whether `helper` is helping `beneficiary` at time step `t`.
+    Help {
+        helper: AgentId,
+        beneficiary: AgentId,
+        t: usize,
+    },
     /// Whether `helper` has helped `beneficiary` at any time step ≤ `t` (a monotone temporal
     /// prefix-OR over the per-step help events).
     HasHelpedByTime {
@@ -24,39 +30,11 @@ pub enum VarKey {
         beneficiary: AgentId,
         t: usize,
     },
-    /// Whether agents `a` and `b` mutually depend on each other (canonical: `a < b`).
-    Mutual { a: AgentId, b: AgentId },
-    /// Whether the concrete help event `helper -> beneficiary` at `pos` and time `t` is asymmetric,
-    /// i.e. `helper` is not helped by any other agent by the solve horizon. The variable is used as
-    /// a forbid-by-assumption literal in `no-asymmetric` mode.
-    Asymmetric {
-        helper: AgentId,
+    /// Shorthand for "there exists a time step `t` at which `beneficiary` is the beneficiary of `help(h, b, t)`"
+    IsHelped {
         beneficiary: AgentId,
-        pos: Position,
-        t: usize,
     },
-    /// Progress for chain `chain_id` of forbidden length `length`: its first `step` edges have
-    /// fired with non-decreasing timestamps, the `step`-th edge firing at some time ≤ `t`.
-    /// Only created for `step ≥ 2`; the first edge is expressed directly by [`HasHelpedByTime`].
-    ChainProgress {
-        length: usize,
-        chain_id: u32,
-        step: u8,
-        t: usize,
-    },
-    /// Whether chain `chain_id` of forbidden length `length` has been fully realized.
-    ChainRealized { length: usize, chain_id: u32 },
-    /// Progress for cycle rotation `cycle_id` of forbidden order `order`: its first `step` edges
-    /// have fired with non-decreasing timestamps, the `step`-th edge firing at some time ≤ `t`.
-    /// Only created for `step ≥ 2`; the first edge is expressed directly by [`HasHelpedByTime`].
-    CycleProgress {
-        order: usize,
-        cycle_id: u32,
-        step: u8,
-        t: usize,
-    },
-    /// Whether cycle rotation `cycle_id` of forbidden order `order` has been fully realized.
-    CycleRealized { order: usize, cycle_id: u32 },
+    Asymmetric,
     /// Auxiliary variable used internally by cardinality encodings; carries a unique counter.
     Aux(i32),
 }
@@ -78,67 +56,6 @@ impl VarKey {
             pos,
             t,
         }
-    }
-
-    #[inline]
-    pub fn has_helped_by_time(helper: AgentId, beneficiary: AgentId, t: usize) -> Self {
-        VarKey::HasHelpedByTime {
-            helper,
-            beneficiary,
-            t,
-        }
-    }
-
-    /// Canonical (min < max) mutual-dependency key for the unordered pair `{a, b}`.
-    #[inline]
-    pub fn mutual(a: AgentId, b: AgentId) -> Self {
-        let (lo, hi) = if a < b { (a, b) } else { (b, a) };
-        VarKey::Mutual { a: lo, b: hi }
-    }
-
-    #[inline]
-    pub fn asymmetric(helper: AgentId, beneficiary: AgentId, pos: Position, t: usize) -> Self {
-        VarKey::Asymmetric {
-            helper,
-            beneficiary,
-            pos,
-            t,
-        }
-    }
-
-    #[inline]
-    pub fn chain_progress(length: usize, chain_id: u32, step: u8, t: usize) -> Self {
-        VarKey::ChainProgress {
-            length,
-            chain_id,
-            step,
-            t,
-        }
-    }
-
-    #[inline]
-    pub fn chain_realized(length: usize, chain_id: u32) -> Self {
-        VarKey::ChainRealized { length, chain_id }
-    }
-
-    #[inline]
-    pub fn cycle_progress(order: usize, cycle_id: u32, step: u8, t: usize) -> Self {
-        VarKey::CycleProgress {
-            order,
-            cycle_id,
-            step,
-            t,
-        }
-    }
-
-    #[inline]
-    pub fn cycle_realized(order: usize, cycle_id: u32) -> Self {
-        VarKey::CycleRealized { order, cycle_id }
-    }
-
-    #[inline]
-    pub fn aux(id: i32) -> Self {
-        VarKey::Aux(id)
     }
 }
 
@@ -173,20 +90,16 @@ impl VarPool {
         self.id(VarKey::Laser { laser_id, pos, t })
     }
 
-    /// Indicator "this concrete help event is asymmetric".
-    pub fn asymmetric(
-        &mut self,
-        helper: AgentId,
-        beneficiary: AgentId,
-        pos: Position,
-        t: usize,
-    ) -> i32 {
-        self.id(VarKey::asymmetric(helper, beneficiary, pos, t))
+    pub fn help(&mut self, helper: AgentId, beneficiary: AgentId, t: usize) -> i32 {
+        self.id(VarKey::Help {
+            helper,
+            beneficiary,
+            t,
+        })
     }
 
-    /// Indicator "`helper` has helped `beneficiary` at any time step ≤ `t`".
-    pub fn has_helped_by_time(&mut self, helper: AgentId, beneficiary: AgentId, t: usize) -> i32 {
-        self.id(VarKey::has_helped_by_time(helper, beneficiary, t))
+    pub fn asymmetric(&mut self) -> i32 {
+        self.id(VarKey::Asymmetric)
     }
 
     /// Variable id already assigned to `key`, or `None` if it was never created.

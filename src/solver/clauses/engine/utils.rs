@@ -1,4 +1,4 @@
-use crate::solver::{Clause, clauses::VarPool};
+use crate::solver::{Clause, Literal, clauses::VarPool};
 
 /// At-most-one encoding crossover: for small variable sets, the naive pairwise encoding
 /// (n(n-1)/2 binary clauses, no auxiliary variables) uses fewer-or-equal clauses *and* zero
@@ -7,18 +7,25 @@ use crate::solver::{Clause, clauses::VarPool};
 pub const PAIRWISE_ATMOST_MAX: usize = 5;
 
 #[inline]
-pub fn implies(a: i32, b: i32) -> Clause {
+pub fn implies(a: Literal, b: Literal) -> Clause {
     vec![-a, b]
 }
 
 #[inline]
-pub fn equals(a: i32, b: i32) -> Vec<Clause> {
+pub fn implies_n(a: Literal, b: Vec<Literal>) -> Clause {
+    let mut clause = b;
+    clause.push(-a);
+    clause
+}
+
+#[inline]
+pub fn equals(a: Literal, b: Literal) -> Vec<Clause> {
     vec![implies(a, b), implies(b, a)]
 }
 
 /// Sequential-counter at-most-one encoding (mirrors `pysat.card.CardEnc.atmost(bound=1)`),
 /// used once pairwise encoding stops being competitive.
-pub fn at_most_one_sequential(vars: &[i32], pool: &mut VarPool) -> Vec<Clause> {
+pub fn at_most_one_sequential(vars: &[Literal], pool: &mut VarPool) -> Vec<Clause> {
     let n = vars.len();
     let mut s = Vec::with_capacity(n - 1);
     for _ in 0..n - 1 {
