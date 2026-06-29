@@ -991,6 +991,44 @@ fn help_clauses_include_beneficiary_to_help_implications() {
     );
 }
 
+/// Asymmetry clauses for mutual worlds must allow incoming help to the helper as an alternative to
+/// setting the global `Asymmetric` variable.
+///
+/// @ai-generated
+#[test]
+fn asymmetry_clause_contains_incoming_help_for_mutual_world() {
+    let world = World::try_from(
+        "
+     S0 . . S1
+    L0E . . .
+     .  . . L1W
+     X  . . X",
+    )
+    .expect("failed to parse world");
+    let mut cg = ClauseGenerator::new(&world, 10);
+    let (clauses, _) = cg.generate(10, SolveMode::NoAsymmetricCooperation, false);
+    let asymmetric = cg
+        .literal(&VarKey::Asymmetric)
+        .expect("asymmetric variable must exist");
+
+    assert!(
+        clauses.iter().any(|clause| {
+            clause.contains(&asymmetric)
+                && clause.iter().any(|&lit| {
+                    matches!(
+                        cg.engine.pool.key(lit),
+                        Some(VarKey::Help {
+                            helper: 1,
+                            beneficiary: 0,
+                            ..
+                        })
+                    )
+                })
+        }),
+        "at least one 0->1 help clause must be guarded by incoming 1->0 help"
+    );
+}
+
 /// `NoAsymmetricCooperation` must encode one-way help events into the global `Asymmetric`
 /// variable, then forbid that variable by assumption.
 #[test]

@@ -62,6 +62,23 @@ def test_pure_mutual_world_is_not_asymmetric():
     assert not lle.is_asymmetric(world, 6)
 
 
+def test_level_3_is_asymmetric_because_agent_0_helps_without_being_helped():
+    assert lle.is_asymmetric(World.level(3), 21)
+
+
+def test_level_5_is_asymmetric_at_tmax_21_because_agent_1_helps_without_being_helped():
+    assert lle.is_asymmetric(World.level(5), 21)
+
+
+def test_level_5_is_not_asymmetric_when_longer_non_asymmetric_plan_is_allowed():
+    """
+    With a horizon of 25, agent 2 can block a laser for agent 1 because of the extra
+    time. As a result, there is a cycle help(1, 2) and help(2, 1), and agent 1 is no
+    longer helping without being helped, even though it is useless.
+    """
+    assert not lle.is_asymmetric(World.level(5), 25)
+
+
 def test_unsolvable_world_raises_on_is_asymmetric():
     world = World("S0 @ X")
     with pytest.raises(ValueError):
