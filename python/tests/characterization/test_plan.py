@@ -157,3 +157,25 @@ def test_not_interdependent():
     assert not profile.is_independent
     assert profile.is_interdependent(2)
     assert not profile.is_interdependent(3)
+
+
+def test_multiple_stepd_in_a_row_remains_asymmetric():
+    """Agent 0 must block the same laser beam during multiple time steps
+    for agent 1, but this should still be considered to be asymmetric.
+    """
+    world = World("""
+ @  S0 S1 @ @ @
+L0E .  .  . . .
+ @  @  @  @ @ .
+ @  @  @  @ X .
+ @  @  @  @ @ X
+""")
+    plan = lle.solve(world, 16)
+    assert plan is not None
+    profile = profile_plan(world, plan)
+    assert profile.is_asymmetric
+    assert profile.is_cooperative
+    assert not profile.is_independent
+    assert not profile.is_chained(2)
+    assert not profile.is_interdependent(2)
+    assert not profile.is_interdependent(3)
