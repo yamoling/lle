@@ -12,13 +12,6 @@ pub fn implies(a: Literal, b: Literal) -> Clause {
 }
 
 #[inline]
-pub fn implies_n(a: Literal, b: Vec<Literal>) -> Clause {
-    let mut clause = b;
-    clause.push(-a);
-    clause
-}
-
-#[inline]
 pub fn equals(a: Literal, b: Literal) -> Vec<Clause> {
     vec![implies(a, b), implies(b, a)]
 }

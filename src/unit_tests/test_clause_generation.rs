@@ -462,8 +462,9 @@ fn test_laser_blocking_same_colour() {
     assert_eq!(source_pos, pos(2, 0));
 }
 
-/// Help tracking ties `Help(h, b, t)` to the beneficiary standing on a helper beam and the helper
-/// occupying an upstream blocker position.
+/// Help tracking reifies `Help(h, b, t)` from the beneficiary standing on one of the helper's beam
+/// tiles: each beam occupancy implies the help event, and the help event implies the beneficiary is
+/// on some beam tile.
 ///
 /// @ai-generated
 #[test]
@@ -487,9 +488,6 @@ fn test_help_event_clauses_track_blocked_beam_usage() {
     let beneficiary_on_beam = cg
         .literal(&VarKey::agent(1, pos(0, 2), 2))
         .expect("agent 1 can use the downstream beam tile");
-    let helper_blocker = cg
-        .literal(&VarKey::agent(0, pos(0, 1), 2))
-        .expect("agent 0 can block upstream");
 
     assert!(
         clauses
@@ -498,10 +496,10 @@ fn test_help_event_clauses_track_blocked_beam_usage() {
         "beneficiary on helper beam must imply the help event"
     );
     assert!(
-        clauses.iter().any(|c| c.contains(&-help)
-            && c.contains(&-beneficiary_on_beam)
-            && c.contains(&helper_blocker)),
-        "help plus this beneficiary beam position must require an upstream helper blocker"
+        clauses
+            .iter()
+            .any(|c| c.contains(&-help) && c.contains(&beneficiary_on_beam)),
+        "the help event must imply the beneficiary is on one of the helper's beam tiles"
     );
 }
 

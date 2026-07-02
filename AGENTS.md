@@ -1,7 +1,7 @@
 # Agents instructions
 ## Core Constraints
 - **Commits:** You are NOT allowed to create commits on your own initiative, unless explicitly requested by the user.
-- **Watermarking:** Every non-trivial function or method you write or edit must include an `@ai-generated` tag in its docstring/documentation, unless the edit is minimal or the function is trivial (e.g.: constructors or one-liners). The user will verify and remove this tag later.
+- **Watermarking:** Every non-trivial function or method you write or edit in the main code of the repository must include an `@ai-generated` tag in its docstring/documentation, unless the edit is minimal or the function is trivial (e.g.: constructors or one-liners). The user will verify and remove this tag later. Files in the `.agents/` folder do not need this waterkmarking.
 - **Testing:** When running solver-related tests, always enforce a 60-second timeout to prevent infinite loops. The test structure should be `timeout 60 <test command>; [ $? -eq 124 ] && echo "=== Timeout reached ! ==="`. Examples:
   - `timeout 60 pytest; [ $? -eq 124 ] && echo "=== Timeout reached ! ==="`
   - `timeout 60 cargo test; [ $? -eq 124 ] && echo "=== Timeout reached ! ==="`

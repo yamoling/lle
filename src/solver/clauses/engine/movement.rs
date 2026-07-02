@@ -33,7 +33,8 @@ impl ClauseEngine {
             if vars.len() <= PAIRWISE_ATMOST_MAX {
                 for i in 0..vars.len() {
                     for j in i + 1..vars.len() {
-                        clauses.push(vec![-vars[i], -vars[j]]);
+                        clauses.push(implies(vars[i], -vars[j]));
+                        // clauses.push(vec![-vars[i], -vars[j]]);
                     }
                 }
             } else {
