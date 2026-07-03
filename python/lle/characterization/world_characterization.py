@@ -83,6 +83,14 @@ class WorldCharacterizer:
             return False
         return self.shortest_non_asymmetric_path is None
 
+    def is_distributed(self, k: int = 2):
+        """There exists an agent that is helped multiple `k` times."""
+        raise NotImplementedError()
+
+    def is_fully_coupled(self):
+        """Every agent helps every other agent at some point."""
+        raise NotImplementedError()
+
     def is_mutual(self):
         """
         - The world is solvable

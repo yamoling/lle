@@ -61,3 +61,19 @@ L2E X  .   @
     assert not wc.is_interdependent(3)
     assert not wc.is_interdependent(4)
     assert wc.compute_shortest_non_interdependent_path(2) is not None
+
+
+def test_paper_example_c2():
+    world = World("""
+    @  S0 @ S1 @
+   L0E .  . .  @
+    @  X  @ . S2
+    @ L1E . .  .
+    @  @  @ X  x""")
+    wc = WorldCharacterizer(world, t_max=10)
+    assert wc.is_solvable()
+    assert wc.is_chained(2)
+    assert not wc.is_chained(3)
+    assert not wc.is_distributed(2)
+    assert not wc.is_chained(3)
+    assert not wc.is_interdependent(2)
