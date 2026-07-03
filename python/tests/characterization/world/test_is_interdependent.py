@@ -217,3 +217,46 @@ def test_two_agent_cycle_in_three_agent_world_is_not_3_interdependent():
     assert not wc.is_chained(3)
     assert wc.is_interdependent(2)
     assert not wc.is_interdependent(3)
+
+
+def test_paper_example_interdependent3():
+    # TODO: not tested yet
+    world = World("""
+        @   S0   @ L2S   S1 @
+       L0E  .    .   .   .  @
+        @   .    @   X   . @
+        @   .    @   .   X L1W
+        @   .    @   .   .  @
+        @   .    .   X   S2 @""")
+    wc = WorldCharacterizer(world, 10)
+    assert wc.is_solvable()
+    assert wc.is_chained(2)
+    assert wc.is_chained(3)
+    assert not wc.is_distributed(2)
+    assert not wc.is_interdependent(2)
+    assert wc.is_interdependent(3)
+
+
+def test_paper_counter_exemple_interdependent3():
+    """
+    This world is not interdependent 3 because even though it looks like it is the case
+    because agent 2 helps agent 0 before being helped by agent 1.
+
+    As a result, the best characterisation is Chain(2).
+    """
+    # TODO: not tested yet
+    world = World("""
+        @  S0 @  @  L1S S1
+       L0E .  .  .   .  .
+        @  . S2 L2W  .  X
+        @  .  .  .   .  X
+       L0E .  @  .   .  .
+        @  X  @  .   .  .
+        """)
+    wc = WorldCharacterizer(world, 10)
+    assert wc.is_solvable()
+    assert wc.is_chained(2)
+    assert not wc.is_distributed(2)
+    assert not wc.is_chained(3)
+    assert not wc.is_interdependent(2)
+    assert not wc.is_interdependent(3)

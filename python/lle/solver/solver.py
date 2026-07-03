@@ -95,6 +95,7 @@ def solve(
     *,
     mode: SolveModeLiteral | str | SolveMode = "standard",
     collect_gems: bool = False,
+    shuffle: bool = False,
 ) -> list[tuple[Action, ...]] | None: ...
 
 
@@ -107,6 +108,7 @@ def solve(
     *,
     mode: SolveModeLiteral | str | SolveMode = "standard",
     collect_gems: bool = False,
+    shuffle: bool = False,
 ) -> list[tuple[Action, ...]] | None: ...
 
 
@@ -116,6 +118,7 @@ def solve(
     *min_max: int | Literal["auto"],
     mode: SolveModeLiteral | str | SolveMode = "standard",
     collect_gems: bool = False,
+    shuffle: bool = False,
 ):
     """
     Find the shortest plan within the time range [t_min, t_max] (both ends included).
@@ -128,13 +131,16 @@ def solve(
     """
     match min_max:
         case ():
-            return Solver(world).solve(mode, collect_gems=collect_gems)
+            t_min = 0
+            t_max = "auto"
         case (t_max,):
-            return Solver(world, t_max).solve(mode, collect_gems=collect_gems)
+            t_min = 0
         case (int(t_min), t_max):
-            return Solver(world, t_max).solve(mode, t_min=t_min, collect_gems=collect_gems)
+            pass
         case _:
             raise ValueError(f"Invalid arguments: (world, {min_max})")
+    solver = Solver(world, t_max)
+    return solver.solve(mode, t_min=t_min, collect_gems=collect_gems, shuffle=shuffle)
 
 
 def solve_model(clauses: list[list[int]], *, assumptions: list[int] | None = None) -> list[int] | None:
