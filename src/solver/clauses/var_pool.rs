@@ -23,13 +23,6 @@ pub enum VarKey {
         beneficiary: AgentId,
         t: usize,
     },
-    /// Whether `helper` has helped `beneficiary` at any time step ≤ `t` (a monotone temporal
-    /// prefix-OR over the per-step help events).
-    HasHelpedByTime {
-        helper: AgentId,
-        beneficiary: AgentId,
-        t: usize,
-    },
     /// Shorthand for "there exists a time step `t` at which `beneficiary` is the beneficiary of `help(h, b, t)`"
     IsHelped {
         beneficiary: AgentId,

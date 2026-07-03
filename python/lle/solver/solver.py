@@ -1,5 +1,6 @@
 """Incremental SAT solver that builds constraints incrementally for time-bounded solving."""
 
+import random
 from typing import Literal, overload
 
 from pysat.solvers import Minisat22  # pyright: ignore[reportMissingTypeStubs]
@@ -46,6 +47,7 @@ class Solver:
         t_min: int = 0,
         override_t_max: int | None = None,
         collect_gems: bool = False,
+        shuffle: bool = False,
     ) -> list[tuple[Action, ...]] | None:
         """Find the shortest plan for this solver's world.
 
@@ -72,6 +74,9 @@ class Solver:
         while low <= high:
             mid = (low + high) // 2
             clauses, assumptions = self.generator.generate(mid, mode=parsed_mode, collect_gems=collect_gems)
+            if shuffle:
+                random.shuffle(clauses)
+                random.shuffle(assumptions)
             model = solve_model(clauses, assumptions=assumptions)
             if model is not None:
                 best_plan = _to_plan(self.generator.decode_plan(model, mid))
