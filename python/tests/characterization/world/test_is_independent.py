@@ -15,4 +15,5 @@ def test_no_laser_world_is_independent():
     wc = WorldCharacterizer(world, t_max=6)
     assert wc.is_solvable()
     assert wc.is_independent()
-    assert not wc.is_mutual()
+    assert not wc.is_cooperative()
+    assert not wc.is_interdependent()

@@ -91,25 +91,6 @@ class WorldCharacterizer:
         """Every agent helps every other agent at some point."""
         raise NotImplementedError()
 
-    def is_mutual(self):
-        """
-        - The world is solvable
-        - and there exists a mutual trajectory
-        - and the world would be unsolvable without mutual help
-
-        # Raises
-            -`NotSolvableError` if the world is not solvable
-        """
-        path = self.shortest_path
-        if path is None:
-            raise NotSolvableError("Cannot determine if requires mutual cooperation if unsolvable.")
-        profile = profile_plan(self.world, path)
-        # If the trajectory is not even mutual, then it cannot require mutual cooperation.
-        if not profile.is_mutual:
-            return False
-        # If there does not exist a non-mutual trajectory, then the world requires mutual cooperation.
-        return self.shortest_non_mutual_path is None
-
     def is_chained(self, length: int = 2) -> bool:
         """
         Whether the world requires chained cooperation of at least `length` help edges:

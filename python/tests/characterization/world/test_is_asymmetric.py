@@ -4,6 +4,16 @@ from lle import World
 from lle.characterization import WorldCharacterizer
 
 
+def assert_canonical_asymmetric(wc: WorldCharacterizer):
+    assert wc.is_asymmetric()
+    assert wc.is_cooperative()
+    assert not wc.is_chained(2)
+    assert not wc.is_distributed(2)
+    assert not wc.is_fully_coupled()
+    assert not wc.is_independent()
+    assert not wc.is_interdependent(2)
+
+
 def test_asymmetric_profile_with_independent_path_is_not_asymmetric():
     """When the shortest plan helps asymmetrically but an independent detour also exists
     within `t_max`, the world does not *require* asymmetric cooperation."""
@@ -31,7 +41,6 @@ def test_1_laser_world_requires_asymmetric_cooperation():
     assert wc.is_cooperative()
     assert wc.is_asymmetric()
     assert not wc.is_chained()
-    assert not wc.is_mutual()
     assert not wc.is_interdependent()
 
 
@@ -100,7 +109,6 @@ L0E .  .  . @ .
         assert wc.is_solvable()
         assert wc.is_cooperative() == is_cooperative
         assert wc.is_asymmetric() == is_cooperative
-        assert not wc.is_mutual()
         assert not wc.is_chained(2)
         assert not wc.is_chained(3)
         assert not wc.is_interdependent(2)

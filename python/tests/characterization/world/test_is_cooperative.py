@@ -47,4 +47,4 @@ def test_threshold_is_independent():
         assert wc.is_solvable()
         assert wc.is_independent() != is_cooperative
         assert wc.is_cooperative() == is_cooperative
-        assert not wc.is_mutual()
+        assert not wc.is_interdependent(2)
