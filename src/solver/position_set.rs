@@ -20,10 +20,7 @@ fn word_and_bit(width: usize, pos: &Position) -> (usize, u32) {
 #[inline]
 fn position_of(width: usize, word_idx: usize, bit: u32) -> Position {
     let idx = word_idx * 64 + bit as usize;
-    Position {
-        i: idx / width,
-        j: idx % width,
-    }
+    Position::new2d(idx / width, idx % width)
 }
 
 /// Pulls the next set bit out of a word stream, mutating `word_idx`/`current` in place.

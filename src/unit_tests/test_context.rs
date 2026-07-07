@@ -4,7 +4,7 @@ use rstest_reuse::{self, apply, template};
 use std::collections::HashSet;
 
 fn pos(i: usize, j: usize) -> Position {
-    Position { i, j }
+    Position::new2d(i, j)
 }
 
 #[template]

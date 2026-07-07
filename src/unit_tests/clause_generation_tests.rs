@@ -5,7 +5,7 @@ use rstest::rstest;
 use rstest_reuse::{self, apply, template};
 
 fn pos(i: usize, j: usize) -> Position {
-    Position { i, j }
+    Position::new2d(i, j)
 }
 
 fn build(map: &str, t_max: usize) -> ClauseGenerator {

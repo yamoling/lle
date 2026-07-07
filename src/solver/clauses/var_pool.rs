@@ -227,8 +227,8 @@ impl VarPool {
             let mut row = Vec::with_capacity(agent_ids.len());
             for &agent in &agent_ids {
                 let (prev, current) = (positions[&agent][&t], positions[&agent][&(t + 1)]);
-                let Position { i: y1, j: x1 } = prev;
-                let Position { i: y2, j: x2 } = current;
+                let Position { i: y1, j: x1, .. } = prev;
+                let Position { i: y2, j: x2, .. } = current;
                 let (dx, dy) = (x2 as i64 - x1 as i64, y2 as i64 - y1 as i64);
                 let action = match (dx, dy) {
                     (0, 0) => Action::Stay,

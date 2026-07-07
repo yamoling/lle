@@ -3,7 +3,7 @@ use lle::solver::position_set::PositionSet;
 use std::collections::HashSet;
 
 fn pos(i: usize, j: usize) -> Position {
-    Position { i, j }
+    Position::new2d(i, j)
 }
 
 #[test]
@@ -313,7 +313,7 @@ fn set_size() {
     for i in 0..10 {
         for j in 0..10 {
             assert_eq!(size, set.size());
-            set.insert(Position { i, j });
+            set.insert(Position::new2d(i, j));
             size += 1;
         }
     }

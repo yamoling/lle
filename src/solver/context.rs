@@ -93,7 +93,7 @@ impl ConstraintContext {
         let mut valid_positions = HashSet::new();
         for i in 0..height {
             for j in 0..width {
-                let pos = Position { i, j };
+                let pos = Position::new2d(i, j);
                 if !walls.contains(&pos) && !voids.contains(&pos) {
                     valid_positions.insert(pos);
                 }
