@@ -65,6 +65,27 @@ impl PyAction {
         }
     }
 
+    #[staticmethod]
+    /// Construct an `Action` from a coordinate delta.
+    /// Raises a `ValueError` if the delta does not correspond to a valid action.
+    fn from_delta(di: i64, dj: i64) -> PyResult<Self> {
+        if di == 0 && dj == 0 {
+            Ok(Self::Stay)
+        } else if di == -1 && dj == 0 {
+            Ok(Self::West)
+        } else if di == 1 && dj == 0 {
+            Ok(Self::East)
+        } else if di == 0 && dj == -1 {
+            Ok(Self::North)
+        } else if di == 0 && dj == 1 {
+            Ok(Self::South)
+        } else {
+            Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Invalid delta: ({di}, {dj}). Valid deltas for actions are (-1, 0), (1, 0), (0, -1), or (0, 1)."
+            )))
+        }
+    }
+
     fn __hash__(&self) -> u64 {
         match self {
             Self::North => 0,

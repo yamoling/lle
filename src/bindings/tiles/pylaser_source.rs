@@ -147,15 +147,6 @@ impl PyLaserSource {
         self.set_agent_id(colour)
     }
 
-    // let actions: Vec<PyAction> = if let Ok(actions) = action.extract::<Vec<PyAction>>(py) {
-    //     actions
-    // } else if let Ok(action) = action.extract::<PyAction>(py) {
-    //     vec![action]
-    // } else {
-    //     return Err(PyTypeError::new_err(
-    //         "Action must be of type Action or list[Action]",
-    //     ));
-    // };
     /// Equality is based on the agent ID, direction, laser ID, and position.
     /// Whether a laser source is enabled is not considered.
     pub fn __eq__(&self, py: Python, other: Py<PyAny>) -> bool {
@@ -166,6 +157,11 @@ impl PyLaserSource {
                 && self.pos == source.pos;
         }
         return false;
+    }
+
+    /// Hash based on the `laser_id`.
+    pub fn __hash__(&self) -> usize {
+        self.laser_id
     }
 
     pub fn __str__(&self) -> String {

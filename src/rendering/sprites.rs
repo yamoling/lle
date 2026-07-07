@@ -1,8 +1,7 @@
 use image::{self, RgbImage, RgbaImage};
 
-use lazy_static::lazy_static;
-
 use super::{BLACK, TILE_SIZE};
+use std::sync::LazyLock;
 
 // Image binary data is included at compile time with the build.rs script.
 // The environment variable OUT_DIR is set by Cargo
@@ -30,27 +29,38 @@ fn load_rgb(bytes: &[&[u8]]) -> Vec<RgbImage> {
         .collect()
 }
 
-lazy_static! {
-    pub static ref GEM: RgbaImage =
-        image::load_from_memory_with_format(GEM_BYTES, image::ImageFormat::Png)
-            .unwrap()
-            .to_rgba8();
-    pub static ref VOID: RgbaImage =
-        image::load_from_memory_with_format(VOID_BYTES, image::ImageFormat::Png)
-            .unwrap()
-            .to_rgba8();
-    pub static ref AGENTS: [RgbaImage; 4] = load_rgba(&AGENT_BYTES).try_into().unwrap();
-    pub static ref HORIZONTAL_LASERS: [RgbaImage; 4] =
-        load_rgba(&HORIZONTAL_LASER_BYTES).try_into().unwrap();
-    pub static ref VERTICAL_LASERS: [RgbaImage; 4] =
-        load_rgba(&VERTICAL_LASER_BYTES).try_into().unwrap();
-    pub static ref LASER_SOURCES_NORTH: [RgbImage; 4] =
-        load_rgb(&LASER_SOURCE_NORTH_BYTES).try_into().unwrap();
-    pub static ref LASER_SOURCES_EAST: [RgbImage; 4] =
-        load_rgb(&LASER_SOURCE_EAST_BYTES).try_into().unwrap();
-    pub static ref LASER_SOURCES_SOUTH: [RgbImage; 4] =
-        load_rgb(&LASER_SOURCE_SOUTH_BYTES).try_into().unwrap();
-    pub static ref LASER_SOURCES_WEST: [RgbImage; 4] =
-        load_rgb(&LASER_SOURCE_WEST_BYTES).try_into().unwrap();
-    pub static ref WALL: RgbImage = RgbImage::from_pixel(TILE_SIZE, TILE_SIZE, BLACK);
-}
+pub static GEM: LazyLock<RgbaImage> = LazyLock::new(|| {
+    image::load_from_memory_with_format(GEM_BYTES, image::ImageFormat::Png)
+        .unwrap()
+        .to_rgba8()
+});
+
+pub static VOID: LazyLock<RgbaImage> = LazyLock::new(|| {
+    image::load_from_memory_with_format(VOID_BYTES, image::ImageFormat::Png)
+        .unwrap()
+        .to_rgba8()
+});
+
+pub static AGENTS: LazyLock<[RgbaImage; 4]> =
+    LazyLock::new(|| load_rgba(&AGENT_BYTES).try_into().unwrap());
+
+pub static HORIZONTAL_LASERS: LazyLock<[RgbaImage; 4]> =
+    LazyLock::new(|| load_rgba(&HORIZONTAL_LASER_BYTES).try_into().unwrap());
+
+pub static VERTICAL_LASERS: LazyLock<[RgbaImage; 4]> =
+    LazyLock::new(|| load_rgba(&VERTICAL_LASER_BYTES).try_into().unwrap());
+
+pub static LASER_SOURCES_NORTH: LazyLock<[RgbImage; 4]> =
+    LazyLock::new(|| load_rgb(&LASER_SOURCE_NORTH_BYTES).try_into().unwrap());
+
+pub static LASER_SOURCES_EAST: LazyLock<[RgbImage; 4]> =
+    LazyLock::new(|| load_rgb(&LASER_SOURCE_EAST_BYTES).try_into().unwrap());
+
+pub static LASER_SOURCES_SOUTH: LazyLock<[RgbImage; 4]> =
+    LazyLock::new(|| load_rgb(&LASER_SOURCE_SOUTH_BYTES).try_into().unwrap());
+
+pub static LASER_SOURCES_WEST: LazyLock<[RgbImage; 4]> =
+    LazyLock::new(|| load_rgb(&LASER_SOURCE_WEST_BYTES).try_into().unwrap());
+
+pub static WALL: LazyLock<RgbImage> =
+    LazyLock::new(|| RgbImage::from_pixel(TILE_SIZE, TILE_SIZE, BLACK));

@@ -1,12 +1,18 @@
+"""High-level multi-agent environment built on top of `World`.
+
+`LLE` packages a world, an observation generator, a state generator, a reward
+strategy, and optional extras into the `marlenv` interface.
+"""
+
 import random
 from dataclasses import dataclass
 from enum import IntEnum
 from functools import cached_property
-from typing import Literal, Optional, Sequence
+from typing import Literal, Optional
 
 import numpy as np
 import numpy.typing as npt
-from marlenv.models import DiscreteSpace, MARLEnv, MultiDiscreteSpace, Observation, State, Step
+from marlenv.models import DiscreteMARLEnv, DiscreteSpace, Observation, State, Step
 
 from ..observations import ObservationType, StateGenerator
 from ..world import Action, World, WorldState
@@ -31,11 +37,15 @@ class DeathStrategy(IntEnum):
 
 
 @dataclass
-class LLE(MARLEnv[MultiDiscreteSpace]):
-    """
-    Laser Learning Environment (LLE).
+class LLE(DiscreteMARLEnv):
+    """A `marlenv` environment backed by a `World`.
 
-    The preferred way to to instanciate an environment is via `level`, `from_file` or `from_str` methods that return a `Builder`:
+    Build it with `lle.level(...)`, `lle.from_str(...)`, or
+    `lle.from_file(...)`, then adjust the configuration with `Builder`
+    methods before calling `build()`.
+
+    Example
+    -------
     ```python
     import lle
     env = (
@@ -44,6 +54,7 @@ class LLE(MARLEnv[MultiDiscreteSpace]):
         .randomize_lasers()  # Randomize the laser colours on reset
         .build()             # Build and retrieve the environment
     )
+    observation, state = env.reset()
     ```
     """
 
@@ -58,13 +69,13 @@ class LLE(MARLEnv[MultiDiscreteSpace]):
     def __init__(
         self,
         world: World,
-        reward_strategy: Optional[RewardStrategy] = None,
+        reward_strategy: RewardStrategy | None = None,
         obs_type: ObservationType = ObservationType.LAYERED,
         state_type: ObservationType = ObservationType.STATE,
-        name: Optional[str] = None,
+        name: str | None = None,
         death_strategy: Literal["respawn", "end"] = "end",
         walkable_lasers: bool = True,
-        extras_generator: Optional[ExtraGenerator] = None,
+        extras_generator: ExtraGenerator | None = None,
         randomize_lasers: bool = False,
     ):
         self._world = world
@@ -87,8 +98,7 @@ class LLE(MARLEnv[MultiDiscreteSpace]):
             extras_shape=(self.extras_generator.size,),
             extras_meanings=self.extras_generator.meanings,
         )
-        if name is not None:
-            self.name = name
+        self._name = name
 
         match death_strategy:
             case "end":
@@ -102,6 +112,12 @@ class LLE(MARLEnv[MultiDiscreteSpace]):
         self.randomize_lasers = randomize_lasers
         self.n_agents = world.n_agents
         self.done = False
+
+    @property
+    def name(self):
+        if self._name is not None:
+            return self._name
+        return super().name
 
     @cached_property
     def width(self) -> int:
@@ -142,9 +158,10 @@ class LLE(MARLEnv[MultiDiscreteSpace]):
                 available_actions[agent, action.value] = True
         return available_actions
 
-    def step(self, action: np.ndarray | Sequence[int]):
+    def step(self, action):
         if self.done:
             raise ValueError("Cannot step in a done environment")
+        action = np.array(action)
         agents_actions = [Action(a) for a in action]
         events = self.world.step(agents_actions)
         # Beware to compute the reward before checking if the episode is done !

@@ -155,6 +155,9 @@ impl Laser {
     }
 
     pub fn turn_on(&mut self) {
+        if self.is_on() {
+            return;
+        }
         self.beam.turn_on(self.offset);
     }
 

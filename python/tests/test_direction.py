@@ -23,10 +23,10 @@ def test_exception():
 
 
 def test_delta():
-    assert Direction.NORTH.delta() == (-1, 0)
-    assert Direction.SOUTH.delta() == (1, 0)
-    assert Direction.EAST.delta() == (0, 1)
-    assert Direction.WEST.delta() == (0, -1)
+    assert Direction.NORTH.delta == (-1, 0)
+    assert Direction.SOUTH.delta == (1, 0)
+    assert Direction.EAST.delta == (0, 1)
+    assert Direction.WEST.delta == (0, -1)
 
 
 def test_opposite():

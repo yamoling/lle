@@ -1,17 +1,23 @@
+"""Reward strategies for the `LLE` environment.
+
+The environment can expose a single scalar reward, a multi-objective reward
+vector, or a potential-based shaping wrapper around either strategy.
+"""
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Iterable
 from functools import cached_property
+from typing import Iterable
 
 import numpy as np
 import numpy.typing as npt
-from marlenv.models import DiscreteSpace
+from marlenv.models import ContinuousSpace
 
 from lle import tiles
 from lle.types import Position
 
+from ..world import EventType, World, WorldEvent
 from .utils import get_lasers_of
-from ..world import World, WorldEvent, EventType
 
 REWARD_GEM = 1.0
 REWARD_EXIT = 1.0
@@ -21,16 +27,11 @@ REWARD_DEATH = -1.0
 
 @dataclass
 class RewardStrategy(ABC):
-    objectives: list[str]
     n_agents: int
-    reward_space: DiscreteSpace
-    n_arrived: int
-    n_deads: int
+    objectives: list[str]
 
-    def __init__(self, n_agents: int, objectives: list[str]):
-        self.objectives = objectives
-        self.reward_space = DiscreteSpace(len(objectives), objectives)
-        self.n_agents = n_agents
+    def __post_init__(self):
+        self.reward_space = ContinuousSpace.from_shape(len(self.objectives))
         self.n_arrived = 0
         self.n_deads = 0
 
@@ -49,6 +50,8 @@ class RewardStrategy(ABC):
 
 @dataclass
 class SingleObjective(RewardStrategy):
+    """Return one scalar reward combining gems, exits, and deaths."""
+
     def __init__(self, n_agents: int):
         super().__init__(n_agents, ["reward"])
 
@@ -74,6 +77,8 @@ class SingleObjective(RewardStrategy):
 
 @dataclass
 class MultiObjective(RewardStrategy):
+    """Return a reward vector with separate gem, exit, death, and done terms."""
+
     RW_GEM_IDX = 0
     RW_EXIT_IDX = 1
     RW_DEATH_IDX = 2
@@ -106,10 +111,11 @@ class MultiObjective(RewardStrategy):
 
 @dataclass
 class PotentialShapedLLE(RewardStrategy):
-    """
-    Potential shaping for the Laser Learning Environment (LLE).
+    """Wrap another strategy with potential-based reward shaping.
 
-    https://people.eecs.berkeley.edu/~pabbeel/cs287-fa09/readings/NgHaradaRussell-shaping-ICML1999.pdf
+    The shaping term rewards agents for moving closer to the chosen laser
+    subgoals. This follows potential-based shaping as described by
+    Ng, Harada, and Russell.
     """
 
     gamma: float

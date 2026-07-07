@@ -38,15 +38,26 @@ impl Position {
 }
 
 impl Add<Direction> for Position {
-    type Output = Position;
+    type Output = Result<Position, RuntimeWorldError>;
 
     fn add(self, rhs: Direction) -> Self::Output {
-        let (dy, dx) = rhs.delta();
-        Self::Output {
-            i: (self.i as i32 + dy) as usize,
-            j: (self.j as i32 + dx) as usize,
-            k: self.k,
+        let (dx, dy) = rhs.delta();
+        let i = self.i as i32 + dx;
+        let j = self.j as i32 + dy;
+        if j < 0 || i < 0 {
+            return Err(RuntimeWorldError::OutOfWorldPosition {
+                position: Position {
+                    j: j as usize,
+                    i: i as usize,
+                    k: self.k,
+                },
+            });
         }
+        Ok(Position {
+            i: i as usize,
+            j: j as usize,
+            k: self.k,
+        })
     }
 }
 

@@ -6,6 +6,8 @@ mod grid;
 mod logger;
 mod position;
 pub mod rendering;
+pub mod solver;
+
 mod utils;
 
 pub use action::Action;
