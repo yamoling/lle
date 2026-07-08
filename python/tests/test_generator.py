@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 from lle.generator.generator import WorldGenerator
-from lle.generator.world_filter import Chained, Constraint, Cooperative, Interdependent, Mutual
+from lle.generator.world_filter import Chained, Constraint, Cooperative, Interdependent
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -297,12 +297,12 @@ def test_error_cooperative_requires_lasers():
 
 def test_error_mutual_requires_n_agents_ge_2():
     with pytest.raises(ValueError, match="agents"):
-        WorldGenerator(width=5, height=5, n_agents=1, n_lasers=1, constraint=Constraint(20, Mutual()))
+        WorldGenerator(width=5, height=5, n_agents=1, n_lasers=1, constraint=Constraint(20, Interdependent(2)))
 
 
 def test_error_mutual_requires_n_lasers_ge_2():
     with pytest.raises(ValueError, match="laser"):
-        WorldGenerator(width=5, height=5, n_agents=2, n_lasers=1, constraint=Constraint(20, Mutual()))
+        WorldGenerator(width=5, height=5, n_agents=2, n_lasers=1, constraint=Constraint(20, Interdependent(2)))
 
 
 def test_error_chained_requires_n_agents_ge_2():

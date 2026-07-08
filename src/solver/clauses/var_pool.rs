@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use crate::{Action, AgentId, Position, solver::errors::SolverError};
+use crate::{
+    Action, AgentId, Position,
+    solver::{Literal, errors::SolverError},
+};
 
 /// Semantic key for a SAT variable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -23,11 +26,19 @@ pub enum VarKey {
         beneficiary: AgentId,
         t: usize,
     },
-    /// Shorthand for "there exists a time step `t` at which `beneficiary` is the beneficiary of `help(h, b, t)`"
+    /// Shorthand for "there exists a time step `t` at which `beneficiary` is the beneficiary of `help(h, b, t)`
+    /// with `t <= horizon`"
     IsHelped {
         beneficiary: AgentId,
+        horizon: usize,
     },
-    Asymmetric,
+    ProvidesHelp {
+        helper: AgentId,
+        horizon: usize,
+    },
+    Asymmetric {
+        horizon: usize,
+    },
     /// Auxiliary variable used internally by cardinality encodings; carries a unique counter.
     Aux(i32),
 }
@@ -52,11 +63,9 @@ impl VarKey {
     }
 }
 
-/// Lazily assigns sequential positive integer ids to semantic variable keys,
-/// keeping the SAT variable space dense and small (mirrors `pysat.formula.IDPool`).
 #[derive(Default)]
 pub struct VarPool {
-    ids: HashMap<VarKey, i32>,
+    ids: HashMap<VarKey, Literal>,
     keys: Vec<VarKey>,
 }
 
@@ -65,7 +74,7 @@ impl VarPool {
         Self::default()
     }
 
-    fn id(&mut self, key: VarKey) -> i32 {
+    fn id(&mut self, key: VarKey) -> Literal {
         if let Some(&id) = self.ids.get(&key) {
             return id;
         }
@@ -75,15 +84,15 @@ impl VarPool {
         id
     }
 
-    pub fn agent(&mut self, agent_id: AgentId, pos: Position, t: usize) -> i32 {
+    pub fn agent(&mut self, agent_id: AgentId, pos: Position, t: usize) -> Literal {
         self.id(VarKey::Agent { agent_id, pos, t })
     }
 
-    pub fn laser(&mut self, laser_id: usize, pos: Position, t: usize) -> i32 {
+    pub fn laser(&mut self, laser_id: usize, pos: Position, t: usize) -> Literal {
         self.id(VarKey::Laser { laser_id, pos, t })
     }
 
-    pub fn help(&mut self, helper: AgentId, beneficiary: AgentId, t: usize) -> i32 {
+    pub fn help(&mut self, helper: AgentId, beneficiary: AgentId, t: usize) -> Literal {
         self.id(VarKey::Help {
             helper,
             beneficiary,
@@ -91,15 +100,50 @@ impl VarPool {
         })
     }
 
-    pub fn asymmetric(&mut self) -> i32 {
-        self.id(VarKey::Asymmetric)
+    pub fn is_helped(&mut self, beneficiary: AgentId, horizon: usize) -> Literal {
+        self.id(VarKey::IsHelped {
+            beneficiary,
+            horizon,
+        })
+    }
+
+    pub fn provides_help_up_to(&mut self, helper: AgentId, horizon: usize) -> Literal {
+        self.id(VarKey::ProvidesHelp { helper, horizon })
+    }
+
+    /// Returns all the help variables where `beneficiary` is the beneficiary of the help event up to `t` included.
+    pub fn beneficiary_variables(&self, beneficiary: AgentId, horizon: usize) -> Vec<Literal> {
+        self.ids
+            .iter()
+            .filter_map(|(key, lit)| match key {
+                VarKey::Help {
+                    beneficiary: b, t, ..
+                } if (*b == beneficiary && *t <= horizon) => Some(*lit),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Return all the help variables where `helper` is the helper up to `t` included.
+    pub fn helper_variables(&self, helper: AgentId, horizon: usize) -> Vec<Literal> {
+        self.ids
+            .iter()
+            .filter_map(|(key, lit)| match key {
+                VarKey::Help { helper: h, t, .. } if (*h == helper && *t <= horizon) => Some(*lit),
+                _ => None,
+            })
+            .collect()
+    }
+
+    pub fn asymmetric(&mut self, horizon: usize) -> Literal {
+        self.id(VarKey::Asymmetric { horizon })
     }
 
     /// Variable id already assigned to `key`, or `None` if it was never created.
     ///
     /// Unlike the factory methods above, this never *creates* a variable, so it is safe to use
     /// when probing whether a (possibly non-existent) cooperation variable should be constrained.
-    pub fn get(&self, key: &VarKey) -> Option<i32> {
+    pub fn get(&self, key: &VarKey) -> Option<Literal> {
         self.ids.get(key).copied()
     }
 
@@ -108,11 +152,11 @@ impl VarPool {
         self.ids.len() as i32 + 1
     }
 
-    pub fn aux(&mut self) -> i32 {
+    pub fn aux(&mut self) -> Literal {
         self.id(VarKey::Aux(self.next_id()))
     }
 
-    pub fn key(&self, id: i32) -> Option<VarKey> {
+    pub fn key(&self, id: Literal) -> Option<VarKey> {
         if id <= 0 {
             return None;
         }
@@ -134,7 +178,7 @@ impl VarPool {
     /// consecutive positions are not connected by a single action.
     pub fn decode_plan(
         &self,
-        literals: &[i32],
+        literals: &[Literal],
         t_end: usize,
     ) -> Result<Vec<Vec<Action>>, SolverError> {
         let mut positions: HashMap<usize, HashMap<usize, Position>> = HashMap::new();

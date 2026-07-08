@@ -11,7 +11,7 @@ worlds = list(lle.generate(width=5, height=5, n_agents=2).walls(2, style="shapes
 ```
 
 Predicate atoms (`Solvable`, `Independent`, `Cooperative`, `Chained`,
-`Mutual`, …) describe behavioural constraints and are accepted by
+`Interdependent`, …) describe behavioural constraints and are accepted by
 `GeneratorBuilder.require(...)`; the named methods (`cooperative()`, `chained()`,
 `mutual()`, …) cover the common cases without constructing predicates by hand.
 
@@ -33,7 +33,6 @@ from .world_filter import (
     Cooperative,
     Independent,
     Interdependent,
-    Mutual,
     Not,
     Or,
     Predicate,
@@ -57,7 +56,6 @@ __all__ = [
     "Cooperative",
     "Asymmetric",
     "Chained",
-    "Mutual",
     "Interdependent",
     "WorldGenerator",
 ]
