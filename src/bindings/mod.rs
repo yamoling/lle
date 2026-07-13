@@ -33,6 +33,24 @@ mod lle {
 
     #[pymodule]
     mod world {
+        use pyo3::prelude::*;
+
+        #[pymodule]
+        #[pyo3(name = "rendering")]
+        mod rendering_module {
+            use pyo3::prelude::*;
+            use pyo3_stub_gen::module_variable;
+
+            module_variable!("lle.world.rendering", "TILE_SIZE", u32);
+
+            #[pymodule_init]
+            fn init(m: &Bound<'_, PyModule>) -> PyResult<()> {
+                m.add("TILE_SIZE", crate::rendering::TILE_SIZE)
+            }
+        }
+
+        #[pymodule_export]
+        use self::rendering_module as rendering;
         #[pymodule_export]
         use super::super::world::PyAction;
         #[pymodule_export]
