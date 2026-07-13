@@ -75,13 +75,13 @@ mod lle {
 
         // `lle.solver` is a regular Python package (`python/lle/solver/__init__.py`), so unlike
         // the other submodules we must not register a native module at `lle.solver`.
-        // Instead, we register `lle.solver.constraints` directly in sys.modules so the
-        //  Python package finds it already present when it does `from .constraints import ...`.
+        // Instead, we register `lle.solver.clauses` directly in sys.modules so the
+        //  Python package finds it already present when it does `from .clauses import ...`.
         let sys_modules = py.import("sys")?.getattr("modules")?;
-        let constraints = PyModule::new(py, "constraints")?;
-        constraints.add_class::<super::solver::PyClauseGenerator>()?;
-        constraints.add_class::<super::solver::PySolveMode>()?;
-        sys_modules.set_item("lle.solver.constraints", &constraints)
+        let clauses = PyModule::new(py, "clauses")?;
+        clauses.add_class::<super::solver::PyClauseGenerator>()?;
+        clauses.add_class::<super::solver::PySolveMode>()?;
+        sys_modules.set_item("lle.solver.clauses", &clauses)
     }
 }
 

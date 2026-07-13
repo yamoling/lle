@@ -3,7 +3,7 @@ from typing import final
 
 from typing_extensions import override
 
-from lle.solver.constraints import SolveMode
+from lle.solver.clauses import SolveMode
 
 from .. import solver
 from ..world import World

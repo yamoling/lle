@@ -6,7 +6,7 @@ from typing import Literal, overload
 from pysat.solvers import Minisat22  # pyright: ignore[reportMissingTypeStubs]
 
 from ..world import Action, World
-from .constraints import ClauseGenerator, SolveMode
+from .clauses import ClauseGenerator, SolveMode
 from .types import SolveModeLiteral
 
 

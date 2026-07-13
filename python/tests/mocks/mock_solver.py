@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from typing import Literal
 
 from lle.solver import Solver
-from lle.solver.constraints import SolveMode
+from lle.solver.clauses import SolveMode
 from lle.solver.types import SolveModeLiteral
 from lle.world import Action, World
 from typing_extensions import override

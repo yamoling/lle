@@ -25,7 +25,7 @@ class ClauseGenerator:
     ```python
     from pysat.solvers import Minisat22
     from lle import World
-    from lle.solver.constraints import ClauseGenerator
+    from lle.solver.clauses import ClauseGenerator
 
     world = World.level(1)
     gen = ClauseGenerator(world, t_max=20)
@@ -113,7 +113,7 @@ class SolveMode:
       `no_mutual()`.
 
     ```python
-    from lle.solver.constraints import ClauseGenerator, SolveMode
+    from lle.solver.clauses import ClauseGenerator, SolveMode
     from lle import World
 
     gen = ClauseGenerator(World.level(6), t_max=21)
