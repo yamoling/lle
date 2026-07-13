@@ -2,10 +2,8 @@
 # ruff: noqa: E501, F401, F403, F405
 
 import builtins
-import typing
-
 from lle import world
-
+import typing
 __all__ = [
     "ClauseGenerator",
     "SolveMode",
@@ -16,17 +14,17 @@ class ClauseGenerator:
     r"""
     Generates the SAT clauses (CNF, as lists of signed integer literals) used by
     `lle.solver.Solver` and decodes solver models back into joint-action plans.
-
+    
     The constraint generation itself (agent movement, collisions, laser propagation and blocking)
     is implemented in Rust for performance; SAT solving remains delegated to Python (e.g.
     `pysat.solvers.Minisat22`). One generator can be reused across modes because domain clauses are
     cached independently from cooperation-specific support clauses.
-
+    
     ```python
     from pysat.solvers import Minisat22
     from lle import World
     from lle.solver.clauses import ClauseGenerator
-
+    
     world = World.level(1)
     gen = ClauseGenerator(world, t_max=20)
     clauses, assumptions = gen.generate(10, mode="standard", collect_gems=False)
@@ -56,38 +54,97 @@ class ClauseGenerator:
         r"""
         Build a clause generator for the given `world`, considering plans of length up to `t_max`.
         """
-    def generate(
-        self,
-        t: builtins.int,
-        mode: typing.Literal["standard", "no-cooperation", "no-asymmetric", "no-mutual", "no-chain", "no-interdependence"]
-        | builtins.str
-        | SolveMode
-        | None = None,
-        collect_gems: builtins.bool = False,
-    ) -> tuple[builtins.list[builtins.list[builtins.int]], builtins.list[builtins.int]]:
+    def generate(self, t: builtins.int, mode: typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-mutual', 'no-chain', 'no-interdependence'] | builtins.str | SolveMode | None = None, collect_gems: builtins.bool = False) -> tuple[builtins.list[builtins.list[builtins.int]], builtins.list[builtins.int]]:
         r"""
         Generate all clauses and assumptions required to solve the problem at horizon `t`.
-
+        
         `mode` accepts either a `SolveMode` instance or its canonical string (`"standard"`,
         `"no-cooperation"`, `"no-asymmetric"`, `"no-mutual"`, `"no-chain[-N]"`,
         `"no-interdependence[-N]"`). `collect_gems` adds gem-collection clauses to the objective.
-
+        
         Returns `(clauses, assumptions)` ready to be fed to `solve_model`.
         """
-    def objective(
-        self, t: builtins.int, collect_gems: builtins.bool = False
-    ) -> tuple[builtins.list[builtins.list[builtins.int]], builtins.list[builtins.int]]:
+    def objective(self, t: builtins.int, collect_gems: builtins.bool = False) -> tuple[builtins.list[builtins.list[builtins.int]], builtins.list[builtins.int]]:
         r"""
         Generate only the objective clauses for horizon `t`.
-
+        
         Returns `(clauses, [])`. Useful for callers that manage the SAT solver directly and want to
         append the objective separately.
+        """
+    def characterization_clauses(self, horizon: builtins.int, feature: builtins.str = 'asymmetry') -> builtins.list[builtins.list[builtins.int]]:
+        r"""
+        Generate derived-variable support clauses for trajectory characterization.
+        
+        Currently only `feature="asymmetry"` is supported. The generated clauses define `Help`,
+        `IsHelped`, `ProvidesHelp`, and `Asymmetric` variables for `horizon`, but do not force the
+        asymmetry variable to be either true or false and do not add the exit objective.
+        
+        @ai-generated
+        """
+    def literal(self, kind: builtins.str, /, *, helper: typing.Optional[builtins.int] = None, beneficiary: typing.Optional[builtins.int] = None, t: typing.Optional[builtins.int] = None, horizon: typing.Optional[builtins.int] = None, agent_id: typing.Optional[builtins.int] = None, pos: typing.Optional[tuple[builtins.int, builtins.int]] = None, laser_id: typing.Optional[builtins.int] = None) -> typing.Optional[builtins.int]:
+        r"""
+        Return the existing SAT literal for a semantic variable without creating it.
+        
+        `None` means that the variable is not materialized in the generated formula; it does not mean
+        that the variable is false.
+        
+        @ai-generated
+        """
+    def trajectory_assumptions(self, trajectory: typing.Sequence[typing.Sequence[world.Action]], horizon: builtins.int) -> builtins.list[builtins.int]:
+        r"""
+        Return assumptions that pin the SAT formula to the positions induced by `trajectory`.
+        
+        The assumptions contain only positive agent-position literals. Derived variables are left for
+        the formula to determine.
+        
+        @ai-generated
+        """
+    def assignment_for_trajectory(self, trajectory: typing.Sequence[typing.Sequence[world.Action]], horizon: builtins.int, feature: builtins.str = 'asymmetry') -> builtins.list[builtins.int]:
+        r"""
+        Return a signed SAT assignment induced by `trajectory`.
+        
+        The returned value is a list of signed literals, not a list of clauses. No SAT solver is
+        called: the method sets each trajectory `Agent` position variable to true and evaluates the
+        derived asymmetry variables directly from those positions.
+        
+        @ai-generated
+        """
+    def value_in_assignment(self, assignment: typing.Sequence[builtins.int], kind: builtins.str, /, *, helper: typing.Optional[builtins.int] = None, beneficiary: typing.Optional[builtins.int] = None, t: typing.Optional[builtins.int] = None, horizon: typing.Optional[builtins.int] = None, agent_id: typing.Optional[builtins.int] = None, pos: typing.Optional[tuple[builtins.int, builtins.int]] = None, laser_id: typing.Optional[builtins.int] = None) -> typing.Optional[builtins.bool]:
+        r"""
+        Evaluate a semantic variable in a signed SAT assignment.
+        
+        `assignment` is the signed-literal list returned by a SAT solver after a successful solve, not
+        a list of clauses. Returns `None` if the variable is absent from the generated formula or from
+        the assignment.
+        
+        @ai-generated
+        """
+    def true_help_edges_in_assignment(self, assignment: typing.Sequence[builtins.int], horizon: builtins.int) -> builtins.list[tuple[builtins.int, builtins.int, builtins.int]]:
+        r"""
+        Return all true `Help(helper, beneficiary, t)` variables in `assignment` up to `horizon`.
+        
+        @ai-generated
+        """
+    def true_help_edges_for_trajectory(self, trajectory: typing.Sequence[typing.Sequence[world.Action]], horizon: builtins.int) -> builtins.list[tuple[builtins.int, builtins.int, builtins.int]]:
+        r"""
+        Return all true help edges for a concrete feasible trajectory.
+        
+        @ai-generated
+        """
+    def value_for_trajectory(self, trajectory: typing.Sequence[typing.Sequence[world.Action]], kind: builtins.str, /, *, horizon: builtins.int, helper: typing.Optional[builtins.int] = None, beneficiary: typing.Optional[builtins.int] = None, t: typing.Optional[builtins.int] = None, agent_id: typing.Optional[builtins.int] = None, pos: typing.Optional[tuple[builtins.int, builtins.int]] = None, laser_id: typing.Optional[builtins.int] = None) -> typing.Optional[builtins.bool]:
+        r"""
+        Evaluate a semantic variable for a concrete feasible trajectory.
+        
+        The trajectory is first converted into a SAT assignment by pinning only agent positions; the
+        requested derived variable is then read from that assignment.
+        
+        @ai-generated
         """
     def decode_plan(self, model: typing.Sequence[builtins.int], t_end: builtins.int) -> builtins.list[builtins.list[world.Action]]:
         r"""
         Decode a SAT model (as returned by `solver.get_model()`) into a joint-action plan
         of length `t_end`, i.e. a list of `t_end` joint actions (one action per agent).
-
+        
         Raises:
             `ValueError`: if the model does not encode a coherent sequence of moves.
         """
@@ -96,11 +153,11 @@ class ClauseGenerator:
 class SolveMode:
     r"""
     The solving mode used by `ClauseGenerator`.
-
+    
     Build one with the factory methods (`SolveMode.standard()`, `SolveMode.no_chain(length=3)`,
     …) or parse one from its canonical string with `SolveMode.from_str("no-chain-3")`. The
-    available modes control which extra constraints and assumptions are emitted by `generate(t)`:
-
+    available modes control which extra clauses and assumptions are emitted by `generate(t)`:
+    
     - `standard()` — world rules only; agents may cooperate freely.
     - `no_cooperation()` — forbids any non-owner agent from occupying a laser span. Equivalent to
       treating every beam as permanently active.
@@ -111,11 +168,11 @@ class SolveMode:
     - `no_interdependence(order=2)` — rules out plans whose dependency graph contains a temporal
       cycle visiting `order` distinct agents or more. For two-agent worlds this coincides with
       `no_mutual()`.
-
+    
     ```python
     from lle.solver.clauses import ClauseGenerator, SolveMode
     from lle import World
-
+    
     gen = ClauseGenerator(World.level(6), t_max=21)
     for t in range(gen.solution_lower_bound, gen.t_max + 1):
         clauses, assumptions = gen.generate(t, mode=SolveMode.no_mutual())
@@ -149,6 +206,8 @@ class SolveMode:
     def no_mutual() -> SolveMode:
         r"""
         Forbid plans where two agents each help the other.
+        
+        Equivalent to [`SolveMode::NoInterdependence(2)`].
         """
     @staticmethod
     def no_chain(length: builtins.int = 2) -> SolveMode:
@@ -161,14 +220,13 @@ class SolveMode:
         Forbid any temporal cycle visiting `order` distinct agents or more. `order` must be `>= 2`.
         """
     @staticmethod
-    def from_str(
-        value: typing.Literal["standard", "no-cooperation", "no-asymmetric", "no-chain", "no-interdependence", "no-mutual"] | builtins.str,
-    ) -> SolveMode:
+    def from_str(value: typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-chain', 'no-interdependence'] | builtins.str) -> SolveMode:
         r"""
         Parse a canonical string (e.g. `"standard"`, `"no-chain-3"`, `"no-interdependence-2"`).
-
+        
         `"no-chain"` and `"no-interdependence"` both accept a `"-n"` suffix to specify the minimum chain length or interdependence order.
         Note that `"no-chain"` and `"no-interdependence"` are aliases for `"no-chain-2"` and `"no-interdependence-2"` respectively.
         """
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...
+
