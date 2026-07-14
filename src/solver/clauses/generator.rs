@@ -26,15 +26,7 @@ pub struct ClauseGenerator {
     lasers: ClauseBuffer,
     /// Shared `help(h, b, t)` clauses encoding for all tracked help pairs.
     help: ClauseBuffer,
-    /// Chain-progress clauses, keyed by the forbidden chain length.
-    // chains: HashMap<usize, ClauseBuffer>,
-    /// Cycle-rotation clauses, keyed by the forbidden cycle order.
-    // cycles: HashMap<usize, ClauseBuffer>,
     no_cooperation_assumptions: LiteralBuffer,
-    // Reification clauses for concrete asymmetric-cooperation variables.
-    // no_asymmetric_clauses: ClauseBuffer,
-    // /// Negative assumptions for concrete asymmetric-cooperation variables.
-    // no_asymmetric_literals: LiteralBuffer,
 }
 
 impl ClauseGenerator {
@@ -44,16 +36,11 @@ impl ClauseGenerator {
             engine: ClauseEngine::new(world, t_max),
             movements: StepBuffer::new(ClauseEngine::generate_movement_clauses, capacity),
             lasers: StepBuffer::new(ClauseEngine::generate_laser_clauses, capacity),
-            help: StepBuffer::new(ClauseEngine::help_clauses, capacity),
+            help: StepBuffer::new(ClauseEngine::generate_help_clauses, capacity),
             no_cooperation_assumptions: StepBuffer::new(
                 ClauseEngine::assume_no_cooperation_at,
                 capacity,
             ),
-            // no_asymmetric_clauses: StepBuffer::new(ClauseEngine::make_asymmetric_clauses, capacity),
-            // no_asymmetric_literals: StepBuffer::new(
-            //     ClauseEngine::assume_no_asymmetric_at,
-            //     capacity,
-            // ),
         }
     }
 
@@ -61,7 +48,8 @@ impl ClauseGenerator {
     ///
     /// Gathers the movement clauses, laser clauses, any cooperation-support clauses the `mode` needs,
     /// the objective, and the horizon-scoped forbid clauses/assumptions. Every per-step buffer lazily
-    /// produces and caches the steps it has not seen yet.
+    /// produces and caches the steps it has not seen yet. Horizon-wide cooperation summaries are
+    /// regenerated for the requested horizon because their definitions span the whole prefix.
     pub fn generate(
         &mut self,
         t: usize,
@@ -83,6 +71,8 @@ impl ClauseGenerator {
             SolveMode::NoAsymmetricCooperation => {
                 clauses.extend(self.lasers.gather_until(&mut self.engine, t));
                 clauses.extend(self.help.gather_until(&mut self.engine, t));
+                clauses.extend(self.engine.generate_is_helped(t));
+                clauses.extend(self.engine.generate_provides_help(t));
                 clauses.extend(self.engine.encode_asymmetry(t));
                 assumptions.extend(self.engine.assume_no_asymmetry(t));
             }

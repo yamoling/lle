@@ -8,7 +8,9 @@ fn help_clauses_per_step(world: &World, t_max: usize) -> (ClauseEngine, Vec<Vec<
     for t in 0..=t_max {
         engine.generate_movement_clauses(t);
     }
-    let per_step = (0..=t_max).map(|t| engine.help_clauses(t)).collect();
+    let per_step = (0..=t_max)
+        .map(|t| engine.generate_help_clauses(t))
+        .collect();
     (engine, per_step)
 }
 
@@ -249,4 +251,104 @@ L0E  .  .  .  @
     assert_help(&engine, &clauses[5], 1, 0, 5, &[(2, 3), (3, 3)]);
     assert_help(&engine, &clauses[6], 1, 0, 6, &[(3, 3)]);
     assert_no_help(&engine, 1, 0, 7);
+}
+
+#[test]
+fn number_of_is_helped_clauses_zero() {
+    let w1 = World::try_from("S0 . X").unwrap();
+    let w2 = World::try_from(
+        "
+    S0 . X
+    S1 . X",
+    )
+    .unwrap();
+    let t_max = 10;
+    let mut ce = ClauseEngine::new(&w1, t_max);
+    ce.generate_help_clauses(t_max);
+    for t in 0..=t_max {
+        ce.generate_movement_clauses(t);
+        ce.generate_laser_clauses(t);
+        ce.generate_help_clauses(t);
+    }
+    assert!(ce.generate_is_helped(t_max).is_empty());
+    assert!(!ce.pool.exists(&VarKey::IsHelped {
+        beneficiary: 0,
+        horizon: t_max
+    }));
+    assert!(!ce.pool.exists(&VarKey::IsHelped {
+        beneficiary: 1,
+        horizon: t_max
+    }));
+    let mut ce = ClauseEngine::new(&w2, t_max);
+    for t in 0..=t_max {
+        ce.generate_movement_clauses(t);
+        ce.generate_laser_clauses(t);
+        ce.generate_help_clauses(t);
+    }
+    assert!(ce.generate_is_helped(t_max).is_empty());
+    assert!(!ce.pool.exists(&VarKey::IsHelped {
+        beneficiary: 0,
+        horizon: t_max
+    }));
+    assert!(!ce.pool.exists(&VarKey::IsHelped {
+        beneficiary: 1,
+        horizon: t_max
+    }));
+}
+
+#[test]
+fn number_of_is_helped_clauses_one_laser() {
+    let w = World::try_from(
+        "
+    @  L0S @
+    S0  .  X
+    S1  .  X",
+    )
+    .unwrap();
+    let t_max = 10;
+    let mut ce = ClauseEngine::new(&w, t_max);
+    for t in 0..=t_max {
+        ce.generate_movement_clauses(t);
+        ce.generate_laser_clauses(t);
+        ce.generate_help_clauses(t);
+    }
+    ce.generate_is_helped(t_max);
+    // Cannot help at t=0 and t=t_max
+    assert!(!ce.pool.exists(&VarKey::IsHelped {
+        beneficiary: 0,
+        horizon: t_max
+    }));
+    assert!(ce.pool.exists(&VarKey::IsHelped {
+        beneficiary: 1,
+        horizon: t_max
+    }));
+}
+
+#[test]
+fn number_of_is_helped_clauses_one_laser_two_laser_tiles() {
+    let w = World::try_from(
+        "
+    @  L0S @
+    S0  .  X
+    .   .  .
+    S1  .  X
+    ",
+    )
+    .unwrap();
+    let t_max = 10;
+    let mut ce = ClauseEngine::new(&w, t_max);
+    for t in 0..=t_max {
+        ce.generate_movement_clauses(t);
+        ce.generate_laser_clauses(t);
+        ce.generate_help_clauses(t);
+    }
+    ce.generate_is_helped(10);
+    assert!(!ce.pool.exists(&VarKey::IsHelped {
+        beneficiary: 0,
+        horizon: t_max
+    }));
+    assert!(ce.pool.exists(&VarKey::IsHelped {
+        beneficiary: 1,
+        horizon: t_max
+    }));
 }

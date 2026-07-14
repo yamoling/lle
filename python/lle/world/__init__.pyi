@@ -10,12 +10,14 @@ import numpy.typing
 import os
 import pathlib
 import typing
+from . import rendering
 __all__ = [
     "Action",
     "EventType",
     "World",
     "WorldEvent",
     "WorldState",
+    "rendering",
 ]
 
 class World:

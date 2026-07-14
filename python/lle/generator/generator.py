@@ -274,11 +274,14 @@ class WorldGenerator:
                 if n_generated >= n:
                     return
 
-    def _generate_n_multi(self, n: int, n_jobs: int, max_attempts: int):
+    def _generate_n_multi(self, n: int, n_jobs: int, max_attempts: int, seed: int | None):
+        """Dispatch attempts across a worker pool, each seeded from `seed` so the run is reproducible."""
         n_generated = 0
+        self._rng.seed(seed)
+        seeds = (self._rng.randrange(sys.maxsize) for _ in range(max_attempts))
         try:
             with mp.Pool(n_jobs) as pool:
-                results = pool.imap_unordered(self._try_generate, range(max_attempts))
+                results = pool.imap_unordered(self._try_generate, seeds)
                 for i, result in enumerate(results):
                     yield i, result
                     if result is not None:
@@ -302,7 +305,7 @@ class WorldGenerator:
         if n_jobs == 1:
             generator = self._generate_n_single(n, max_attempts)
         else:
-            generator = self._generate_n_multi(n, n_jobs, max_attempts)
+            generator = self._generate_n_multi(n, n_jobs, max_attempts, seed)
         with tqdm(total=n, disable=quiet) as pbar:
             for i, result in generator:
                 if show_attempts and not quiet:

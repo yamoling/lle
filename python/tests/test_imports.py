@@ -22,6 +22,12 @@ def test_import_from_submodules():
     from lle.types import AgentId, LaserId, Position  # noqa: F401
     from lle.world import Action, EventType, World, WorldEvent, WorldState  # noqa: F401
 
+def test_import_submodule_from_world():
+    from lle.world.rendering import TILE_SIZE  # noqa: F401
+
+def test_solver_imports():
+    from lle.solver import clauses, SolveMode  # noqa: F401
+    from lle.solver.clauses import SolveMode, ClauseGenerator  # noqa: F401, F811
 
 def test_version():
     import lle

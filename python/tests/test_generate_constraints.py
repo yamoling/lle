@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 from lle import World
-from lle.generator import Chained, Constraint, Cooperative, Independent, Interdependent, Mutual, Solvable, WorldRequirements, generate
+from lle.generator import Chained, Constraint, Cooperative, Independent, Interdependent, Solvable, WorldRequirements, generate
 
 
 @pytest.mark.parametrize(("level", "solution_length"), [(1, 10), (2, 10), (3, 10), (4, 10), (5, 19), (6, 21)])
@@ -62,7 +62,7 @@ def test_interdependent_level6():
 
 
 def test_mutual_standard_levels():
-    mutual = Constraint(21, Mutual())
+    mutual = Constraint(21, Interdependent(2))
     for level in [1, 2, 3, 5]:
         world = World.level(level)
         assert not mutual.is_satisfied_by(world)
@@ -82,19 +82,19 @@ def test_constraint_uses_its_t_max():
 
 def test_filter_mutual_rejects_level6_with_insufficient_t_max():
     """Level 6 needs exactly 21 steps; t_max=20 makes it unsolvable → Mutual fails."""
-    assert not Constraint(20, Mutual()).is_satisfied_by(World.level(6))
+    assert not Constraint(20, Interdependent(2)).is_satisfied_by(World.level(6))
 
 
 def test_world_requirements_for_atoms():
     assert Solvable().requirements == WorldRequirements()
     assert Independent().requirements == WorldRequirements()
     assert Cooperative().requirements == WorldRequirements(min_lasers=1, min_agents=2)
-    assert Mutual().requirements == WorldRequirements(min_lasers=2, min_agents=2)
+    assert Interdependent(2).requirements == WorldRequirements(min_lasers=2, min_agents=2)
 
 
 def test_world_requirements_compose_over_boolean_expressions():
-    assert (Chained(3) & ~Mutual()).requirements == WorldRequirements(min_lasers=3, min_agents=2)
-    assert (Mutual() | Interdependent(5)).requirements == WorldRequirements(min_lasers=2, min_agents=2)
+    assert (Chained(3) & ~Interdependent(2)).requirements == WorldRequirements(min_lasers=3, min_agents=2)
+    assert (Interdependent(2) | Interdependent(5)).requirements == WorldRequirements(min_lasers=2, min_agents=2)
     assert (~Interdependent(5)).requirements == WorldRequirements()
 
 
@@ -110,9 +110,9 @@ def test_generate_independent_produces_independent_world():
 
 
 def test_last_filter_call_wins():
-    builder = generate(width=5, height=5, n_agents=2).cooperative().mutual()
-    assert isinstance(builder._constraint.predicate, Mutual)
-    builder = generate(width=5, height=5, n_agents=2).mutual().independent()
+    builder = generate(width=5, height=5, n_agents=2).cooperative().interdependent(2)
+    assert isinstance(builder._constraint.predicate, Interdependent)
+    builder = generate(width=5, height=5, n_agents=2).interdependent(2).independent()
     assert isinstance(builder._constraint.predicate, Independent)
 
 
@@ -133,12 +133,12 @@ def test_generate_error_cooperative_n_lasers_0():
 
 def test_generate_error_mutual_n_agents_lt_2():
     with pytest.raises(ValueError, match="agents"):
-        generate(width=5, height=5, n_agents=1).mutual().build(max_attempts=1)
+        generate(width=5, height=5, n_agents=1).interdependent(2).build(max_attempts=1)
 
 
 def test_generate_error_mutual_n_lasers_lt_2():
     with pytest.raises(ValueError, match="laser"):
-        generate(width=5, height=5, n_agents=2).lasers(1).mutual().build(max_attempts=1)
+        generate(width=5, height=5, n_agents=2).lasers(1).interdependent(2).build(max_attempts=1)
 
 
 def test_generate_error_chained_n_agents_lt_2():
@@ -172,10 +172,10 @@ def test_default_lasers_chained_n_agents_2():
 def test_default_lasers_mutual_n_agents_2():
     """Same default-value fix applies to the mutual filter (mentioned in the todo).
 
-    generate(width=5, height=5, n_agents=2).mutual().build() would also have
+    generate(width=5, height=5, n_agents=2).Interdependent(2).build() would also have
     raised without the fix because mutual implies chained cooperation.
     """
-    builder = generate(width=5, height=5, n_agents=2).mutual()
+    builder = generate(width=5, height=5, n_agents=2).interdependent(2)
     placement = builder._resolve_placement(builder._starts)
     n_lasers = builder._resolve_n_lasers(placement)
     assert n_lasers >= 2, f"Expected auto n_lasers >= 2 for mutual predicate with n_agents=2, got {n_lasers}"
@@ -187,8 +187,8 @@ def test_default_lasers_chained_does_not_raise_on_build():
 
 
 def test_default_lasers_mutual_does_not_raise_on_build():
-    """End-to-end: generate().mutual().build() must not raise ValueError."""
-    generate(width=5, height=5, n_agents=2).mutual().build(max_attempts=1)
+    """End-to-end: generate().Interdependent(2).build() must not raise ValueError."""
+    generate(width=5, height=5, n_agents=2).interdependent(2).build(max_attempts=1)
 
 
 def test_explicit_laser_count_overrides_default():

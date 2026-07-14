@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .constraints import SolveMode
+from .clauses import SolveMode
 from .solver import (
     Solver,
     solve,

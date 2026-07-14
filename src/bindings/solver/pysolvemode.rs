@@ -7,7 +7,7 @@ use crate::solver::SolveMode;
 ///
 /// Build one with the factory methods (`SolveMode.standard()`, `SolveMode.no_chain(length=3)`,
 /// …) or parse one from its canonical string with `SolveMode.from_str("no-chain-3")`. The
-/// available modes control which extra constraints and assumptions are emitted by `generate(t)`:
+/// available modes control which extra clauses and assumptions are emitted by `generate(t)`:
 ///
 /// - `standard()` — world rules only; agents may cooperate freely.
 /// - `no_cooperation()` — forbids any non-owner agent from occupying a laser span. Equivalent to
@@ -21,7 +21,7 @@ use crate::solver::SolveMode;
 ///   `no_mutual()`.
 ///
 /// ```python
-/// from lle.solver.constraints import ClauseGenerator, SolveMode
+/// from lle.solver.clauses import ClauseGenerator, SolveMode
 /// from lle import World
 ///
 /// gen = ClauseGenerator(World.level(6), t_max=21)
@@ -32,7 +32,7 @@ use crate::solver::SolveMode;
 #[gen_stub_pyclass]
 #[pyclass(
     name = "SolveMode",
-    module = "lle.solver.constraints",
+    module = "lle.solver.clauses",
     frozen,
     eq,
     hash,

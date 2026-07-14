@@ -20,7 +20,8 @@ impl ClauseEngine {
     /// the beneficiary can actually reach at least one such beam tile at `t` (i.e. the movement
     /// layer already created its agent variable); otherwise the help event is geometrically
     /// impossible and no variable or clause is emitted.
-    pub fn help_clauses(&mut self, t: usize) -> Vec<Clause> {
+    pub fn generate_help_clauses(&mut self, t: usize) -> Vec<Clause> {
+        self.ctx.update(t);
         let mut clauses = vec![];
         for agents in (0..self.ctx.n_agents).permutations(2) {
             let helper = agents[0];
@@ -44,8 +45,7 @@ impl ClauseEngine {
                     }
                 }
             }
-            // No reachable beam tile: the help event is impossible, so create nothing (neither a
-            // `Help` variable nor any clause).
+            // No reachable beam tile: the help event is impossible, so create nothing
             if benef_positions_in_laser.is_empty() {
                 continue;
             }
@@ -66,74 +66,118 @@ impl ClauseEngine {
         clauses
     }
 
-    /// Encode whether any help event is asymmetric within the prefix `0..=horizon`.
+    /// Encode `is_helped(beneficiary) <=> OR(help_variables)` over the prefix `0..=horizon`.
     ///
-    /// For each concrete help event `help(i, j, t)`, the clause
-    /// `¬help(i, j, t) ∨ asymmetric ∨ incoming_help_to_i` says that if agent `i` helps someone
-    /// while no one helps `i` anywhere in the same horizon, the global `Asymmetric` variable must be
-    /// true. `NoAsymmetricCooperation` then forbids that variable by assumption.
-    ///
-    /// This method must run after the help buffer has created all `Help` variables up to `horizon`.
-    /// It only probes existing help variables, so it never creates unconstrained future help events.
-    pub fn encode_asymmetry(&mut self, horizon: usize) -> Vec<Clause> {
-        self.ctx.update(horizon);
-        let asymmetric = self.pool.asymmetric();
-        let mut clauses = Vec::new();
-        for t in 0..=horizon {
-            // Iterate only over geometrically possible help events at this time step. The potential
-            // graph tells us which directed help edges can exist; the variable pool tells us which
-            // ones were actually materialized by `help_clauses`.
-            for edge in self.ctx.potential_cooperation.edges_at(t) {
-                let Some(help) = self.pool.get(&crate::solver::VarKey::Help {
-                    helper: edge.helper,
-                    beneficiary: edge.beneficiary,
-                    t,
-                }) else {
-                    continue;
-                };
-
-                // Gather every concrete help event, anywhere in the horizon, where `edge.helper`
-                // is the beneficiary. If this list is empty, then `edge.helper` was never helped.
-                let mut incoming_help = Vec::new();
-                for t2 in 0..=horizon {
-                    for incoming_helper in self
-                        .ctx
-                        .potential_cooperation
-                        .at(t2)
-                        .incoming_to(edge.helper)
-                    {
-                        if let Some(incoming) = self.pool.get(&crate::solver::VarKey::Help {
-                            helper: incoming_helper,
-                            beneficiary: edge.helper,
-                            t: t2,
-                        }) {
-                            incoming_help.push(incoming);
-                        }
-                    }
-                }
-
-                // Encode: help(edge.helper -> edge.beneficiary at t) ∧ no incoming help to
-                // edge.helper over the whole horizon -> asymmetric.
-                //
-                // CNF form:
-                //   ¬help ∨ asymmetric ∨ incoming_help_1 ∨ ... ∨ incoming_help_n
-                //
-                // If `help` is true and every incoming help literal is false, the only way to satisfy
-                // this clause is to set the global `asymmetric` variable to true. The
-                // `NoAsymmetricCooperation` mode then forbids such plans by assuming `¬asymmetric`.
-                let mut clause = Vec::with_capacity(incoming_help.len() + 2);
-                clause.push(-help);
-                clause.push(asymmetric);
-                clause.extend(incoming_help);
-                clauses.push(clause);
+    /// This function must be called for each horizon.
+    pub fn generate_is_helped(&mut self, horizon: usize) -> Vec<Clause> {
+        let mut clauses = vec![];
+        for beneficiary in 0..self.ctx.n_agents {
+            // Only create the "is_helped" variable if the agent can actually be helped.
+            let beneficiary_variables = self.pool.beneficiary_variables(beneficiary, horizon);
+            if beneficiary_variables.is_empty() {
+                continue;
+            }
+            let is_helped = self.pool.is_helped(beneficiary, horizon);
+            // is_helped <=> OR_{beneficiary variables}
+            // 1) Forward: is_helped -> OR_{beneficiary variables}
+            let mut forward = Vec::with_capacity(1 + beneficiary_variables.len());
+            forward.push(-is_helped);
+            forward.extend(beneficiary_variables.iter());
+            clauses.push(forward);
+            // 2) Backward: b -> is_helped (for all b in beneficiary variables)
+            for v in beneficiary_variables {
+                clauses.push(implies(v, is_helped));
             }
         }
         clauses
     }
 
+    /// Encode `provides_help(helper) <=> OR(helper_variables)` over the prefix `0..=horizon`.
+    ///
+    /// This function should be called for each time horizon.
+    pub fn generate_provides_help(&mut self, horizon: usize) -> Vec<Clause> {
+        let mut clauses = vec![];
+        for helper in 0..self.ctx.n_agents {
+            let helper_variables = self.pool.helper_variables(helper, horizon);
+            if helper_variables.is_empty() {
+                continue;
+            }
+            let provides_help = self.pool.provides_help_up_to(helper, horizon);
+            // provides_help <=> OR(helper_variables)
+            // 1) Forward: provides_help => OR(helper_variables)
+            let mut forward = Vec::with_capacity(1 + helper_variables.len());
+            forward.push(-provides_help);
+            forward.extend(helper_variables.iter());
+            clauses.push(forward);
+            // 2) Backward: h -> provides_help (for all h in helper variables)
+            for v in helper_variables {
+                clauses.push(implies(v, provides_help));
+            }
+        }
+        clauses
+    }
+
+    /// Encode the global `asymmetric` flag over the prefix `0..=horizon`.
+    ///
+    /// Asymmetry is defined as: there exists an agent that provides help but is never helped, i.e.
+    /// ```text
+    /// asymmetric <=> OR_{i in A} (provides_help(i) ∧ ¬is_helped(i))
+    /// ```
+    pub fn encode_asymmetry(&mut self, horizon: usize) -> Vec<Clause> {
+        let asymmetric = self.pool.asymmetric(horizon);
+        let mut clauses = Vec::new();
+        // Collects one literal per agent-level disjunct of the outer OR.
+        let mut disjuncts = Vec::with_capacity(self.ctx.n_agents);
+        for i in 0..self.ctx.n_agents {
+            // Skip agents that can never provide help
+            if !self
+                .pool
+                .exists(&VarKey::ProvidesHelp { helper: i, horizon })
+            {
+                continue;
+            }
+            let provides_help = self
+                .pool
+                .get(&VarKey::ProvidesHelp { helper: i, horizon })
+                .expect("Help variables not initialized");
+            let beneficiary_variables = self.pool.beneficiary_variables(i, horizon);
+            // Agents that can never be helped have no `is_helped` variable,
+            // therefore `¬is_helped` is always true and the conjunction reduces to `provides_help`.
+            if beneficiary_variables.is_empty() {
+                clauses.push(implies(provides_help, asymmetric));
+                disjuncts.push(provides_help);
+                continue;
+            }
+            // A conjunction cannot appear bare inside a CNF clause, so each disjunct
+            // `provides_help(i) ∧ ¬is_helped(i)` is reified into an auxiliary variable `a_i`.
+            let is_helped = self
+                .pool
+                .get(&VarKey::IsHelped {
+                    beneficiary: i,
+                    horizon,
+                })
+                .expect("is_helped variable not initialized");
+            // Reify a_i <=> provides_help(i) ∧ ¬is_helped(i).
+            let a = self.pool.aux();
+            clauses.push(implies(a, provides_help)); // a -> provides_help
+            clauses.push(implies(a, -is_helped)); // a -> ¬is_helped
+            clauses.push(vec![-provides_help, is_helped, a]); // provides_help ∧ ¬is_helped -> a
+            // Backward: a -> asymmetric.
+            clauses.push(implies(a, asymmetric));
+            disjuncts.push(a);
+        }
+        // Forward: asymmetric -> OR a_i. With no disjuncts this is the unit clause `¬asymmetric`,
+        // pinning the flag to false since no agent can ever be asymmetrically helped.
+        let mut forward = Vec::with_capacity(1 + disjuncts.len());
+        forward.push(-asymmetric);
+        forward.extend(disjuncts);
+        clauses.push(forward);
+        clauses
+    }
+
     /// Return the assumption that forbids asymmetric help events.
-    pub fn assume_no_asymmetry(&mut self, _horizon: usize) -> Vec<Literal> {
-        vec![-self.pool.asymmetric()]
+    pub fn assume_no_asymmetry(&mut self, horizon: usize) -> Vec<Literal> {
+        vec![-self.pool.asymmetric(horizon)]
     }
 }
 

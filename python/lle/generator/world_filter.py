@@ -177,22 +177,6 @@ class Chained(Predicate):
 
 
 @dataclass(frozen=True)
-class Mutual(Predicate):
-    """Matches worlds that require mutual cooperation."""
-
-    def holds(self, c: WorldCharacterizer) -> bool:
-        return c.is_mutual()
-
-    @property
-    def requirements(self) -> WorldRequirements:
-        return WorldRequirements(min_lasers=2, min_agents=2)
-
-    @property
-    def cost(self) -> int:
-        return 5
-
-
-@dataclass(frozen=True)
 class Interdependent(Predicate):
     """Matches worlds that require a temporal dependency cycle of at least ``order`` agents."""
 

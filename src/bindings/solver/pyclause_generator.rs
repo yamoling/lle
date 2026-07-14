@@ -30,7 +30,7 @@ fn extract_solve_mode(py: Python, mode: Py<PyAny>) -> PyResult<SolveMode> {
 /// ```python
 /// from pysat.solvers import Minisat22
 /// from lle import World
-/// from lle.solver.constraints import ClauseGenerator
+/// from lle.solver.clauses import ClauseGenerator
 ///
 /// world = World.level(1)
 /// gen = ClauseGenerator(world, t_max=20)
@@ -40,7 +40,7 @@ fn extract_solve_mode(py: Python, mode: Py<PyAny>) -> PyResult<SolveMode> {
 ///         plan = gen.decode_plan(solver.get_model(), 10)
 /// ```
 #[gen_stub_pyclass]
-#[pyclass(name = "ClauseGenerator", module = "lle.solver.constraints")]
+#[pyclass(name = "ClauseGenerator", module = "lle.solver.clauses")]
 pub struct PyClauseGenerator {
     inner: ClauseGenerator,
     /// The maximum time step considered by this generator.

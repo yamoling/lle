@@ -23,8 +23,7 @@ class PlanProfile:
         """
         Whether the trajectory exhibits mutual help, i.e. help(a, b) and help(b, a).
         """
-        edges = self.graph.flattened_edges()
-        return any((b, a) in edges for a, b in edges)
+        return self.is_interdependent(2)
 
     def is_chained(self, length: int = 2):
         """Whether the trajectory exhibits a cooperation chain of at least `length` help edges.

@@ -411,14 +411,6 @@ impl ConstraintContext {
     pub fn relevant_laser_tiles(&self, laser_id: usize, t: usize) -> &PositionSet {
         &self.relevant_laser_paths[laser_id][t]
     }
-
-    pub fn height(&self) -> usize {
-        self.height
-    }
-
-    pub fn width(&self) -> usize {
-        self.width
-    }
 }
 
 #[cfg(test)]

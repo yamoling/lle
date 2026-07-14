@@ -36,7 +36,7 @@ from typing import Iterator, Literal, overload
 
 from ..world import World
 from .generator import WorldGenerator
-from .world_filter import Asymmetric, Chained, Constraint, Cooperative, Independent, Interdependent, Mutual, Predicate, Solvable
+from .world_filter import Asymmetric, Chained, Constraint, Cooperative, Independent, Interdependent, Predicate, Solvable
 
 StartsMode = Literal["random", "edge", "clustered"]
 ExitsMode = Literal["random", "edge", "cluster", "opposite"]
@@ -240,7 +240,7 @@ class GeneratorBuilder:
 
     def mutual(self) -> GeneratorBuilder:
         """Require mutual cooperation: every agent both helps and is helped."""
-        return self.require(Mutual())
+        return self.interdependent(2)
 
     def interdependent(self, order: int = 2) -> GeneratorBuilder:
         """Require temporal interdependence of at least `order` agents."""
@@ -318,25 +318,6 @@ class GeneratorBuilder:
         except StopIteration:
             return None
 
-    @overload
-    def take(
-        self,
-        n: int,
-        *,
-        n_jobs: Literal[1],
-        seed: int | None = None,
-        max_attempts: int | None = None,
-        progress: bool = True,
-    ) -> Iterator[World]: ...
-    @overload
-    def take(
-        self,
-        n: int,
-        *,
-        n_jobs: int | Literal["auto"] = "auto",
-        max_attempts: int | None = None,
-        progress: bool = True,
-    ) -> Iterator[World]: ...
     def take(
         self,
         n: int,
@@ -355,8 +336,6 @@ class GeneratorBuilder:
         - `progress`: show a progress bar.
         """
         resolved_jobs = self._resolve_n_jobs(n_jobs)
-        if resolved_jobs > 1 and seed is not None:
-            raise ValueError("Seed is only accepted with n_jobs=1")
         return self._make_generator().generate_n(
             n=n,
             n_jobs=resolved_jobs,
