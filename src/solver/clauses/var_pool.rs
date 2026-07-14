@@ -163,6 +163,12 @@ impl VarPool {
         self.keys.get((id - 1) as usize).copied()
     }
 
+    /// Iterate over every semantic key that has already been materialized, together with its
+    /// assigned SAT literal.
+    pub fn iter(&self) -> impl Iterator<Item = (VarKey, Literal)> + '_ {
+        self.ids.iter().map(|(key, literal)| (*key, *literal))
+    }
+
     pub fn exists(&self, key: &VarKey) -> bool {
         self.ids.contains_key(key)
     }

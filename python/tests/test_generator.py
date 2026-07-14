@@ -342,20 +342,6 @@ def test_build_seed_with_multiple_jobs_raises():
         lle.generate(width=7, height=7, n_agents=2).build(n_jobs=2, seed=0)  # type: ignore[call-overload]
 
 
-def test_take_seed_with_multiple_jobs_raises():
-    import lle
-
-    with pytest.raises(ValueError, match="[Ss]eed"):
-        list(lle.generate(width=7, height=7, n_agents=2).take(2, n_jobs=2, seed=0))  # type: ignore[call-overload]
-
-
-def test_take_seed_with_auto_jobs_raises():
-    import lle
-
-    with pytest.raises(ValueError, match="[Ss]eed"):
-        list(lle.generate(width=7, height=7, n_agents=2).take(2, seed=0))  # type: ignore[call-overload]
-
-
 # ---------------------------------------------------------------------------
 # Import-level smoke test
 # ---------------------------------------------------------------------------

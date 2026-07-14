@@ -201,5 +201,25 @@ pub fn solver_error_to_exception(error: crate::solver::errors::SolverError) -> P
         crate::solver::errors::SolverError::MissingPosition { agent, t } => SolverError::new_err(
             format!("Incomplete model: agent {agent} has no decoded position at time step {t}."),
         ),
+        crate::solver::errors::SolverError::InvalidTrajectoryLength { given, max } => {
+            PyValueError::new_err(format!(
+                "Invalid trajectory length: got {given}, expected {max}."
+            ))
+        }
+        crate::solver::errors::SolverError::InvalidJointActionLength {
+            step,
+            given,
+            expected,
+        } => PyValueError::new_err(format!(
+            "Invalid joint action at step {step}: got {given} actions, expected {expected}."
+        )),
+        crate::solver::errors::SolverError::InvalidActionInTrajectory { step } => {
+            PyValueError::new_err(format!("Invalid action in trajectory at step {step}."))
+        }
+        crate::solver::errors::SolverError::MissingTrajectoryLiteral { agent_id, pos, t } => {
+            PyValueError::new_err(format!(
+                "Trajectory position literal was not materialized: agent {agent_id} at {pos:?} at time {t}."
+            ))
+        }
     }
 }
