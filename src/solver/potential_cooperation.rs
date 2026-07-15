@@ -263,6 +263,10 @@ impl PotentialCooperationGraph {
         if length == 0 || t > self.horizon() {
             return Vec::new();
         }
+        let available_edges = (0..=t).map(|step| self.at(step).n_edges()).sum::<usize>();
+        if length > available_edges {
+            return Vec::new();
+        }
 
         let mut out = Vec::new();
         for edge in self.edges_at(t) {

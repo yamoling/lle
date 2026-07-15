@@ -216,7 +216,8 @@ The graph implementation allows:
 - cycles, such as `a -> b -> a` or `a -> b -> c -> a`;
 - lassos, such as `a -> b -> c -> d -> b`;
 - simultaneous chains: `a -> b` and `b -> c` at the same time step count as a length-2 chain; and
-- vertex revisits: the same agent may appear multiple times, provided no directed pair is reused.
+- vertex revisits: the same agent may appear multiple times, provided no temporal edge
+  `(helper, beneficiary, t)` is reused.
 
 Because the help graph at any single time step is a finite simple directed graph (no repeated edges
 within one step), and edges at different time steps are always distinct temporal triples, every trail
@@ -233,10 +234,10 @@ A world requires chained cooperation of length at least `N` when:
 
 `N` must be at least `2`. The bare mode string `"no-chain"` is canonical shorthand for `"no-chain-2"`.
 
-The solver enumerates all directed trails of exactly length `N` (vertex sequences with no repeated
-directed pair) and tracks whether any of them is realized using walk-progress variables.  Forbidding
-each length-`N` trail also forbids all longer chains, because every trail of length `> N` contains
-a sub-trail of length exactly `N`.
+The solver enumerates all directed trails of exactly length `N`; a trail may revisit agents but
+cannot reuse a temporal edge `(helper, beneficiary, t)`. It emits one blocking SAT clause for each
+candidate trail. Forbidding each length-`N` trail also forbids all longer chains, because every
+trail of length `> N` contains a sub-trail of length exactly `N`.
 
 ## Interdependence / cyclic help
 
