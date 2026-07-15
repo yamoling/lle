@@ -198,7 +198,7 @@ This example illustrates an open chain of dependencies: one help event enables a
 
 ### Trajectory-level
 
-A chain is a temporal directed **trail** of help edges whose timestamps never decrease.  A trail is
+A chain is a temporal directed **trail** of help edges whose timestamps never decrease. A trail is
 a walk where no directed edge `(helper, beneficiary)` is traversed twice at the same time step `t`.
 Formally, each temporal triple `(helper, beneficiary, t)` may appear at most once.
 
@@ -259,17 +259,15 @@ a -> b -> c -> a
 
 ### World-level
 
-A world requires interdependence of order at least `N` when:
+A world requires interdependence of order exactly `N` when:
 
 1. it is solvable;
-2. it has no independent solution;
-3. the shortest standard solution contains a temporal cycle of order `>= N`;
-4. it requires chained cooperation of length `N`; and
-5. no solution exists under `mode=f"no-interdependence-{N}"`.
+2. the shortest standard solution contains a temporal cycle of order `>= N`; and
+3. no solution exists under `mode=f"no-interdependence-{N}"`.
 
 `N` must be at least `2`. The bare mode string `"no-interdependence"` is canonical shorthand for `"no-interdependence-2"`.
 
-The extra chained-cooperation check is a shortcut: every temporal cycle of order `N` is also a chain of length `N`, so if a length-`N` chain is avoidable, an order-`N` cycle is avoidable too.
+The solver mode blocks every candidate temporal cycle that visits exactly `N` distinct agents. Cycles of other orders remain allowed: unlike a longer chain, a cycle of order `N + 1` does not necessarily contain a cycle of order `N`. An UNSAT result also implies that no independent solution or chain-free solution of length `N` exists, because every order-`N` cycle is a chain of length `N`.
 
 ## Shortcuts and equivalences
 
@@ -296,9 +294,9 @@ For asymmetric characterization, `shortest_non_asymmetric_path` returns the stan
 ### Chain and interdependence upper bounds
 
 Under trail semantics (no repeated directed pair at the same time step), chained cooperation has a
-finite structural upper bound.  At a single time step `t`, the help graph is a simple directed graph
-over at most `n_agents` nodes, which has at most `n_agents × (n_agents − 1)` directed edges.  Any
-trail within that graph therefore has length at most `n_agents × (n_agents − 1)`.  Across multiple
+finite structural upper bound. At a single time step `t`, the help graph is a simple directed graph
+over at most `n_agents` nodes, which has at most `n_agents × (n_agents − 1)` directed edges. Any
+trail within that graph therefore has length at most `n_agents × (n_agents − 1)`. Across multiple
 time steps, the same directed pair `(helper, beneficiary)` may be reused at a different `t` (each
 temporal triple is distinct), but the set of distinct triples is finite, so every trail is finite.
 

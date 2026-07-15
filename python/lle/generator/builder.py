@@ -243,7 +243,7 @@ class GeneratorBuilder:
         return self.interdependent(2)
 
     def interdependent(self, order: int = 2) -> GeneratorBuilder:
-        """Require temporal interdependence of at least `order` agents."""
+        """Require temporal interdependence of exactly `order` agents."""
         return self.require(Interdependent(order))
 
     def asymmetric(self) -> GeneratorBuilder:

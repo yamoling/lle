@@ -29,6 +29,8 @@ pub struct ClauseGenerator {
     help: ClauseBuffer,
     /// Blocking chain clauses cached independently for every requested chain length.
     chains: ParameterizedClauseBuffer,
+    /// Blocking cycle clauses cached independently for every requested cycle order.
+    cycles: ParameterizedClauseBuffer,
     no_cooperation_assumptions: LiteralBuffer,
 }
 
@@ -41,6 +43,7 @@ impl ClauseGenerator {
             lasers: StepBuffer::new(ClauseEngine::generate_laser_clauses, capacity),
             help: StepBuffer::new(ClauseEngine::generate_help_clauses, capacity),
             chains: ParameterizedStepBuffer::new(ClauseEngine::generate_chain_clauses, capacity),
+            cycles: ParameterizedStepBuffer::new(ClauseEngine::generate_cycle_clauses, capacity),
             no_cooperation_assumptions: StepBuffer::new(
                 ClauseEngine::assume_no_cooperation_at,
                 capacity,
@@ -85,12 +88,10 @@ impl ClauseGenerator {
                 clauses.extend(self.help.gather_until(&mut self.engine, t));
                 clauses.extend(self.chains.gather_until(&mut self.engine, t, length));
             }
-            SolveMode::NoInterdependence(_) => {
-                todo!();
-                // clauses.extend(self.lasers.gather_until(&mut self.engine, t));
-                // clauses.extend(self.help_tracking.gather_until(&mut self.engine, t));
-                // let buf = Self::cycle_buffer(&mut self.cycles, &self.engine, order);
-                // clauses.extend(buf.gather_until(&mut self.engine, t));
+            SolveMode::NoInterdependence(order) => {
+                clauses.extend(self.lasers.gather_until(&mut self.engine, t));
+                clauses.extend(self.help.gather_until(&mut self.engine, t));
+                clauses.extend(self.cycles.gather_until(&mut self.engine, t, order));
             }
         }
 

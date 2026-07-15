@@ -345,6 +345,82 @@ impl PotentialCooperationGraph {
         out
     }
 
+    /// Enumerate all temporal simple directed cycles of exactly `length` edges whose closing edge
+    /// occurs at `t`.
+    ///
+    /// Earlier edge times are non-decreasing and at most `t`. As in
+    /// [`Self::enumerate_cycles_of_length`], the cycle order equals the number of distinct agents
+    /// on the cycle, so every non-closing vertex is unique and the closing edge returns to the
+    /// start agent.
+    pub fn enumerate_cycles_ending_at(
+        &self,
+        length: usize,
+        t: usize,
+    ) -> Vec<Vec<PotentialHelpEdge>> {
+        if length < 2 || length > self.n_agents || t > self.horizon() {
+            return Vec::new();
+        }
+        let mut out = Vec::new();
+        for closing in self.edges_at(t) {
+            let mut visited_agents = HashSet::from([closing.helper, closing.beneficiary]);
+            let mut reversed = vec![closing];
+            self.cycles_predecessors_dfs(
+                closing.beneficiary,
+                length,
+                &mut visited_agents,
+                &mut reversed,
+                &mut out,
+            );
+        }
+        out
+    }
+
+    /// Extend a reversed temporal cycle backwards until it reaches its start agent.
+    ///
+    /// Vertex distinctness makes every helper unique along the cycle, so temporal edges cannot
+    /// repeat and no explicit edge-reuse check is needed.
+    fn cycles_predecessors_dfs(
+        &self,
+        start: AgentId,
+        target_len: usize,
+        visited_agents: &mut HashSet<AgentId>,
+        reversed: &mut Vec<PotentialHelpEdge>,
+        out: &mut Vec<Vec<PotentialHelpEdge>>,
+    ) {
+        let earliest = *reversed.last().expect("a cycle always has a closing edge");
+        if reversed.len() == target_len {
+            if earliest.helper == start {
+                out.push(reversed.iter().rev().copied().collect());
+            }
+            return;
+        }
+        let remaining = target_len - reversed.len();
+        for predecessor_t in 0..=earliest.t {
+            for helper in self.at(predecessor_t).incoming_to(earliest.helper) {
+                if remaining == 1 {
+                    if helper != start {
+                        continue;
+                    }
+                } else if helper == start || visited_agents.contains(&helper) {
+                    continue;
+                }
+                let edge = PotentialHelpEdge {
+                    helper,
+                    beneficiary: earliest.helper,
+                    t: predecessor_t,
+                };
+                reversed.push(edge);
+                let inserted = helper != start && visited_agents.insert(helper);
+                self.cycles_predecessors_dfs(start, target_len, visited_agents, reversed, out);
+                if inserted {
+                    visited_agents.remove(&helper);
+                }
+                reversed.pop();
+            }
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
     fn cycles_dfs(
         &self,
         start: AgentId,

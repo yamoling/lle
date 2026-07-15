@@ -122,18 +122,18 @@ class WorldCharacterizer:
 
     def is_interdependent(self, n_agents: int = 2) -> bool:
         """
-        Whether the world *requires* interdependence between at least `n_agents` agents:
+        Whether the world *requires* interdependence between exactly `n_agents` agents:
         - the optimal trajectory's dependency graph contains a temporal cycle of order >= `n_agents`, and
-        - no solution within`t_max` avoids all such cycles.
+        - no solution within `t_max` avoids every cycle of exactly that order.
 
-        For two agents this coincides with`is_mutual`: a cycle of order 2 is exactly a mutual
+        For two agents this coincides with `is_mutual`: a cycle of order 2 is exactly a mutual
         `a → b → a` under the non-strict temporal-cycle semantics used by interdependence.
 
         # Raises
             -`NotSolvableError` if the world is not solvable
         """
         if n_agents < 2:
-            raise ValueError(f"Interdependence only makes sens for >= 2 agents. Got {n_agents}.")
+            raise ValueError(f"Interdependence only makes sense for >= 2 agents. Got {n_agents}.")
         cached = self._interdependence_cache.get(n_agents)
         if cached is not None:
             return cached
@@ -170,7 +170,7 @@ class WorldCharacterizer:
         return self._solver.solve(SolveMode.no_chain(length))
 
     def compute_shortest_non_interdependent_path(self, order: int):
-        """Shortest plan within `t_max` that avoids every cycle of order >= `order`, or None."""
+        """Shortest plan within `t_max` that avoids every cycle of exactly `order`, or None."""
         if order < 2:
             raise ValueError(f"Interdependence order must be >= 2, got {order}.")
         return self._solver.solve(SolveMode.no_interdependence(order))
