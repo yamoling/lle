@@ -1,10 +1,16 @@
 import pytest
-from lle import World
-from lle.characterization import WorldCharacterizer
+from lle import solve
+from lle.solver import SolveMode
+
+from ..world_layouts import ChainedCase, chained_cases
 
 
-def test_compute_shortest_path_without_chain_rejects_length_below_2():
-    wc = WorldCharacterizer(World.level(1), t_max=10)
-    for length in [1, 0, -1]:
-        with pytest.raises(ValueError):
-            wc.compute_shortest_path_without_chain(length)
+@pytest.mark.parametrize("test_case", chained_cases(), ids=lambda case: case.id)
+def test_no_chain_mode_matches_world_specification(test_case: ChainedCase):
+    """The mode is unsatisfiable exactly when the chain length is unavoidable."""
+    plan = solve(
+        test_case.layout.world(),
+        test_case.t_max,
+        mode=SolveMode.no_chain(test_case.length),
+    )
+    assert (plan is None) is test_case.expected

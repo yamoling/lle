@@ -1,6 +1,6 @@
 from lle.characterization import WorldCharacterizer
 
-from .layouts import LEVEL_1
+from ...world_layouts import LEVEL_1
 
 
 def test_eq_and_hash():

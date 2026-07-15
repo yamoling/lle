@@ -1,7 +1,7 @@
 import pytest
 from lle.characterization import WorldCharacterizer
 
-from .layouts import (
+from ...world_layouts import (
     BLOCKED_UNSOLVABLE,
     ONE_WAY_DETOUR,
     ScalarPropertyCase,

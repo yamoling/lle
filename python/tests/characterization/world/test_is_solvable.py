@@ -1,7 +1,7 @@
 import pytest
 from lle.characterization import WorldCharacterizer
 
-from .layouts import ScalarPropertyCase, scalar_cases_for
+from ...world_layouts import ScalarPropertyCase, scalar_cases_for
 
 SOLVABLE_CASES = scalar_cases_for("solvable")
 

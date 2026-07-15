@@ -3,6 +3,20 @@ import pytest
 from lle import Action, World
 from lle.solver import Solver
 
+from ..world_layouts import (
+    BLOCKED_UNSOLVABLE,
+    LEVEL_6,
+    ScalarPropertyCase,
+    scalar_cases_for,
+)
+
+
+@pytest.mark.parametrize("property_case", scalar_cases_for("solvable"), ids=lambda case: case.id)
+def test_standard_mode_matches_world_specification(property_case: ScalarPropertyCase):
+    """Standard solving agrees with every declared solvability expectation."""
+    plan = lle.solve(property_case.layout.world(), property_case.t_max)
+    assert (plan is not None) is property_case.expected
+
 
 def test_solve_simple_world_returns_shortest_plan():
     world = World("S0 . . X")
@@ -22,8 +36,7 @@ def test_solve_fixed_length():
 
 def test_solve_unsolvable_returns_none():
     # Agent walled off from the exit.
-    world = World("S0 @ X")
-    assert lle.solve(world, 10) is None
+    assert lle.solve(BLOCKED_UNSOLVABLE.world(), 10) is None
 
 
 def test_solve_default_t_max():
@@ -61,7 +74,7 @@ S1 .  .  . .
 
 
 def test_solve_level_6_world_is_executable():
-    world = World.level(6)
+    world = LEVEL_6.world()
     plan = lle.solve(world, 21)
     assert plan is not None
     world.reset()

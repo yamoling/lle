@@ -1,7 +1,7 @@
 import pytest
 from lle.characterization import WorldCharacterizer
 
-from .layouts import DistributedCase, distributed_cases
+from ...world_layouts import DistributedCase, distributed_cases
 
 
 @pytest.mark.parametrize("property_case", distributed_cases(), ids=lambda case: case.id)

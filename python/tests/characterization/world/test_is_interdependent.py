@@ -7,8 +7,8 @@ from lle import solver
 from lle.characterization import WorldCharacterizer
 from lle.characterization.plan import profile_plan
 
-from . import call_or_xfail_unimplemented
-from .layouts import (
+from ...pending import call_or_xfail_unimplemented
+from ...world_layouts import (
     BLOCKED_UNSOLVABLE,
     CHAIN_3_WITHOUT_CYCLE,
     CHAIN_4_WITH_MUTUAL,

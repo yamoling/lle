@@ -1,7 +1,7 @@
 import pytest
 from lle.characterization import WorldCharacterizer
 
-from .layouts import BLOCKED_UNSOLVABLE, ScalarPropertyCase, scalar_cases_for
+from ...world_layouts import BLOCKED_UNSOLVABLE, ScalarPropertyCase, scalar_cases_for
 
 INDEPENDENT_CASES = scalar_cases_for("independent")
 
