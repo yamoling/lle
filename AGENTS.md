@@ -30,7 +30,7 @@ Each Rust type gets a `Py*` wrapper in `src/bindings/` deriving `#[pyclass]`. Cu
 At the end of a prompt, you should not explicitly state that you have formatted the code or used the 60 seconds timeout since these are expected from you. Only report useful information related to the prompt or failing tests, if applicable.
 
 ### Testing
-For Rust tests, you should use the short output format with `cargo test --format terse`, unless you are debugging a specific test case.
+For Rust tests, you should use the short output format with `cargo test -- --format terse`, unless you are debugging a specific test case.
 
 ## Watermark Examples
 
