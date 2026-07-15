@@ -1,36 +1,20 @@
-from lle import World
+import pytest
 from lle.characterization import WorldCharacterizer
 
-
-def assert_fully_coupled(wc: WorldCharacterizer):
-    """Assertion for canonical fully coupled world"""
-    assert wc.is_solvable()
-    for n in range(2, wc.world.n_agents + 1):
-        assert wc.is_interdependent(n)
-    assert wc.is_fully_coupled()
-    assert not wc.is_asymmetric()
-    assert not wc.is_independent()
-    assert wc.is_cooperative()
+from .layouts import ScalarPropertyCase, scalar_cases_for
 
 
-def test_paper_example_valid():
-    world = World("""
-        @  L0S  @ @ @ @
-        S0  .   . . @ @
-        S1  .   . . . @
-        S2  .   . . . @
-        @   L2E . . . @
-        @   @   X X X L1W""")
-    wc = WorldCharacterizer(world, t_max=10)
-    assert_fully_coupled(wc)
+@pytest.mark.parametrize("property_case", scalar_cases_for("fully_coupled"), ids=lambda case: case.id)
+@pytest.mark.xfail(
+    strict=True,
+    raises=NotImplementedError,
+    reason="WorldCharacterizer.is_fully_coupled is not implemented yet",
+)
+def test_is_fully_coupled_matches_catalog(property_case: ScalarPropertyCase):
+    """Specify fully coupled characterization for every catalogued expectation.
 
+    @ai-generated
+    """
+    characterizer = WorldCharacterizer(property_case.layout.world(), property_case.t_max)
 
-def test_paper_old_example_valid():
-    world = World("""
-        .  S0 S1 S2 .
-       L0E .  .  .  .
-        .  .  .  . L2W
-       L1E .  .  .  .
-        .  X  X  X  .""")
-    wc = WorldCharacterizer(world, t_max=10)
-    assert_fully_coupled(wc)
+    assert characterizer.is_fully_coupled() is property_case.expected

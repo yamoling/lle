@@ -1,19 +1,25 @@
 import pytest
-from lle import World
 from lle.characterization import WorldCharacterizer
+
+from .layouts import BLOCKED_UNSOLVABLE, ScalarPropertyCase, scalar_cases_for
+
+INDEPENDENT_CASES = scalar_cases_for("independent")
+
+
+@pytest.mark.parametrize("case", INDEPENDENT_CASES, ids=lambda case: case.id)
+def test_is_independent(case: ScalarPropertyCase):
+    """Check whether an independent solution exists at each catalog horizon.
+
+    Open worlds are independent, while laser layouts can become independent only
+    after the horizon is long enough to permit a non-blocking detour.
+    """
+    characterizer = WorldCharacterizer(case.layout.world(), case.t_max)
+    assert characterizer.is_independent() is case.expected
 
 
 def test_unsolvable_world_raises_on_is_independent():
-    world = World("S0 @ X")
+    """Reject independence queries when the catalog world has no solution."""
+    world = BLOCKED_UNSOLVABLE.world()
+
     with pytest.raises(ValueError):
-        _ = WorldCharacterizer(world, t_max=10).is_independent()
-
-
-def test_no_laser_world_is_independent():
-    """Without any laser sources no blocking can occur: always independent."""
-    world = World("S0 . S1\n.  .  .\nX  .  X")
-    wc = WorldCharacterizer(world, t_max=6)
-    assert wc.is_solvable()
-    assert wc.is_independent()
-    assert not wc.is_cooperative()
-    assert not wc.is_interdependent()
+        WorldCharacterizer(world, t_max=10).is_independent()

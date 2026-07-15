@@ -1,19 +1,20 @@
-from lle import World
+import pytest
 from lle.characterization import WorldCharacterizer
 
+from .layouts import DistributedCase, distributed_cases
 
-def test_paper_example_distributed2():
-    world = World("""
-        @   S0  .  S2  .
-        L0E .   .  .   @
-        @   X   @  .   .
-        @   L1E .  S1  .
-        @   @   @  X   X""")
-    wc = WorldCharacterizer(world, t_max=10)
-    assert wc.is_solvable()
-    assert wc.is_distributed(2)
-    assert not wc.is_distributed(3)
-    assert not wc.is_chained(2)
-    assert not wc.is_interdependent(2)
-    assert not wc.is_asymmetric()
-    assert not wc.is_chained(2)
+
+@pytest.mark.parametrize("property_case", distributed_cases(), ids=lambda case: case.id)
+@pytest.mark.xfail(
+    strict=True,
+    raises=NotImplementedError,
+    reason="WorldCharacterizer.is_distributed is not implemented yet",
+)
+def test_is_distributed_matches_catalog(property_case: DistributedCase):
+    """Specify distributed characterization for every catalogued expectation.
+
+    @ai-generated
+    """
+    characterizer = WorldCharacterizer(property_case.layout.world(), property_case.t_max)
+
+    assert characterizer.is_distributed(property_case.order) is property_case.expected

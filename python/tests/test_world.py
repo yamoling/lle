@@ -6,6 +6,7 @@ from lle import Action, EventType, Position, World, WorldState
 from lle.exceptions import InvalidActionError, InvalidWorldStateError, ParsingError
 from lle.world.rendering import TILE_SIZE
 
+
 def test_world_tiles():
     w = World("S0 . X")
     assert w.start_pos == [(0, 0)]
@@ -272,7 +273,7 @@ def test_world_send_thread():
 
 def test_rendering_size():
     world = World("S0 . X")
-    expected_size = (TILE_SIZE * world.width + 2, TILE_SIZE * world.height + 2)
+    expected_size = (TILE_SIZE * world.width + 1, TILE_SIZE * world.height + 1)
     assert world.image_dimensions == expected_size
     img = world.get_image()
     expected_shape = (expected_size[1], expected_size[0], 3)
