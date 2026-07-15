@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use super::position_set::PositionSet;
-use crate::{AgentId, World, tiles::LaserId};
+use crate::{AgentId, World, solver::VarKey, tiles::LaserId};
 
 /// A potential-help edge at one time step. An `PotentialHelpEdge`
 /// indicates that it is possible for agent `helper` to help agent
@@ -14,6 +14,16 @@ pub struct PotentialHelpEdge {
     pub helper: AgentId,
     pub beneficiary: AgentId,
     pub t: usize,
+}
+
+impl From<PotentialHelpEdge> for VarKey {
+    fn from(edge: PotentialHelpEdge) -> Self {
+        Self::Help {
+            helper: edge.helper,
+            beneficiary: edge.beneficiary,
+            t: edge.t,
+        }
+    }
 }
 
 /// Dense directed adjacency matrix over the agent set.
@@ -210,6 +220,7 @@ impl PotentialCooperationGraph {
         out
     }
 
+    /// Extend a temporal trail forwards without reusing a temporal edge.
     fn enumerate_trails(
         &self,
         current: AgentId,
@@ -234,6 +245,65 @@ impl PotentialCooperationGraph {
                     path.push(edge);
                     self.enumerate_trails(next, t, target_len, used, path, out);
                     path.pop();
+                    used.remove(&edge);
+                }
+            }
+        }
+    }
+
+    /// Enumerate all temporal trails of exactly `length` edges whose last edge occurs at `t`.
+    ///
+    /// Earlier edge times are non-decreasing and at most `t`. Agents may repeat, but each temporal
+    /// edge `(helper, beneficiary, time)` may occur only once in a trail.
+    pub fn enumerate_trails_ending_at(
+        &self,
+        length: usize,
+        t: usize,
+    ) -> Vec<Vec<PotentialHelpEdge>> {
+        if length == 0 || t > self.horizon() {
+            return Vec::new();
+        }
+        let available_edges = (0..=t).map(|step| self.at(step).n_edges()).sum::<usize>();
+        if length > available_edges {
+            return Vec::new();
+        }
+
+        let mut out = Vec::new();
+        for edge in self.edges_at(t) {
+            let mut used = HashSet::from([edge]);
+            let mut reversed = vec![edge];
+            self.enumerate_predecessors(length, &mut used, &mut reversed, &mut out);
+        }
+        out
+    }
+
+    /// Extend a reversed temporal trail backwards without reusing a temporal edge.
+    ///
+    /// @ai-generated
+    fn enumerate_predecessors(
+        &self,
+        target_len: usize,
+        used: &mut HashSet<PotentialHelpEdge>,
+        reversed: &mut Vec<PotentialHelpEdge>,
+        out: &mut Vec<Vec<PotentialHelpEdge>>,
+    ) {
+        if reversed.len() == target_len {
+            out.push(reversed.iter().rev().copied().collect());
+            return;
+        }
+
+        let first = *reversed.last().expect("a trail always has a last edge");
+        for predecessor_t in 0..=first.t {
+            for helper in self.at(predecessor_t).incoming_to(first.helper) {
+                let edge = PotentialHelpEdge {
+                    helper,
+                    beneficiary: first.helper,
+                    t: predecessor_t,
+                };
+                if used.insert(edge) {
+                    reversed.push(edge);
+                    self.enumerate_predecessors(target_len, used, reversed, out);
+                    reversed.pop();
                     used.remove(&edge);
                 }
             }

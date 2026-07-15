@@ -1,41 +1,25 @@
-from lle import World
+import pytest
 from lle.characterization.plan import profile_plan
 from lle.solver import Solver
 
-
-def test_mirrored_asymmetric():
-    world = World("""
-     @  S0 S1 @  @  S2 S3
-    L0E .  .  @ L2E .  .
-     @  X  X  @  @  X  X
-    """)
-    solver = Solver(world, 6)
-    assert solver.solve() is not None
-    assert solver.solve("no-asymmetric") is None
+from ..world_layouts import (
+    LEVEL_3,
+    LEVEL_5,
+    ScalarPropertyCase,
+    scalar_cases_for,
+)
 
 
-def test_independent_world_is_not_asymmetric():
-    world = World("""
-    S0 . S1
-     . . .
-     X . X""")
-    solver = Solver(world, 6)
-    assert solver.solve("no-asymmetric") is not None
-
-
-def test_pure_mutual_world_has_non_asymmetric_solution():
-    world = World("""
-     S0 . . S1
-    L0E . . .
-     .  . . L1W
-     X  . . X""")
-    solver = Solver(world, 10)
-    assert solver.solve() is not None
-    assert solver.solve("no-asymmetric") is not None
+@pytest.mark.parametrize("property_case", scalar_cases_for("asymmetric"), ids=lambda case: case.id)
+def test_no_asymmetric_mode_matches_world_specification(property_case: ScalarPropertyCase):
+    """The mode has a solution exactly when asymmetric help is avoidable."""
+    solver = Solver(property_case.layout.world(), property_case.t_max)
+    assert (solver.solve("no-asymmetric") is None) is property_case.expected
 
 
 def test_level_3_requires_agent_0_asymmetric_help():
-    world = World.level(3)
+    """Level 3's unavoidable asymmetric edge is from agent 0 to agent 1."""
+    world = LEVEL_3.world()
     solver = Solver(world, 21)
 
     shortest = solver.solve()
@@ -45,17 +29,23 @@ def test_level_3_requires_agent_0_asymmetric_help():
 
 
 def test_level_5_requires_agent_1_asymmetric_help_at_tmax_21():
-    world = World.level(5)
+    """At t=21, level 5 requires agent 1's asymmetric help edges."""
+    world = LEVEL_5.world()
     solver = Solver(world, 21)
 
     shortest = solver.solve()
     assert shortest is not None
-    assert profile_plan(world, shortest).graph.asymmetric_edges() == {(1, 0), (1, 2), (1, 3)}
+    assert profile_plan(world, shortest).graph.asymmetric_edges() == {
+        (1, 0),
+        (1, 2),
+        (1, 3),
+    }
     assert solver.solve("no-asymmetric") is None
 
 
 def test_level_5_has_longer_non_asymmetric_solution_at_tmax_25():
-    world = World.level(5)
+    """A longer horizon admits level 5's 24-step non-asymmetric plan."""
+    world = LEVEL_5.world()
     solver = Solver(world, 25)
 
     shortest = solver.solve()

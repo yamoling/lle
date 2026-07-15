@@ -1,4 +1,5 @@
 # Laser Learning Environment (LLE)
+
 In LLE, agents start on start tiles, collect gems, and finish by reaching exit tiles. When an agent enters a laser of its own colour, it blocks the beam and lets the others pass; entering a laser of any other colour kills it and ends the episode. This single mechanic makes LLE a benchmark for **coordination-critical** cooperation.
 
 📖 **Documentation:** [https://yamoling.github.io/lle/](https://yamoling.github.io/lle/)
@@ -6,6 +7,7 @@ In LLE, agents start on start tiles, collect gems, and finish by reaching exit t
 ![LLE](docs/lvl6-annotated.png)
 
 ## Highlights
+
 - ⚡ **Fast** — game logic implemented in Rust, exposed to Python.
 - 🤝 **Coordination-critical** — lasers can force agents to actively help each other to reach the exit.
 - 🎚️ **Two levels of abstraction** — a high-level `LLE` MARL environment, or a low-level `World` for full control over maps, states, and steps.
@@ -16,16 +18,20 @@ In LLE, agents start on start tiles, collect gems, and finish by reaching exit t
 - 🔍 **Rich observations** — layered, flattened, partial views, RGB images, and more, with optional reward shaping (PBRS) and multi-objective rewards.
 
 ## Installation
+
 Install with `uv`, `pip`, `poetry`, …
+
 ```bash
 pip install laser-learning-environment
 ```
 
 ## Quick start
+
 LLE can be used at two levels of abstraction: as an `MARLEnv` for cooperative multi-agent reinforcement
 learning, or as a `World` for fine-grained control.
 
 ### As a MARL environment
+
 The `LLE` class wraps a `World` and implements the [`MARLEnv` interface](https://github.com/yamoling/multi-agent-rlenv) from the to add a reward function, observations, states, etc. Build one with `lle.level(...)`, `lle.from_str(...)`, or `lle.from_file(...)`, then chain builder methods before `build()`.
 
 Here is an example on the following map: ![LLE](docs/3x1.png)
@@ -45,6 +51,7 @@ while not terminal:
 ```
 
 ### As a `World` for fine-grained control
+
 The `World` class exposes the state of the world and the events that happen when the agents move.
 
 ```python
@@ -61,6 +68,7 @@ assert events[0].event_type == EventType.AGENT_EXIT
 ```
 
 You can save and restore the exact state of the world:
+
 ```python
 import lle
 
@@ -74,6 +82,7 @@ Query the world through properties such as `world.start_pos`, `world.exit_pos`, 
 `world.lasers`, and `world.agents`.
 
 ## Procedural generation, solving & analysis
+
 The optional `generator` module provides procedural generation of proven solvable word capabilities. Call `lle.generate(...)`, chain with other methods to describe the characteristics of your world, and end with `build()` or `take(n=...)` to generate one or multiple worlds.
 
 ```bash
@@ -99,12 +108,13 @@ assert lle.is_cooperative(World.level(6), t_max=25)
 ```
 
 The builder controls every placement decision:
+
 - **Layout:** `random()`, `lanes()`, `clustered()`, or fine-grained `starts(...)` / `exits(...)`.
 - **Lasers & walls:** `lasers(n, placement=..., span=...)`, `walls(n, style=...)`.
 - **Behaviour:** `solvable()` (default), `independent()`, `cooperative(...)`, `mutual(...)`.
 
 ```python
-import lle 
+import lle
 
 world = lle.generate(width=5, height=5, n_agents=3).lanes().walls(4, style="shapes").build()
 worlds = list(lle.generate(width=5, height=5, n_agents=2).clustered().lasers(2).mutual().cap(10).take(3))
@@ -114,6 +124,7 @@ See the [`examples/`](examples) folder for runnable scripts and the
 [documentation](https://yamoling.github.io/lle/) for the full API.
 
 ## Citing our work
+
 The environment has been presented at [EWRL 2023](https://openreview.net/pdf?id=IPfdjr4rIs) and at
 [BNAIC 2023](https://bnaic2023.tudelft.nl/static/media/BNAICBENELEARN_2023_paper_124.c9f5d29e757e5ee27c44.pdf)
 where it received the best paper award.
@@ -129,8 +140,10 @@ where it received the best paper award.
 ```
 
 ## Development
+
 Clone the repo, install the Python dependencies, then compile with `maturin`. The example below uses
 `uv`, but `conda`, `poetry`, or plain `pip` work too.
+
 ```bash
 git clone https://github.com/yamoling/lle
 uv sync                      # creatte a venv and install python dependencies
@@ -139,13 +152,16 @@ uv run maturin dev --release # build and install lle in the venv (release mode)
 ```
 
 Re-generate the Python bindings in `python/lle` with one of the following:
+
 ```bash
 cargo run --features python-bindings --bin stub-gen
 cargo stub-gen # Alias for the above defined in .cargo/config.toml
 ```
 
 ## Tests
+
 Run the Rust and Python test suites with:
+
 ```bash
 cargo test      # Rust unit + integration tests
 maturin dev     # (re)build the extension

@@ -1,36 +1,24 @@
-import lle
 import pytest
-from lle import World
+from lle import solve
 from lle.solver import Solver
 
+from ..world_layouts import ONE_WAY_DETOUR, ScalarPropertyCase, scalar_cases_for
 
-@pytest.mark.parametrize(
-    ("level", "t_max", "expect_coop"),
-    [
-        (1, 10, False),
-        (2, 10, False),
-        (3, 10, True),
-        (4, 10, True),
-        (5, 19, True),
-        (6, 21, True),
-    ],
-)
-def test_no_cooperation_on_std_levels(level: int, t_max: int, expect_coop: bool):
-    """solve(mode='no-cooperation') must agree with is_cooperative for all canonical levels."""
-    world = World.level(level)
-    no_coop = lle.solve(world, t_max, mode="no-cooperation")
-    assert (no_coop is None) == expect_coop
+
+@pytest.mark.parametrize("test_case", scalar_cases_for("independent"), ids=lambda case: case.id)
+def test_no_cooperation_mode_matches_world_specification(test_case: ScalarPropertyCase):
+    """The mode has a solution exactly when independent solving is possible."""
+    plan = solve(
+        test_case.layout.world(),
+        test_case.t_max,
+        mode="no-cooperation",
+    )
+    assert (plan is not None) == test_case.expected
 
 
 def test_reusable_solver_across_modes():
-    world = World("""
-     .   .  S0  S1  .   .
-    L0E  .   .   .  @   .
-     .   .   .   .  .   .
-     .   .   .   .  .   .
-     X   X   .   .  .   .
-    """)
-    solver = Solver(world, 10)
+    """One solver can find both the short cooperative and longer independent plans."""
+    solver = Solver(ONE_WAY_DETOUR.world(), 10)
     standard = solver.solve("standard")
     no_cooperation = solver.solve("no-cooperation")
     assert standard is not None
@@ -38,14 +26,8 @@ def test_reusable_solver_across_modes():
     assert len(standard) < len(no_cooperation)
 
 
-def test_solve_no_cooperation():
-    world = World("""
-     .   .  S0  S1  .   .
-    L0E  .   .   .  @   .
-     .   .   .   .  .   .
-     .   .   .   .  .   .
-     X   X   .   .  .   .
-    """)
-    # Agents 1 must go around the laser via (1,5), requiring at least 10 steps
-    assert lle.solve(world, 9, mode="no-cooperation") is None
-    assert lle.solve(world, 10, mode="no-cooperation") is not None
+def test_independent_detour_becomes_available_at_t10():
+    """The no-cooperation mode crosses its satisfiability threshold at t=10."""
+    world = ONE_WAY_DETOUR.world()
+    assert solve(world, 9, mode="no-cooperation") is None
+    assert solve(world, 10, mode="no-cooperation") is not None

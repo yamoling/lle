@@ -71,75 +71,6 @@ class ClauseGenerator:
         Returns `(clauses, [])`. Useful for callers that manage the SAT solver directly and want to
         append the objective separately.
         """
-    def characterization_clauses(self, horizon: builtins.int, feature: builtins.str = 'asymmetry') -> builtins.list[builtins.list[builtins.int]]:
-        r"""
-        Generate derived-variable support clauses for trajectory characterization.
-        
-        Currently only `feature="asymmetry"` is supported. The generated clauses define `Help`,
-        `IsHelped`, `ProvidesHelp`, and `Asymmetric` variables for `horizon`, but do not force the
-        asymmetry variable to be either true or false and do not add the exit objective.
-        
-        @ai-generated
-        """
-    def literal(self, kind: builtins.str, /, *, helper: typing.Optional[builtins.int] = None, beneficiary: typing.Optional[builtins.int] = None, t: typing.Optional[builtins.int] = None, horizon: typing.Optional[builtins.int] = None, agent_id: typing.Optional[builtins.int] = None, pos: typing.Optional[tuple[builtins.int, builtins.int]] = None, laser_id: typing.Optional[builtins.int] = None) -> typing.Optional[builtins.int]:
-        r"""
-        Return the existing SAT literal for a semantic variable without creating it.
-        
-        `None` means that the variable is not materialized in the generated formula; it does not mean
-        that the variable is false.
-        
-        @ai-generated
-        """
-    def trajectory_assumptions(self, trajectory: typing.Sequence[typing.Sequence[world.Action]], horizon: builtins.int) -> builtins.list[builtins.int]:
-        r"""
-        Return assumptions that pin the SAT formula to the positions induced by `trajectory`.
-        
-        The assumptions contain only positive agent-position literals. Derived variables are left for
-        the formula to determine.
-        
-        @ai-generated
-        """
-    def assignment_for_trajectory(self, trajectory: typing.Sequence[typing.Sequence[world.Action]], horizon: builtins.int, feature: builtins.str = 'asymmetry') -> builtins.list[builtins.int]:
-        r"""
-        Return a signed SAT assignment induced by `trajectory`.
-        
-        The returned value is a list of signed literals, not a list of clauses. No SAT solver is
-        called: the method sets each trajectory `Agent` position variable to true and evaluates the
-        derived asymmetry variables directly from those positions.
-        
-        @ai-generated
-        """
-    def value_in_assignment(self, assignment: typing.Sequence[builtins.int], kind: builtins.str, /, *, helper: typing.Optional[builtins.int] = None, beneficiary: typing.Optional[builtins.int] = None, t: typing.Optional[builtins.int] = None, horizon: typing.Optional[builtins.int] = None, agent_id: typing.Optional[builtins.int] = None, pos: typing.Optional[tuple[builtins.int, builtins.int]] = None, laser_id: typing.Optional[builtins.int] = None) -> typing.Optional[builtins.bool]:
-        r"""
-        Evaluate a semantic variable in a signed SAT assignment.
-        
-        `assignment` is the signed-literal list returned by a SAT solver after a successful solve, not
-        a list of clauses. Returns `None` if the variable is absent from the generated formula or from
-        the assignment.
-        
-        @ai-generated
-        """
-    def true_help_edges_in_assignment(self, assignment: typing.Sequence[builtins.int], horizon: builtins.int) -> builtins.list[tuple[builtins.int, builtins.int, builtins.int]]:
-        r"""
-        Return all true `Help(helper, beneficiary, t)` variables in `assignment` up to `horizon`.
-        
-        @ai-generated
-        """
-    def true_help_edges_for_trajectory(self, trajectory: typing.Sequence[typing.Sequence[world.Action]], horizon: builtins.int) -> builtins.list[tuple[builtins.int, builtins.int, builtins.int]]:
-        r"""
-        Return all true help edges for a concrete feasible trajectory.
-        
-        @ai-generated
-        """
-    def value_for_trajectory(self, trajectory: typing.Sequence[typing.Sequence[world.Action]], kind: builtins.str, /, *, horizon: builtins.int, helper: typing.Optional[builtins.int] = None, beneficiary: typing.Optional[builtins.int] = None, t: typing.Optional[builtins.int] = None, agent_id: typing.Optional[builtins.int] = None, pos: typing.Optional[tuple[builtins.int, builtins.int]] = None, laser_id: typing.Optional[builtins.int] = None) -> typing.Optional[builtins.bool]:
-        r"""
-        Evaluate a semantic variable for a concrete feasible trajectory.
-        
-        The trajectory is first converted into a SAT assignment by pinning only agent positions; the
-        requested derived variable is then read from that assignment.
-        
-        @ai-generated
-        """
     def decode_plan(self, model: typing.Sequence[builtins.int], t_end: builtins.int) -> builtins.list[builtins.list[world.Action]]:
         r"""
         Decode a SAT model (as returned by `solver.get_model()`) into a joint-action plan
@@ -175,7 +106,7 @@ class SolveMode:
     
     gen = ClauseGenerator(World.level(6), t_max=21)
     for t in range(gen.solution_lower_bound, gen.t_max + 1):
-        clauses, assumptions = gen.generate(t, mode=SolveMode.no_mutual())
+        clauses, assumptions = gen.generate(t, mode=SolveMode.no_chain(2))
         ...
     ```
     """

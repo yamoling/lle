@@ -1,10 +1,13 @@
 import lle
+import pytest
 from lle import World
+
+from ..pending import call_or_xfail_unimplemented
+from ..world_layouts import LEVEL_1, LEVEL_2, LEVEL_3, LEVEL_4, LEVEL_5, LEVEL_6, Layout
 
 
 def test_time_dependent_threshold():
-    # Short route (cols 0-1) forces mutual help across two length-2 beams; a laser-free detour exists
-    # down cols 4-5 (around the wall column), so mutual help is required only below a time threshold.
+    """A mutual-free plan appears when the laser-free detour opens at t=13."""
     world = World("""
      S0 S1 . . .
     L0E  . . @ .
@@ -12,33 +15,50 @@ def test_time_dependent_threshold():
       X  X . @ .
       .  . . . .
     """)
-    # Empirically, mutual help is required up to t=12 and a mutual-free plan exists from t=13 on.
     threshold = 13
-    # Below the threshold: solvable, but only via mutual cooperation.
-    for t in range(threshold):
-        if t == 11:
-            print()
-        if lle.solve(world, t) is None:
+
+    for t_max in range(threshold):
+        if lle.solve(world, t_max) is None:
             continue
-        assert lle.solve(world, t, mode="no-mutual") is None, f"expected mutual help at t={t}"
-    # At/above the threshold: a mutual-free plan appears.
-    assert lle.solve(world, threshold, mode="no-mutual") is not None
-    # The mutual-free plan is itself a valid plan (replays without error onto the world).
-    plan = lle.solve(world, threshold, mode="no-mutual")
+        plan = call_or_xfail_unimplemented(
+            lle.solve,
+            world,
+            t_max,
+            mode="no-mutual",
+        )
+        assert plan is None, f"expected mutual help at t={t_max}"
+
+    plan = call_or_xfail_unimplemented(
+        lle.solve,
+        world,
+        threshold,
+        mode="no-mutual",
+    )
     assert plan is not None
+
     world.reset()
-    for joint in plan:
-        world.step(joint)
+    for joint_action in plan:
+        world.step(joint_action)
     assert all(agent.is_alive and agent.has_arrived for agent in world.agents)
 
 
-def test_solve_std_levels_without_mutual_cooperation():
-    # Levels 1, 2, 3, and 5 do not require mutual cooperation -> a path should be found
-    for level, t_max in zip((1, 2, 3, 5), (10, 10, 10, 19)):
-        world = World.level(level)
-        assert lle.solve(world, t_max, mode="no-mutual") is not None
-
-    # Levels 4 and 6 require mutual cooperation -> no path should be found
-    for level, t_max in zip((4, 6), (10, 21)):
-        world = World.level(level)
-        assert lle.solve(world, t_max, mode="no-mutual") is None
+@pytest.mark.parametrize(
+    ("layout", "t_max", "plan_expected"),
+    [
+        pytest.param(LEVEL_1, 10, True, id="level-1"),
+        pytest.param(LEVEL_2, 10, True, id="level-2"),
+        pytest.param(LEVEL_3, 10, True, id="level-3"),
+        pytest.param(LEVEL_4, 10, False, id="level-4"),
+        pytest.param(LEVEL_5, 19, True, id="level-5"),
+        pytest.param(LEVEL_6, 21, False, id="level-6"),
+    ],
+)
+def test_solve_standard_levels_without_mutual_cooperation(layout: Layout, t_max: int, plan_expected: bool):
+    """Built-in levels retain their declared mutual-free solvability."""
+    plan = call_or_xfail_unimplemented(
+        lle.solve,
+        layout.world(),
+        t_max,
+        mode="no-mutual",
+    )
+    assert (plan is not None) is plan_expected

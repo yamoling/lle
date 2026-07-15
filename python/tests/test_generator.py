@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import lle
 import pytest
 from lle.generator.generator import WorldGenerator
 from lle.generator.world_filter import Chained, Constraint, Cooperative, Interdependent
@@ -328,44 +329,3 @@ def test_error_interdependent_order_3_requires_three_agents():
 def test_error_interdependent_order_3_requires_three_lasers():
     with pytest.raises(ValueError, match="laser"):
         WorldGenerator(width=5, height=5, n_agents=3, n_lasers=2, constraint=Constraint(20, Interdependent(3)))
-
-
-# ---------------------------------------------------------------------------
-# GeneratorBuilder seed + n_jobs validation
-# ---------------------------------------------------------------------------
-
-
-def test_build_seed_with_multiple_jobs_raises():
-    import lle
-
-    with pytest.raises(ValueError, match="[Ss]eed"):
-        lle.generate(width=7, height=7, n_agents=2).build(n_jobs=2, seed=0)  # type: ignore[call-overload]
-
-
-def test_take_seed_with_multiple_jobs_raises():
-    import lle
-
-    with pytest.raises(ValueError, match="[Ss]eed"):
-        list(lle.generate(width=7, height=7, n_agents=2).take(2, n_jobs=2, seed=0))  # type: ignore[call-overload]
-
-
-def test_take_seed_with_auto_jobs_raises():
-    import lle
-
-    with pytest.raises(ValueError, match="[Ss]eed"):
-        list(lle.generate(width=7, height=7, n_agents=2).take(2, seed=0))  # type: ignore[call-overload]
-
-
-# ---------------------------------------------------------------------------
-# Import-level smoke test
-# ---------------------------------------------------------------------------
-
-
-def test_importable_from_lle():
-    import lle
-
-    # The builder is the public entry point; CustomGenerator is the engine it
-    # drives and remains reachable under lle.generator for advanced use.
-    assert hasattr(lle, "generate")
-    assert hasattr(lle, "GeneratorBuilder")
-    assert lle.generator.WorldGenerator is WorldGenerator

@@ -1,50 +1,48 @@
-import lle
 import pytest
-from lle import World
 from lle.characterization import WorldCharacterizer
 
+from ...world_layouts import (
+    BLOCKED_UNSOLVABLE,
+    ONE_WAY_DETOUR,
+    ScalarPropertyCase,
+    scalar_cases_for,
+)
 
-def test_simple_solvable():
-    world = World("""
- . . . . X
-S0 . . . .
-S1 . . . .
- . . . . X
-""")
-    path = lle.solve(world)
-    assert path is not None
-    assert not lle.is_cooperative(world)
+COOPERATIVE_CASES = scalar_cases_for("cooperative")
 
 
-def test_standard_levels_cooperation():
-    for level, t_max in zip((1, 2, 3, 4, 5, 6), (10, 10, 10, 10, 19, 21)):
-        world = World.level(level)
-        wc = WorldCharacterizer(world, t_max)
-        cooperation_expected = level >= 3
-        assert wc.is_cooperative() == cooperation_expected
-        assert wc.is_independent() == (not cooperation_expected)
+@pytest.mark.parametrize("case", COOPERATIVE_CASES, ids=lambda case: case.id)
+def test_is_cooperative(case: ScalarPropertyCase):
+    """Check whether cooperation is required at each catalog horizon.
+
+    A longer horizon can make a detour reachable and remove the need for one
+    agent to block a laser for another.
+
+    @ai-generated
+    """
+    characterizer = WorldCharacterizer(case.layout.world(), case.t_max)
+
+    assert characterizer.is_cooperative() is case.expected
+
+
+def test_one_way_detour_stops_requiring_cooperation_at_t10():
+    """The longer independent route becomes available exactly at t=10.
+
+    @ai-generated
+    """
+    before_detour = WorldCharacterizer(ONE_WAY_DETOUR.world(), t_max=9)
+    after_detour = WorldCharacterizer(ONE_WAY_DETOUR.world(), t_max=10)
+
+    assert before_detour.is_cooperative()
+    assert not after_detour.is_cooperative()
 
 
 def test_unsolvable_world_raises_on_is_cooperative():
-    world = World("S0 @ X")
+    """Reject cooperation queries when the catalog world has no solution.
+
+    @ai-generated
+    """
+    world = BLOCKED_UNSOLVABLE.world()
+
     with pytest.raises(ValueError):
-        _ = WorldCharacterizer(world, t_max=10).is_cooperative()
-
-
-def test_threshold_is_independent():
-    """At t=10 the long detour becomes reachable: cooperation is no longer required."""
-    # For t < 10: every solution forces agent 0 to block its own laser for agent 1.
-    # For t> = 10: agent 1 can go around via column 5, so no blocking is required.
-    world = World("""
-     .  . S0 S1 . .
-    L0E .  .  . @ .
-     .  .  .  . . .
-     .  .  .  . . .
-     X  X  .  . . .
-    """)
-    for t_max, is_cooperative in [(8, True), (9, True), (10, False), (11, False)]:
-        wc = WorldCharacterizer(world, t_max)
-        assert wc.is_solvable()
-        assert wc.is_independent() != is_cooperative
-        assert wc.is_cooperative() == is_cooperative
-        assert not wc.is_interdependent(2)
+        WorldCharacterizer(world, t_max=10).is_cooperative()
