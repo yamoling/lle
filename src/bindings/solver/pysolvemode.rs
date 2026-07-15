@@ -26,7 +26,7 @@ use crate::solver::SolveMode;
 ///
 /// gen = ClauseGenerator(World.level(6), t_max=21)
 /// for t in range(gen.solution_lower_bound, gen.t_max + 1):
-///     clauses, assumptions = gen.generate(t, mode=SolveMode.no_mutual())
+///     clauses, assumptions = gen.generate(t, mode=SolveMode.no_chain(2))
 ///     ...
 /// ```
 #[gen_stub_pyclass]
