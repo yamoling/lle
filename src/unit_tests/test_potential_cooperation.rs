@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use rstest::rstest;
 
-use crate::{AgentId, World};
+use crate::{AgentId, World, solver::VarKey};
 
 use super::super::context::ConstraintContext;
 use super::{AdjacencyMatrix, PotentialCooperationGraph, PotentialHelpEdge};
@@ -21,6 +21,27 @@ fn graph_from(n_agents: usize, edges_per_t: &[&[(AgentId, AgentId)]]) -> Potenti
         })
         .collect();
     PotentialCooperationGraph::from_adjacency_matrices(matrices)
+}
+
+/// Converts potential-help edges into their matching SAT variable keys.
+#[test]
+fn potential_help_edge_converts_to_help_var_key() {
+    let edge = PotentialHelpEdge {
+        helper: 2,
+        beneficiary: 1,
+        t: 4,
+    };
+
+    let key: VarKey = edge.into();
+
+    assert_eq!(
+        key,
+        VarKey::Help {
+            helper: 2,
+            beneficiary: 1,
+            t: 4,
+        }
+    );
 }
 
 #[test]
@@ -542,4 +563,51 @@ fn cooperation_at_t0() {
     ctx.update(0);
     let graph = ctx.potential_cooperation;
     assert!(!graph.at(0).is_empty());
+}
+
+/// Per-step trail enumeration partitions full enumeration by the final edge time.
+///
+/// @ai-generated
+#[test]
+fn trails_ending_at_matches_full_enumeration() {
+    let graphs = [
+        graph_from(3, &[&[(0, 1)], &[(1, 2)]]),
+        graph_from(3, &[&[(0, 1), (0, 2)], &[(1, 2), (2, 1)]]),
+        graph_from(3, &[&[(0, 1), (1, 0), (1, 2)]]),
+    ];
+
+    for graph in graphs {
+        for length in 1..=3 {
+            let full = graph
+                .enumerate_trails_of_length(length)
+                .into_iter()
+                .collect::<HashSet<_>>();
+            let partitioned = (0..=graph.horizon())
+                .flat_map(|t| graph.enumerate_trails_ending_at(length, t))
+                .collect::<HashSet<_>>();
+            assert_eq!(partitioned, full);
+        }
+    }
+}
+
+/// Ending-at enumeration supports simultaneous edges, repeated agents, and rejects length zero.
+///
+/// @ai-generated
+#[test]
+fn trails_ending_at_handles_edge_cases() {
+    let simultaneous = graph_from(2, &[&[(0, 1), (1, 0)]]);
+    assert!(simultaneous.enumerate_trails_ending_at(0, 0).is_empty());
+    assert_eq!(simultaneous.enumerate_trails_ending_at(2, 0).len(), 2);
+
+    let across_time = graph_from(3, &[&[(0, 1)], &[(1, 2)]]);
+    assert!(across_time.enumerate_trails_ending_at(2, 0).is_empty());
+    assert_eq!(across_time.enumerate_trails_ending_at(2, 1).len(), 1);
+
+    let revisiting = graph_from(2, &[&[(0, 1)], &[(1, 0)], &[(0, 1)]]);
+    let trails = revisiting.enumerate_trails_ending_at(3, 2);
+    assert_eq!(trails.len(), 1);
+    assert_eq!(
+        trails[0].iter().map(|edge| edge.t).collect::<Vec<_>>(),
+        vec![0, 1, 2]
+    );
 }

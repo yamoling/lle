@@ -4,9 +4,10 @@ use crate::{Action, World};
 
 use super::VarKey;
 use super::engine::ClauseEngine;
-use super::{Clause, Literal, StepBuffer};
+use super::{Clause, Literal, ParameterizedStepBuffer, StepBuffer};
 
 type ClauseBuffer = StepBuffer<Clause>;
+type ParameterizedClauseBuffer = ParameterizedStepBuffer<Clause>;
 type LiteralBuffer = StepBuffer<Literal>;
 
 /// Generates the SAT clauses for a bounded planning horizon.
@@ -26,6 +27,8 @@ pub struct ClauseGenerator {
     lasers: ClauseBuffer,
     /// Shared `help(h, b, t)` clauses encoding for all tracked help pairs.
     help: ClauseBuffer,
+    /// Blocking chain clauses cached independently for every requested chain length.
+    chains: ParameterizedClauseBuffer,
     no_cooperation_assumptions: LiteralBuffer,
 }
 
@@ -37,6 +40,7 @@ impl ClauseGenerator {
             movements: StepBuffer::new(ClauseEngine::generate_movement_clauses, capacity),
             lasers: StepBuffer::new(ClauseEngine::generate_laser_clauses, capacity),
             help: StepBuffer::new(ClauseEngine::generate_help_clauses, capacity),
+            chains: ParameterizedStepBuffer::new(ClauseEngine::generate_chain_clauses, capacity),
             no_cooperation_assumptions: StepBuffer::new(
                 ClauseEngine::assume_no_cooperation_at,
                 capacity,
@@ -76,12 +80,10 @@ impl ClauseGenerator {
                 clauses.extend(self.engine.encode_asymmetry(t));
                 assumptions.extend(self.engine.assume_no_asymmetry(t));
             }
-            SolveMode::NoChainedCooperation(_) => {
-                todo!();
-                // clauses.extend(self.lasers.gather_until(&mut self.engine, t));
-                // clauses.extend(self.help_tracking.gather_until(&mut self.engine, t));
-                // let buf = Self::chain_buffer(&mut self.chains, &self.engine, length);
-                // clauses.extend(buf.gather_until(&mut self.engine, t));
+            SolveMode::NoChainedCooperation(length) => {
+                clauses.extend(self.lasers.gather_until(&mut self.engine, t));
+                clauses.extend(self.help.gather_until(&mut self.engine, t));
+                clauses.extend(self.chains.gather_until(&mut self.engine, t, length));
             }
             SolveMode::NoInterdependence(_) => {
                 todo!();

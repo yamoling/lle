@@ -1,4 +1,5 @@
 mod assumptions;
+mod chains;
 mod clause_engine;
 mod cooperation;
 mod gems;
