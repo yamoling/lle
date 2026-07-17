@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import KW_ONLY, dataclass, field
-from sre_compile import dis
 from typing import Iterable, Literal
 
 from lle import World
