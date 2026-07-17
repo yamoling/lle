@@ -668,6 +668,31 @@ L0E  .    .   .   .  @
     description="This layout is presented in the paper as a canonical example of interdependent-3",
 )
 
+FOUR_AGENT_INTERDEPENDENT_4_CHAIN_6 = Layout(
+    "four-agent-interdependent-4-chain-6",
+    """
+@   S0  S1 @   @
+@   .   .  L1W @
+L0E .   .  L1S @
+@   X   .  .   @
+@   L2S .  .   S2
+@   X   .  @   @
+S3  .   .  .   @
+@   L3E .  .   @
+@   @   .  .   L1W
+@   @   X  X   @
+""",
+    (
+        expect(
+            14,
+            solvable=True,
+            chained={2: True, 3: True, 4: True, 5: True, 6: True, 7: False},
+            interdependent={2: True, 3: True, 4: True, 5: False},
+            distributed={2: True, 3: False},
+        ),
+    ),
+)
+
 
 ALL_LAYOUTS = [
     LEVEL_1,
@@ -696,6 +721,7 @@ ALL_LAYOUTS = [
     THREE_AGENT_TEMPORAL_CYCLE,
     THREE_AGENT_WITH_TWO_AGENT_CYCLE,
     PAPER_INTERDEPENDENT_3,
+    FOUR_AGENT_INTERDEPENDENT_4_CHAIN_6,
 ]
 
 LAYOUTS_BY_NAME = {layout.name: layout for layout in ALL_LAYOUTS}
