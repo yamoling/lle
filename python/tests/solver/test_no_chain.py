@@ -14,7 +14,7 @@ def test_no_chain_mode_matches_world_specification(test_case: ChainedCase):
         test_case.t_max,
         mode=SolveMode.no_chain(test_case.length),
     )
-    assert (plan is None) is test_case.expected
+    assert (plan is None) is test_case.expected, f"Plan: {plan}"
     if plan is not None:
         assert not profile_plan(test_case.layout.world(), plan).is_chained(test_case.length)
 

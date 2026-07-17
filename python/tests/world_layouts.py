@@ -109,10 +109,13 @@ def expect(
     chained: dict[int, bool] | None = None,
     interdependent: dict[int, bool] | None = None,
 ) -> Expectation:
-    """Declare the properties expected from one layout at one horizon.
-
-    @ai-generated
-    """
+    """Declare the properties expected from one layout at one horizon."""
+    if cooperative is not None and independent is not None:
+        assert cooperative != independent, "cooperative and independent cannot be equal"
+    elif cooperative is not None:
+        independent = not cooperative
+    elif independent is not None:
+        cooperative = not independent
     return Expectation(
         t_max,
         ExpectedProperties(
@@ -413,9 +416,6 @@ L0E .  @  .   .  .
     ),
 )
 
-
-# Distributed and fully coupled cooperation
-
 PAPER_DISTRIBUTED_2 = Layout(
     "paper-distributed-2",
     """
@@ -480,10 +480,8 @@ L1E .  .  .  .
             interdependent={2: True, 3: True},
         ),
     ),
+    description="This is a fully coupled example that was used previously in the paper but was removed because the trajectories were unreadable.",
 )
-
-
-# Mutual and interdependent cooperation
 
 TWO_AGENT_MUTUAL_COMPACT = Layout(
     "two-agent-mutual-compact",
@@ -572,12 +570,42 @@ L0E .   .  @  .   .  L2W
         expect(
             20,
             cooperative=True,
-            independent=False,
             asymmetric=False,
             chained={2: True, 3: False},
             interdependent={2: True, 3: False},
         ),
     ),
+    description="""
+    This example shows that chronological order is important in the cooperation graph:
+        - Agent 0 goes from left to right:
+            - help(0, 1, t=1)
+            - help(1, 0, t=4)
+            - help(3, 0, t>=6)
+        - Agent 2 goes from right to left:
+            - help(2, 3, t=1)
+            - help(3, 2, t=8)
+            - help(1, 2, t>=10)
+    In a flattened (time-agnostic) graph, the 4 vertices form a SCC while there exists actually
+    no dependency at all between agent 0 and agent 2.
+
+    Graph with nodes 0, 1, 2, 3 and the temporal edges enumerated above
+        ┌----t=4----┐
+        V           |
+        0 ---t=1--> 1---┐
+        ^               |
+        └-----t>=6--┐   |
+        ┌----t=10---|---┘
+        V           |
+        2 ---t=1--> 3
+        ^           |
+        └----t=8----┘
+
+    What is checked here:
+        - interdependent-2 is True (0 <-> 1, 2 <-> 3, 0 <-> 3)
+        - interdependent-3 is False, because there exists no temporal cycle of 3 agents
+        - there exists a chain of length 2 but no larger chain exists
+        - there is no asymmetric help
+    """,
 )
 
 THREE_AGENT_TEMPORAL_CYCLE = Layout(
