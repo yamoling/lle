@@ -9,13 +9,13 @@ for the graph queries, and `CooperationProfile` for the summary of properties.
 """
 
 from .analyser import detect_dependencies, profile_plan
-from .graph import DependencyEdge, TemporalDependencyGraph
+from .graph import DependencyEdge, TemporalCooperationGraph
 from .profile import PlanProfile
 
 __all__ = [
     "profile_plan",
     "detect_dependencies",
     "DependencyEdge",
-    "TemporalDependencyGraph",
+    "TemporalCooperationGraph",
     "PlanProfile",
 ]

@@ -47,9 +47,9 @@ class AgentVertex:
     layers: tuple[TimeLayer, ...] = ()
 
 
-class TemporalDependencyGraph:
+class TemporalCooperationGraph:
     """
-    A Temporal Dependency Graph represents the help dependencies between agents
+    A Temporal Cooperation Graph (TCG) represents the help dependencies between agents
     over time.
 
     Layers are grouped by helper, then by time, and beneficiaries in each
@@ -110,7 +110,7 @@ class TemporalDependencyGraph:
             world.step(joint_action)
             for helper, beneficiary in detect_dependencies(world):
                 edges.append(DependencyEdge(helper, beneficiary, t))
-        return TemporalDependencyGraph(edges)
+        return TemporalCooperationGraph(edges)
 
     @property
     def edges(self):
@@ -308,4 +308,4 @@ class TemporalDependencyGraph:
 
     @staticmethod
     def empty():
-        return TemporalDependencyGraph([])
+        return TemporalCooperationGraph([])

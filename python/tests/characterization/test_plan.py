@@ -1,12 +1,12 @@
 import lle
 from lle import World
 from lle.characterization import profile_plan
-from lle.characterization.plan import DependencyEdge, TemporalDependencyGraph
+from lle.characterization.plan import DependencyEdge, TemporalCooperationGraph
 
 
 def test_profile_empty_graph():
     """Profile of empty graph has correct independent flag."""
-    empty_graph = TemporalDependencyGraph.empty()
+    empty_graph = TemporalCooperationGraph.empty()
     profile = empty_graph.profile()
     assert profile.is_independent
     assert not profile.is_cooperative
@@ -17,7 +17,7 @@ def test_profile_empty_graph():
 
 def test_profile_single_edge():
     """Profile of single-edge graph has correct metrics."""
-    single_edge_graph = TemporalDependencyGraph([DependencyEdge(0, 1, 16)])
+    single_edge_graph = TemporalCooperationGraph([DependencyEdge(0, 1, 16)])
     profile = single_edge_graph.profile()
     assert not profile.is_independent
     assert profile.is_cooperative
@@ -27,7 +27,7 @@ def test_profile_single_edge():
 
 
 def test_profile_joining_edges():
-    graph = TemporalDependencyGraph(
+    graph = TemporalCooperationGraph(
         [
             DependencyEdge(5, 6, 5),
             DependencyEdge(6, 9, 18),
@@ -49,7 +49,7 @@ def test_profile_separating_edges():
         \
          -- 1->5, 5->2, 2->9
     """
-    graph = TemporalDependencyGraph(
+    graph = TemporalCooperationGraph(
         [
             DependencyEdge(0, 1, 1),
             # Top path
@@ -77,7 +77,7 @@ def test_profile_two_mutual():
         DependencyEdge(helper=0, beneficiary=1, t=1),
         DependencyEdge(helper=1, beneficiary=0, t=1),
     ]
-    static_cycle_graph = TemporalDependencyGraph(edges)
+    static_cycle_graph = TemporalCooperationGraph(edges)
     profile = static_cycle_graph.profile()
     assert profile.is_cooperative
     assert not profile.is_independent
@@ -90,7 +90,7 @@ def test_profile_two_mutual():
 
 def test_profile_length5_chain():
     # 0->1, 1->15, 15->19, 19->17, 17->8
-    linear_chain_graph = TemporalDependencyGraph(
+    linear_chain_graph = TemporalCooperationGraph(
         [  # Shuffled
             DependencyEdge(19, 17, 125),
             DependencyEdge(0, 1, 0),
@@ -115,7 +115,7 @@ def test_simultaneous_mutual_help_is_bounded_chain():
         DependencyEdge(helper=0, beneficiary=1, t=1),
         DependencyEdge(helper=1, beneficiary=0, t=1),
     ]
-    graph = TemporalDependencyGraph(edges)
+    graph = TemporalCooperationGraph(edges)
     profile = graph.profile()
     assert profile.is_chained()
     assert profile.is_cooperative
@@ -124,7 +124,7 @@ def test_simultaneous_mutual_help_is_bounded_chain():
 
 
 def test_trajectory_profile_rejects_mutual_as_asymmetric():
-    graph = TemporalDependencyGraph(
+    graph = TemporalCooperationGraph(
         edges=[
             DependencyEdge(0, 1, 1),
             DependencyEdge(1, 0, 2),

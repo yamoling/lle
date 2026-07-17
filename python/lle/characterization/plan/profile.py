@@ -1,8 +1,8 @@
-from .graph import TemporalDependencyGraph
+from .graph import TemporalCooperationGraph
 
 
 class PlanProfile:
-    def __init__(self, graph: TemporalDependencyGraph) -> None:
+    def __init__(self, graph: TemporalCooperationGraph) -> None:
         self.graph = graph
 
     @property
