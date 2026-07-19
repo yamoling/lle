@@ -182,23 +182,23 @@ LEVEL_3 = Layout(
     3,
     (
         *expect_for(range(10), solvable=False),
-        *expect_for(range(10, 20), cooperative=True, independent=False, asymmetric=True),
+        *expect_for(range(10, 20), cooperative=True, asymmetric=True),
     ),
 )
 
 LEVEL_4 = Layout(
     "level-4",
     4,
-    (expect(10, cooperative=True, independent=False),),
+    (expect(10, cooperative=True, interdependent={2: True}),),
 )
 
 LEVEL_5 = Layout(
     "level-5",
     5,
     (
-        expect(19, cooperative=True, independent=False),
+        expect(19, cooperative=True),
         expect(21, asymmetric=True),
-        expect(25, asymmetric=False),
+        expect(25, asymmetric=False, interdependent={2: False}),
     ),
 )
 
@@ -214,14 +214,8 @@ LEVEL_6 = Layout(
             chained={
                 2: True,
                 3: False,
-                4: False,
-                5: False,
-                6: False,
-                7: False,
-                8: False,
-                9: False,
             },
-            interdependent={2: True},
+            interdependent={2: True, 3: False},
         ),
     ),
 )
@@ -455,7 +449,7 @@ S2   .   . . . @
             independent=False,
             asymmetric=False,
             fully_coupled=True,
-            interdependent={2: True, 3: True},
+            interdependent={2: True, 3: True, 4: False},
         ),
     ),
 )
@@ -477,7 +471,7 @@ L1E .  .  .  .
             independent=False,
             asymmetric=False,
             fully_coupled=True,
-            interdependent={2: True, 3: True},
+            interdependent={2: True, 3: True, 4: False},
         ),
     ),
     description="This is a fully coupled example that was used previously in the paper but was removed because the trajectories were unreadable.",
@@ -662,7 +656,7 @@ L0E  .    .   .   .  @
             solvable=True,
             chained={2: True, 3: True},
             distributed={2: False},
-            interdependent={2: False, 3: True},
+            interdependent={2: False, 3: True, 4: False},
         ),
     ),
     description="This layout is presented in the paper as a canonical example of interdependent-3",

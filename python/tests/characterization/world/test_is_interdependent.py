@@ -40,12 +40,8 @@ def test_is_interdependent(property_case: InterdependentCase):
 
 
 def test_interdependence_2_detected_in_canonical_rotation():
-    """The canonical temporal-cycle rotation is forbidden by no-interdependence-2.
-
-    @ai-generated
-    """
-    layout = TWO_AGENT_MUTUAL_WITH_DETOURS
-    world = layout.world()
+    """The canonical temporal-cycle rotation is forbidden by no-interdependence-2."""
+    world = TWO_AGENT_MUTUAL_WITH_DETOURS.world()
     plan = solver.solve(world, 6)
 
     assert plan is not None

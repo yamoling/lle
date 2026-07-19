@@ -123,11 +123,13 @@ class WorldCharacterizer:
     def is_interdependent(self, n_agents: int = 2) -> bool:
         """
         Whether the world *requires* interdependence between exactly `n_agents` agents:
-        - the optimal trajectory's dependency graph contains a temporal cycle of order >= `n_agents`, and
-        - no solution within `t_max` avoids every cycle of exactly that order.
+        - the optimal trajectory contains a temporal closed trail with exactly that support, and
+        - no solution within `t_max` avoids every closed trail of exactly that order.
 
-        For two agents this coincides with `is_mutual`: a cycle of order 2 is exactly a mutual
-        `a → b → a` under the non-strict temporal-cycle semantics used by interdependence.
+        Exact orders are not monotone: an order-4 trail does not imply an
+        order-3 trail. For two agents this coincides with `is_mutual`.
+
+        @ai-generated
 
         # Raises
             -`NotSolvableError` if the world is not solvable
@@ -140,7 +142,7 @@ class WorldCharacterizer:
         if self.shortest_path is None:
             raise NotSolvableError("World is not solvable")
         profile = profile_plan(self.world, self.shortest_path)
-        if not profile.is_interdependent(n_agents):
+        if not profile.is_interdependent_exactly(n_agents):
             res = False
         else:
             res = self.compute_shortest_non_interdependent_path(n_agents) is None
