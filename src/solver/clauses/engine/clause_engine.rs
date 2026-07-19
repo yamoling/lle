@@ -1,6 +1,9 @@
+use std::collections::HashMap;
+
 use crate::solver::clauses::VarPool;
 use crate::solver::context::ConstraintContext;
 use crate::solver::errors::SolverError;
+use crate::solver::interdependence::{ClosedTrailPattern, enumerate_closed_trail_patterns};
 use crate::solver::position_set::PositionSet;
 use crate::solver::{Clause, VarKey};
 use crate::{Action, World};
@@ -20,6 +23,7 @@ pub struct ClauseEngine {
     pub pool: VarPool,
     pub exits: PositionSet,
     pub gems: PositionSet,
+    interdependence_patterns: HashMap<usize, Vec<ClosedTrailPattern>>,
 }
 
 impl ClauseEngine {
@@ -38,7 +42,24 @@ impl ClauseEngine {
             ),
             ctx,
             pool: VarPool::new(),
+            interdependence_patterns: HashMap::new(),
         }
+    }
+
+    /// Return the deterministic static pattern basis for an exact interdependence order.
+    ///
+    /// @ai-generated
+    pub fn interdependence_patterns(&mut self, order: usize) -> Vec<ClosedTrailPattern> {
+        let helper_ids = self
+            .ctx
+            .laser_sources
+            .iter()
+            .map(|source| source.agent_id)
+            .collect::<Vec<_>>();
+        self.interdependence_patterns
+            .entry(order)
+            .or_insert_with(|| enumerate_closed_trail_patterns(helper_ids, order))
+            .clone()
     }
 
     /// Movement-only world-enforcing clauses for a single step `t`.

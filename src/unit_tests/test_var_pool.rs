@@ -5,11 +5,31 @@
 //! allocated, a model is synthesized from them, and the decoded actions are checked.
 
 use super::VarPool;
-use crate::solver::errors::SolverError;
+use crate::solver::{VarKey, errors::SolverError};
 use crate::{Action, Position};
 
 fn pos(i: usize, j: usize) -> Position {
     Position { i, j }
+}
+
+/// Interdependence progress variables are keyed and reused by their semantic identity.
+///
+/// @ai-generated
+#[test]
+fn interdependence_progress_uses_a_dedicated_var_key() {
+    let mut pool = VarPool::new();
+    let first = pool.interdependence_progress(3, 4, 2, 5);
+    assert_eq!(first, pool.interdependence_progress(3, 4, 2, 5));
+    assert_ne!(first, pool.interdependence_progress(3, 4, 3, 5));
+    assert_eq!(
+        pool.key(first),
+        Some(VarKey::InterdependenceProgress {
+            order: 3,
+            pattern: 4,
+            prefix_len: 2,
+            t: 5,
+        })
+    );
 }
 
 /// `decode_plan` must translate the per-step agent positions of a SAT model back into the joint

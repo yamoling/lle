@@ -39,6 +39,13 @@ pub enum VarKey {
     Asymmetric {
         horizon: usize,
     },
+    /// Whether a static interdependence pattern prefix is greedily realizable by time `t`.
+    InterdependenceProgress {
+        order: usize,
+        pattern: usize,
+        prefix_len: usize,
+        t: usize,
+    },
     /// Auxiliary variable used internally by cardinality encodings; carries a unique counter.
     Aux(i32),
 }
@@ -137,6 +144,24 @@ impl VarPool {
 
     pub fn asymmetric(&mut self, horizon: usize) -> Literal {
         self.id(VarKey::Asymmetric { horizon })
+    }
+
+    /// Allocate or retrieve the reachability literal for one interdependence pattern prefix.
+    ///
+    /// @ai-generated
+    pub fn interdependence_progress(
+        &mut self,
+        order: usize,
+        pattern: usize,
+        prefix_len: usize,
+        t: usize,
+    ) -> Literal {
+        self.id(VarKey::InterdependenceProgress {
+            order,
+            pattern,
+            prefix_len,
+            t,
+        })
     }
 
     /// Variable id already assigned to `key`, or `None` if it was never created.
