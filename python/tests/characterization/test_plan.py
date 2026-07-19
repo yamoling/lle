@@ -159,6 +159,25 @@ def test_not_interdependent():
     assert not profile.is_interdependent(3)
 
 
+def test_profile_exact_interdependence_is_distinct_from_threshold_query():
+    """
+    A larger closed trail does not imply the absent intermediate exact order.
+    """
+    profile = TemporalCooperationGraph(
+        [
+            DependencyEdge(0, 1, 1),
+            DependencyEdge(1, 2, 2),
+            DependencyEdge(2, 3, 3),
+            DependencyEdge(3, 0, 4),
+        ]
+    ).profile()
+
+    assert profile.interdependence_order() == 4
+    assert profile.is_interdependent(3)
+    assert not profile.is_interdependent_exactly(3)
+    assert profile.is_interdependent_exactly(4)
+
+
 def test_multiple_stepd_in_a_row_remains_asymmetric():
     """Agent 0 must block the same laser beam during multiple time steps
     for agent 1, but this should still be considered to be asymmetric.

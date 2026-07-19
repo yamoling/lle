@@ -463,6 +463,9 @@ def test_asymmetric_edges():
 
 
 def test_cooperation_cycle():
+    """
+    A repeated-agent closed trail retains all seven edges and has support four.
+    """
     tcg = TemporalCooperationGraph(
         [
             DependencyEdge(0, 1, 1),
@@ -474,4 +477,54 @@ def test_cooperation_cycle():
             DependencyEdge(3, 0, 7),
         ]
     )
-    assert len(tcg.longest_cycle()) == 7
+
+    assert len(tcg.longest_closed_trail()) == 7
+    assert tcg.interdependence_order() == 4
+    assert tcg.closed_trail_orders() == frozenset({2, 3, 4})
+
+
+def test_closed_trail_exact_support_accepts_bowtie_and_double_petal():
+    """
+    Repeated-agent closed trails are recognized at their exact support order.
+    """
+    bowtie = TemporalCooperationGraph(
+        [
+            DependencyEdge(0, 1, 1),
+            DependencyEdge(1, 0, 2),
+            DependencyEdge(0, 2, 3),
+            DependencyEdge(2, 0, 4),
+        ]
+    )
+    double_petal = TemporalCooperationGraph(
+        [
+            DependencyEdge(0, 1, 1),
+            DependencyEdge(1, 2, 2),
+            DependencyEdge(2, 0, 3),
+            DependencyEdge(0, 1, 4),
+            DependencyEdge(1, 3, 5),
+            DependencyEdge(3, 0, 6),
+        ]
+    )
+
+    assert bowtie.has_closed_trail_of_order(3)
+    assert len(bowtie.closed_trail_of_order(3)) == 4
+    assert double_petal.has_closed_trail_of_order(4)
+    assert len(double_petal.closed_trail_of_order(4)) == 6
+
+
+def test_closed_trail_orders_do_not_infer_missing_exact_order_from_larger_ring():
+    """
+    A four-agent ring is threshold-interdependent at three but not exact-order three.
+    """
+    graph = TemporalCooperationGraph(
+        [
+            DependencyEdge(0, 1, 1),
+            DependencyEdge(1, 2, 2),
+            DependencyEdge(2, 3, 3),
+            DependencyEdge(3, 0, 4),
+        ]
+    )
+
+    assert graph.closed_trail_orders() == frozenset({4})
+    assert graph.has_closed_trail_of_order(4)
+    assert not graph.has_closed_trail_of_order(3)
