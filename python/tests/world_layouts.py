@@ -109,10 +109,13 @@ def expect(
     chained: dict[int, bool] | None = None,
     interdependent: dict[int, bool] | None = None,
 ) -> Expectation:
-    """Declare the properties expected from one layout at one horizon.
-
-    @ai-generated
-    """
+    """Declare the properties expected from one layout at one horizon."""
+    if cooperative is not None and independent is not None:
+        assert cooperative != independent, "cooperative and independent cannot be equal"
+    elif cooperative is not None:
+        independent = not cooperative
+    elif independent is not None:
+        cooperative = not independent
     return Expectation(
         t_max,
         ExpectedProperties(
@@ -140,10 +143,7 @@ def expect_for(
     chained: dict[int, bool] | None = None,
     interdependent: dict[int, bool] | None = None,
 ) -> tuple[Expectation, ...]:
-    """Declare the same property matrix for several horizons.
-
-    @ai-generated
-    """
+    """Declare the same property matrix for several horizons."""
     return tuple(
         expect(
             t_max,
@@ -179,23 +179,23 @@ LEVEL_3 = Layout(
     3,
     (
         *expect_for(range(10), solvable=False),
-        *expect_for(range(10, 20), cooperative=True, independent=False, asymmetric=True),
+        *expect_for(range(10, 20), cooperative=True, asymmetric=True),
     ),
 )
 
 LEVEL_4 = Layout(
     "level-4",
     4,
-    (expect(10, cooperative=True, independent=False),),
+    (expect(10, cooperative=True, interdependent={2: True}),),
 )
 
 LEVEL_5 = Layout(
     "level-5",
     5,
     (
-        expect(19, cooperative=True, independent=False),
+        expect(19, cooperative=True),
         expect(21, asymmetric=True),
-        expect(25, asymmetric=False),
+        expect(25, asymmetric=False, interdependent={2: False}),
     ),
 )
 
@@ -211,14 +211,8 @@ LEVEL_6 = Layout(
             chained={
                 2: True,
                 3: False,
-                4: False,
-                5: False,
-                6: False,
-                7: False,
-                8: False,
-                9: False,
             },
-            interdependent={2: True},
+            interdependent={2: True, 3: False},
         ),
     ),
 )
@@ -413,9 +407,6 @@ L0E .  @  .   .  .
     ),
 )
 
-
-# Distributed and fully coupled cooperation
-
 PAPER_DISTRIBUTED_2 = Layout(
     "paper-distributed-2",
     """
@@ -455,7 +446,7 @@ S2   .   . . . @
             independent=False,
             asymmetric=False,
             fully_coupled=True,
-            interdependent={2: True, 3: True},
+            interdependent={2: True, 3: True, 4: False},
         ),
     ),
 )
@@ -477,13 +468,11 @@ L1E .  .  .  .
             independent=False,
             asymmetric=False,
             fully_coupled=True,
-            interdependent={2: True, 3: True},
+            interdependent={2: True, 3: True, 4: False},
         ),
     ),
+    description="This is a fully coupled example that was used previously in the paper but was removed because the trajectories were unreadable.",
 )
-
-
-# Mutual and interdependent cooperation
 
 TWO_AGENT_MUTUAL_COMPACT = Layout(
     "two-agent-mutual-compact",
@@ -572,12 +561,42 @@ L0E .   .  @  .   .  L2W
         expect(
             20,
             cooperative=True,
-            independent=False,
             asymmetric=False,
             chained={2: True, 3: False},
             interdependent={2: True, 3: False},
         ),
     ),
+    description="""
+    This example shows that chronological order is important in the cooperation graph:
+        - Agent 0 goes from left to right:
+            - help(0, 1, t=1)
+            - help(1, 0, t=4)
+            - help(3, 0, t>=6)
+        - Agent 2 goes from right to left:
+            - help(2, 3, t=1)
+            - help(3, 2, t=8)
+            - help(1, 2, t>=10)
+    In a flattened (time-agnostic) graph, the 4 vertices form a SCC while there exists actually
+    no dependency at all between agent 0 and agent 2.
+
+    Graph with nodes 0, 1, 2, 3 and the temporal edges enumerated above
+        ┌----t=4----┐
+        V           |
+        0 ---t=1--> 1---┐
+        ^               |
+        └-----t>=6--┐   |
+        ┌----t=10---|---┘
+        V           |
+        2 ---t=1--> 3
+        ^           |
+        └----t=8----┘
+
+    What is checked here:
+        - interdependent-2 is True (0 <-> 1, 2 <-> 3, 0 <-> 3)
+        - interdependent-3 is False, because there exists no temporal cycle of 3 agents
+        - there exists a chain of length 2 but no larger chain exists
+        - there is no asymmetric help
+    """,
 )
 
 THREE_AGENT_TEMPORAL_CYCLE = Layout(
@@ -634,10 +653,35 @@ L0E  .    .   .   .  @
             solvable=True,
             chained={2: True, 3: True},
             distributed={2: False},
-            interdependent={2: False, 3: True},
+            interdependent={2: False, 3: True, 4: False},
         ),
     ),
     description="This layout is presented in the paper as a canonical example of interdependent-3",
+)
+
+FOUR_AGENT_INTERDEPENDENT_4_CHAIN_6 = Layout(
+    "four-agent-interdependent-4-chain-6",
+    """
+@   S0  S1 @   @
+@   .   .  L1W @
+L0E .   .  L1S @
+@   X   .  .   @
+@   L2S .  .   S2
+@   X   .  @   @
+S3  .   .  .   @
+@   L3E .  .   @
+@   @   .  .   L1W
+@   @   X  X   @
+""",
+    (
+        expect(
+            14,
+            solvable=True,
+            chained={2: True, 3: True, 4: True, 5: True, 6: True, 7: False},
+            interdependent={2: True, 3: True, 4: True, 5: False},
+            distributed={2: True, 3: False},
+        ),
+    ),
 )
 
 
@@ -668,6 +712,7 @@ ALL_LAYOUTS = [
     THREE_AGENT_TEMPORAL_CYCLE,
     THREE_AGENT_WITH_TWO_AGENT_CYCLE,
     PAPER_INTERDEPENDENT_3,
+    FOUR_AGENT_INTERDEPENDENT_4_CHAIN_6,
 ]
 
 LAYOUTS_BY_NAME = {layout.name: layout for layout in ALL_LAYOUTS}
@@ -675,45 +720,39 @@ LAYOUTS_BY_NAME = {layout.name: layout for layout in ALL_LAYOUTS}
 
 def scalar_cases_for(name: ScalarPropertyName):
     """Return every explicit expectation for a scalar property."""
-    return tuple(
+    return [
         ScalarPropertyCase(layout, expectation.t_max, expected)
         for layout in ALL_LAYOUTS
         for expectation in layout.expectations
         if (expected := getattr(expectation.properties, name)) is not None
-    )
+    ]
 
 
-def chained_cases() -> tuple[ChainedCase, ...]:
+def chained_cases():
     """Return every explicit chain-length expectation."""
-    return tuple(
+    return [
         ChainedCase(layout, expectation.t_max, expected, length)
         for layout in ALL_LAYOUTS
         for expectation in layout.expectations
         for length, expected in expectation.properties.chained.items()
-    )
+    ]
 
 
-def distributed_cases() -> tuple[DistributedCase, ...]:
-    """Return every explicit distributed-order expectation.
-
-    @ai-generated
-    """
-    return tuple(
+def distributed_cases():
+    """Return every explicit distributed-order expectation."""
+    return [
         DistributedCase(layout, expectation.t_max, expected, order)
         for layout in ALL_LAYOUTS
         for expectation in layout.expectations
         for order, expected in expectation.properties.distributed.items()
-    )
+    ]
 
 
-def interdependent_cases() -> tuple[InterdependentCase, ...]:
-    """Return every explicit interdependence-order expectation.
-
-    @ai-generated
-    """
-    return tuple(
+def interdependent_cases():
+    """Return every explicit interdependence-order expectation."""
+    return [
         InterdependentCase(layout, expectation.t_max, expected, order)
         for layout in ALL_LAYOUTS
         for expectation in layout.expectations
         for order, expected in expectation.properties.interdependent.items()
-    )
+    ]

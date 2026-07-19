@@ -24,7 +24,7 @@ from collections import defaultdict
 from lle.types import AgentId, LaserId
 from lle.world import World
 
-from .graph import TemporalDependencyGraph
+from .graph import TemporalCooperationGraph
 from .types import Plan
 
 
@@ -65,5 +65,5 @@ def profile_plan(world: World, plan: Plan, *, reset: bool = True):
     Compute the profile of `plan` on the provided `world`.
     Check `TemporalDependencyGraph.from_plan` for more details about arguments.
     """
-    graph = TemporalDependencyGraph.from_plan(plan, world, reset=reset)
+    graph = TemporalCooperationGraph.from_plan(plan, world, reset=reset)
     return graph.profile()

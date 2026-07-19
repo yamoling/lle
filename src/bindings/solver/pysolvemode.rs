@@ -17,8 +17,9 @@ use crate::solver::SolveMode;
 /// - `no_chain(length=2)` — rules out plans containing a non-decreasing-time temporal chain of
 ///   `length` help edges or more (`a → b → c` is a chain of length 2).
 /// - `no_interdependence(order=2)` — rules out plans whose dependency graph contains a temporal
-///   cycle visiting `order` distinct agents or more. For two-agent worlds this coincides with
-///   `no_mutual()`.
+///   closed trail with exactly `order` distinct agents. Timestamps are non-decreasing; agents and
+///   static arcs may repeat at later times, but temporal edges may not repeat. Other exact orders
+///   remain allowed. `no_interdependence(2)` coincides with `no_mutual()`.
 ///
 /// ```python
 /// from lle.solver.clauses import ClauseGenerator, SolveMode
@@ -105,7 +106,7 @@ impl PySolveMode {
         Self::checked(length, "no_chain", SolveMode::NoChainedCooperation)
     }
 
-    /// Forbid any temporal cycle visiting `order` distinct agents or more. `order` must be `>= 2`.
+    /// Forbid any temporal closed trail with exactly `order` distinct agents. `order` must be `>= 2`.
     #[staticmethod]
     #[pyo3(signature = (order=2))]
     fn no_interdependence(order: usize) -> PyResult<Self> {
@@ -114,7 +115,7 @@ impl PySolveMode {
 
     /// Parse a canonical string (e.g. `"standard"`, `"no-chain-3"`, `"no-interdependence-2"`).
     ///
-    /// `"no-chain"` and `"no-interdependence"` both accept a `"-n"` suffix to specify the minimum chain length or interdependence order.
+    /// `"no-chain"` and `"no-interdependence"` both accept a `"-n"` suffix to specify the minimum chain length or the exact interdependence order.
     /// Note that `"no-chain"` and `"no-interdependence"` are aliases for `"no-chain-2"` and `"no-interdependence-2"` respectively.
     #[staticmethod]
     #[pyo3(name = "from_str")]

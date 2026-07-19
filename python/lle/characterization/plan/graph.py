@@ -47,9 +47,9 @@ class AgentVertex:
     layers: tuple[TimeLayer, ...] = ()
 
 
-class TemporalDependencyGraph:
+class TemporalCooperationGraph:
     """
-    A Temporal Dependency Graph represents the help dependencies between agents
+    A Temporal Cooperation Graph (TCG) represents the help dependencies between agents
     over time.
 
     Layers are grouped by helper, then by time, and beneficiaries in each
@@ -110,7 +110,7 @@ class TemporalDependencyGraph:
             world.step(joint_action)
             for helper, beneficiary in detect_dependencies(world):
                 edges.append(DependencyEdge(helper, beneficiary, t))
-        return TemporalDependencyGraph(edges)
+        return TemporalCooperationGraph(edges)
 
     @property
     def edges(self):
@@ -292,12 +292,179 @@ class TemporalDependencyGraph:
 
         return best
 
+    @staticmethod
+    def _max_closed_trail_length(order: int) -> int:
+        """
+        Return the irreducible closed-trail edge bound for an exact support order.
+
+        @ai-generated
+        """
+        half_order = order // 2
+        if order % 2 == 0:
+            return half_order * (half_order + 1)
+        return (half_order + 1) * (half_order + 1)
+
+    def closed_trail_of_order(self, order: int) -> list[DependencyEdge]:
+        """
+        Return one non-decreasing temporal closed trail with exactly `order` agents.
+
+        Agents and static help arcs may recur. A static arc may recur only at a
+        later timestamp, so the search tracks arcs used in the current time
+        layer and resets that set whenever time advances.
+
+        @ai-generated
+        """
+        if order < 2 or order > len(self.vertices):
+            return []
+
+        max_depth = self._max_closed_trail_length(order)
+        first_time = self._sorted_edges[0].t
+
+        def dfs(
+            anchor: AgentId,
+            current: AgentId,
+            min_t: int | None,
+            visited_agents: frozenset[AgentId],
+            current_time_arcs: frozenset[tuple[AgentId, AgentId]],
+            depth: int,
+            path: tuple[DependencyEdge, ...],
+        ) -> tuple[DependencyEdge, ...] | None:
+            """
+            Find an exact-support closed trail below one chronological state.
+
+            @ai-generated
+            """
+            if depth == max_depth:
+                return None
+
+            for edge in self._edge_ids_after(current, min_t if min_t is not None else first_time):
+                candidate = self._sorted_edges[edge]
+                if candidate.helper == candidate.beneficiary:
+                    continue
+                static_arc = (candidate.helper, candidate.beneficiary)
+                if candidate.t == min_t:
+                    if static_arc in current_time_arcs:
+                        continue
+                    next_time_arcs = current_time_arcs | {static_arc}
+                else:
+                    next_time_arcs = frozenset({static_arc})
+
+                next_visited = visited_agents | {candidate.beneficiary}
+                if len(next_visited) > order:
+                    continue
+                next_path = (*path, candidate)
+                if candidate.beneficiary == anchor and len(next_visited) == order:
+                    return next_path
+
+                found = dfs(
+                    anchor,
+                    candidate.beneficiary,
+                    candidate.t,
+                    next_visited,
+                    next_time_arcs,
+                    depth + 1,
+                    next_path,
+                )
+                if found is not None:
+                    return found
+            return None
+
+        for anchor in self.vertices:
+            found = dfs(anchor, anchor, None, frozenset({anchor}), frozenset(), 0, ())
+            if found is not None:
+                return list(found)
+        return []
+
+    def has_closed_trail_of_order(self, order: int) -> bool:
+        """
+        Return whether an exact-support temporal closed trail of `order` agents exists.
+
+        @ai-generated
+        """
+        return bool(self.closed_trail_of_order(order))
+
+    def closed_trail_orders(self) -> frozenset[int]:
+        """
+        Return every exact support order realized by a temporal closed trail.
+
+        @ai-generated
+        """
+        return frozenset(order for order in range(2, len(self.vertices) + 1) if self.has_closed_trail_of_order(order))
+
+    def interdependence_order(self) -> int:
+        """
+        Return the largest exact closed-trail support order, or `0` when absent.
+
+        @ai-generated
+        """
+        return max(self.closed_trail_orders(), default=0)
+
+    def longest_closed_trail(self) -> list[DependencyEdge]:
+        """
+        Return a longest non-decreasing temporal closed trail.
+
+        Unlike exact-order recognition, this diagnostic method is bounded by
+        the finite temporal-edge set rather than the irreducible witness bound,
+        so it preserves redundant edges in a concrete trajectory.
+
+        @ai-generated
+        """
+        best: tuple[DependencyEdge, ...] = ()
+        if not self._sorted_edges:
+            return []
+        first_time = self._sorted_edges[0].t
+
+        def dfs(
+            anchor: AgentId,
+            current: AgentId,
+            min_t: int | None,
+            current_time_arcs: frozenset[tuple[AgentId, AgentId]],
+            path: tuple[DependencyEdge, ...],
+        ) -> None:
+            """
+            Explore all finite temporal closed trails rooted at one agent.
+
+            @ai-generated
+            """
+            nonlocal best
+            if len(path) == len(self._sorted_edges):
+                return
+
+            for edge_id in self._edge_ids_after(current, min_t if min_t is not None else first_time):
+                candidate = self._sorted_edges[edge_id]
+                if candidate.helper == candidate.beneficiary:
+                    continue
+                static_arc = (candidate.helper, candidate.beneficiary)
+                if candidate.t == min_t:
+                    if static_arc in current_time_arcs:
+                        continue
+                    next_time_arcs = current_time_arcs | {static_arc}
+                else:
+                    next_time_arcs = frozenset({static_arc})
+
+                next_path = (*path, candidate)
+                if candidate.beneficiary == anchor and len(next_path) > len(best):
+                    best = next_path
+                dfs(anchor, candidate.beneficiary, candidate.t, next_time_arcs, next_path)
+
+        for anchor in self.vertices:
+            dfs(anchor, anchor, None, frozenset(), ())
+        return list(best)
+
     def longest_cycle_order(self):
-        """Return the largest simple temporal cycle order, or `0` if none exists."""
+        """
+        Return the largest legacy simple temporal cycle order, or `0` if none exists.
+
+        @ai-generated
+        """
         return len(self.longest_cycle())
 
     def has_cycle(self):
-        """Return whether a help cycle exists."""
+        """
+        Return whether a legacy simple help cycle exists.
+
+        @ai-generated
+        """
         return self.longest_cycle_order() >= 2
 
     def profile(self):
@@ -308,4 +475,4 @@ class TemporalDependencyGraph:
 
     @staticmethod
     def empty():
-        return TemporalDependencyGraph([])
+        return TemporalCooperationGraph([])

@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import pytest
-from lle.characterization.plan.graph import DependencyEdge, TemporalDependencyGraph
+from lle.characterization.plan.graph import DependencyEdge, TemporalCooperationGraph
 
 
 @pytest.fixture
 def single_edge_graph():
     """A simple graph with one dependency: agent 0 helps agent 1 at t=2."""
     edges = [DependencyEdge(helper=0, beneficiary=1, t=2)]
-    return TemporalDependencyGraph(edges)
+    return TemporalCooperationGraph(edges)
 
 
 @pytest.fixture
@@ -19,7 +19,7 @@ def linear_chain_graph():
         DependencyEdge(helper=1, beneficiary=2, t=2),
         DependencyEdge(helper=2, beneficiary=3, t=3),
     ]
-    return TemporalDependencyGraph(edges)
+    return TemporalCooperationGraph(edges)
 
 
 @pytest.fixture
@@ -30,7 +30,7 @@ def branching_graph():
         DependencyEdge(helper=0, beneficiary=2, t=1),
         DependencyEdge(helper=0, beneficiary=3, t=1),
     ]
-    return TemporalDependencyGraph(edges)
+    return TemporalCooperationGraph(edges)
 
 
 @pytest.fixture
@@ -41,7 +41,7 @@ def converging_graph():
         DependencyEdge(helper=2, beneficiary=0, t=1),
         DependencyEdge(helper=3, beneficiary=0, t=1),
     ]
-    return TemporalDependencyGraph(edges)
+    return TemporalCooperationGraph(edges)
 
 
 @pytest.fixture
@@ -52,7 +52,7 @@ def temporal_cycle_graph():
         DependencyEdge(helper=1, beneficiary=2, t=2),
         DependencyEdge(helper=2, beneficiary=0, t=3),
     ]
-    return TemporalDependencyGraph(edges)
+    return TemporalCooperationGraph(edges)
 
 
 @pytest.fixture
@@ -62,7 +62,7 @@ def static_cycle_graph():
         DependencyEdge(helper=0, beneficiary=1, t=1),
         DependencyEdge(helper=1, beneficiary=0, t=1),
     ]
-    return TemporalDependencyGraph(edges)
+    return TemporalCooperationGraph(edges)
 
 
 @pytest.fixture
@@ -74,7 +74,7 @@ def hamiltonian_cycle_graph():
         DependencyEdge(helper=2, beneficiary=3, t=3),
         DependencyEdge(helper=3, beneficiary=0, t=4),
     ]
-    return TemporalDependencyGraph(edges)
+    return TemporalCooperationGraph(edges)
 
 
 @pytest.fixture
@@ -88,7 +88,7 @@ def scc_3_agents():
         DependencyEdge(helper=0, beneficiary=2, t=5),
         DependencyEdge(helper=2, beneficiary=0, t=6),
     ]
-    return TemporalDependencyGraph(edges)
+    return TemporalCooperationGraph(edges)
 
 
 @pytest.fixture
@@ -98,7 +98,7 @@ def disconnected_graph():
         DependencyEdge(helper=0, beneficiary=1, t=1),
         DependencyEdge(helper=2, beneficiary=3, t=2),
     ]
-    return TemporalDependencyGraph(edges)
+    return TemporalCooperationGraph(edges)
 
 
 @pytest.fixture
@@ -109,17 +109,17 @@ def multi_time_same_edge():
         DependencyEdge(helper=0, beneficiary=1, t=3),
         DependencyEdge(helper=0, beneficiary=1, t=5),
     ]
-    return TemporalDependencyGraph(edges)
+    return TemporalCooperationGraph(edges)
 
 
 class TestBasicConstruction:
     """Test graph construction and basic property access."""
 
-    def test_non_empty_graph_not_independent(self, single_edge_graph: TemporalDependencyGraph):
+    def test_non_empty_graph_not_independent(self, single_edge_graph: TemporalCooperationGraph):
         """A graph with at least one edge is not independent."""
         assert not single_edge_graph.profile().is_independent
 
-    def test_edges_are_frozen(self, single_edge_graph: TemporalDependencyGraph):
+    def test_edges_are_frozen(self, single_edge_graph: TemporalCooperationGraph):
         """edges are immutable (frozenset)."""
         assert isinstance(single_edge_graph.edges, frozenset)
         with pytest.raises(AttributeError):
@@ -129,13 +129,13 @@ class TestBasicConstruction:
 class TestAccessors:
     """Test accessor methods for querying edges."""
 
-    def test_flattened_edges_collapses_time(self, multi_time_same_edge: TemporalDependencyGraph):
+    def test_flattened_edges_collapses_time(self, multi_time_same_edge: TemporalCooperationGraph):
         """flattened_edges collapses time dimension, removing duplicates."""
         flattened = multi_time_same_edge.flattened_edges()
         assert flattened == {(0, 1)}
         assert len(flattened) == 1
 
-    def test_flattened_edges_all_edges(self, branching_graph: TemporalDependencyGraph):
+    def test_flattened_edges_all_edges(self, branching_graph: TemporalCooperationGraph):
         """flattened_edges returns all distinct pairs."""
         flattened = branching_graph.flattened_edges()
         assert len(flattened) == 3
@@ -154,7 +154,7 @@ class TestLongestTrail:
             DependencyEdge(helper=1, beneficiary=2, t=2),
             DependencyEdge(helper=2, beneficiary=3, t=3),
         ]
-        graph = TemporalDependencyGraph(edges)
+        graph = TemporalCooperationGraph(edges)
         assert len(graph.longest_trail()) == 3
 
     def test_temporal_chain_same_time_two_edges(self):
@@ -163,7 +163,7 @@ class TestLongestTrail:
             DependencyEdge(helper=0, beneficiary=1, t=1),
             DependencyEdge(helper=1, beneficiary=2, t=1),
         ]
-        graph = TemporalDependencyGraph(edges)
+        graph = TemporalCooperationGraph(edges)
         assert len(graph.longest_trail()) == 2
 
     def test_temporal_chain_same_time(self):
@@ -173,7 +173,7 @@ class TestLongestTrail:
             DependencyEdge(helper=1, beneficiary=2, t=1),
             DependencyEdge(helper=2, beneficiary=3, t=1),
         ]
-        graph = TemporalDependencyGraph(edges)
+        graph = TemporalCooperationGraph(edges)
         assert len(graph.longest_trail()) == 3
 
     def test_temporal_chain_decreasing_times(self):
@@ -183,7 +183,7 @@ class TestLongestTrail:
             DependencyEdge(helper=1, beneficiary=2, t=2),
             DependencyEdge(helper=2, beneficiary=3, t=1),
         ]
-        graph = TemporalDependencyGraph(edges)
+        graph = TemporalCooperationGraph(edges)
         # Each edge is at a lower time than the previous, so no valid temporal chain of length >= 2
         assert len(graph.longest_trail()) == 1
 
@@ -194,7 +194,7 @@ class TestLongestTrail:
             DependencyEdge(helper=1, beneficiary=2, t=2),
             DependencyEdge(helper=2, beneficiary=3, t=1),
         ]
-        graph = TemporalDependencyGraph(edges)
+        graph = TemporalCooperationGraph(edges)
         # 0 -> 1 (t=0), 1 -> 2 (t=2): chain of length 2
         # 2 -> 3 (t=1) happens before 1 -> 2 (t=2), so cannot extend chain
         trail = graph.longest_trail()
@@ -210,7 +210,7 @@ class TestLongestTrail:
             DependencyEdge(helper=1, beneficiary=2, t=1),
             DependencyEdge(helper=2, beneficiary=3, t=1),
         ]
-        graph = TemporalDependencyGraph(edges)
+        graph = TemporalCooperationGraph(edges)
         trail = graph.longest_trail()
         assert len(trail) == 3
         for e in edges:
@@ -224,12 +224,12 @@ class TestLongestTrail:
             DependencyEdge(helper=0, beneficiary=3, t=1),
             DependencyEdge(helper=3, beneficiary=4, t=3),
         ]
-        graph = TemporalDependencyGraph(edges)
+        graph = TemporalCooperationGraph(edges)
         # Longest chain: 0 -> 1 -> 2 (length 2) or 0 -> 3 -> 4 (length 2)
         trail = graph.longest_trail()
         assert len(trail) == 2
 
-    def test_temporal_chain_hamiltonian_cycle(self, hamiltonian_cycle_graph: TemporalDependencyGraph):
+    def test_temporal_chain_hamiltonian_cycle(self, hamiltonian_cycle_graph: TemporalCooperationGraph):
         """A Hamiltonian cycle with strictly increasing times."""
         # 0 -> 1 (t=1), 1 -> 2 (t=2), 2 -> 3 (t=3), 3 -> 0 (t=4)
         # Longest temporal chain: 0 -> 1 -> 2 -> 3 -> 0 (length 4)
@@ -243,7 +243,7 @@ class TestLongestTrail:
             DependencyEdge(helper=1, beneficiary=0, t=2),
             DependencyEdge(helper=0, beneficiary=2, t=3),
         ]
-        graph = TemporalDependencyGraph(edges)
+        graph = TemporalCooperationGraph(edges)
         assert len(graph.longest_trail()) == 3
 
     def test_temporal_chain_may_not_revisit_same_edge(self):
@@ -253,7 +253,7 @@ class TestLongestTrail:
             DependencyEdge(helper=1, beneficiary=0, t=1),
             DependencyEdge(helper=1, beneficiary=2, t=3),
         ]
-        graph = TemporalDependencyGraph(edges)
+        graph = TemporalCooperationGraph(edges)
         assert len(graph.longest_trail()) == 3
 
     def test_three_agents_is_trail_of_length_2(self):
@@ -262,7 +262,7 @@ class TestLongestTrail:
             DependencyEdge(helper=0, beneficiary=1, t=1),
             DependencyEdge(helper=1, beneficiary=2, t=2),
         ]
-        graph = TemporalDependencyGraph(edges)
+        graph = TemporalCooperationGraph(edges)
         assert len(graph.longest_trail()) == 2
 
     def test_cycle_three_agents_returns_3(self):
@@ -273,7 +273,7 @@ class TestLongestTrail:
             DependencyEdge(helper=1, beneficiary=2, t=2),
             DependencyEdge(helper=2, beneficiary=0, t=3),
         ]
-        graph = TemporalDependencyGraph(edges)
+        graph = TemporalCooperationGraph(edges)
         assert len(graph.longest_trail()) == 3
         assert len(graph.longest_cycle()) == 3
 
@@ -285,7 +285,7 @@ class TestLongestTrail:
             DependencyEdge(1, 2, t=1),
             DependencyEdge(2, 0, t=3),
         ]
-        graph = TemporalDependencyGraph(edges)
+        graph = TemporalCooperationGraph(edges)
         assert len(graph.longest_trail()) == 3
         assert len(graph.longest_cycle()) == 3
 
@@ -296,7 +296,7 @@ class TestLongestTrail:
             DependencyEdge(helper=1, beneficiary=2, t=2),
             DependencyEdge(helper=2, beneficiary=3, t=3),
         ]
-        graph = TemporalDependencyGraph(edges)
+        graph = TemporalCooperationGraph(edges)
         assert len(graph.longest_trail()) == 3
 
     def test_branching_returns_0(self):
@@ -305,7 +305,7 @@ class TestLongestTrail:
             DependencyEdge(helper=0, beneficiary=1, t=1),
             DependencyEdge(helper=0, beneficiary=2, t=2),
         ]
-        graph = TemporalDependencyGraph(edges)
+        graph = TemporalCooperationGraph(edges)
         assert len(graph.longest_trail()) == 1
 
     def test_mutual_help_is_chain(self):
@@ -314,7 +314,7 @@ class TestLongestTrail:
             DependencyEdge(helper=0, beneficiary=1, t=1),
             DependencyEdge(helper=1, beneficiary=0, t=2),
         ]
-        graph = TemporalDependencyGraph(edges)
+        graph = TemporalCooperationGraph(edges)
         assert len(graph.longest_trail()) == 2
 
     def test_simultaneous_mutual_help_is_bounded_chain(self):
@@ -323,46 +323,46 @@ class TestLongestTrail:
             DependencyEdge(helper=0, beneficiary=1, t=1),
             DependencyEdge(helper=1, beneficiary=0, t=1),
         ]
-        graph = TemporalDependencyGraph(edges)
+        graph = TemporalCooperationGraph(edges)
         assert len(graph.longest_trail()) == 2
         assert graph.longest_cycle_order() == 2
 
     def test_independent_graph_returns_0(self):
         """Doc example: an independent graph returns 0."""
-        graph = TemporalDependencyGraph(edges=[])
+        graph = TemporalCooperationGraph(edges=[])
         assert len(graph.longest_trail()) == 0
 
 
 class TestTemporalCycleDetection:
     """Test has_cycle method."""
 
-    def test_temporal_cycle_single_edge(self, single_edge_graph: TemporalDependencyGraph):
+    def test_temporal_cycle_single_edge(self, single_edge_graph: TemporalCooperationGraph):
         """Single edge cannot form a cycle."""
         assert not single_edge_graph.has_cycle()
 
-    def test_temporal_cycle_linear_chain(self, linear_chain_graph: TemporalDependencyGraph):
+    def test_temporal_cycle_linear_chain(self, linear_chain_graph: TemporalCooperationGraph):
         """Linear chain has no cycle."""
         assert not linear_chain_graph.has_cycle()
 
-    def test_temporal_cycle_branching(self, branching_graph: TemporalDependencyGraph):
+    def test_temporal_cycle_branching(self, branching_graph: TemporalCooperationGraph):
         """Branching structure has no cycle."""
         assert not branching_graph.has_cycle()
 
-    def test_temporal_cycle_detected(self, temporal_cycle_graph: TemporalDependencyGraph):
+    def test_temporal_cycle_detected(self, temporal_cycle_graph: TemporalCooperationGraph):
         """Temporal cycle with strictly increasing time is detected."""
         # 0 -> 1 -> 2 -> 0 with t increasing
         assert temporal_cycle_graph.has_cycle()
 
-    def test_temporal_cycle_static_is_detected(self, static_cycle_graph: TemporalDependencyGraph):
+    def test_temporal_cycle_static_is_detected(self, static_cycle_graph: TemporalCooperationGraph):
         """Cycle at the same time step is a temporal cycle."""
         # 0 <-> 1 both at t=1: time is not strictly increasing
         assert static_cycle_graph.has_cycle()
 
-    def test_temporal_cycle_disconnected(self, disconnected_graph: TemporalDependencyGraph):
+    def test_temporal_cycle_disconnected(self, disconnected_graph: TemporalCooperationGraph):
         """No temporal cycle when components are separate."""
         assert not disconnected_graph.has_cycle()
 
-    def test_temporal_cycle_in_scc(self, scc_3_agents: TemporalDependencyGraph):
+    def test_temporal_cycle_in_scc(self, scc_3_agents: TemporalCooperationGraph):
         """SCC with backward edges may have temporal cycles."""
         # The test SCC has edges at different times that could form cycles
         # Actual result depends on edge ordering in fixture
@@ -375,7 +375,7 @@ class TestEdgeCases:
     def test_self_loop_not_in_flattened(self):
         """Self-loops (helper == beneficiary) should not normally occur but are handled."""
         edges = [DependencyEdge(helper=0, beneficiary=0, t=1)]
-        graph = TemporalDependencyGraph(edges)
+        graph = TemporalCooperationGraph(edges)
         # Self-loop is included in flattened_edges
         assert (0, 0) in graph.flattened_edges()
 
@@ -386,21 +386,21 @@ class TestEdgeCases:
             DependencyEdge(helper=0, beneficiary=1, t=1),  # Duplicate at same time
             DependencyEdge(helper=0, beneficiary=1, t=1),
         ]
-        graph = TemporalDependencyGraph(edges)
+        graph = TemporalCooperationGraph(edges)
         # Duplicates are collapsed to one edge in the frozenset
         assert len(graph.edges) == 1
 
     def test_many_edges(self):
         """Graph with many edges (stress test)."""
         edges = [DependencyEdge(helper=i % 5, beneficiary=(i + 1) % 5, t=i // 5) for i in range(1000)]
-        graph = TemporalDependencyGraph(edges)
+        graph = TemporalCooperationGraph(edges)
         assert len(graph.edges) <= 1000
         # The actual number may be less due to duplicate handling
 
     def test_negative_time_steps(self):
         """Graph can technically handle negative time (unusual but allowed)."""
         edges = [DependencyEdge(helper=0, beneficiary=1, t=-5)]
-        graph = TemporalDependencyGraph(edges)
+        graph = TemporalCooperationGraph(edges)
         assert (-5, (0, 1)) in {(e.t, (e.helper, e.beneficiary)) for e in graph.edges}
 
 
@@ -415,7 +415,7 @@ class TestRealWorldPatterns:
             DependencyEdge(helper=1, beneficiary=2, t=2),
             DependencyEdge(helper=2, beneficiary=3, t=3),
         ]
-        graph = TemporalDependencyGraph(edges)
+        graph = TemporalCooperationGraph(edges)
         assert len(graph.longest_trail()) == 3
         assert not graph.has_cycle()
 
@@ -427,7 +427,7 @@ class TestRealWorldPatterns:
             DependencyEdge(helper=0, beneficiary=3, t=1),
             DependencyEdge(helper=0, beneficiary=4, t=1),
         ]
-        graph = TemporalDependencyGraph(edges)
+        graph = TemporalCooperationGraph(edges)
         assert len(graph.longest_trail()) == 1
 
     def test_diamond_pattern(self):
@@ -438,7 +438,7 @@ class TestRealWorldPatterns:
             DependencyEdge(helper=1, beneficiary=3, t=2),
             DependencyEdge(helper=2, beneficiary=3, t=2),
         ]
-        graph = TemporalDependencyGraph(edges)
+        graph = TemporalCooperationGraph(edges)
         assert len(graph.longest_trail()) == 2
         assert not graph.has_cycle()
         assert graph.has_asymmetric_edge()  # Agent 0 helps asymmetrically
@@ -446,17 +446,85 @@ class TestRealWorldPatterns:
 
 def test_has_asymmetric_edge():
     edges = [DependencyEdge(helper=0, beneficiary=1, t=1)]
-    tdg = TemporalDependencyGraph(edges)
+    tdg = TemporalCooperationGraph(edges)
     assert tdg.has_asymmetric_edge()
 
     edges = [
         DependencyEdge(helper=0, beneficiary=1, t=1),
         DependencyEdge(helper=2, beneficiary=0, t=1),
     ]
-    tdg = TemporalDependencyGraph(edges)
+    tdg = TemporalCooperationGraph(edges)
     assert tdg.has_asymmetric_edge()
 
 
 def test_asymmetric_edges():
-    graph = TemporalDependencyGraph([DependencyEdge(0, 1, 2), DependencyEdge(1, 2, 3)])
+    graph = TemporalCooperationGraph([DependencyEdge(0, 1, 2), DependencyEdge(1, 2, 3)])
     assert graph.asymmetric_edges() == {(0, 1)}
+
+
+def test_cooperation_cycle():
+    """
+    A repeated-agent closed trail retains all seven edges and has support four.
+    """
+    tcg = TemporalCooperationGraph(
+        [
+            DependencyEdge(0, 1, 1),
+            DependencyEdge(1, 0, 2),
+            DependencyEdge(0, 2, 3),
+            DependencyEdge(2, 1, 4),
+            DependencyEdge(1, 0, 5),
+            DependencyEdge(0, 3, 6),
+            DependencyEdge(3, 0, 7),
+        ]
+    )
+
+    assert len(tcg.longest_closed_trail()) == 7
+    assert tcg.interdependence_order() == 4
+    assert tcg.closed_trail_orders() == frozenset({2, 3, 4})
+
+
+def test_closed_trail_exact_support_accepts_bowtie_and_double_petal():
+    """
+    Repeated-agent closed trails are recognized at their exact support order.
+    """
+    bowtie = TemporalCooperationGraph(
+        [
+            DependencyEdge(0, 1, 1),
+            DependencyEdge(1, 0, 2),
+            DependencyEdge(0, 2, 3),
+            DependencyEdge(2, 0, 4),
+        ]
+    )
+    double_petal = TemporalCooperationGraph(
+        [
+            DependencyEdge(0, 1, 1),
+            DependencyEdge(1, 2, 2),
+            DependencyEdge(2, 0, 3),
+            DependencyEdge(0, 1, 4),
+            DependencyEdge(1, 3, 5),
+            DependencyEdge(3, 0, 6),
+        ]
+    )
+
+    assert bowtie.has_closed_trail_of_order(3)
+    assert len(bowtie.closed_trail_of_order(3)) == 4
+    assert double_petal.has_closed_trail_of_order(4)
+    assert len(double_petal.closed_trail_of_order(4)) == 6
+
+
+def test_closed_trail_orders_do_not_infer_missing_exact_order_from_larger_ring():
+    """
+    A four-agent ring is threshold-interdependent at three but not exact-order three.
+    """
+    graph = TemporalCooperationGraph(
+        [
+            DependencyEdge(0, 1, 1),
+            DependencyEdge(1, 2, 2),
+            DependencyEdge(2, 3, 3),
+            DependencyEdge(3, 0, 4),
+        ]
+    )
+
+    assert graph.closed_trail_orders() == frozenset({4})
+    assert graph.has_closed_trail_of_order(4)
+    assert not graph.has_closed_trail_of_order(3)

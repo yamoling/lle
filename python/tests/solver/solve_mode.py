@@ -5,7 +5,10 @@ from lle.solver import SolveMode, SolveModeLiteral
 
 
 def test_rust_solve_mode_rejects_invalid_lengths():
-    for bad in ("no-chain-1", "no-chain-0", "no-chain-x", "no-interdependence-1", "bogus"):
+    prefixes = ["no-chain", "no-interdependence"]
+    suffixes = ["-1", "-0", "-x"]
+    combinations = [f"{p}{s}" for p in prefixes for s in suffixes] + ["bogus"]
+    for bad in combinations:
         with pytest.raises(ValueError):
             SolveMode.from_str(bad)
     with pytest.raises(ValueError):

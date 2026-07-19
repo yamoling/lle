@@ -3,6 +3,7 @@ mod chains;
 mod clause_engine;
 mod cooperation;
 mod gems;
+mod interdependence;
 mod lasers;
 mod movement;
 mod utils;

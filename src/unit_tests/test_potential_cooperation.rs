@@ -590,6 +590,68 @@ fn trails_ending_at_matches_full_enumeration() {
     }
 }
 
+/// Per-step cycle enumeration partitions full enumeration by the closing edge time.
+///
+/// @ai-generated
+#[test]
+fn cycles_ending_at_matches_full_enumeration() {
+    let graphs = [
+        graph_from(2, &[&[(0, 1)], &[(1, 0)]]),
+        graph_from(2, &[&[(0, 1), (1, 0)]]),
+        graph_from(3, &[&[(0, 1), (1, 2), (2, 0)]]),
+        graph_from(3, &[&[(0, 1)], &[(1, 2)], &[(2, 0)]]),
+        graph_from(3, &[&[(0, 1), (0, 2)], &[(1, 2), (2, 1), (1, 0)]]),
+    ];
+
+    for graph in graphs {
+        for length in 2..=3 {
+            let full = graph
+                .enumerate_cycles_of_length(length)
+                .into_iter()
+                .collect::<HashSet<_>>();
+            let partitioned = (0..=graph.horizon())
+                .flat_map(|t| graph.enumerate_cycles_ending_at(length, t))
+                .collect::<HashSet<_>>();
+            assert_eq!(partitioned, full);
+        }
+    }
+}
+
+/// Ending-at cycle enumeration rejects degenerate lengths and orders above the agent count, and
+/// only reports cycles whose closing edge occurs exactly at the requested step.
+///
+/// @ai-generated
+#[test]
+fn cycles_ending_at_handles_edge_cases() {
+    let mutual = graph_from(2, &[&[(0, 1)], &[(1, 0)]]);
+    assert!(mutual.enumerate_cycles_ending_at(0, 1).is_empty());
+    assert!(mutual.enumerate_cycles_ending_at(1, 1).is_empty());
+    assert!(mutual.enumerate_cycles_ending_at(3, 1).is_empty());
+    assert!(mutual.enumerate_cycles_ending_at(2, 0).is_empty());
+    let cycles = mutual.enumerate_cycles_ending_at(2, 1);
+    assert_eq!(cycles.len(), 1);
+    assert_eq!(
+        cycles[0],
+        vec![
+            PotentialHelpEdge {
+                helper: 0,
+                beneficiary: 1,
+                t: 0
+            },
+            PotentialHelpEdge {
+                helper: 1,
+                beneficiary: 0,
+                t: 1
+            },
+        ]
+    );
+
+    // A simultaneous 3-ring yields its three rotations, all closing at the same step.
+    let ring = graph_from(3, &[&[(0, 1), (1, 2), (2, 0)]]);
+    assert_eq!(ring.enumerate_cycles_ending_at(3, 0).len(), 3);
+    assert!(ring.enumerate_cycles_ending_at(2, 0).is_empty());
+}
+
 /// Ending-at enumeration supports simultaneous edges, repeated agents, and rejects length zero.
 ///
 /// @ai-generated

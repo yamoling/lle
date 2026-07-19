@@ -1,8 +1,8 @@
-from .graph import TemporalDependencyGraph
+from .graph import TemporalCooperationGraph
 
 
 class PlanProfile:
-    def __init__(self, graph: TemporalDependencyGraph) -> None:
+    def __init__(self, graph: TemporalCooperationGraph) -> None:
         self.graph = graph
 
     @property
@@ -21,9 +21,11 @@ class PlanProfile:
     @property
     def is_mutual(self):
         """
-        Whether the trajectory exhibits mutual help, i.e. help(a, b) and help(b, a).
+        Whether the trajectory exhibits exact-order-two mutual help.
+
+        @ai-generated
         """
-        return self.is_interdependent(2)
+        return self.is_interdependent_exactly(2)
 
     def is_chained(self, length: int = 2):
         """Whether the trajectory exhibits a cooperation chain of at least `length` help edges.
@@ -58,11 +60,31 @@ class PlanProfile:
         return self.graph.longest_trail_length() >= length
 
     def interdependence_order(self) -> int:
-        """The order of the largest temporal cycle in this trajectory (0 if none)."""
-        return self.graph.longest_cycle_order()
+        """
+        Return the greatest support size of a temporal closed trail, or `0`.
+
+        @ai-generated
+        """
+        return self.graph.interdependence_order()
+
+    def is_interdependent_exactly(self, n_agents: int = 2) -> bool:
+        """
+        Return whether an exact-support closed trail contains exactly `n_agents` agents.
+
+        This exact-order predicate matches `SolveMode.no_interdependence`. It
+        is deliberately not monotone across orders.
+
+        @ai-generated
+        """
+        return self.graph.has_closed_trail_of_order(n_agents)
 
     def is_interdependent(self, n_agents: int = 2) -> bool:
         """
-        Whether this trajectory's dependency graph contains a cycle of length >= `n_agents`.
+        Return whether any closed trail has support at least `n_agents`.
+
+        This legacy threshold query is retained for compatibility. Use
+        `is_interdependent_exactly` for the non-monotone exact-order contract.
+
+        @ai-generated
         """
-        return self.graph.longest_cycle_order() >= n_agents
+        return self.interdependence_order() >= n_agents
