@@ -97,8 +97,9 @@ class SolveMode:
     - `no_chain(length=2)` — rules out plans containing a non-decreasing-time temporal chain of
       `length` help edges or more (`a → b → c` is a chain of length 2).
     - `no_interdependence(order=2)` — rules out plans whose dependency graph contains a temporal
-      cycle visiting exactly `order` distinct agents; cycles of other orders remain allowed.
-      `no_interdependence(2)` coincides with `no_mutual()`.
+      closed trail with exactly `order` distinct agents. Timestamps are non-decreasing; agents and
+      static arcs may repeat at later times, but temporal edges may not repeat. Other exact orders
+      remain allowed. `no_interdependence(2)` coincides with `no_mutual()`.
     
     ```python
     from lle.solver.clauses import ClauseGenerator, SolveMode
@@ -148,7 +149,7 @@ class SolveMode:
     @staticmethod
     def no_interdependence(order: builtins.int = 2) -> SolveMode:
         r"""
-        Forbid any temporal cycle visiting exactly `order` distinct agents. `order` must be `>= 2`.
+        Forbid any temporal closed trail with exactly `order` distinct agents. `order` must be `>= 2`.
         """
     @staticmethod
     def from_str(value: typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-chain', 'no-interdependence'] | builtins.str) -> SolveMode:

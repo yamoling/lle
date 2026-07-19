@@ -14,11 +14,12 @@ pub enum SolveMode {
     /// may be equal, so simultaneous help events can form or extend chains. The wrapped value is
     /// that minimal rejected length `n >= 2`.
     NoChainedCooperation(usize),
-    /// No temporal cycle of order exactly `n` may appear in the dependency graph of any solution.
-    /// A temporal cycle of order `k` visits `k` distinct agents and closes back to the start with
-    /// non-decreasing timestamps. Cycles of other orders remain allowed: a plan whose only cycle
-    /// has order `n + 1` satisfies `NoInterdependence(n)`. The wrapped value is that rejected
-    /// order `n >= 2`; `NoInterdependence(2)` coincides with the absence of mutual cooperation.
+    /// No temporal closed trail with exactly `n` distinct agents may appear in the dependency
+    /// graph of any solution. Its timestamps are non-decreasing, agents and static arcs may repeat,
+    /// but no temporal edge may repeat. Other exact orders remain allowed: a plan whose only
+    /// closed trail has order `n + 1` satisfies `NoInterdependence(n)`. The wrapped value is the
+    /// rejected order `n >= 2`; `NoInterdependence(2)` coincides with the absence of mutual
+    /// cooperation.
     NoInterdependence(usize),
 }
 
