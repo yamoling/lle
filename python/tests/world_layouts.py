@@ -143,10 +143,7 @@ def expect_for(
     chained: dict[int, bool] | None = None,
     interdependent: dict[int, bool] | None = None,
 ) -> tuple[Expectation, ...]:
-    """Declare the same property matrix for several horizons.
-
-    @ai-generated
-    """
+    """Declare the same property matrix for several horizons."""
     return tuple(
         expect(
             t_max,
@@ -723,45 +720,39 @@ LAYOUTS_BY_NAME = {layout.name: layout for layout in ALL_LAYOUTS}
 
 def scalar_cases_for(name: ScalarPropertyName):
     """Return every explicit expectation for a scalar property."""
-    return tuple(
+    return [
         ScalarPropertyCase(layout, expectation.t_max, expected)
         for layout in ALL_LAYOUTS
         for expectation in layout.expectations
         if (expected := getattr(expectation.properties, name)) is not None
-    )
+    ]
 
 
-def chained_cases() -> tuple[ChainedCase, ...]:
+def chained_cases():
     """Return every explicit chain-length expectation."""
-    return tuple(
+    return [
         ChainedCase(layout, expectation.t_max, expected, length)
         for layout in ALL_LAYOUTS
         for expectation in layout.expectations
         for length, expected in expectation.properties.chained.items()
-    )
+    ]
 
 
-def distributed_cases() -> tuple[DistributedCase, ...]:
-    """Return every explicit distributed-order expectation.
-
-    @ai-generated
-    """
-    return tuple(
+def distributed_cases():
+    """Return every explicit distributed-order expectation."""
+    return [
         DistributedCase(layout, expectation.t_max, expected, order)
         for layout in ALL_LAYOUTS
         for expectation in layout.expectations
         for order, expected in expectation.properties.distributed.items()
-    )
+    ]
 
 
-def interdependent_cases() -> tuple[InterdependentCase, ...]:
-    """Return every explicit interdependence-order expectation.
-
-    @ai-generated
-    """
-    return tuple(
+def interdependent_cases():
+    """Return every explicit interdependence-order expectation."""
+    return [
         InterdependentCase(layout, expectation.t_max, expected, order)
         for layout in ALL_LAYOUTS
         for expectation in layout.expectations
         for order, expected in expectation.properties.interdependent.items()
-    )
+    ]
