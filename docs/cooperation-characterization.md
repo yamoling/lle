@@ -247,27 +247,27 @@ This example illustrates a three-agent cyclic dependency, where the help relatio
 
 ### Trajectory-level
 
-Interdependence is a temporal cycle in the dependency graph. A cycle of order `K` visits `K` distinct agents and returns to the start with non-decreasing timestamps:
+Interdependence is an exact-support temporal closed trail in the dependency graph. A witness of order `K` visits exactly `K` distinct agents and returns to its start with non-decreasing timestamps. Agents and static arcs may repeat, provided a concrete temporal edge `(helper, beneficiary, time)` is not reused:
 
 ```text
-a -> b -> c -> a
+a -> b -> a -> c -> a
 ```
 
-`TrajectoryProfile.interdependence_order()` returns the largest temporal cycle order, or `0` if none exists.
+`TrajectoryProfile.interdependence_order()` returns the largest realized support order, or `0` if none exists. `TrajectoryProfile.is_interdependent_exactly(n_agents=K)` checks one exact order, while the compatibility predicate `is_interdependent(n_agents=K)` remains a threshold query.
 
-`TrajectoryProfile.is_interdependent(n_agents=2)` is true when the largest temporal cycle order is at least `n_agents`.
+Exact orders are not monotone: an order-4 ring need not contain an order-3 closed trail.
 
 ### World-level
 
 A world requires interdependence of order exactly `N` when:
 
 1. it is solvable;
-2. the shortest standard solution contains a temporal cycle of order `>= N`; and
+2. the shortest standard solution contains a temporal closed trail of exact order `N`; and
 3. no solution exists under `mode=f"no-interdependence-{N}"`.
 
 `N` must be at least `2`. The bare mode string `"no-interdependence"` is canonical shorthand for `"no-interdependence-2"`.
 
-The solver mode blocks every candidate temporal cycle that visits exactly `N` distinct agents. Cycles of other orders remain allowed: unlike a longer chain, a cycle of order `N + 1` does not necessarily contain a cycle of order `N`. An UNSAT result also implies that no independent solution or chain-free solution of length `N` exists, because every order-`N` cycle is a chain of length `N`.
+The solver mode blocks every candidate temporal closed trail with exactly `N` distinct agents. Trails of other exact orders remain allowed, and no monotone inference is valid across orders. An order-`N` closed trail is a chain, but it can contain more than `N` edges because agents may repeat.
 
 ## Shortcuts and equivalences
 
@@ -305,14 +305,9 @@ only occur across laser beams and there are at most `n_lasers` beam types.
 
 Interdependence has a separate structural bound: only agents that own at least one laser can be helpers in help edges, so a cycle of order greater than the number of laser-owning agents cannot occur.
 
-### Monotone cache shortcuts
+### Cache shortcuts
 
-For chain and interdependence queries, the implementation caches SAT results by requested length/order and uses monotonicity:
-
-- If a non-chained solution exists for a smaller or equal length, then a non-chained solution also exists for any larger length. Avoiding short chains is stricter than avoiding long chains.
-- If no non-chained solution exists for a larger or equal length, then no non-chained solution exists for any smaller length. Requiring a longer chain implies requiring all shorter thresholds.
-
-The same monotone reasoning is used for interdependence orders.
+Chain queries use monotonicity: avoiding shorter chains is stricter than avoiding longer ones. Exact interdependence orders are different: each order is cached and proved independently because an order-`N + 1` closed trail need not contain any order-`N` closed trail.
 
 ### Mutual help, chains, and cycles
 
@@ -322,17 +317,17 @@ Mutual help between two agents, `a -> b` and `b -> a`, is a chain of length `2` 
 a -> b -> a
 ```
 
-It is also a temporal cycle of order `2` when the two edges can be ordered with non-decreasing timestamps, which is the temporal rule used by interdependence.
+It is also a temporal closed trail of exact order `2` when the two edges can be ordered with non-decreasing timestamps, which is the temporal rule used by interdependence.
 
 Important distinctions:
 
 - `is_mutual` is computed on flattened edges and does not itself require a time ordering.
 - `is_chained(2)` requires a temporal walk of two edges with non-decreasing timestamps.
-- `is_interdependent(2)` requires a temporal cycle of order `2` under non-decreasing timestamps.
+- `is_interdependent_exactly(2)` requires a temporal closed trail of exact order `2` under non-decreasing timestamps.
 
 ### Chained cooperation and interdependence are separate
 
-A temporal cycle of order `N` is also a chain of length `N`, but interdependence requires a cycle over distinct agents while chained cooperation also includes open walks, lassos, and repeated agents/lasers. The implementation still keeps the encodings separate because the two properties ask for different structures.
+A temporal closed trail of exact order `N` is also a chain, but it may have more than `N` edges because interdependence permits repeated agents and static arcs at later times. Chained cooperation also includes open walks and lassos. The implementation keeps the encodings separate because the two properties ask for different structures.
 
 An open chain can be required without any cycle. For example, `a -> b -> c` is chained but not interdependent.
 
