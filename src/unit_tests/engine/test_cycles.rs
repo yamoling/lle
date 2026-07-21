@@ -35,13 +35,39 @@ fn interdependence_clauses_use_private_progress_states() {
         .flat_map(|t| engine.generate_interdependence_clauses(t, 2))
         .collect::<Vec<_>>();
     assert!(!clauses.is_empty());
-    assert!(clauses.iter().any(|clause| clause.len() == 1));
     assert!(clauses.iter().flatten().all(|literal| {
         matches!(
             engine.pool.key(literal.unsigned_abs() as i32),
             Some(VarKey::InterdependenceProgress { .. }) | Some(VarKey::Help { .. })
         )
     }));
+}
+
+/// Completed interdependence patterns are blocked directly without final progress variables.
+///
+/// @ai-generated
+#[test]
+fn interdependence_clauses_omit_final_progress_states() {
+    let t_max = 3;
+    let order = 2;
+    let mut engine = cycle_engine(t_max);
+    let patterns = engine.interdependence_patterns(order);
+    for t in 0..=t_max {
+        engine.generate_movement_clauses(t);
+        engine.generate_help_clauses(t);
+        engine.generate_interdependence_clauses(t, order);
+    }
+
+    for (pattern, definition) in patterns.iter().enumerate() {
+        for t in 0..=t_max {
+            assert!(!engine.pool.exists(&VarKey::InterdependenceProgress {
+                order,
+                pattern,
+                prefix_len: definition.arcs.len(),
+                t,
+            }));
+        }
+    }
 }
 
 /// Impossible static arcs omit their transitions instead of requiring a help literal.

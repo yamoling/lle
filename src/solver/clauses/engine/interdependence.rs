@@ -5,9 +5,11 @@ impl ClauseEngine {
     ///
     /// @ai-generated
     ///
-    /// The private auxiliary states encode greedy timestamp realizability for every static,
-    /// deletion-irreducible rooted pattern. This one-sided (a-most one) Horn encoding is intentionally
-    /// suitable only for `NoInterdependence`: a completed reachable prefix is forbidden at every horizon.
+    /// The private auxiliary states encode greedy timestamp realizability for every proper prefix of
+    /// each static, deletion-irreducible rooted pattern. The final transition is emitted directly as a
+    /// blocking clause instead of allocating a progress state that would immediately be forced false.
+    /// This one-sided (at-most-one) Horn encoding is intentionally suitable only for
+    /// `NoInterdependence`: a completed reachable prefix is forbidden at every horizon.
     pub fn generate_interdependence_clauses(&mut self, t: usize, order: usize) -> Vec<Clause> {
         self.ctx.update(t);
         let patterns = self.interdependence_patterns(order);
@@ -17,14 +19,20 @@ impl ClauseEngine {
             let pattern_len = pattern.arcs.len();
             for (arc_index, arc) in pattern.arcs.iter().enumerate() {
                 let prefix_len = arc_index + 1;
-                let progress =
-                    self.pool
-                        .interdependence_progress(order, pattern_index, prefix_len, t);
-                if t > 0 {
-                    let previous_time =
+                let is_complete = prefix_len == pattern_len;
+                if !is_complete {
+                    let progress =
                         self.pool
-                            .interdependence_progress(order, pattern_index, prefix_len, t - 1);
-                    clauses.push(vec![-previous_time, progress]);
+                            .interdependence_progress(order, pattern_index, prefix_len, t);
+                    if t > 0 {
+                        let previous_time = self.pool.interdependence_progress(
+                            order,
+                            pattern_index,
+                            prefix_len,
+                            t - 1,
+                        );
+                        clauses.push(vec![-previous_time, progress]);
+                    }
                 }
 
                 let Some(help) = self.pool.get(&VarKey::Help {
@@ -54,13 +62,16 @@ impl ClauseEngine {
                         t - 1,
                     ));
                 }
-                transition.push(progress);
+                if !is_complete {
+                    transition.push(self.pool.interdependence_progress(
+                        order,
+                        pattern_index,
+                        prefix_len,
+                        t,
+                    ));
+                }
                 clauses.push(transition);
             }
-            let complete = self
-                .pool
-                .interdependence_progress(order, pattern_index, pattern_len, t);
-            clauses.push(vec![-complete]);
         }
         clauses
     }
