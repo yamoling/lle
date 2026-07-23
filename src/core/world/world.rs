@@ -325,7 +325,7 @@ impl World {
     fn compute_available_actions(&self) -> Vec<Vec<Action>> {
         let mut available_actions = vec![];
         for (agent, agent_pos) in izip!(&self.agents, &self.agents_positions) {
-            let mut agent_actions = vec![Action::Stay];
+            let mut agent_actions = vec![Action::Stay, Action::Trigger];
             if agent.is_alive() && !agent.has_arrived() {
                 for action in [Action::North, Action::East, Action::South, Action::West] {
                     if let Ok(pos) = &action + agent_pos {
@@ -413,6 +413,77 @@ impl World {
         self.available_actions = self.compute_available_actions();
     }
 
+    fn trigger_environment_actions(&mut self, actions: &[Action]) -> Vec<usize> {
+        let trigger_positions: Vec<Position> = izip!(actions, &self.agents, &self.agents_positions)
+            .filter(|(action, agent, _)| **action == Action::Trigger && agent.is_alive())
+            .map(|(_, _, pos)| *pos)
+            .collect();
+
+        let mut triggered_groups = vec![];
+        for pos in trigger_positions {
+            if let Some(tile) = self.at_mut(&pos) {
+                if let Some(group_id) = tile.actuate() {
+                    if !triggered_groups.contains(&group_id) {
+                        triggered_groups.push(group_id);
+                    }
+                }
+            }
+        }
+        triggered_groups
+    }
+
+    /// Pulse every `Lift` sharing one of `group_ids`.
+    fn notify_lift_groups(&self, group_ids: &[usize]) {
+        for (_, tile) in self.tiles() {
+            if let Tile::Lift(lift) = tile {
+                if group_ids.contains(&lift.group_id()) {
+                    lift.notify();
+                }
+            }
+        }
+    }
+
+    /// Consume every lift's pulse flag and compute the (agent, destination)
+    /// relocation it causes, if any. A lift with no occupant, an
+    /// out-of-bounds destination, or a non-walkable destination simply does
+    /// nothing this tick.
+    fn resolve_lift_moves(&self) -> Vec<(AgentId, Position)> {
+        let mut moves = vec![];
+        for (pos, tile) in self.tiles() {
+            if let Tile::Lift(lift) = tile {
+                if !lift.take_triggered() {
+                    continue;
+                }
+                let Some(agent_id) = lift.agent() else {
+                    continue;
+                };
+                let Ok(dest) = lift.destination(pos) else {
+                    continue;
+                };
+                if matches!(self.at(&dest), Some(t) if t.is_walkable()) {
+                    moves.push((agent_id, dest));
+                }
+            }
+        }
+        moves
+    }
+
+    /// Assign `new_positions`, run the leave/pre_enter/enter dance, and keep
+    /// re-resolving while a death is still cascading.
+    fn resolve_move(
+        &mut self,
+        new_positions: Vec<Position>,
+    ) -> Result<Vec<WorldEvent>, RuntimeWorldError> {
+        let (mut events, mut agent_died) = self.move_agents(&new_positions)?;
+        self.agents_positions = new_positions.clone();
+        while agent_died {
+            let (additional_events, died_again) = self.move_agents(&new_positions)?;
+            events.extend(additional_events);
+            agent_died = died_again;
+        }
+        Ok(events)
+    }
+
     /// Perform one step in the environment and return the corresponding reward.
     pub fn step(&mut self, actions: &[Action]) -> Result<Vec<WorldEvent>, RuntimeWorldError> {
         if self.n_agents() != actions.len() {
@@ -433,7 +504,11 @@ impl World {
                 });
             }
         }
-        let mut new_positions = self
+
+        // Positions are computed in two passes:
+        // - first: the natural movement of the agents according to their actions
+        // - second: environment-triggered movement (lifts pulsed by a button press)
+        let mut first_pass_positions = self
             .agents_positions
             .iter()
             .zip(actions)
@@ -442,16 +517,26 @@ impl World {
 
         // Check for vertex conflicts
         // If a new_pos occurs more than once, then set it back to its original position
-        World::solve_vertex_conflicts(&mut new_positions, &self.agents_positions);
-        let (mut events, mut agent_died) = self.move_agents(&new_positions)?;
-        self.agents_positions = new_positions.clone();
-        // At this stage, all agents are on their new positions.
-        // However, some events (death) could still happen if an agent has died.
-        while agent_died {
-            let (additional_events, died2) = self.move_agents(&new_positions)?;
-            events = [events, additional_events].concat();
-            agent_died = died2;
+        World::solve_vertex_conflicts(&mut first_pass_positions, &self.agents_positions);
+        let mut events = self.resolve_move(first_pass_positions)?;
+
+        // Trigger phase: actuate whatever tile every `Trigger`-ing agent stands on.
+        let triggered_groups = self.trigger_environment_actions(actions);
+
+        // Pass 2: lift-driven movement, only if something was actually pressed.
+        if !triggered_groups.is_empty() {
+            self.notify_lift_groups(&triggered_groups);
+            let lift_moves = self.resolve_lift_moves();
+            if !lift_moves.is_empty() {
+                let mut second_pass_positions = self.agents_positions.clone();
+                for (agent_id, dest) in lift_moves {
+                    second_pass_positions[agent_id] = dest;
+                }
+                World::solve_vertex_conflicts(&mut second_pass_positions, &self.agents_positions);
+                events.extend(self.resolve_move(second_pass_positions)?);
+            }
         }
+
         self.available_actions = self.compute_available_actions();
         Ok(events)
     }

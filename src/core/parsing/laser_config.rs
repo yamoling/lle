@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::{
-    tiles::{Direction, LaserBeam, LaserId, LaserSource},
+    tiles::{CardinalDirection, LaserBeam, LaserId, LaserSource},
     AgentId,
 };
 
@@ -9,7 +9,7 @@ use super::ParseError;
 
 #[derive(Debug)]
 pub struct LaserConfig {
-    pub direction: Direction,
+    pub direction: CardinalDirection,
     pub agent_id: AgentId,
     pub laser_id: LaserId,
 }
@@ -17,7 +17,7 @@ pub struct LaserConfig {
 impl LaserConfig {
     /// Note there is no "TryFrom" implementation for LaserSource because we need the laser_id.
     pub fn from_str(value: &str, laser_id: LaserId) -> Result<LaserConfig, ParseError> {
-        let direction = Direction::try_from(value.chars().last().unwrap()).unwrap();
+        let direction = CardinalDirection::try_from(value.chars().last().unwrap()).unwrap();
         let agent_id = match (&value[1..2]).parse::<AgentId>() {
             Ok(agent_id) => agent_id,
             Err(_) => {
@@ -71,22 +71,22 @@ mod test {
     #[test]
     fn laser_source_from_str() {
         let source = LaserConfig::from_str("L0E", 0).unwrap().build(3);
-        assert_eq!(source.direction(), crate::tiles::Direction::East);
+        assert_eq!(source.direction(), crate::tiles::CardinalDirection::East);
         assert_eq!(source.agent_id(), 0);
         assert_eq!(source.laser_id(), 0);
 
         let source = LaserConfig::from_str("L1W", 25).unwrap().build(5);
-        assert_eq!(source.direction(), crate::tiles::Direction::West);
+        assert_eq!(source.direction(), crate::tiles::CardinalDirection::West);
         assert_eq!(source.agent_id(), 1);
         assert_eq!(source.laser_id(), 25);
 
         let source = LaserConfig::from_str("L2N", 0).unwrap().build(10);
-        assert_eq!(source.direction(), crate::tiles::Direction::North);
+        assert_eq!(source.direction(), crate::tiles::CardinalDirection::North);
         assert_eq!(source.agent_id(), 2);
         assert_eq!(source.laser_id(), 0);
 
         let source = LaserConfig::from_str("L3S", 0).unwrap().build(800);
-        assert_eq!(source.direction(), crate::tiles::Direction::South);
+        assert_eq!(source.direction(), crate::tiles::CardinalDirection::South);
         assert_eq!(source.agent_id(), 3);
         assert_eq!(source.laser_id(), 0);
     }

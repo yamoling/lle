@@ -1,14 +1,14 @@
 use std::rc::Rc;
 
 use crate::{
-    AgentId, Tile,
+    AgentId, Position, Tile,
     agent::Agent,
-    tiles::{Direction, Gem, Laser, LaserBeam, Void},
+    tiles::{Button, CardinalDirection, Direction, Gem, Laser, LaserBeam, Lift, Void},
 };
 
 fn make_laser(agent_id: AgentId, length: usize) -> Laser {
     let wrapped = Tile::Floor { agent: None };
-    let beam = Rc::new(LaserBeam::new(length, agent_id, Direction::East, 0));
+    let beam = Rc::new(LaserBeam::new(length, agent_id, CardinalDirection::East, 0));
     Laser::new(wrapped, beam, 0)
 }
 
@@ -103,4 +103,57 @@ fn test_void_agent_dies() {
     assert!(agent.is_alive());
     void.enter(&mut agent);
     assert!(agent.is_dead());
+}
+
+#[test]
+fn test_button_basic() {
+    let mut agent = Agent::new(0);
+    let mut tile = Tile::Button(Button::new(7));
+    assert!(tile.is_walkable());
+    assert!(!tile.is_occupied());
+
+    tile.enter(&mut agent);
+    assert_eq!(tile.agent(), Some(0));
+    assert!(tile.is_occupied());
+
+    if let Tile::Button(button) = &mut tile {
+        assert_eq!(button.group_id(), 7);
+        assert_eq!(button.actuate(), Some(7));
+    } else {
+        panic!();
+    }
+
+    tile.leave();
+    assert_eq!(tile.agent(), None);
+
+    tile.reset();
+    assert_eq!(tile.agent(), None);
+}
+
+#[test]
+fn test_lift_basic() {
+    let mut agent = Agent::new(0);
+    let lift = Lift::new(Direction::East, None, 2);
+    assert_eq!(lift.group_id(), 2);
+    assert_eq!(lift.direction(), Direction::East);
+    assert_eq!(lift.authorized_agent_id(), None);
+    assert!(!lift.take_triggered()); // never notified yet
+
+    lift.notify();
+    assert!(lift.take_triggered()); // consumed...
+    assert!(!lift.take_triggered()); // ...and cleared
+
+    assert_eq!(
+        lift.destination(Position::new2d(0, 1)).unwrap(),
+        Position::new2d(0, 2)
+    );
+
+    let mut tile = Tile::Lift(lift);
+    assert!(tile.is_walkable());
+    tile.enter(&mut agent);
+    assert_eq!(tile.agent(), Some(0));
+    tile.leave();
+    assert_eq!(tile.agent(), None);
+    tile.reset();
+    assert_eq!(tile.agent(), None);
 }

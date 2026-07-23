@@ -4,7 +4,7 @@ use strum::IntoEnumIterator;
 
 use super::position_set::PositionSet;
 use crate::Position;
-use crate::{World, tiles::Direction};
+use crate::{World, tiles::CardinalDirection};
 
 fn neighbours_of(
     pos: Position,
@@ -18,7 +18,7 @@ fn neighbours_of(
         return vec![pos];
     }
     let mut result = Vec::new();
-    for d in Direction::iter() {
+    for d in CardinalDirection::iter() {
         if let Ok(n) = pos + d {
             if n.i < height && n.j < width && !walls.contains(&n) {
                 result.push(n);

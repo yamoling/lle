@@ -1,4 +1,4 @@
-use crate::tiles::Direction;
+use crate::tiles::CardinalDirection;
 use pyo3::{prelude::*, types::PyTuple};
 use pyo3_stub_gen::derive::{gen_stub_pyclass_enum, gen_stub_pymethods};
 
@@ -30,24 +30,24 @@ impl TryFrom<&str> for PyDirection {
     }
 }
 
-impl From<Direction> for PyDirection {
-    fn from(direction: Direction) -> Self {
+impl From<CardinalDirection> for PyDirection {
+    fn from(direction: CardinalDirection) -> Self {
         match direction {
-            Direction::North => Self::North,
-            Direction::East => Self::East,
-            Direction::South => Self::South,
-            Direction::West => Self::West,
+            CardinalDirection::North => Self::North,
+            CardinalDirection::East => Self::East,
+            CardinalDirection::South => Self::South,
+            CardinalDirection::West => Self::West,
         }
     }
 }
 
-impl Into<Direction> for &PyDirection {
-    fn into(self) -> Direction {
+impl Into<CardinalDirection> for &PyDirection {
+    fn into(self) -> CardinalDirection {
         match self {
-            PyDirection::North => Direction::North,
-            PyDirection::East => Direction::East,
-            PyDirection::South => Direction::South,
-            PyDirection::West => Direction::West,
+            PyDirection::North => CardinalDirection::North,
+            PyDirection::East => CardinalDirection::East,
+            PyDirection::South => CardinalDirection::South,
+            PyDirection::West => CardinalDirection::West,
         }
     }
 }
@@ -100,13 +100,13 @@ impl PyDirection {
     /// The delta of this direction (di, dj).
     #[getter]
     fn delta(&self) -> (i32, i32) {
-        let d: Direction = self.into();
+        let d: CardinalDirection = self.into();
         d.delta()
     }
 
     /// The opposite of this direction.
     fn opposite(&self) -> PyDirection {
-        let d: Direction = self.into();
+        let d: CardinalDirection = self.into();
         d.opposite().into()
     }
 

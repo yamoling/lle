@@ -2,7 +2,10 @@ use std::ops::Add;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Action, RuntimeWorldError, tiles::Direction};
+use crate::{
+    Action, RuntimeWorldError,
+    tiles::{CardinalDirection, Direction},
+};
 
 #[derive(Debug, Clone, Copy, Eq, Hash, Deserialize, Serialize)]
 pub struct Position {
@@ -41,23 +44,33 @@ impl Add<Direction> for Position {
     type Output = Result<Position, RuntimeWorldError>;
 
     fn add(self, rhs: Direction) -> Self::Output {
-        let (dx, dy) = rhs.delta();
+        let (dx, dy, dz) = rhs.delta();
         let i = self.i as i32 + dx;
         let j = self.j as i32 + dy;
-        if j < 0 || i < 0 {
+        let k = self.k as i32 + dz;
+
+        if j < 0 || i < 0 || k < 0 {
             return Err(RuntimeWorldError::OutOfWorldPosition {
                 position: Position {
                     j: j as usize,
                     i: i as usize,
-                    k: self.k,
+                    k: k as usize,
                 },
             });
         }
         Ok(Position {
             i: i as usize,
             j: j as usize,
-            k: self.k,
+            k: k as usize,
         })
+    }
+}
+
+impl Add<CardinalDirection> for Position {
+    type Output = Result<Position, RuntimeWorldError>;
+
+    fn add(self, rhs: CardinalDirection) -> Self::Output {
+        self + Direction::from(rhs) // up down case not handled yet! 
     }
 }
 

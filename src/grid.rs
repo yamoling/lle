@@ -240,8 +240,8 @@ fn index_grid_position_convertor(
     }
     let k = index / (width * height);
     let remaining = index % (width * height);
-    let j = remaining / width;
-    let i = remaining % width;
+    let j = remaining / height;
+    let i = remaining % height;
     Some(Position { i, j, k })
 }
 
@@ -274,7 +274,7 @@ mod tests {
         }
         assert_eq!(positions.len(), 7 * 10 * 3);
         let expected_positions: Vec<Position> = (0..3)
-            .flat_map(|k| (0..10).flat_map(move |j| (0..7).map(move |i| Position { i, j, k })))
+            .flat_map(|k| (0..7).flat_map(move |j| (0..10).map(move |i| Position { i, j, k })))
             .collect();
         assert_eq!(positions, expected_positions);
     }

@@ -5,7 +5,7 @@ use crate::{
 };
 use core::panic;
 
-use super::{Gem, Laser, LaserSource, Void};
+use super::{Button, Gem, Laser, LaserSource, Lift, Void};
 
 #[derive(Debug)]
 pub enum Tile {
@@ -16,6 +16,8 @@ pub enum Tile {
     Exit { agent: Option<AgentId> },
     Laser(Laser),
     LaserSource(LaserSource),
+    Lift(Lift),
+    Button(Button),
 }
 
 impl Tile {
@@ -47,6 +49,8 @@ impl Tile {
             Self::Void(void) => void.enter(agent),
             Self::Laser(laser) => laser.enter(agent),
             Self::Gem(gem) => gem.enter(agent),
+            Self::Lift(lift) => lift.enter(agent),
+            Self::Button(button) => button.enter(agent),
         }
     }
 
@@ -58,6 +62,8 @@ impl Tile {
             Self::Void(void) => void.leave(),
             Self::Laser(laser) => laser.leave(),
             Self::Gem(gem) => gem.leave(),
+            Self::Lift(lift) => lift.leave(),
+            Self::Button(button) => button.leave(),
         }
     }
 
@@ -70,6 +76,8 @@ impl Tile {
             Self::Void { .. } => true,
             Self::Exit { .. } => true,
             Self::Laser(_) => true,
+            Self::Lift(_) => true,
+            Self::Button(_) => true,
         }
     }
 
@@ -81,6 +89,8 @@ impl Tile {
             Self::Floor { agent } => *agent = None,
             Self::Void(void) => void.reset(),
             Self::Laser(laser) => laser.reset(),
+            Self::Lift(lift) => lift.reset(),
+            Self::Button(button) => button.reset(),
         }
     }
 
@@ -92,6 +102,8 @@ impl Tile {
             Self::Floor { agent } => *agent,
             Self::Void(void) => void.agent(),
             Self::Laser(laser) => laser.agent(),
+            Self::Lift(lift) => lift.agent(),
+            Self::Button(button) => button.agent(),
         }
     }
 
@@ -112,11 +124,40 @@ impl Tile {
             _ => {}
         };
         match self {
+            Self::Lift(lift) => {
+                if lift.authorized_agent_id().is_some() {
+                    return format!(
+                        "T{}{}{}",
+                        lift.group_id(),
+                        lift.direction().to_file_string(),
+                        lift.authorized_agent_id().unwrap()
+                    );
+                } else {
+                    return format!("T{}{}", lift.group_id(), lift.direction().to_file_string());
+                }
+            }
+            Self::Button(button) => {
+                if button.authorized_agent_id().is_some() {
+                    return format!(
+                        "B{}A{}",
+                        button.group_id(),
+                        button.authorized_agent_id().unwrap()
+                    );
+                } else {
+                    return format!("B{}", button.group_id(),);
+                }
+            }
+            _ => {}
+        }
+        match self {
             Self::Gem(..) => "G",
             Self::Wall => "@",
             Self::Exit { .. } => "X",
             Self::Floor { .. } => ".",
             Self::Void(..) => "V",
+            Self::Lift(..) | Self::Button(..) => {
+                panic!("Lift and Button should be handled before")
+            }
             Self::Laser(..) | Self::LaserSource(..) => {
                 panic!("Should have been handled before")
             }
@@ -129,8 +170,17 @@ impl Tile {
             Self::Gem(gem) => visitor.visit_gem(gem, data),
             Self::Laser(laser) => visitor.visit_laser(laser, data),
             Self::LaserSource(source) => visitor.visit_laser_source(source, data),
+            Self::Lift(lift) => visitor.visit_lift(lift, data),
+            Self::Button(button) => visitor.visit_button(button, data),
             _ => {} // Nothing to do
         };
+    }
+
+    pub fn actuate(&mut self) -> Option<usize> {
+        match self {
+            Self::Button(button) => button.actuate(),
+            _ => None,
+        }
     }
 }
 

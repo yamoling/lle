@@ -1,4 +1,3 @@
-use crate::logger;
 use pyo3::prelude::*;
 use pyo3_stub_gen::define_stub_info_gatherer;
 mod pyagent;

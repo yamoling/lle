@@ -6,7 +6,7 @@ use crate::RuntimeWorldError;
 use crate::{
     WorldEvent,
     agent::{Agent, AgentId},
-    tiles::{Direction, LaserId, Tile},
+    tiles::{CardinalDirection, LaserId, Tile},
 };
 
 use super::Gem;
@@ -16,12 +16,17 @@ pub struct LaserBeam {
     beam: RefCell<Vec<bool>>,
     is_enabled: Cell<bool>,
     agent_id: Cell<AgentId>,
-    direction: Direction,
+    direction: CardinalDirection,
     laser_id: LaserId,
 }
 
 impl LaserBeam {
-    pub fn new(size: usize, agent_id: AgentId, direction: Direction, laser_id: LaserId) -> Self {
+    pub fn new(
+        size: usize,
+        agent_id: AgentId,
+        direction: CardinalDirection,
+        laser_id: LaserId,
+    ) -> Self {
         Self {
             beam: RefCell::new(vec![true; size]),
             is_enabled: Cell::new(true),
@@ -35,7 +40,7 @@ impl LaserBeam {
         self.agent_id.get()
     }
 
-    pub fn direction(&self) -> Direction {
+    pub fn direction(&self) -> CardinalDirection {
         self.direction
     }
 
@@ -150,7 +155,7 @@ impl Laser {
         !self.is_enabled()
     }
 
-    pub fn direction(&self) -> Direction {
+    pub fn direction(&self) -> CardinalDirection {
         self.beam.direction
     }
 

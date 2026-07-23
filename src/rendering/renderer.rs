@@ -4,7 +4,7 @@ use itertools::izip;
 use super::{BLACK, GRID_GREY, TileVisitor, sprites};
 use crate::{
     core::World,
-    tiles::{Direction, Gem, Laser, LaserSource},
+    tiles::{Button, CardinalDirection, Gem, Laser, LaserSource, Lift},
 };
 
 use super::{BACKGROUND_GREY, TILE_SIZE};
@@ -247,8 +247,12 @@ impl TileVisitor for Renderer {
         if laser.is_on() {
             let agent_id = laser.agent_id();
             let laser_sprite = match laser.direction() {
-                Direction::North | Direction::South => &sprites::VERTICAL_LASERS[agent_id],
-                Direction::East | Direction::West => &sprites::HORIZONTAL_LASERS[agent_id],
+                CardinalDirection::North | CardinalDirection::South => {
+                    &sprites::VERTICAL_LASERS[agent_id]
+                }
+                CardinalDirection::East | CardinalDirection::West => {
+                    &sprites::HORIZONTAL_LASERS[agent_id]
+                }
             };
             add_transparent_image(data.frame, laser_sprite, data.x, data.y);
         }
@@ -259,13 +263,18 @@ impl TileVisitor for Renderer {
     fn visit_laser_source(&self, source: &LaserSource, data: &mut VisitorData) {
         let agent_id = source.agent_id();
         let source_sprite = match source.direction() {
-            Direction::North => &sprites::LASER_SOURCES_NORTH[agent_id],
-            Direction::East => &sprites::LASER_SOURCES_EAST[agent_id],
-            Direction::South => &sprites::LASER_SOURCES_SOUTH[agent_id],
-            Direction::West => &sprites::LASER_SOURCES_WEST[agent_id],
+            CardinalDirection::North => &sprites::LASER_SOURCES_NORTH[agent_id],
+            CardinalDirection::East => &sprites::LASER_SOURCES_EAST[agent_id],
+            CardinalDirection::South => &sprites::LASER_SOURCES_SOUTH[agent_id],
+            CardinalDirection::West => &sprites::LASER_SOURCES_WEST[agent_id],
         };
         data.frame.copy_from(source_sprite, data.x, data.y).unwrap();
     }
+
+    // Real rendering (sprites, positioning) is out of scope for now.
+    fn visit_lift(&self, _lift: &Lift, _data: &mut VisitorData) {}
+
+    fn visit_button(&self, _button: &Button, _data: &mut VisitorData) {}
 }
 
 #[cfg(test)]

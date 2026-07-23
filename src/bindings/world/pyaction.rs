@@ -21,6 +21,8 @@ pub enum PyAction {
     West = 3,
     #[pyo3(name = "STAY")]
     Stay = 4,
+    #[pyo3(name = "TRIGGER")]
+    Trigger = 5,
 }
 
 #[gen_stub_pymethods]
@@ -28,13 +30,14 @@ pub enum PyAction {
 impl PyAction {
     /// Ordered list of all actions
     #[staticmethod]
-    const fn variants() -> [PyAction; 5] {
+    const fn variants() -> [PyAction; 6] {
         [
             PyAction::North,
             PyAction::South,
             PyAction::East,
             PyAction::West,
             PyAction::Stay,
+            PyAction::Trigger,
         ]
     }
 
@@ -59,8 +62,9 @@ impl PyAction {
             2 => Ok(Self::East),
             3 => Ok(Self::West),
             4 => Ok(Self::Stay),
+            5 => Ok(Self::Trigger),
             _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
-                "Invalid action value: {value}. Valid values for actions are between 0 and 4."
+                "Invalid action value: {value}. Valid values for actions are between 0 and 5."
             ))),
         }
     }
@@ -93,6 +97,7 @@ impl PyAction {
             Self::East => 2,
             Self::West => 3,
             Self::Stay => 4,
+            Self::Trigger => 5,
         }
     }
 
@@ -109,6 +114,7 @@ impl PyAction {
             Self::East => 2,
             Self::West => 3,
             Self::Stay => 4,
+            Self::Trigger => 5,
         }
     }
 
@@ -134,9 +140,10 @@ impl PyAction {
             2 => Self::East,
             3 => Self::West,
             4 => Self::Stay,
+            5 => Self::Trigger,
             _ => {
                 return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                    "Invalid action value: {state}. Valid values for actions are between 0 and 4."
+                    "Invalid action value: {state}. Valid values for actions are between 0 and 5."
                 )));
             }
         };
@@ -155,6 +162,7 @@ impl PyAction {
             Self::East => "EAST".to_string(),
             Self::West => "WEST".to_string(),
             Self::Stay => "STAY".to_string(),
+            Self::Trigger => "TRIGGER".to_string(),
         }
     }
 }
@@ -167,6 +175,7 @@ impl Into<Action> for &PyAction {
             PyAction::East => Action::East,
             PyAction::West => Action::West,
             PyAction::Stay => Action::Stay,
+            PyAction::Trigger => Action::Trigger,
         }
     }
 }
@@ -179,6 +188,7 @@ impl Into<Action> for PyAction {
             PyAction::East => Action::East,
             PyAction::West => Action::West,
             PyAction::Stay => Action::Stay,
+            PyAction::Trigger => Action::Trigger,
         }
     }
 }
@@ -191,6 +201,7 @@ impl From<&Action> for PyAction {
             Action::East => PyAction::East,
             Action::West => PyAction::West,
             Action::Stay => PyAction::Stay,
+            Action::Trigger => PyAction::Trigger,
         }
     }
 }
@@ -203,6 +214,7 @@ impl From<Action> for PyAction {
             Action::East => PyAction::East,
             Action::West => PyAction::West,
             Action::Stay => PyAction::Stay,
+            Action::Trigger => PyAction::Trigger,
         }
     }
 }

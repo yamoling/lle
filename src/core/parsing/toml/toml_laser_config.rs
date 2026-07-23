@@ -2,13 +2,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     core::parsing::laser_config::LaserConfig,
-    tiles::{Direction, LaserId},
+    tiles::{CardinalDirection, LaserId},
     AgentId, Position,
 };
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct TomlLaserConfig {
-    pub direction: Direction,
+    pub direction: CardinalDirection,
     pub agent: AgentId,
     pub position: Position,
     pub laser_id: LaserId,

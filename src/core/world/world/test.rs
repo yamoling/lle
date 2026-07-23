@@ -2,8 +2,10 @@ use core::panic;
 use std::vec;
 
 use crate::{
-    Action, ParseError, Position, RuntimeWorldError, WorldEvent, agent::Agent, core::WorldState,
-    tiles::Laser,
+    Action, Grid, ParseError, Position, RuntimeWorldError, WorldEvent,
+    agent::Agent,
+    core::WorldState,
+    tiles::{Button, Direction, Laser, Lift, Tile},
 };
 
 use super::World;
@@ -311,10 +313,11 @@ fn test_set_state_available_actions() {
     w.set_state(&s).unwrap();
     let actions = w.available_actions();
     assert_eq!(actions.len(), 1);
-    assert_eq!(actions[0].len(), 3);
+    assert_eq!(actions[0].len(), 4);
     assert!(actions[0].contains(&Action::South));
     assert!(actions[0].contains(&Action::Stay));
     assert!(actions[0].contains(&Action::East));
+    assert!(actions[0].contains(&Action::Trigger));
 }
 
 #[test]
@@ -705,4 +708,213 @@ fn set_exits_old_exit_inactive() {
 
     let events = world.step(&[Action::South]).unwrap();
     assert!(events.is_empty());
+}
+
+/// Builds a 1-row world directly (bypassing the text parser, which doesn't
+/// support Lift/Button yet) with the given tiles placed on top of a floor,
+/// and one agent per given start position.
+fn build_lift_button_world(
+    width: usize,
+    tiles: Vec<(Position, Tile)>,
+    starts: Vec<Position>,
+) -> World {
+    let mut grid = Grid::<Tile>::new(width, 1, 1).default_init();
+    for (pos, tile) in tiles {
+        grid.replace_at(&pos, tile);
+    }
+    let random_start_positions = starts.into_iter().map(|p| vec![p]).collect();
+    World::new(
+        grid,
+        vec![],
+        random_start_positions,
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    )
+}
+
+fn floor() -> Tile {
+    Tile::Floor { agent: None }
+}
+
+#[test]
+fn test_button_pulses_lift_only_moves_same_group_occupant() {
+    let button_pos = Position::new2d(0, 0);
+    let lift1_pos = Position::new2d(0, 1);
+    let dest1_pos = Position::new2d(0, 2);
+    let lift2_pos = Position::new2d(0, 3);
+
+    let tiles = vec![
+        (button_pos, Tile::Button(Button::new(1))),
+        (lift1_pos, Tile::Lift(Lift::new(Direction::East, None, 1))),
+        (lift2_pos, Tile::Lift(Lift::new(Direction::East, None, 2))),
+    ];
+    let mut world = build_lift_button_world(5, tiles, vec![button_pos, lift1_pos, lift2_pos]);
+
+    world
+        .step(&[Action::Trigger, Action::Stay, Action::Stay])
+        .unwrap();
+
+    assert_eq!(world.agents_positions()[0], button_pos);
+    assert_eq!(world.agents_positions()[1], dest1_pos);
+    // Different group: must not be pulsed by the button.
+    assert_eq!(world.agents_positions()[2], lift2_pos);
+}
+
+#[test]
+fn test_lift_with_no_occupant_does_nothing() {
+    let button_pos = Position::new2d(0, 0);
+    let lift_pos = Position::new2d(0, 1);
+    let tiles = vec![
+        (button_pos, Tile::Button(Button::new(1))),
+        (lift_pos, Tile::Lift(Lift::new(Direction::East, None, 1))),
+    ];
+    let mut world = build_lift_button_world(3, tiles, vec![button_pos]);
+
+    let events = world.step(&[Action::Trigger]).unwrap();
+
+    assert!(events.is_empty());
+    assert_eq!(world.agents_positions()[0], button_pos);
+}
+
+#[test]
+fn test_two_lifts_same_group_both_move() {
+    let button_pos = Position::new2d(0, 0);
+    let lift_a = Position::new2d(0, 1);
+    let dest_a = Position::new2d(0, 2);
+    let dest_b = Position::new2d(0, 3);
+    let lift_b = Position::new2d(0, 4);
+
+    let tiles = vec![
+        (button_pos, Tile::Button(Button::new(9))),
+        (lift_a, Tile::Lift(Lift::new(Direction::East, None, 9))),
+        (lift_b, Tile::Lift(Lift::new(Direction::West, None, 9))),
+    ];
+    let mut world = build_lift_button_world(5, tiles, vec![button_pos, lift_a, lift_b]);
+
+    world
+        .step(&[Action::Trigger, Action::Stay, Action::Stay])
+        .unwrap();
+
+    assert_eq!(world.agents_positions()[1], dest_a);
+    assert_eq!(world.agents_positions()[2], dest_b);
+}
+
+#[test]
+fn test_colliding_lift_destinations_revert() {
+    let button_pos = Position::new2d(0, 0);
+    let lift_a = Position::new2d(0, 1);
+    let lift_b = Position::new2d(0, 3);
+
+    let tiles = vec![
+        (button_pos, Tile::Button(Button::new(3))),
+        (lift_a, Tile::Lift(Lift::new(Direction::East, None, 3))),
+        (lift_b, Tile::Lift(Lift::new(Direction::West, None, 3))),
+    ];
+    let mut world = build_lift_button_world(4, tiles, vec![button_pos, lift_a, lift_b]);
+
+    world
+        .step(&[Action::Trigger, Action::Stay, Action::Stay])
+        .unwrap();
+
+    // Both lifts targeted position (0, 2): the conflict reverts both riders
+    // back to where they stood (on their respective lifts).
+    assert_eq!(world.agents_positions()[1], lift_a);
+    assert_eq!(world.agents_positions()[2], lift_b);
+}
+
+#[test]
+fn test_lift_destination_out_of_bounds_is_noop() {
+    let button_pos = Position::new2d(0, 0);
+    let lift_pos = Position::new2d(0, 1);
+    let tiles = vec![
+        (button_pos, Tile::Button(Button::new(1))),
+        (lift_pos, Tile::Lift(Lift::new(Direction::East, None, 1))),
+    ];
+    // Width 2: lift sits on the last column, so East runs off the grid.
+    let mut world = build_lift_button_world(2, tiles, vec![button_pos, lift_pos]);
+
+    let events = world.step(&[Action::Trigger, Action::Stay]).unwrap();
+
+    assert!(events.is_empty());
+    assert_eq!(world.agents_positions()[1], lift_pos);
+}
+
+#[test]
+fn test_lift_destination_wall_is_noop() {
+    let button_pos = Position::new2d(0, 0);
+    let lift_pos = Position::new2d(0, 1);
+    let wall_pos = Position::new2d(0, 2);
+    let tiles = vec![
+        (button_pos, Tile::Button(Button::new(1))),
+        (lift_pos, Tile::Lift(Lift::new(Direction::East, None, 1))),
+        (wall_pos, Tile::Wall),
+    ];
+    let mut world = build_lift_button_world(3, tiles, vec![button_pos, lift_pos]);
+
+    world.step(&[Action::Trigger, Action::Stay]).unwrap();
+
+    assert_eq!(world.agents_positions()[1], lift_pos);
+}
+
+/// Builds a two-column, two-layer world (bypassing the text parser, which
+/// doesn't support Lift/Button yet) with the given tiles placed, and one
+/// agent per given start position. Two columns keep the button's cell
+/// distinct from the lift's destination cell, so a floor-changing move
+/// doesn't collide with the (stationary) button-standing agent.
+fn build_multi_layer_lift_button_world(
+    tiles: Vec<(Position, Tile)>,
+    starts: Vec<Position>,
+) -> World {
+    let mut grid = Grid::<Tile>::new(2, 1, 2).default_init();
+    for (pos, tile) in tiles {
+        grid.replace_at(&pos, tile);
+    }
+    let random_start_positions = starts.into_iter().map(|p| vec![p]).collect();
+    World::new(
+        grid,
+        vec![],
+        random_start_positions,
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    )
+}
+
+#[test]
+fn test_button_pulses_lift_up_moves_agent_to_higher_layer() {
+    let button_pos = Position { i: 0, j: 0, k: 0 };
+    let lift_pos = Position { i: 0, j: 1, k: 0 };
+    let dest_pos = Position { i: 0, j: 1, k: 1 };
+    let tiles = vec![
+        (button_pos, Tile::Button(Button::new(1))),
+        (lift_pos, Tile::Lift(Lift::new(Direction::Up, None, 1))),
+    ];
+    let mut world = build_multi_layer_lift_button_world(tiles, vec![button_pos, lift_pos]);
+
+    world.step(&[Action::Trigger, Action::Stay]).unwrap();
+
+    assert_eq!(world.agents_positions()[0], button_pos);
+    assert_eq!(world.agents_positions()[1], dest_pos);
+}
+
+#[test]
+fn test_button_pulses_lift_down_moves_agent_to_lower_layer() {
+    let button_pos = Position { i: 0, j: 0, k: 1 };
+    let lift_pos = Position { i: 0, j: 1, k: 1 };
+    let dest_pos = Position { i: 0, j: 1, k: 0 };
+    let tiles = vec![
+        (button_pos, Tile::Button(Button::new(1))),
+        (lift_pos, Tile::Lift(Lift::new(Direction::Down, None, 1))),
+    ];
+    let mut world = build_multi_layer_lift_button_world(tiles, vec![button_pos, lift_pos]);
+
+    world.step(&[Action::Trigger, Action::Stay]).unwrap();
+
+    assert_eq!(world.agents_positions()[0], button_pos);
+    assert_eq!(world.agents_positions()[1], dest_pos);
 }
