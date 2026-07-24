@@ -36,3 +36,24 @@ def test_rust_solve_mode_parametrized_values_round_trip():
     for s in ("standard", "no-chain", "no-chain-3", "no-interdependence", "no-interdependence-4"):
         assert SolveMode.from_str(s).value == s
     assert SolveMode.from_str("no-interdependence-2") == SolveMode.no_interdependence(2)
+
+
+def test_no_convergence_factory_and_parser_round_trip():
+    """Factories and canonical strings round-trip for default and explicit thresholds."""
+    default = SolveMode.no_convergence()
+    explicit = SolveMode.no_convergence(3)
+    assert SolveMode.from_str(default.value) == default
+    assert SolveMode.from_str(explicit.value) == explicit
+
+
+@pytest.mark.parametrize("k", [-1, 0, 1])
+def test_no_convergence_rejects_threshold_below_two(k: int):
+    with pytest.raises(ValueError):
+        SolveMode.no_convergence(k)
+    with pytest.raises(ValueError):
+        SolveMode.from_str(f"no-convergence-{k}")
+
+
+def test_solve_mode_literal_includes_no_convergence():
+    """The public solve-mode literal includes the base convergence mode."""
+    assert "no-convergence" in get_args(SolveModeLiteral)

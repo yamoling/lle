@@ -37,6 +37,7 @@ class MockSolver(Solver):
         t_min: int = 0,
         override_t_max: int | None = None,
         collect_gems: bool = False,
+        shuffle: bool = False,
     ) -> list[tuple[Action, ...]] | None:
         """Return the configured result for `mode` and record the call."""
         mode_str = str(mode)

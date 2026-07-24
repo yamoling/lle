@@ -932,17 +932,6 @@ X X . @ .
     }
 }
 
-/// True if `helper` has a concrete `Help(helper, beneficiary, t)` variable at any step.
-fn can_help(cg: &ClauseGenerator, helper: usize, beneficiary: usize, t_max: usize) -> bool {
-    (0..=t_max).any(|t| {
-        cg.exists(&VarKey::Help {
-            helper,
-            beneficiary,
-            t,
-        })
-    })
-}
-
 /// Help clauses must include binary implications from beneficiary beam occupancy into the
 /// corresponding concrete `Help(helper, beneficiary, t)` literal.
 ///
@@ -1039,24 +1028,135 @@ fn asymmetric_world_generates_forbid_clauses_and_assumptions() {
     );
 }
 
+/// The no-convergence mode materializes pair summaries, emits size-`k` blockers, and uses no assumptions.
 #[test]
-#[ignore = "Currently under revision"]
-fn level_6_dependency_is_bidirectional() {
-    let world = World::get_level(6).expect("failed to load level 6");
-    let n = world.n_agents();
-    let mut cg = ClauseGenerator::new(&world, 21);
-    let _ = cg.generate(21, SolveMode::NoInterdependence(2), false);
-    // Level 6 requires mutual cooperation: at least one pair must have both directions.
-    let has_bidirectional = (0..n).any(|a| {
-        (0..n)
-            .filter(|&b| b != a)
-            .any(|b| can_help(&cg, a, b, 21) && can_help(&cg, b, a, 21))
-    });
-    assert!(
-        has_bidirectional,
-        "level 6 must have at least one bidirectional dependency pair"
-    );
+fn no_convergence_mode_generates_pairwise_blocking_clauses() {
+    let world = World::try_from(
+        "
+         @  S0  S1  S2
+        L0E  .   .   .
+        L1E  .   .   .
+         @   X   X   X
+        ",
+    )
+    .expect("failed to parse convergence world");
+    let horizon = 6;
+    let mut generator = ClauseGenerator::new(&world, horizon);
+
+    generator.generate(horizon, SolveMode::Standard, false);
+    for helper in 0..world.n_agents() {
+        for beneficiary in 0..world.n_agents() {
+            assert!(!generator.exists(&VarKey::PairwiseHelp {
+                helper,
+                beneficiary,
+                horizon,
+            }));
+        }
+    }
+
+    let (clauses, assumptions) =
+        generator.generate(horizon, SolveMode::NoConvergentCooperation(2), false);
+    assert!(assumptions.is_empty());
+
+    let blockers = clauses
+        .iter()
+        .filter(|clause| {
+            clause.len() == 2
+                && clause.iter().all(|literal| {
+                    *literal < 0
+                        && matches!(
+                            generator.engine.pool.key(-*literal),
+                            Some(VarKey::PairwiseHelp {
+                                horizon: pair_horizon,
+                                ..
+                            }) if pair_horizon == horizon
+                        )
+                })
+        })
+        .collect::<Vec<_>>();
+    assert!(!blockers.is_empty());
+    for blocker in blockers {
+        let keys = blocker
+            .iter()
+            .map(|literal| generator.engine.pool.key(-*literal).unwrap())
+            .collect::<Vec<_>>();
+        let [
+            VarKey::PairwiseHelp {
+                helper: first_helper,
+                beneficiary: first_beneficiary,
+                ..
+            },
+            VarKey::PairwiseHelp {
+                helper: second_helper,
+                beneficiary: second_beneficiary,
+                ..
+            },
+        ] = keys.as_slice()
+        else {
+            panic!("blocking clauses must contain only pairwise-help variables");
+        };
+        assert_ne!(first_helper, second_helper);
+        assert_eq!(first_beneficiary, second_beneficiary);
+    }
 }
 
+/// Reusing a generator keeps convergence summaries isolated across horizons and thresholds.
 #[test]
-fn help_literals() {}
+fn no_convergence_generator_reuse_does_not_leak_horizons_or_thresholds() {
+    let world = World::try_from(
+        "
+         @  S0  S1  S2
+        L0E  .   .   .
+        L1E  .   .   .
+         @   X   X   X
+        ",
+    )
+    .expect("failed to parse convergence world");
+    let mut generator = ClauseGenerator::new(&world, 6);
+
+    generator.generate(6, SolveMode::NoConvergentCooperation(2), false);
+    let large_pairwise = (0..world.n_agents())
+        .flat_map(|helper| {
+            (0..world.n_agents()).filter_map(move |beneficiary| {
+                (helper != beneficiary).then_some(VarKey::PairwiseHelp {
+                    helper,
+                    beneficiary,
+                    horizon: 6,
+                })
+            })
+        })
+        .filter_map(|key| generator.literal(&key))
+        .collect::<Vec<_>>();
+    assert!(!large_pairwise.is_empty());
+
+    let (small_clauses, _) = generator.generate(4, SolveMode::NoConvergentCooperation(2), false);
+    assert!(large_pairwise.iter().all(|large| {
+        !small_clauses
+            .iter()
+            .flatten()
+            .any(|literal| literal.unsigned_abs() == *large as u32)
+    }));
+    assert!((0..world.n_agents()).any(|helper| {
+        (0..world.n_agents()).any(|beneficiary| {
+            generator.exists(&VarKey::PairwiseHelp {
+                helper,
+                beneficiary,
+                horizon: 4,
+            })
+        })
+    }));
+
+    let variables_after_two = generator.n_vars();
+    let (threshold_three, _) = generator.generate(4, SolveMode::NoConvergentCooperation(3), false);
+    assert_eq!(generator.n_vars(), variables_after_two);
+    assert!(!threshold_three.iter().any(|clause| {
+        clause.len() == 3
+            && clause.iter().all(|literal| {
+                *literal < 0
+                    && matches!(
+                        generator.engine.pool.key(-*literal),
+                        Some(VarKey::PairwiseHelp { horizon: 4, .. })
+                    )
+            })
+    }));
+}

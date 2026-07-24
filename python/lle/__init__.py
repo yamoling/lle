@@ -11,7 +11,7 @@ of the laser, in which case they can block the beam and let others pass safely.
 LLE provides two complementary ways to work with a world:
 - `World` for low-level control of maps, states, and steps.
 - `LLE` for a higher-level MARL environment compatible with the [`marlenv` library](https://github.com/yamoling/multi-agent-rlenv).
-- `generate`, `solve`, `is_cooperative`, and `characterize` for SAT-based world generation and analysis.
+- `generate`, `solve`, `is_cooperative`, `is_convergent`, and `characterize` for SAT-based world generation and analysis.
 
 ## Low-level `World`
 Use `World` when you want precise control over a custom map, a saved state, or
@@ -66,7 +66,7 @@ The cooperation requirements of a world can be characterized by calling `lle.cha
 which returns a `WorldCharacterizer` that can be queried to determine the intrinsic cooperative properties
 of the world (i.e. every solution to the world within `t_max` steps has these properties).
 
-Helper functions such as `lle.is_cooperative` or `lle.is_interdependent(k)` can also be used. Note that if multiple properties
+Helper functions such as `lle.is_cooperative`, `lle.is_interdependent(k)` or `lle.is_convergent(world, k=2)` can also be used. Note that if multiple properties
 should be checked, it is more efficient to use `lle.characterize` and query the `WorldCharacterizer` because it
 avoids redundant recomputation of the same properties.
 
@@ -78,6 +78,7 @@ assert specs.is_interdependent(2)
 assert not lle.is_cooperative(World.level(1))
 assert lle.is_cooperative(World.level(3))
 assert not lle.is_interdependent(World.level(3), 2, t_max=21)
+assert not lle.is_convergent(World.level(3), t_max=21)
 ```
 
 
@@ -195,7 +196,7 @@ from .observations import ObservationType
 from .solver import solve
 from .types import AgentId, LaserId, Position
 from .world import Action, EventType, World, WorldEvent, WorldState
-from .characterization import is_cooperative, characterize, is_asymmetric, is_chained
+from .characterization import is_cooperative, characterize, is_asymmetric, is_chained, is_convergent
 from . import tiles, exceptions, world, agent, env, generator, characterization, solver, observations
 
 
@@ -234,6 +235,7 @@ __all__ = [
     "is_cooperative",
     "is_asymmetric",
     "is_chained",
+    "is_convergent",
     "generate",
     "GeneratorBuilder",
     "characterize",

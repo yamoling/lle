@@ -21,16 +21,20 @@ pub enum SolveMode {
     /// rejected order `n >= 2`; `NoInterdependence(2)` coincides with the absence of mutual
     /// cooperation.
     NoInterdependence(usize),
+    /// No beneficiary may receive help from at least `k` distinct helpers over the trajectory.
+    /// The wrapped value is the rejected convergence threshold `k >= 2`.
+    NoConvergentCooperation(usize),
 }
 
-/// The smallest meaningful chain length / cycle order: a single help edge is not a chain.
+/// The smallest meaningful parameter for the parameterized solve modes.
 const MIN_LENGTH: usize = 2;
 
 impl std::str::FromStr for SolveMode {
     type Err = String;
 
+    /// Parse a canonical solve-mode string.
     fn from_str(s: &str) -> Result<Self, String> {
-        // Parse the optional `-N` suffix shared by the parametrized modes.
+        /// Parse the optional `-N` suffix shared by the parameterized modes.
         fn parametrized(s: &str, prefix: &str) -> Option<Result<usize, String>> {
             if s == prefix {
                 return Some(Ok(MIN_LENGTH));
@@ -39,10 +43,10 @@ impl std::str::FromStr for SolveMode {
             Some(match rest.parse::<usize>() {
                 Ok(n) if n >= MIN_LENGTH => Ok(n),
                 Ok(n) => Err(format!(
-                    "Invalid length {n} in '{s}': the minimal rejected length must be >= {MIN_LENGTH}."
+                    "Invalid parameter {n} in '{s}': the rejected value must be >= {MIN_LENGTH}."
                 )),
                 Err(_) => Err(format!(
-                    "Invalid length in solve mode '{s}': expected an integer."
+                    "Invalid parameter in solve mode '{s}': expected an integer."
                 )),
             })
         }
@@ -59,9 +63,13 @@ impl std::str::FromStr for SolveMode {
                 if let Some(res) = parametrized(s, "no-interdependence") {
                     return res.map(SolveMode::NoInterdependence);
                 }
+                if let Some(res) = parametrized(s, "no-convergence") {
+                    return res.map(SolveMode::NoConvergentCooperation);
+                }
                 Err(format!(
                     "Unknown solve mode: '{other}'. Expected one of: 'standard', 'no-cooperation', \
-                     'no-asymmetric', 'no-mutual', 'no-chain[-N]', 'no-interdependence[-N]' (N >= {MIN_LENGTH})."
+                     'no-asymmetric', 'no-mutual', 'no-chain[-N]', 'no-interdependence[-N]', \
+                     'no-convergence[-N]' (N >= {MIN_LENGTH})."
                 ))
             }
         }
@@ -79,6 +87,7 @@ impl SolveMode {
             SolveMode::NoAsymmetricCooperation => "no-asymmetric".to_string(),
             SolveMode::NoChainedCooperation(n) => suffixed("no-chain", *n),
             SolveMode::NoInterdependence(n) => suffixed("no-interdependence", *n),
+            SolveMode::NoConvergentCooperation(k) => suffixed("no-convergence", *k),
         }
     }
 }

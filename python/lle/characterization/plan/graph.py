@@ -142,6 +142,17 @@ class TemporalCooperationGraph:
         """
         return {(edge.helper, edge.beneficiary) for edge in self._sorted_edges}
 
+    def max_distinct_helpers(self) -> int:
+        """Return the greatest number of distinct helpers of one beneficiary.
+
+        Repeated temporal edges for the same `(helper, beneficiary)` pair count once,
+        and helpers of different beneficiaries are never combined.
+        """
+        helpers_by_beneficiary: dict[AgentId, set[AgentId]] = {}
+        for helper, beneficiary in self.flattened_edges():
+            helpers_by_beneficiary.setdefault(beneficiary, set()).add(helper)
+        return max((len(helpers) for helpers in helpers_by_beneficiary.values()), default=0)
+
     def asymmetric_edges(self):
         """Return flattened help edges whose helper is never helped by any other agent."""
         edges = self.flattened_edges()

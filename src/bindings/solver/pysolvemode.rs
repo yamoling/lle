@@ -20,6 +20,8 @@ use crate::solver::SolveMode;
 ///   closed trail with exactly `order` distinct agents. Timestamps are non-decreasing; agents and
 ///   static arcs may repeat at later times, but temporal edges may not repeat. Other exact orders
 ///   remain allowed. `no_interdependence(2)` coincides with `no_mutual()`.
+/// - `no_convergence(k=2)` — rules out plans where one beneficiary receives help from at least `k`
+///   distinct helpers.
 ///
 /// ```python
 /// from lle.solver.clauses import ClauseGenerator, SolveMode
@@ -113,15 +115,30 @@ impl PySolveMode {
         Self::checked(order, "no_interdependence", SolveMode::NoInterdependence)
     }
 
-    /// Parse a canonical string (e.g. `"standard"`, `"no-chain-3"`, `"no-interdependence-2"`).
+    /// Forbid any beneficiary from receiving help from at least `k` distinct helpers. `k` must be `>= 2`.
     ///
-    /// `"no-chain"` and `"no-interdependence"` both accept a `"-n"` suffix to specify the minimum chain length or the exact interdependence order.
-    /// Note that `"no-chain"` and `"no-interdependence"` are aliases for `"no-chain-2"` and `"no-interdependence-2"` respectively.
+    #[staticmethod]
+    #[pyo3(signature = (k=2))]
+    fn no_convergence(k: usize) -> PyResult<Self> {
+        if k < 2 {
+            return Err(PyValueError::new_err(format!(
+                "no_convergence: the distinct-helper threshold must be >= 2, got {k}."
+            )));
+        }
+        Ok(SolveMode::NoConvergentCooperation(k).into())
+    }
+
+    /// Parse a canonical string (e.g. `"standard"`, `"no-chain-3"`, `"no-convergence-3"`).
+    ///
+    /// `"no-chain"`, `"no-interdependence"`, and `"no-convergence"` accept a `"-n"` suffix for their parameter.
+    /// Their bare forms are aliases for the corresponding `"-2"` forms.
+    ///
+    /// @ai-generated
     #[staticmethod]
     #[pyo3(name = "from_str")]
     pub fn parse(
         #[gen_stub(override_type(
-            type_repr = "typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-chain', 'no-interdependence'] | builtins.str"
+            type_repr = "typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-mutual', 'no-chain', 'no-interdependence', 'no-convergence'] | builtins.str"
         ))]
         value: &str,
     ) -> PyResult<Self> {
@@ -129,7 +146,8 @@ impl PySolveMode {
     }
 
     /// The canonical string representation, inverse of `from_str` (e.g. `"no-chain-3"`).
-    /// The default length is rendered without a suffix (`"no-chain"`, `"no-interdependence"`).
+    /// Default parameters are rendered without a suffix (`"no-chain"`, `"no-interdependence"`,
+    /// `"no-convergence"`).
     #[getter]
     pub fn value(&self) -> String {
         self.inner.canonical()

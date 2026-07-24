@@ -19,6 +19,7 @@ __all__ = [
     "is_asymmetric",
     "is_mutual",
     "is_chained",
+    "is_convergent",
     "WorldCharacterizer",
     "MonotoneCache",
     "PlanProfile",
@@ -74,3 +75,9 @@ def is_chained(world: World, t_max: int | Literal["auto"] = "auto", length: int 
     """
     w = characterize(world, t_max)
     return w.is_chained(length)
+
+
+def is_convergent(world: World, t_max: int | Literal["auto"] = "auto", k: int = 2):
+    """Return whether every solution gives one beneficiary at least `k` distinct helpers."""
+    w = characterize(world, t_max)
+    return w.is_convergent(k)

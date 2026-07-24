@@ -21,7 +21,7 @@ class ExpectedProperties:
     independent: bool | None = None
     asymmetric: bool | None = None
     fully_coupled: bool | None = None
-    distributed: dict[int, bool] = field(default_factory=dict)
+    convergent: dict[int, bool] = field(default_factory=dict)
     chained: dict[int, bool] = field(default_factory=dict)
     interdependent: dict[int, bool] = field(default_factory=dict)
 
@@ -41,10 +41,7 @@ class Layout:
     description: str = ""
 
     def world(self):
-        """Build a fresh world from the shared layout definition.
-
-        @ai-generated
-        """
+        """Build a fresh world from the shared layout definition."""
         if isinstance(self.source, int):
             return World.level(self.source)
         return World(self.source)
@@ -74,15 +71,15 @@ class ChainedCase:
 
 
 @dataclass(frozen=True)
-class DistributedCase:
+class ConvergentCase:
     layout: Layout
     t_max: int
     expected: bool
-    order: int
+    k: int
 
     @property
     def id(self):
-        return f"{self.layout.name}-t{self.t_max}-{self.order}"
+        return f"{self.layout.name}-t{self.t_max}-{self.k}"
 
 
 @dataclass(frozen=True)
@@ -105,7 +102,7 @@ def expect(
     independent: bool | None = None,
     asymmetric: bool | None = None,
     fully_coupled: bool | None = None,
-    distributed: dict[int, bool] | None = None,
+    convergent: dict[int, bool] | None = None,
     chained: dict[int, bool] | None = None,
     interdependent: dict[int, bool] | None = None,
 ) -> Expectation:
@@ -124,7 +121,7 @@ def expect(
             independent=independent,
             asymmetric=asymmetric,
             fully_coupled=fully_coupled,
-            distributed={} if distributed is None else distributed,
+            convergent={} if convergent is None else convergent,
             chained={} if chained is None else chained,
             interdependent={} if interdependent is None else interdependent,
         ),
@@ -139,7 +136,7 @@ def expect_for(
     independent: bool | None = None,
     asymmetric: bool | None = None,
     fully_coupled: bool | None = None,
-    distributed: dict[int, bool] | None = None,
+    convergent: dict[int, bool] | None = None,
     chained: dict[int, bool] | None = None,
     interdependent: dict[int, bool] | None = None,
 ) -> tuple[Expectation, ...]:
@@ -152,7 +149,7 @@ def expect_for(
             independent=independent,
             asymmetric=asymmetric,
             fully_coupled=fully_coupled,
-            distributed=distributed,
+            convergent=convergent,
             chained=chained,
             interdependent=interdependent,
         )
@@ -241,6 +238,7 @@ S0 . S1
             independent=True,
             asymmetric=False,
             fully_coupled=False,
+            convergent={2: False},
             interdependent={2: False},
         ),
     ),
@@ -257,8 +255,6 @@ S1 . . . .
     (expect(10, solvable=True, cooperative=False),),
 )
 
-
-# One-way and asymmetric cooperation
 
 ONE_WAY_DETOUR = Layout(
     "one-way-detour",
@@ -305,6 +301,7 @@ L0E .  .
             solvable=True,
             cooperative=True,
             asymmetric=True,
+            convergent={2: False},
             chained={2: False},
             interdependent={2: False},
         ),
@@ -318,11 +315,29 @@ DOUBLE_DISJOINT_ASYMMETRIC = Layout(
 L0E .  .  @ L2E .  .
  @  X  X  @  @  X  X
 """,
-    (expect(6, asymmetric=True),),
+    (expect(6, asymmetric=True, convergent={2: False}),),
 )
 
-
-# Chained cooperation
+CONVERGENT_2_TIGHT = Layout(
+    "convergent-2-tight",
+    """
+ @  S0  @  @  @  S2
+L0E  .  .  .  .  .
+ @   X  @  @  @  .
+L1E  .  .  .  .  .
+ @  S1  @  @  @  .
+ @   X  @  @  @  X
+""",
+    (
+        expect(
+            5,
+            solvable=True,
+            cooperative=True,
+            convergent={2: True, 3: False},
+        ),
+    ),
+    description="Agent 2 must receive sequential help from agents 0 and 1 within five steps.",
+)
 
 CHAIN_4_WITH_MUTUAL = Layout(
     "chain-4-with-mutual",
@@ -380,7 +395,7 @@ L0E .  . .  @
             10,
             solvable=True,
             chained={2: True, 3: False},
-            distributed={2: False},
+            convergent={2: False},
             interdependent={2: False},
         ),
     ),
@@ -401,14 +416,14 @@ L0E .  @  .   .  .
             10,
             solvable=True,
             chained={2: True, 3: False},
-            distributed={2: False},
+            convergent={2: False},
             interdependent={2: False, 3: False},
         ),
     ),
 )
 
-PAPER_DISTRIBUTED_2 = Layout(
-    "paper-distributed-2",
+PAPER_CONVERGENT_2 = Layout(
+    "paper-convergent-2",
     """
  @   S0  .  S2  .
 L0E  .   .  .   @
@@ -420,7 +435,7 @@ L0E  .   .  .   @
         expect(
             10,
             solvable=True,
-            distributed={2: True, 3: False},
+            convergent={2: True, 3: False},
             chained={2: False},
             interdependent={2: False},
             asymmetric=True,
@@ -446,6 +461,7 @@ S2   .   . . . @
             independent=False,
             asymmetric=False,
             fully_coupled=True,
+            convergent={2: True, 3: False},
             interdependent={2: True, 3: True, 4: False},
         ),
     ),
@@ -652,7 +668,7 @@ L0E  .    .   .   .  @
             10,
             solvable=True,
             chained={2: True, 3: True},
-            distributed={2: False},
+            convergent={2: False},
             interdependent={2: False, 3: True, 4: False},
         ),
     ),
@@ -679,7 +695,7 @@ S3  .   .  .   @
             solvable=True,
             chained={2: True, 3: True, 4: True, 5: True, 6: True, 7: False},
             interdependent={2: True, 3: True, 4: True, 5: False},
-            distributed={2: True, 3: False},
+            convergent={2: True, 3: False},
         ),
     ),
 )
@@ -698,11 +714,12 @@ ALL_LAYOUTS = [
     ONE_WAY_DETOUR,
     SINGLE_LASER_ASYMMETRIC,
     DOUBLE_DISJOINT_ASYMMETRIC,
+    CONVERGENT_2_TIGHT,
     CHAIN_4_WITH_MUTUAL,
     CHAIN_3_WITHOUT_CYCLE,
     PAPER_CHAIN_2,
     PAPER_CHAIN_2_NOT_INTERDEPENDENT_3,
-    PAPER_DISTRIBUTED_2,
+    PAPER_CONVERGENT_2,
     PAPER_FULLY_COUPLED,
     PAPER_FULLY_COUPLED_LEGACY,
     TWO_AGENT_MUTUAL_COMPACT,
@@ -738,13 +755,13 @@ def chained_cases():
     ]
 
 
-def distributed_cases():
-    """Return every explicit distributed-order expectation."""
+def convergent_cases():
+    """Return every explicit convergence-threshold expectation."""
     return [
-        DistributedCase(layout, expectation.t_max, expected, order)
+        ConvergentCase(layout, expectation.t_max, expected, k)
         for layout in ALL_LAYOUTS
         for expectation in layout.expectations
-        for order, expected in expectation.properties.distributed.items()
+        for k, expected in expectation.properties.convergent.items()
     ]
 
 

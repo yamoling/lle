@@ -26,6 +26,12 @@ pub enum VarKey {
         beneficiary: AgentId,
         t: usize,
     },
+    /// Whether `helper` helps `beneficiary` at least once through `horizon`.
+    PairwiseHelp {
+        helper: AgentId,
+        beneficiary: AgentId,
+        horizon: usize,
+    },
     /// Shorthand for "there exists a time step `t` at which `beneficiary` is the beneficiary of `help(h, b, t)`
     /// with `t <= horizon`"
     IsHelped {
@@ -107,6 +113,19 @@ impl VarPool {
         })
     }
 
+    pub fn pairwise_help(
+        &mut self,
+        helper: AgentId,
+        beneficiary: AgentId,
+        horizon: usize,
+    ) -> Literal {
+        self.id(VarKey::PairwiseHelp {
+            helper,
+            beneficiary,
+            horizon,
+        })
+    }
+
     pub fn is_helped(&mut self, beneficiary: AgentId, horizon: usize) -> Literal {
         self.id(VarKey::IsHelped {
             beneficiary,
@@ -116,6 +135,29 @@ impl VarPool {
 
     pub fn provides_help_up_to(&mut self, helper: AgentId, horizon: usize) -> Literal {
         self.id(VarKey::ProvidesHelp { helper, horizon })
+    }
+
+    /// Return the deterministically ordered help literals for one directed pair through `horizon`.
+    pub fn help_variables_for_pair(
+        &self,
+        helper: AgentId,
+        beneficiary: AgentId,
+        horizon: usize,
+    ) -> Vec<Literal> {
+        let mut variables = self
+            .ids
+            .iter()
+            .filter_map(|(key, lit)| match key {
+                VarKey::Help {
+                    helper: h,
+                    beneficiary: b,
+                    t,
+                } if *h == helper && *b == beneficiary && *t <= horizon => Some(*lit),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        variables.sort_unstable();
+        variables
     }
 
     /// Returns all the help variables where `beneficiary` is the beneficiary of the help event up to `t` included.

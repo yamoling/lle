@@ -32,6 +32,45 @@ fn interdependence_progress_uses_a_dedicated_var_key() {
     );
 }
 
+/// Pairwise-help variables are uniquely keyed by directed pair and horizon.
+#[test]
+fn pairwise_help_uses_a_horizon_scoped_var_key() {
+    let mut pool = VarPool::new();
+    let first = pool.pairwise_help(0, 2, 4);
+
+    assert_eq!(first, pool.pairwise_help(0, 2, 4));
+    assert_ne!(first, pool.pairwise_help(1, 2, 4));
+    assert_ne!(first, pool.pairwise_help(0, 1, 4));
+    assert_ne!(first, pool.pairwise_help(0, 2, 5));
+    assert_eq!(
+        pool.key(first),
+        Some(VarKey::PairwiseHelp {
+            helper: 0,
+            beneficiary: 2,
+            horizon: 4,
+        })
+    );
+}
+
+/// Pair-specific help lookup filters by both agents and horizon and returns deterministic literals.
+#[test]
+fn help_variables_for_pair_are_filtered_and_sorted() {
+    let mut pool = VarPool::new();
+    let after_horizon = pool.help(0, 2, 4);
+    let at_two = pool.help(0, 2, 2);
+    pool.help(1, 2, 1);
+    let at_one = pool.help(0, 2, 1);
+    pool.help(0, 1, 1);
+
+    let variables = pool.help_variables_for_pair(0, 2, 2);
+    let mut expected = vec![at_one, at_two];
+    expected.sort_unstable();
+
+    assert_eq!(variables, expected);
+    assert_eq!(pool.help_variables_for_pair(0, 2, 2), expected);
+    assert!(!variables.contains(&after_horizon));
+}
+
 /// `decode_plan` must translate the per-step agent positions of a SAT model back into the joint
 /// action sequence, covering every one of the five action directions.
 #[test]

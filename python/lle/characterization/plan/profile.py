@@ -59,6 +59,15 @@ class PlanProfile:
             raise ValueError("A chain must have at least 2 edges")
         return self.graph.longest_trail_length() >= length
 
+    def is_convergent(self, k: int = 2) -> bool:
+        """Whether one beneficiary receives help from at least `k` distinct agents.
+
+        Help is flattened across time, so repeated help from the same agent counts once.
+        """
+        if k < 2:
+            raise ValueError(f"Convergence requires at least 2 distinct helpers, got {k}.")
+        return self.graph.max_distinct_helpers() >= k
+
     def interdependence_order(self) -> int:
         """
         Return the greatest support size of a temporal closed trail, or `0`.

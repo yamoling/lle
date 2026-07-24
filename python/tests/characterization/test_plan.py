@@ -1,4 +1,5 @@
 import lle
+import pytest
 from lle import World
 from lle.characterization import profile_plan
 from lle.characterization.plan import DependencyEdge, TemporalCooperationGraph
@@ -198,3 +199,75 @@ L0E .  .  . . .
     assert not profile.is_chained(2)
     assert not profile.is_interdependent(2)
     assert not profile.is_interdependent(3)
+
+
+def test_convergence_counts_repeated_helper_once():
+    """Repeated temporal help from one agent counts as one distinct helper."""
+    profile = TemporalCooperationGraph(
+        [
+            DependencyEdge(0, 2, 1),
+            DependencyEdge(0, 2, 3),
+            DependencyEdge(0, 2, 4),
+        ]
+    ).profile()
+    assert not profile.is_convergent(2)
+
+
+def test_convergence_counts_distinct_helpers_at_different_times():
+    """Different helpers of one beneficiary count across time."""
+    profile = TemporalCooperationGraph(
+        [
+            DependencyEdge(0, 2, 1),
+            DependencyEdge(1, 2, 7),
+        ]
+    ).profile()
+    assert profile.is_convergent(2)
+
+
+def test_convergence_does_not_combine_different_beneficiaries():
+    """Helpers received by different beneficiaries are not aggregated."""
+    profile = TemporalCooperationGraph(
+        [
+            DependencyEdge(0, 1, 1),
+            DependencyEdge(1, 2, 2),
+        ]
+    ).profile()
+    assert not profile.is_convergent(2)
+
+
+def test_convergence_threshold_is_monotone():
+    """Three distinct helpers satisfy thresholds two and three but not four."""
+    profile = TemporalCooperationGraph(
+        [
+            DependencyEdge(0, 3, 1),
+            DependencyEdge(1, 3, 4),
+            DependencyEdge(2, 3, 9),
+        ]
+    ).profile()
+
+    assert profile.is_convergent(2)
+    assert profile.is_convergent(3)
+    assert not profile.is_convergent(4)
+
+
+def test_convergence_ignores_duplicate_and_unrelated_edges():
+    """Duplicate temporal edges and unrelated help do not change the helper count."""
+    profile = TemporalCooperationGraph(
+        [
+            DependencyEdge(0, 3, 1),
+            DependencyEdge(0, 3, 1),
+            DependencyEdge(0, 3, 5),
+            DependencyEdge(1, 3, 7),
+            DependencyEdge(4, 5, 2),
+            DependencyEdge(5, 4, 3),
+        ]
+    ).profile()
+    assert profile.graph.max_distinct_helpers() == 2
+    assert profile.is_convergent(2)
+    assert not profile.is_convergent(3)
+
+
+@pytest.mark.parametrize("k", [-1, 0, 1])
+def test_plan_profile_rejects_convergence_threshold_below_two(k: int):
+    with pytest.raises(ValueError):
+        TemporalCooperationGraph.empty().profile().is_convergent(k)

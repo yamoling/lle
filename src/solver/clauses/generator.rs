@@ -99,6 +99,12 @@ impl ClauseGenerator {
                         .gather_until(&mut self.engine, t, order),
                 );
             }
+            SolveMode::NoConvergentCooperation(k) => {
+                clauses.extend(self.lasers.gather_until(&mut self.engine, t));
+                clauses.extend(self.help.gather_until(&mut self.engine, t));
+                clauses.extend(self.engine.generate_pairwise_help_clauses(t));
+                clauses.extend(self.engine.generate_no_convergence_clauses(t, k));
+            }
         }
 
         clauses.extend(self.engine.objective(t, collect_gems));

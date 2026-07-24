@@ -1,6 +1,7 @@
 mod assumptions;
 mod chains;
 mod clause_engine;
+mod convergence;
 mod cooperation;
 mod gems;
 mod interdependence;
