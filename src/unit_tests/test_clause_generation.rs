@@ -1160,3 +1160,235 @@ fn no_convergence_generator_reuse_does_not_leak_horizons_or_thresholds() {
             })
     }));
 }
+
+/// Build the canonical world where agent 0's beam covers the routes of agents 1 and 2.
+///
+/// @ai-generated
+fn divergent_world() -> World {
+    World::try_from(
+        "
+         @   X   X   X  @
+        L0E  .   .   .  .
+         @  S0  S1  S2  @
+        ",
+    )
+    .expect("failed to parse divergence world")
+}
+
+/// Decode a clause into its pairwise-help keys, or `None` when it is not a blocker.
+///
+/// @ai-generated
+fn pairwise_blocker_keys(generator: &ClauseGenerator, clause: &Clause) -> Option<Vec<VarKey>> {
+    clause
+        .iter()
+        .map(|literal| match generator.engine.pool.key(-*literal) {
+            Some(key @ VarKey::PairwiseHelp { .. }) if *literal < 0 => Some(key),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The no-divergence mode materializes pair summaries, emits outgoing blockers, and uses no assumptions.
+///
+/// @ai-generated
+#[test]
+fn no_divergence_mode_generates_outgoing_blocking_clauses() {
+    let world = divergent_world();
+    let horizon = 4;
+    let mut generator = ClauseGenerator::new(&world, horizon);
+
+    generator.generate(horizon, SolveMode::Standard, false);
+    for helper in 0..world.n_agents() {
+        for beneficiary in 0..world.n_agents() {
+            assert!(!generator.exists(&VarKey::PairwiseHelp {
+                helper,
+                beneficiary,
+                horizon,
+            }));
+        }
+    }
+
+    let (clauses, assumptions) =
+        generator.generate(horizon, SolveMode::NoDivergentCooperation(2), false);
+    assert!(assumptions.is_empty());
+
+    let blockers = clauses
+        .iter()
+        .filter_map(|clause| pairwise_blocker_keys(&generator, clause))
+        .collect::<Vec<_>>();
+    assert!(!blockers.is_empty());
+    for keys in blockers {
+        let [
+            VarKey::PairwiseHelp {
+                helper: first_helper,
+                beneficiary: first_beneficiary,
+                horizon: first_horizon,
+            },
+            VarKey::PairwiseHelp {
+                helper: second_helper,
+                beneficiary: second_beneficiary,
+                horizon: second_horizon,
+            },
+        ] = keys.as_slice()
+        else {
+            panic!("blocking clauses must contain exactly two pairwise-help variables");
+        };
+        assert_eq!(first_helper, second_helper);
+        assert_ne!(first_beneficiary, second_beneficiary);
+        assert_eq!(*first_horizon, horizon);
+        assert_eq!(*second_horizon, horizon);
+    }
+}
+
+/// Only agents that own a laser can help, so no other agent gets outgoing summaries.
+///
+/// @ai-generated
+#[test]
+fn no_divergence_mode_prunes_impossible_help_pairs() {
+    let world = divergent_world();
+    let horizon = 4;
+    let mut generator = ClauseGenerator::new(&world, horizon);
+    generator.generate(horizon, SolveMode::NoDivergentCooperation(2), false);
+
+    for helper in 1..world.n_agents() {
+        for beneficiary in 0..world.n_agents() {
+            assert!(
+                !generator.exists(&VarKey::PairwiseHelp {
+                    helper,
+                    beneficiary,
+                    horizon,
+                }),
+                "agent {helper} owns no laser and cannot help {beneficiary}"
+            );
+        }
+    }
+    assert!(
+        (1..world.n_agents()).any(|beneficiary| generator.exists(&VarKey::PairwiseHelp {
+            helper: 0,
+            beneficiary,
+            horizon,
+        }))
+    );
+}
+
+/// Convergence and divergence queries on one generator keep their own blocker orientation.
+///
+/// @ai-generated
+#[test]
+fn interleaved_convergence_and_divergence_keep_their_orientation() {
+    let world = divergent_world();
+    let horizon = 4;
+    let mut generator = ClauseGenerator::new(&world, horizon);
+
+    let (divergence, _) = generator.generate(horizon, SolveMode::NoDivergentCooperation(2), false);
+    let (convergence, _) =
+        generator.generate(horizon, SolveMode::NoConvergentCooperation(2), false);
+
+    let shared_helpers = |clauses: &[Clause]| {
+        clauses
+            .iter()
+            .filter_map(|clause| pairwise_blocker_keys(&generator, clause))
+            .filter(|keys| {
+                matches!(
+                    keys.as_slice(),
+                    [
+                        VarKey::PairwiseHelp { helper: a, .. },
+                        VarKey::PairwiseHelp { helper: b, .. },
+                    ] if a == b
+                )
+            })
+            .count()
+    };
+
+    assert!(shared_helpers(&divergence) > 0);
+    // Only one agent owns a laser here, so no beneficiary can have two distinct helpers.
+    assert_eq!(shared_helpers(&convergence), 0);
+}
+
+/// Out-of-order horizon queries reference only the requested horizon.
+///
+/// @ai-generated
+#[test]
+fn no_divergence_generator_reuse_does_not_leak_horizons() {
+    let world = divergent_world();
+    let mut generator = ClauseGenerator::new(&world, 6);
+
+    generator.generate(6, SolveMode::NoDivergentCooperation(2), false);
+    let large_pairwise = (0..world.n_agents())
+        .filter_map(|beneficiary| {
+            generator.literal(&VarKey::PairwiseHelp {
+                helper: 0,
+                beneficiary,
+                horizon: 6,
+            })
+        })
+        .collect::<Vec<_>>();
+    assert!(!large_pairwise.is_empty());
+
+    let (small_clauses, _) = generator.generate(4, SolveMode::NoDivergentCooperation(2), false);
+    assert!(large_pairwise.iter().all(|large| {
+        !small_clauses
+            .iter()
+            .flatten()
+            .any(|literal| literal.unsigned_abs() == *large as u32)
+    }));
+
+    let (large_again, _) = generator.generate(6, SolveMode::NoDivergentCooperation(2), false);
+    let mut fresh_generator = ClauseGenerator::new(&world, 6);
+    let (fresh, _) = fresh_generator.generate(6, SolveMode::NoDivergentCooperation(2), false);
+    assert_eq!(
+        semantic_clauses(&generator, &large_again),
+        semantic_clauses(&fresh_generator, &fresh)
+    );
+}
+
+/// Normalize a formula to `(VarKey, polarity)` sets so allocation order does not matter.
+///
+/// @ai-generated
+fn semantic_clauses(
+    generator: &ClauseGenerator,
+    clauses: &[Clause],
+) -> HashSet<Vec<(VarKey, bool)>> {
+    clauses
+        .iter()
+        .map(|clause| {
+            let mut normalized = clause
+                .iter()
+                .map(|&literal| {
+                    (
+                        generator
+                            .engine
+                            .pool
+                            .key(literal.abs())
+                            .expect("every literal must decode"),
+                        literal > 0,
+                    )
+                })
+                .collect::<Vec<_>>();
+            normalized.sort_by_key(|(key, polarity)| (format!("{key:?}"), *polarity));
+            normalized
+        })
+        .collect()
+}
+
+/// A directly constructed threshold below two fails before any clause is produced.
+///
+/// @ai-generated
+#[test]
+#[should_panic(expected = "requires a threshold >= 2")]
+fn raw_divergence_threshold_below_two_panics() {
+    let world = divergent_world();
+    let mut generator = ClauseGenerator::new(&world, 4);
+    generator.generate(4, SolveMode::NoDivergentCooperation(1), false);
+}
+
+/// The same guard protects the convergence variant against direct construction.
+///
+/// @ai-generated
+#[test]
+#[should_panic(expected = "requires a threshold >= 2")]
+fn raw_convergence_threshold_of_zero_panics() {
+    let world = divergent_world();
+    let mut generator = ClauseGenerator::new(&world, 4);
+    generator.generate(4, SolveMode::NoConvergentCooperation(0), false);
+}

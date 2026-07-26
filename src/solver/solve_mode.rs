@@ -24,6 +24,12 @@ pub enum SolveMode {
     /// No beneficiary may receive help from at least `k` distinct helpers over the trajectory.
     /// The wrapped value is the rejected convergence threshold `k >= 2`.
     NoConvergentCooperation(usize),
+    /// No helper may help at least `k` distinct beneficiaries over the trajectory. This is the
+    /// outgoing dual of [`SolveMode::NoConvergentCooperation`]. The wrapped value is the rejected
+    /// divergence threshold, and `k >= 2` is an invariant of the variant: because the enum is
+    /// public, a caller may construct an invalid threshold directly, and
+    /// `ClauseGenerator::generate` rejects it before allocating any clause.
+    NoDivergentCooperation(usize),
 }
 
 /// The smallest meaningful parameter for the parameterized solve modes.
@@ -66,10 +72,13 @@ impl std::str::FromStr for SolveMode {
                 if let Some(res) = parametrized(s, "no-convergence") {
                     return res.map(SolveMode::NoConvergentCooperation);
                 }
+                if let Some(res) = parametrized(s, "no-divergence") {
+                    return res.map(SolveMode::NoDivergentCooperation);
+                }
                 Err(format!(
                     "Unknown solve mode: '{other}'. Expected one of: 'standard', 'no-cooperation', \
                      'no-asymmetric', 'no-mutual', 'no-chain[-N]', 'no-interdependence[-N]', \
-                     'no-convergence[-N]' (N >= {MIN_LENGTH})."
+                     'no-convergence[-N]', 'no-divergence[-N]' (N >= {MIN_LENGTH})."
                 ))
             }
         }
@@ -88,6 +97,7 @@ impl SolveMode {
             SolveMode::NoChainedCooperation(n) => suffixed("no-chain", *n),
             SolveMode::NoInterdependence(n) => suffixed("no-interdependence", *n),
             SolveMode::NoConvergentCooperation(k) => suffixed("no-convergence", *k),
+            SolveMode::NoDivergentCooperation(k) => suffixed("no-divergence", *k),
         }
     }
 }
@@ -172,8 +182,53 @@ mod tests {
             "no-chain-3",
             "no-interdependence",
             "no-interdependence-4",
+            "no-divergence",
+            "no-divergence-3",
         ] {
             assert_eq!(SolveMode::from_str(s).unwrap().canonical(), s);
+        }
+    }
+
+    /// The bare and explicit-two divergence forms denote the same mode and canonical string.
+    ///
+    /// @ai-generated
+    #[test]
+    fn divergence_parses_and_canonicalizes() {
+        assert_eq!(
+            SolveMode::from_str("no-divergence").unwrap(),
+            SolveMode::NoDivergentCooperation(2)
+        );
+        assert_eq!(
+            SolveMode::from_str("no-divergence-2").unwrap(),
+            SolveMode::NoDivergentCooperation(2)
+        );
+        assert_eq!(
+            SolveMode::NoDivergentCooperation(2).canonical(),
+            "no-divergence"
+        );
+        assert_eq!(
+            SolveMode::from_str("no-divergence-3").unwrap(),
+            SolveMode::NoDivergentCooperation(3)
+        );
+        assert_ne!(
+            SolveMode::NoDivergentCooperation(2),
+            SolveMode::NoConvergentCooperation(2)
+        );
+    }
+
+    /// Invalid divergence thresholds and malformed suffixes are rejected.
+    ///
+    /// @ai-generated
+    #[test]
+    fn divergence_rejects_invalid_thresholds() {
+        for s in [
+            "no-divergence-0",
+            "no-divergence-1",
+            "no-divergence-x",
+            "no-divergence-",
+            "no-divergence2",
+        ] {
+            assert!(SolveMode::from_str(s).is_err(), "{s} should be rejected");
         }
     }
 }

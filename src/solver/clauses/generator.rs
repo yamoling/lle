@@ -10,6 +10,24 @@ type ClauseBuffer = StepBuffer<Clause>;
 type ParameterizedClauseBuffer = ParameterizedStepBuffer<Clause>;
 type LiteralBuffer = StepBuffer<Literal>;
 
+/// The smallest meaningful threshold of the degree-based solve modes.
+const MIN_DEGREE_THRESHOLD: usize = 2;
+
+/// Reject a degree threshold below `2` before any variable or clause is allocated.
+///
+/// [`SolveMode`] is a public enum, so a caller may construct a parameterized variant directly and
+/// bypass the string parser. A threshold of `0` would make `combinations(0)` emit the empty clause
+/// and turn every query UNSAT, and a threshold of `1` would forbid all help; failing loudly is
+/// preferable to either accidental semantics.
+///
+/// @ai-generated
+fn assert_threshold(k: usize, variant: &str) {
+    assert!(
+        k >= MIN_DEGREE_THRESHOLD,
+        "SolveMode::{variant} requires a threshold >= {MIN_DEGREE_THRESHOLD}, got {k}."
+    );
+}
+
 /// Generates the SAT clauses for a bounded planning horizon.
 ///
 /// The generator is a thin façade over a [`ClauseEngine`] (which knows how to produce the clauses
@@ -100,10 +118,18 @@ impl ClauseGenerator {
                 );
             }
             SolveMode::NoConvergentCooperation(k) => {
+                assert_threshold(k, "NoConvergentCooperation");
                 clauses.extend(self.lasers.gather_until(&mut self.engine, t));
                 clauses.extend(self.help.gather_until(&mut self.engine, t));
                 clauses.extend(self.engine.generate_pairwise_help_clauses(t));
                 clauses.extend(self.engine.generate_no_convergence_clauses(t, k));
+            }
+            SolveMode::NoDivergentCooperation(k) => {
+                assert_threshold(k, "NoDivergentCooperation");
+                clauses.extend(self.lasers.gather_until(&mut self.engine, t));
+                clauses.extend(self.help.gather_until(&mut self.engine, t));
+                clauses.extend(self.engine.generate_pairwise_help_clauses(t));
+                clauses.extend(self.engine.generate_no_divergence_clauses(t, k));
             }
         }
 

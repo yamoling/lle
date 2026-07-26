@@ -78,7 +78,7 @@ impl PyClauseGenerator {
     ///
     /// `mode` accepts either a `SolveMode` instance or its canonical string (`"standard"`,
     /// `"no-cooperation"`, `"no-asymmetric"`, `"no-mutual"`, `"no-chain[-N]"`,
-    /// `"no-interdependence[-N]"`, `"no-convergence[-N]"`). `collect_gems` adds gem-collection
+    /// `"no-interdependence[-N]"`, `"no-convergence[-N]"`, `"no-divergence[-N]"`). `collect_gems` adds gem-collection
     /// clauses to the objective.
     ///
     /// Returns `(clauses, assumptions)` ready to be fed to `solve_model`.
@@ -88,7 +88,7 @@ impl PyClauseGenerator {
         py: Python,
         t: usize,
         #[gen_stub(override_type(
-            type_repr = "typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-mutual', 'no-chain', 'no-interdependence', 'no-convergence'] | builtins.str | SolveMode | None",
+            type_repr = "typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-mutual', 'no-chain', 'no-interdependence', 'no-convergence', 'no-divergence'] | builtins.str | SolveMode | None",
             imports = ("typing",)
         ))]
         mode: Option<Py<PyAny>>,

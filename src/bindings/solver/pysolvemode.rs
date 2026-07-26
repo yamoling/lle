@@ -22,6 +22,8 @@ use crate::solver::SolveMode;
 ///   remain allowed. `no_interdependence(2)` coincides with `no_mutual()`.
 /// - `no_convergence(k=2)` — rules out plans where one beneficiary receives help from at least `k`
 ///   distinct helpers.
+/// - `no_divergence(k=2)` — rules out plans where one helper helps at least `k` distinct
+///   beneficiaries. This is the outgoing dual of `no_convergence`.
 ///
 /// ```python
 /// from lle.solver.clauses import ClauseGenerator, SolveMode
@@ -104,41 +106,45 @@ impl PySolveMode {
     /// Forbid any non-decreasing-time temporal chain of `length` help edges or more. `length` must be `>= 2`.
     #[staticmethod]
     #[pyo3(signature = (length=2))]
-    fn no_chain(length: usize) -> PyResult<Self> {
+    fn no_chain(length: i64) -> PyResult<Self> {
         Self::checked(length, "no_chain", SolveMode::NoChainedCooperation)
     }
 
     /// Forbid any temporal closed trail with exactly `order` distinct agents. `order` must be `>= 2`.
     #[staticmethod]
     #[pyo3(signature = (order=2))]
-    fn no_interdependence(order: usize) -> PyResult<Self> {
+    fn no_interdependence(order: i64) -> PyResult<Self> {
         Self::checked(order, "no_interdependence", SolveMode::NoInterdependence)
     }
 
     /// Forbid any beneficiary from receiving help from at least `k` distinct helpers. `k` must be `>= 2`.
-    ///
     #[staticmethod]
     #[pyo3(signature = (k=2))]
-    fn no_convergence(k: usize) -> PyResult<Self> {
-        if k < 2 {
-            return Err(PyValueError::new_err(format!(
-                "no_convergence: the distinct-helper threshold must be >= 2, got {k}."
-            )));
-        }
-        Ok(SolveMode::NoConvergentCooperation(k).into())
+    fn no_convergence(k: i64) -> PyResult<Self> {
+        Self::checked(k, "no_convergence", SolveMode::NoConvergentCooperation)
     }
 
-    /// Parse a canonical string (e.g. `"standard"`, `"no-chain-3"`, `"no-convergence-3"`).
+    /// Forbid any helper from helping at least `k` distinct beneficiaries. `k` must be `>= 2`.
     ///
-    /// `"no-chain"`, `"no-interdependence"`, and `"no-convergence"` accept a `"-n"` suffix for their parameter.
-    /// Their bare forms are aliases for the corresponding `"-2"` forms.
+    /// @ai-generated
+    #[staticmethod]
+    #[pyo3(signature = (k=2))]
+    fn no_divergence(k: i64) -> PyResult<Self> {
+        Self::checked(k, "no_divergence", SolveMode::NoDivergentCooperation)
+    }
+
+    /// Parse a canonical string (e.g. `"standard"`, `"no-chain-3"`, `"no-divergence-3"`).
+    ///
+    /// `"no-chain"`, `"no-interdependence"`, `"no-convergence"`, and `"no-divergence"` accept a
+    /// `"-n"` suffix for their parameter. Their bare forms are aliases for the corresponding
+    /// `"-2"` forms.
     ///
     /// @ai-generated
     #[staticmethod]
     #[pyo3(name = "from_str")]
     pub fn parse(
         #[gen_stub(override_type(
-            type_repr = "typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-mutual', 'no-chain', 'no-interdependence', 'no-convergence'] | builtins.str"
+            type_repr = "typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-mutual', 'no-chain', 'no-interdependence', 'no-convergence', 'no-divergence'] | builtins.str"
         ))]
         value: &str,
     ) -> PyResult<Self> {
@@ -147,7 +153,7 @@ impl PySolveMode {
 
     /// The canonical string representation, inverse of `from_str` (e.g. `"no-chain-3"`).
     /// Default parameters are rendered without a suffix (`"no-chain"`, `"no-interdependence"`,
-    /// `"no-convergence"`).
+    /// `"no-convergence"`, `"no-divergence"`).
     #[getter]
     pub fn value(&self) -> String {
         self.inner.canonical()
@@ -163,13 +169,18 @@ impl PySolveMode {
 }
 
 impl PySolveMode {
-    /// Build a parametrized mode, rejecting lengths below the minimum (`2`).
-    fn checked(n: usize, factory: &str, build: fn(usize) -> SolveMode) -> PyResult<Self> {
+    /// Build a parametrized mode, rejecting thresholds below the minimum (`2`).
+    ///
+    /// The parameter is accepted as a signed integer so that negative Python values reach this
+    /// explicit check instead of failing earlier with an `OverflowError` during conversion.
+    ///
+    /// @ai-generated
+    fn checked(n: i64, factory: &str, build: fn(usize) -> SolveMode) -> PyResult<Self> {
         if n < 2 {
             return Err(PyValueError::new_err(format!(
-                "{factory}: the minimal rejected length must be >= 2, got {n}."
+                "{factory}: the minimal rejected threshold must be >= 2, got {n}."
             )));
         }
-        Ok(build(n).into())
+        Ok(build(n as usize).into())
     }
 }
