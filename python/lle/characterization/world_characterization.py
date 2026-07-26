@@ -164,7 +164,7 @@ class WorldCharacterizer:
         if self.shortest_path is None:
             raise NotSolvableError("World is not solvable")
         profile = profile_plan(self.world, self.shortest_path)
-        if not profile.is_interdependent_exactly(n_agents):
+        if not profile.is_interdependent(n_agents):
             res = False
         else:
             res = self.compute_shortest_non_interdependent_path(n_agents) is None

@@ -161,9 +161,6 @@ def test_not_interdependent():
 
 
 def test_profile_exact_interdependence_is_distinct_from_threshold_query():
-    """
-    A larger closed trail does not imply the absent intermediate exact order.
-    """
     profile = TemporalCooperationGraph(
         [
             DependencyEdge(0, 1, 1),
@@ -172,11 +169,9 @@ def test_profile_exact_interdependence_is_distinct_from_threshold_query():
             DependencyEdge(3, 0, 4),
         ]
     ).profile()
-
-    assert profile.interdependence_order() == 4
-    assert profile.is_interdependent(3)
-    assert not profile.is_interdependent_exactly(3)
-    assert profile.is_interdependent_exactly(4)
+    assert not profile.is_interdependent(3)
+    assert profile.is_interdependent(4)
+    assert not profile.is_interdependent(5)
 
 
 def test_multiple_stepd_in_a_row_remains_asymmetric():
@@ -267,7 +262,133 @@ def test_convergence_ignores_duplicate_and_unrelated_edges():
     assert not profile.is_convergent(3)
 
 
+@pytest.mark.parametrize("length", [-1, 0, 1])
+def test_plan_profile_rejects_chain_length_below_two(length: int):
+    with pytest.raises(ValueError):
+        TemporalCooperationGraph.empty().profile().is_chained(length)
+
+
 @pytest.mark.parametrize("k", [-1, 0, 1])
 def test_plan_profile_rejects_convergence_threshold_below_two(k: int):
     with pytest.raises(ValueError):
         TemporalCooperationGraph.empty().profile().is_convergent(k)
+
+
+def test_divergence_counts_repeated_beneficiary_once():
+    """Repeated temporal help to one agent counts as one distinct beneficiary.
+
+    @ai-generated
+    """
+    profile = TemporalCooperationGraph(
+        [
+            DependencyEdge(0, 2, 1),
+            DependencyEdge(0, 2, 3),
+            DependencyEdge(0, 2, 4),
+        ]
+    ).profile()
+    assert profile.graph.max_distinct_beneficiaries() == 1
+    assert not profile.is_divergent(2)
+
+
+def test_divergence_without_convergence():
+    """One helper with two beneficiaries is divergent but not convergent.
+
+    @ai-generated
+    """
+    profile = TemporalCooperationGraph(
+        [
+            DependencyEdge(0, 1, 1),
+            DependencyEdge(0, 2, 7),
+        ]
+    ).profile()
+    assert profile.is_divergent(2)
+    assert not profile.is_convergent(2)
+
+
+def test_divergence_accepts_simultaneous_help():
+    """Two beneficiaries helped at the same timestamp still diverge.
+
+    @ai-generated
+    """
+    profile = TemporalCooperationGraph(
+        [
+            DependencyEdge(0, 1, 3),
+            DependencyEdge(0, 2, 3),
+        ]
+    ).profile()
+    assert profile.is_divergent(2)
+
+
+def test_convergence_without_divergence():
+    """Two helpers of one beneficiary converge but do not diverge.
+
+    @ai-generated
+    """
+    profile = TemporalCooperationGraph(
+        [
+            DependencyEdge(0, 2, 1),
+            DependencyEdge(1, 2, 7),
+        ]
+    ).profile()
+    assert profile.is_convergent(2)
+    assert not profile.is_divergent(2)
+
+
+def test_divergence_threshold_is_monotone():
+    """Three distinct beneficiaries satisfy thresholds two and three but not four.
+
+    @ai-generated
+    """
+    profile = TemporalCooperationGraph(
+        [
+            DependencyEdge(0, 1, 1),
+            DependencyEdge(0, 2, 4),
+            DependencyEdge(0, 3, 9),
+        ]
+    ).profile()
+    assert profile.is_divergent(2)
+    assert profile.is_divergent(3)
+    assert not profile.is_divergent(4)
+
+
+def test_divergence_ignores_duplicate_and_unrelated_edges():
+    """Duplicate temporal edges and unrelated help do not change the beneficiary count."""
+    profile = TemporalCooperationGraph(
+        [
+            DependencyEdge(0, 1, 1),
+            DependencyEdge(0, 1, 1),
+            DependencyEdge(0, 1, 5),
+            DependencyEdge(0, 2, 7),
+            DependencyEdge(4, 5, 2),
+            DependencyEdge(5, 4, 3),
+        ]
+    ).profile()
+    assert profile.graph.max_distinct_beneficiaries() == 2
+    assert profile.is_divergent(2)
+    assert not profile.is_divergent(3)
+
+
+def test_empty_graph_is_not_divergent():
+    profile = TemporalCooperationGraph.empty().profile()
+    assert profile.graph.max_distinct_beneficiaries() == 0
+    assert not profile.is_divergent(2)
+
+
+def test_self_loops_do_not_contribute_to_degree_profiles():
+    profile = TemporalCooperationGraph(
+        [
+            DependencyEdge(0, 0, 1),
+            DependencyEdge(0, 1, 2),
+        ]
+    ).profile()
+    assert profile.graph.max_distinct_beneficiaries() == 1
+    assert profile.graph.max_distinct_helpers() == 1
+    assert not profile.is_divergent(2)
+    assert not profile.is_convergent(2)
+    assert (0, 0) not in profile.graph.flattened_edges()
+
+
+@pytest.mark.parametrize("k", [-1, 0, 1])
+def test_plan_profile_rejects_divergence_threshold_below_two(k: int):
+    with pytest.raises(ValueError):
+        TemporalCooperationGraph.empty().profile().is_divergent(k)
