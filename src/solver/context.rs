@@ -3,7 +3,6 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use strum::IntoEnumIterator;
 
 use super::position_set::PositionSet;
-use super::potential_cooperation::PotentialCooperationGraph;
 use crate::Position;
 use crate::{World, tiles::Direction};
 
@@ -49,7 +48,6 @@ pub struct ConstraintContext {
     pub predecessors: Vec<Vec<PositionSet>>,
     pub solution_lower_bound: usize,
     pub laser_sources: Vec<LaserSourceInfo>,
-    pub potential_cooperation: PotentialCooperationGraph,
     exits: PositionSet,
     height: usize,
     width: usize,
@@ -186,7 +184,6 @@ impl ConstraintContext {
             predecessors,
             solution_lower_bound,
             laser_sources,
-            potential_cooperation: PotentialCooperationGraph::new(world, t_max),
             exits,
             height,
             width,
@@ -346,9 +343,8 @@ impl ConstraintContext {
         }
     }
 
-    /// Pre-compute (and cache) every piece of on-demand data needed to generate constraints
-    /// for time step `t`: reachable positions for each agent, reachable laser paths for each source,
-    /// and the potential cooperation graph adjacency matrix at that time step.
+    /// Pre-compute and cache the reachable positions and relevant laser paths needed to generate
+    /// constraints for time step `t`.
     pub fn update(&mut self, t: usize) {
         if self
             .updated_until
@@ -364,11 +360,6 @@ impl ConstraintContext {
             self.update_relevant_positions(tt);
             self.update_laser_relevance(tt);
             self.update_forced_exit_relevance(tt);
-            self.potential_cooperation.update(
-                tt,
-                &self.relevant_positions,
-                &self.relevant_laser_paths,
-            )
         }
         self.updated_until = Some(t);
     }
