@@ -31,6 +31,9 @@ class WorldCharacterizer:
         self._solver = solver.Solver(self.world, self.t_max)
         self._is_chained_cache = MonotoneCache()
         self._is_convergent_cache = MonotoneCache()
+        # Convergence and divergence are independent predicates over opposite endpoints of the
+        # same directed relation, so they must not share a cache.
+        self._is_divergent_cache = MonotoneCache()
         self._interdependence_cache = dict[int, bool]()
 
     @cached_property
@@ -142,6 +145,34 @@ class WorldCharacterizer:
         self._is_convergent_cache[k] = res
         return res
 
+    def is_divergent(self, k: int = 2) -> bool:
+        """Whether every solution requires one helper to have `k` distinct beneficiaries.
+
+        This is the outgoing dual of `is_convergent`. A shortest normal plan first provides a
+        concrete positive witness. If that plan is k-divergent, a no-divergence solve proves
+        universality by returning `None`.
+
+        # Raises
+            - `ValueError` if `k < 2`.
+            - `NotSolvableError` if the world is not solvable.
+        """
+        if k < 2:
+            raise ValueError(f"Divergence requires at least 2 distinct beneficiaries, got {k}.")
+        if k >= self.world.n_agents:
+            return False
+        cached = self._is_divergent_cache.get(k)
+        if cached is not None:
+            return cached
+        path = self.shortest_path
+        if path is None:
+            raise NotSolvableError("World is not solvable")
+        if not profile_plan(self.world, path).is_divergent(k):
+            res = False
+        else:
+            res = self.compute_shortest_path_without_divergence(k) is None
+        self._is_divergent_cache[k] = res
+        return res
+
     def is_interdependent(self, n_agents: int = 2) -> bool:
         """
         Whether the world *requires* interdependence between exactly `n_agents` agents:
@@ -150,8 +181,6 @@ class WorldCharacterizer:
 
         Exact orders are not monotone: an order-4 trail does not imply an
         order-3 trail. For two agents this coincides with `is_mutual`.
-
-        @ai-generated
 
         # Raises
             -`NotSolvableError` if the world is not solvable
@@ -198,6 +227,15 @@ class WorldCharacterizer:
         if k < 2:
             raise ValueError(f"Convergence requires at least 2 distinct helpers, got {k}.")
         return self._solver.solve(SolveMode.no_convergence(k))
+
+    def compute_shortest_path_without_divergence(self, k: int):
+        """Return the shortest plan that avoids k-divergence, or `None` if none exists.
+
+        @ai-generated
+        """
+        if k < 2:
+            raise ValueError(f"Divergence requires at least 2 distinct beneficiaries, got {k}.")
+        return self._solver.solve(SolveMode.no_divergence(k))
 
     def compute_shortest_non_interdependent_path(self, order: int):
         """Shortest plan within `t_max` that avoids every cycle of exactly `order`, or None."""

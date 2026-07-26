@@ -22,6 +22,7 @@ class ExpectedProperties:
     asymmetric: bool | None = None
     fully_coupled: bool | None = None
     convergent: dict[int, bool] = field(default_factory=dict)
+    divergent: dict[int, bool] = field(default_factory=dict)
     chained: dict[int, bool] = field(default_factory=dict)
     interdependent: dict[int, bool] = field(default_factory=dict)
 
@@ -83,6 +84,18 @@ class ConvergentCase:
 
 
 @dataclass(frozen=True)
+class DivergentCase:
+    layout: Layout
+    t_max: int
+    expected: bool
+    k: int
+
+    @property
+    def id(self):
+        return f"{self.layout.name}-t{self.t_max}-{self.k}"
+
+
+@dataclass(frozen=True)
 class InterdependentCase:
     layout: Layout
     t_max: int
@@ -103,6 +116,7 @@ def expect(
     asymmetric: bool | None = None,
     fully_coupled: bool | None = None,
     convergent: dict[int, bool] | None = None,
+    divergent: dict[int, bool] | None = None,
     chained: dict[int, bool] | None = None,
     interdependent: dict[int, bool] | None = None,
 ) -> Expectation:
@@ -122,6 +136,7 @@ def expect(
             asymmetric=asymmetric,
             fully_coupled=fully_coupled,
             convergent={} if convergent is None else convergent,
+            divergent={} if divergent is None else divergent,
             chained={} if chained is None else chained,
             interdependent={} if interdependent is None else interdependent,
         ),
@@ -137,6 +152,7 @@ def expect_for(
     asymmetric: bool | None = None,
     fully_coupled: bool | None = None,
     convergent: dict[int, bool] | None = None,
+    divergent: dict[int, bool] | None = None,
     chained: dict[int, bool] | None = None,
     interdependent: dict[int, bool] | None = None,
 ) -> tuple[Expectation, ...]:
@@ -150,6 +166,7 @@ def expect_for(
             asymmetric=asymmetric,
             fully_coupled=fully_coupled,
             convergent=convergent,
+            divergent=divergent,
             chained=chained,
             interdependent=interdependent,
         )
@@ -210,6 +227,7 @@ LEVEL_6 = Layout(
                 3: False,
             },
             interdependent={2: True, 3: False},
+            divergent={2: True, 3: True, 4: False},
         ),
     ),
 )
@@ -220,6 +238,12 @@ LEVEL_6 = Layout(
 BLOCKED_UNSOLVABLE = Layout(
     "blocked-unsolvable",
     "S0 @ X",
+    (expect(10, solvable=False),),
+)
+
+UNSOLVABLE_4AGENTS = Layout(
+    "unsolvable-4agents",
+    """S0 S1 S2 S3 X X X X""",
     (expect(10, solvable=False),),
 )
 
@@ -239,6 +263,7 @@ S0 . S1
             asymmetric=False,
             fully_coupled=False,
             convergent={2: False},
+            divergent={2: False},
             interdependent={2: False},
         ),
     ),
@@ -302,6 +327,7 @@ L0E .  .
             cooperative=True,
             asymmetric=True,
             convergent={2: False},
+            divergent={2: False},
             chained={2: False},
             interdependent={2: False},
         ),
@@ -315,7 +341,7 @@ DOUBLE_DISJOINT_ASYMMETRIC = Layout(
 L0E .  .  @ L2E .  .
  @  X  X  @  @  X  X
 """,
-    (expect(6, asymmetric=True, convergent={2: False}),),
+    (expect(6, asymmetric=True, convergent={2: False}, divergent={2: False}),),
 )
 
 CONVERGENT_2_TIGHT = Layout(
@@ -334,9 +360,46 @@ L1E  .  .  .  .  .
             solvable=True,
             cooperative=True,
             convergent={2: True, 3: False},
+            divergent={2: False},
         ),
     ),
     description="Agent 2 must receive sequential help from agents 0 and 1 within five steps.",
+)
+
+DIVERGENT_2_TIGHT = Layout(
+    "divergent-2-tight",
+    """
+ @   X   X   X  @
+L0E  .   .   .  .
+ @  S0  S1  S2  @
+""",
+    (
+        *expect_for(
+            (2, 8),
+            convergent={2: False},
+            asymmetric=True,
+            divergent={2: True, 3: False},
+        ),
+    ),
+    description="Agent 0 must block its own beam for agents 1 and 2 at once; the flattened help "
+    "relation of the two-step witness is exactly {(0, 1), (0, 2)}. Checked at a larger horizon "
+    "too, so the expectation is not a shortest-plan artefact.",
+)
+
+DIVERGENT_2_WITH_DETOUR = Layout(
+    "divergent-2-with-detour",
+    """
+ @   X   X   X  @   X
+L0E  .   .   .  @   .
+ @  S0  S1  S2  @   .
+ @   @   @   .   .  .
+""",
+    (
+        *expect_for((2, 5), solvable=True, cooperative=True, divergent={2: True}),
+        *expect_for((6, 8), solvable=True, cooperative=True, divergent={2: False}),
+    ),
+    description="Same divergent crossing as the tight layout, but agent 2 also has a six-step "
+    "route around the wall, so required divergence disappears at t_max=6.",
 )
 
 CHAIN_4_WITH_MUTUAL = Layout(
@@ -436,6 +499,7 @@ L0E  .   .  .   @
             10,
             solvable=True,
             convergent={2: True, 3: False},
+            divergent={2: False},
             chained={2: False},
             interdependent={2: False},
             asymmetric=True,
@@ -462,6 +526,7 @@ S2   .   . . . @
             asymmetric=False,
             fully_coupled=True,
             convergent={2: True, 3: False},
+            divergent={2: True, 3: False},
             interdependent={2: True, 3: True, 4: False},
         ),
     ),
@@ -696,6 +761,7 @@ S3  .   .  .   @
             chained={2: True, 3: True, 4: True, 5: True, 6: True, 7: False},
             interdependent={2: True, 3: True, 4: True, 5: False},
             convergent={2: True, 3: False},
+            divergent={2: True, 3: True, 4: False},
         ),
     ),
 )
@@ -715,6 +781,8 @@ ALL_LAYOUTS = [
     SINGLE_LASER_ASYMMETRIC,
     DOUBLE_DISJOINT_ASYMMETRIC,
     CONVERGENT_2_TIGHT,
+    DIVERGENT_2_TIGHT,
+    DIVERGENT_2_WITH_DETOUR,
     CHAIN_4_WITH_MUTUAL,
     CHAIN_3_WITHOUT_CYCLE,
     PAPER_CHAIN_2,
@@ -762,6 +830,16 @@ def convergent_cases():
         for layout in ALL_LAYOUTS
         for expectation in layout.expectations
         for k, expected in expectation.properties.convergent.items()
+    ]
+
+
+def divergent_cases():
+    """Return every explicit divergence-threshold expectation."""
+    return [
+        DivergentCase(layout, expectation.t_max, expected, k)
+        for layout in ALL_LAYOUTS
+        for expectation in layout.expectations
+        for k, expected in expectation.properties.divergent.items()
     ]
 
 

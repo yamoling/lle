@@ -13,7 +13,7 @@ In LLE, agents start on start tiles, collect gems, and finish by reaching exit t
 - 🎚️ **Two levels of abstraction** — a high-level `LLE` MARL environment, or a low-level `World` for full control over maps, states, and steps.
 - 🗺️ **Custom maps** — write a map as a one-line string or a richer TOML file, or use the 6 built-in levels.
 - 🟰 **SAT Solver** — retrieve solutions to LLE worlds using a SAT-based solver.
-- 🧪 **World analysis** — analyse the characteristics of a World: does it require cooperation? mutual cooperation?
+- 🧪 **World analysis** — analyse the characteristics of a World: does it require cooperation? mutual cooperation? convergent or divergent help?
 - 🐣 **Procedural world generation** — generate worlds according to your requirements (cooperative, independent, mutually cooperative, ...)
 - 🔍 **Rich observations** — layered, flattened, partial views, RGB images, and more, with optional reward shaping (PBRS) and multi-objective rewards.
 
@@ -105,6 +105,12 @@ assert lle.is_cooperative(coop, t_max=15)
 
 # Prove what every short plan requires (e.g. level 6 is mutually cooperative)
 assert lle.is_cooperative(World.level(6), t_max=25)
+
+# Every property is horizon-dependent: `t_max` is part of the claim.
+# `is_convergent` asks whether one agent must be helped by `k` others,
+# and its dual `is_divergent` whether one agent must help `k` others.
+assert not lle.is_convergent(World.level(1), t_max=10, k=2)
+assert not lle.is_divergent(World.level(1), t_max=10, k=2)
 ```
 
 The builder controls every placement decision:

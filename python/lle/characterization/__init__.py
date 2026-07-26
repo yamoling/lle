@@ -4,6 +4,10 @@
 every plan of length ≤ `t_max`, whether the world demands cooperation (one agent
 must block a laser for another) or *mutual* cooperation (every agent both helps
 and is helped). `is_cooperative(world)` is the common-case shortcut.
+
+Finer profiles describe the shape of that dependency: `is_convergent(world, k=2)` asks whether one
+beneficiary must be helped by `k` distinct agents, and its outgoing dual `is_divergent(world, k=2)`
+asks whether one helper must help `k` distinct agents.
 """
 
 from typing import Literal
@@ -20,6 +24,7 @@ __all__ = [
     "is_mutual",
     "is_chained",
     "is_convergent",
+    "is_divergent",
     "WorldCharacterizer",
     "MonotoneCache",
     "PlanProfile",
@@ -81,3 +86,9 @@ def is_convergent(world: World, t_max: int | Literal["auto"] = "auto", k: int = 
     """Return whether every solution gives one beneficiary at least `k` distinct helpers."""
     w = characterize(world, t_max)
     return w.is_convergent(k)
+
+
+def is_divergent(world: World, t_max: int | Literal["auto"] = "auto", k: int = 2):
+    """Return whether every solution gives one helper at least `k` distinct beneficiaries."""
+    w = characterize(world, t_max)
+    return w.is_divergent(k)
