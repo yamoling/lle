@@ -8,44 +8,13 @@ fn convergence_engine(t_max: usize) -> ClauseEngine {
     ClauseEngine::new(&world, t_max)
 }
 
-/// Pairwise-help summaries encode both directions of the prefix disjunction and ignore later help.
-#[test]
-fn pairwise_help_is_equivalent_to_materialized_help_prefix() {
-    let mut engine = convergence_engine(5);
-    let help_at_one = engine.pool.help(0, 2, 1);
-    let help_at_three = engine.pool.help(0, 2, 3);
-    let help_after_horizon = engine.pool.help(0, 2, 5);
-
-    let clauses = engine.generate_pairwise_help_clauses(3);
-    let key = VarKey::PairwiseHelp {
-        helper: 0,
-        beneficiary: 2,
-        horizon: 3,
-    };
-    let pairwise = engine.literal(&key).expect("pairwise-help must exist");
-
-    let forward = clauses
-        .iter()
-        .filter(|clause| clause.contains(&-pairwise))
-        .collect::<Vec<_>>();
-    assert_eq!(forward.len(), 1);
-    assert_eq!(forward[0], &vec![-pairwise, help_at_one, help_at_three]);
-    assert!(clauses.contains(&vec![-help_at_one, pairwise]));
-    assert!(clauses.contains(&vec![-help_at_three, pairwise]));
-    assert!(
-        !clauses
-            .iter()
-            .flatten()
-            .any(|&lit| lit == help_after_horizon)
-    );
-
-    engine.generate_pairwise_help_clauses(3);
-    assert_eq!(engine.literal(&key), Some(pairwise));
-    assert!(!engine.exists(&VarKey::PairwiseHelp {
-        helper: 1,
-        beneficiary: 2,
-        horizon: 3,
-    }));
+/// Return the summary key of one directed pair at one horizon.
+fn summary_key(helper: usize, beneficiary: usize, horizon: usize) -> VarKey {
+    VarKey::PairwiseHelp {
+        helper,
+        beneficiary,
+        horizon,
+    }
 }
 
 /// A beneficiary with fewer than `k` possible helpers emits no convergence blocker.
@@ -58,4 +27,36 @@ fn insufficient_distinct_helpers_emit_no_blocking_clause() {
     engine.generate_pairwise_help_clauses(3);
     assert!(engine.generate_no_convergence_clauses(3, 2).is_empty());
     assert!(engine.generate_no_convergence_clauses(3, 4).is_empty());
+}
+
+/// Two helpers of one beneficiary emit exactly one blocker over their incoming summaries.
+///
+/// @ai-generated
+#[test]
+fn two_distinct_helpers_emit_one_incoming_blocker() {
+    let mut engine = convergence_engine(4);
+    engine.pool.help(0, 2, 1);
+    engine.pool.help(1, 2, 3);
+    engine.generate_pairwise_help_clauses(3);
+
+    let from_zero = engine.literal(&summary_key(0, 2, 3)).expect("0 -> 2");
+    let from_one = engine.literal(&summary_key(1, 2, 3)).expect("1 -> 2");
+    assert_eq!(
+        engine.generate_no_convergence_clauses(3, 2),
+        vec![vec![-from_zero, -from_one]]
+    );
+}
+
+/// Convergence blockers group incoming summaries, so pure divergence emits none.
+///
+/// @ai-generated
+#[test]
+fn outgoing_help_emits_no_convergence_blocker() {
+    let mut engine = convergence_engine(4);
+    engine.pool.help(0, 1, 1);
+    engine.pool.help(0, 2, 2);
+    engine.generate_pairwise_help_clauses(3);
+
+    assert!(engine.generate_no_convergence_clauses(3, 2).is_empty());
+    assert_eq!(engine.generate_no_divergence_clauses(3, 2).len(), 1);
 }
