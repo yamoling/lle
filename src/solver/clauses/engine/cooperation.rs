@@ -17,9 +17,9 @@ impl ClauseEngine {
     ///
     /// Beam positions are pooled across **all** of the helper's laser sources, so a single `Help`
     /// variable covers every beam the helper owns. A `Help` variable is materialized **only** when
-    /// the beneficiary can actually reach at least one such beam tile at `t` (i.e. the movement
-    /// layer already created its agent variable); otherwise the help event is geometrically
-    /// impossible and no variable or clause is emitted.
+    /// the beneficiary can reach a beam tile that the helper can actually make safe by blocking
+    /// upstream at `t`; otherwise the help event is geometrically impossible and no variable or
+    /// clause is emitted.
     pub fn generate_help_clauses(&mut self, t: usize) -> Vec<Clause> {
         self.ctx.update(t);
         let mut clauses = vec![];
@@ -35,7 +35,7 @@ impl ClauseEngine {
                 .iter()
                 .filter(|source| source.agent_id == helper)
             {
-                for &pos in &source.path {
+                for pos in self.ctx.relevant_laser_tiles(source.laser_id, t) {
                     if let Some(benef_in_laser_pos) = self.pool.get(&VarKey::Agent {
                         agent_id: beneficiary,
                         pos,

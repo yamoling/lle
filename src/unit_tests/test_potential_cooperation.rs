@@ -116,6 +116,35 @@ fn potential_cooperation_graph_from_adjacency_matrices_exposes_edges() {
     );
 }
 
+/// The four-agent chain layout must not expose `0 → 3` before agent 3 can reach a colour-0
+/// beam tile. This prevents chain enumeration from considering physically impossible early edges.
+#[test]
+fn four_agent_chain_prunes_unreachable_early_help_edge() {
+    let world = World::try_from(
+        "
+@   S0  S1 @   @
+@   .   .  L1W @
+L0E .   .  L1S @
+@   X   .  .   @
+@   L2S .  .   S2
+@   X   .  @   @
+S3  .   .  .   @
+@   L3E .  .   @
+@   @   .  .   L1W
+@   @   X  X   @
+",
+    )
+    .unwrap();
+    let mut ctx = ConstraintContext::new(&world, 14);
+    ctx.update(14);
+    for t in 0..6 {
+        assert!(
+            !ctx.potential_cooperation.has_edge(0, 3, t),
+            "agent 0 cannot help agent 3 at t={t}"
+        );
+    }
+}
+
 #[rstest]
 #[case(World::try_from("S0 X").unwrap())]
 #[case(World::get_level(1).unwrap())]

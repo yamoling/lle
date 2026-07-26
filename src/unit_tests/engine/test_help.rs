@@ -253,6 +253,32 @@ L0E  .  .  .  @
     assert_no_help(&engine, 1, 0, 7);
 }
 
+/// The target four-agent layout creates no `0 → 3` help literal before agent 3 can reach a
+/// colour-0 beam tile that agent 0 can make safe.
+#[test]
+fn four_agent_chain_omits_unreachable_early_help_literals() {
+    let world = World::try_from(
+        "
+@   S0  S1 @   @
+@   .   .  L1W @
+L0E .   .  L1S @
+@   X   .  .   @
+@   L2S .  .   S2
+@   X   .  @   @
+S3  .   .  .   @
+@   L3E .  .   @
+@   @   .  .   L1W
+@   @   X  X   @
+",
+    )
+    .unwrap();
+    let (engine, _) = help_clauses_per_step(&world, 14);
+
+    for t in 0..6 {
+        assert_no_help(&engine, 0, 3, t);
+    }
+}
+
 #[test]
 fn number_of_is_helped_clauses_zero() {
     let w1 = World::try_from("S0 . X").unwrap();

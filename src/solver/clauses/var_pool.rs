@@ -45,6 +45,13 @@ pub enum VarKey {
     Asymmetric {
         horizon: usize,
     },
+    /// Whether a static chain pattern prefix is greedily realizable by time `t`.
+    ChainProgress {
+        length: usize,
+        pattern: usize,
+        prefix_len: usize,
+        t: usize,
+    },
     /// Whether a static interdependence pattern prefix is greedily realizable by time `t`.
     InterdependenceProgress {
         order: usize,
@@ -186,6 +193,21 @@ impl VarPool {
 
     pub fn asymmetric(&mut self, horizon: usize) -> Literal {
         self.id(VarKey::Asymmetric { horizon })
+    }
+
+    pub fn chain_progress(
+        &mut self,
+        length: usize,
+        pattern: usize,
+        prefix_len: usize,
+        t: usize,
+    ) -> Literal {
+        self.id(VarKey::ChainProgress {
+            length,
+            pattern,
+            prefix_len,
+            t,
+        })
     }
 
     /// Allocate or retrieve the reachability literal for one interdependence pattern prefix.

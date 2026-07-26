@@ -1,3 +1,4 @@
+mod chains;
 mod clauses;
 mod context;
 pub mod errors;
