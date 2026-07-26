@@ -4,6 +4,8 @@ from lle import World
 from lle.characterization import profile_plan
 from lle.characterization.plan import DependencyEdge, TemporalCooperationGraph
 
+from ..world_layouts import EIGHT_AGENT_INTERDEPENDENT_8
+
 
 def test_profile_empty_graph():
     """Profile of empty graph has correct independent flag."""
@@ -172,6 +174,19 @@ def test_profile_exact_interdependence_is_distinct_from_threshold_query():
     assert not profile.is_interdependent(3)
     assert profile.is_interdependent(4)
     assert not profile.is_interdependent(5)
+
+
+def test_eight_agent_layout_has_exact_order_eight_interdependence():
+    """The eight-agent ring produces one exact temporal cycle at the initial state."""
+    profile = profile_plan(EIGHT_AGENT_INTERDEPENDENT_8.world(), [])
+    expected_edges = {DependencyEdge(helper, (helper + 1) % 8, 0) for helper in range(8)}
+
+    assert set(profile.graph.edges) == expected_edges
+    assert profile.is_interdependent(8)
+    for order in range(2, 10):
+        if order == 8:
+            continue
+        assert not profile.is_interdependent(order)
 
 
 def test_multiple_stepd_in_a_row_remains_asymmetric():

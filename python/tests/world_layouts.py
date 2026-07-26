@@ -766,6 +766,23 @@ S3  .   .  .   @
     ),
 )
 
+EIGHT_AGENT_INTERDEPENDENT_8 = Layout(
+    "eight-agent-interdependent-8",
+    """
+  .   .  .   .   .  .   .   . L1S  .
+ L0E S0  X   .   .  .   .   . S1   .
+  .   .  .  L5S  .  .   .   .  X   .
+  .   .  .  S5   .  X  S4  L4W .   .
+  .   .  .   X   .  .   .   .  .   .
+  .   X  .   .   .  .   X   .  .   .
+  X  S7  X  S6  L6W .  S3   X S2  L2W
+  .  L7N .   .   .  .  L3N  .  .   .
+""",
+    (expect(1, interdependent={7: False, 8: True, 9: False}),),
+    description="Each agent starts at the intersection of its own beam and its predecessor's "
+    "blocked beam, forming the exact cycle 0 -> 1 -> ... -> 7 -> 0 at t=0.",
+)
+
 
 ALL_LAYOUTS = [
     LEVEL_1,
@@ -798,6 +815,7 @@ ALL_LAYOUTS = [
     THREE_AGENT_WITH_TWO_AGENT_CYCLE,
     PAPER_INTERDEPENDENT_3,
     FOUR_AGENT_INTERDEPENDENT_4_CHAIN_6,
+    EIGHT_AGENT_INTERDEPENDENT_8,
 ]
 
 LAYOUTS_BY_NAME = {layout.name: layout for layout in ALL_LAYOUTS}
