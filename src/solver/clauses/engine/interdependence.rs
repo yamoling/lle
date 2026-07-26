@@ -3,8 +3,6 @@ use crate::solver::{Clause, VarKey, clauses::ClauseEngine};
 impl ClauseEngine {
     /// Generate exact-order closed-trail rejection clauses for one time column.
     ///
-    /// @ai-generated
-    ///
     /// The private auxiliary states encode greedy timestamp realizability for every proper prefix of
     /// each static, deletion-irreducible rooted pattern. The final transition is emitted directly as a
     /// blocking clause instead of allocating a progress state that would immediately be forced false.
