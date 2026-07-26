@@ -1,7 +1,8 @@
 import pytest
 from lle.characterization import WorldCharacterizer
 
-from ...world_layouts import BLOCKED_UNSOLVABLE, LEVEL_1, ChainedCase, chained_cases
+from ...mocks import fail_if_called
+from ...world_layouts import BLOCKED_UNSOLVABLE, LEVEL_1, LEVEL_6, ChainedCase, chained_cases
 
 CHAINED_CASES = chained_cases()
 
@@ -37,3 +38,23 @@ def test_unsolvable_world_raises_on_is_chained():
 
     with pytest.raises(ValueError):
         WorldCharacterizer(world, t_max=10).is_chained(2)
+
+
+def test_is_chained_repeated_query_uses_cached_result(monkeypatch: pytest.MonkeyPatch):
+    """A repeated length query returns without another universality solve."""
+    wc = WorldCharacterizer(LEVEL_6.world(), t_max=21)
+    first = wc.is_chained(2)
+    monkeypatch.setattr(wc, "compute_shortest_path_without_chain", fail_if_called)
+    assert wc.is_chained(2) == first
+    assert first
+
+
+def test_is_chained_uses_monotone_cache_inference():
+    """True values infer shorter lengths and false values infer longer lengths."""
+    true_cache = WorldCharacterizer(LEVEL_6.world(), t_max=21)
+    true_cache._is_chained_cache[3] = True
+    false_cache = WorldCharacterizer(LEVEL_6.world(), t_max=21)
+    false_cache._is_chained_cache[2] = False
+    assert true_cache.is_chained(2)
+    assert not false_cache.is_chained(3)
+    assert not false_cache.is_chained(4)
