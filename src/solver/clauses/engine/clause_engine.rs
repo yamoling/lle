@@ -4,7 +4,9 @@ use crate::solver::chains::{ChainPattern, enumerate_chain_patterns};
 use crate::solver::clauses::VarPool;
 use crate::solver::context::ConstraintContext;
 use crate::solver::errors::SolverError;
-use crate::solver::interdependence::{ClosedTrailPattern, enumerate_closed_trail_patterns};
+use crate::solver::interdependence::{
+    ClosedTrailPattern, StaticHelpArc, enumerate_closed_trail_patterns,
+};
 use crate::solver::position_set::PositionSet;
 use crate::solver::{Clause, VarKey};
 use crate::{Action, World};
@@ -63,20 +65,47 @@ impl ClauseEngine {
             .clone()
     }
 
-    /// Return the deterministic static pattern basis for an exact interdependence order.
+    /// Return every directed help relationship that can physically occur within `t_max`.
     ///
-    /// @ai-generated
+    /// An arc is retained only if, at some time, the beneficiary can occupy a relevant beam tile
+    /// that the helper can make safe by blocking upstream. This is the same geometric criterion used
+    /// to materialize `Help` variables, evaluated over the complete configured horizon.
+    pub fn potential_help_arcs(&mut self) -> Vec<StaticHelpArc> {
+        self.ctx.update(self.ctx.t_max);
+        let mut arcs = std::collections::HashSet::new();
+        for source in &self.ctx.laser_sources {
+            for t in 0..=self.ctx.t_max {
+                let laser_tiles = self.ctx.relevant_laser_tiles(source.laser_id, t);
+                if laser_tiles.is_empty() {
+                    continue;
+                }
+                for beneficiary in 0..self.ctx.n_agents {
+                    if beneficiary == source.agent_id {
+                        continue;
+                    }
+                    let positions = self.ctx.relevant_positions_for_agent(beneficiary, t);
+                    if laser_tiles.intersection(positions).next().is_some() {
+                        arcs.insert(StaticHelpArc {
+                            helper: source.agent_id,
+                            beneficiary,
+                        });
+                    }
+                }
+            }
+        }
+        let mut arcs = arcs.into_iter().collect::<Vec<_>>();
+        arcs.sort_unstable();
+        arcs
+    }
+
+    /// Return the deterministic feasible pattern basis for an exact interdependence order.
     pub fn interdependence_patterns(&mut self, order: usize) -> Vec<ClosedTrailPattern> {
-        let helper_ids = self
-            .ctx
-            .laser_sources
-            .iter()
-            .map(|source| source.agent_id)
-            .collect::<Vec<_>>();
-        self.interdependence_patterns
-            .entry(order)
-            .or_insert_with(|| enumerate_closed_trail_patterns(helper_ids, order))
-            .clone()
+        if !self.interdependence_patterns.contains_key(&order) {
+            let potential_arcs = self.potential_help_arcs();
+            let patterns = enumerate_closed_trail_patterns(potential_arcs, order);
+            self.interdependence_patterns.insert(order, patterns);
+        }
+        self.interdependence_patterns[&order].clone()
     }
 
     /// Movement-only world-enforcing clauses for a single step `t`.

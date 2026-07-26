@@ -1,10 +1,11 @@
-use crate::{World, solver::VarKey};
+use crate::{
+    World,
+    solver::{VarKey, interdependence::StaticHelpArc},
+};
 
 use super::ClauseEngine;
 
-/// Build an engine whose potential cooperation graph contains help arcs.
-///
-/// @ai-generated
+/// Build an engine whose world geometry admits help arcs.
 fn cycle_engine(t_max: usize) -> ClauseEngine {
     let world = World::try_from(
         "
@@ -19,12 +20,40 @@ fn cycle_engine(t_max: usize) -> ClauseEngine {
     ClauseEngine::new(&world, t_max)
 }
 
+/// The canonical eight-agent ring exposes only its eight physically feasible help arcs.
+#[test]
+fn eight_agent_ring_patterns_exclude_unreachable_help_arcs() {
+    let world = World::try_from(
+        "
+  .   .  .   .   .  .   .   . L1S  .
+ L0E S0  X   .   .  .   .   . S1   .
+  .   .  .  L5S  .  .   .   .  X   .
+  .   .  .  S5   .  X  S4  L4W .   .
+  .   .  .   X   .  .   .   .  .   .
+  .   X  .   .   .  .   X   .  .   .
+  X  S7  X  S6  L6W .  S3   X S2  L2W
+  .  L7N .   .   .  .  L3N  .  .   .
+",
+    )
+    .unwrap();
+    let mut engine = ClauseEngine::new(&world, 1);
+    let expected = (0..8)
+        .map(|helper| StaticHelpArc {
+            helper,
+            beneficiary: (helper + 1) % 8,
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(engine.potential_help_arcs(), expected);
+    let patterns = engine.interdependence_patterns(8);
+    assert_eq!(patterns.len(), 8);
+    assert!(patterns.iter().all(|pattern| pattern.arcs.len() == 8));
+}
+
 /// Interdependence clauses use only private auxiliaries and materialized help literals.
-///
-/// @ai-generated
 #[test]
 fn interdependence_clauses_use_private_progress_states() {
-    let t_max = 3;
+    let t_max = 6;
     let mut engine = cycle_engine(t_max);
     for t in 0..=t_max {
         engine.generate_movement_clauses(t);
@@ -44,11 +73,9 @@ fn interdependence_clauses_use_private_progress_states() {
 }
 
 /// Completed interdependence patterns are blocked directly without final progress variables.
-///
-/// @ai-generated
 #[test]
 fn interdependence_clauses_omit_final_progress_states() {
-    let t_max = 3;
+    let t_max = 6;
     let order = 2;
     let mut engine = cycle_engine(t_max);
     let patterns = engine.interdependence_patterns(order);

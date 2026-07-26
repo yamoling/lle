@@ -778,9 +778,32 @@ EIGHT_AGENT_INTERDEPENDENT_8 = Layout(
   X  S7  X  S6  L6W .  S3   X S2  L2W
   .  L7N .   .   .  .  L3N  .  .   .
 """,
-    (expect(1, interdependent={7: False, 8: True, 9: False}),),
+    (expect(4, interdependent={7: False, 8: True, 9: False}),),
     description="Each agent starts at the intersection of its own beam and its predecessor's "
     "blocked beam, forming the exact cycle 0 -> 1 -> ... -> 7 -> 0 at t=0.",
+)
+
+EIGHT_AGENT_INTERDEPENDENT_8_PERIMETER = Layout(
+    "eight-agent-interdependent-8-perimeter",
+    """
+ .   .   . . .   L1S .   . .   .   .
+L0E  S0  X . .   S1  .   . .   .   .
+ .   .   . . .   X   .   . .   .   .
+ .   .   . . .   .   .   . .   L3S .
+ .   .   . . L2E S2  X   . .   S3  .
+ .   X   . . .   @   .   . .   X   .
+ .   S7  . . X   S6  L6W . .   .   .
+ .   L7N . . .   X   .   . .   .   .
+ .   .   . . .   S5  .   . X   S4  L4W
+ .   .   . . .   L5N .   . .   .   .
+""",
+    (expect(4, interdependent={7: False, 8: True, 9: False}),),
+    description="The same exact cycle 0 -> 1 -> ... -> 7 -> 0 as `eight-agent-interdependent-8`, "
+    "realized by a very different geometry: the eight agents sit on the corners of one large "
+    "rectilinear octagon, so every beam is long and every pair of agents is far apart. Each agent "
+    "occupies the first tile of its own beam (blocking it) and a mid-beam tile of its predecessor's "
+    "beam, and every agent exits in one step along its own beam. Unlike the clustered layout, the "
+    "shortest plan induces exactly the eight ring arcs and nothing else.",
 )
 
 
@@ -816,6 +839,7 @@ ALL_LAYOUTS = [
     PAPER_INTERDEPENDENT_3,
     FOUR_AGENT_INTERDEPENDENT_4_CHAIN_6,
     EIGHT_AGENT_INTERDEPENDENT_8,
+    EIGHT_AGENT_INTERDEPENDENT_8_PERIMETER,
 ]
 
 LAYOUTS_BY_NAME = {layout.name: layout for layout in ALL_LAYOUTS}

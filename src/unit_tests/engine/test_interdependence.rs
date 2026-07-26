@@ -1,9 +1,43 @@
+use std::collections::{HashMap, HashSet};
+
 use super::{
-    StaticHelpArc, enumerate_closed_trail_patterns, enumerate_from, is_splice_reducible,
+    StaticHelpArc, TrailSearch, enumerate_closed_trail_patterns, is_splice_reducible,
     max_irreducible_closed_trail_len, previous_same_prefix_lens,
 };
 use crate::AgentId;
 use rstest::rstest;
+
+/// Build the complete loop-free directed help relation over `agents`.
+fn complete_help_arcs(agents: &[AgentId]) -> Vec<StaticHelpArc> {
+    agents
+        .iter()
+        .flat_map(|&helper| {
+            agents
+                .iter()
+                .filter(move |&&beneficiary| beneficiary != helper)
+                .map(move |&beneficiary| StaticHelpArc {
+                    helper,
+                    beneficiary,
+                })
+        })
+        .collect()
+}
+
+/// Convert static arcs into deterministic outgoing adjacency lists for private DFS tests.
+fn outgoing_from(arcs: &[StaticHelpArc]) -> HashMap<AgentId, Vec<AgentId>> {
+    let mut outgoing = HashMap::<AgentId, Vec<AgentId>>::new();
+    for arc in arcs {
+        outgoing
+            .entry(arc.helper)
+            .or_default()
+            .push(arc.beneficiary);
+    }
+    for beneficiaries in outgoing.values_mut() {
+        beneficiaries.sort_unstable();
+        beneficiaries.dedup();
+    }
+    outgoing
+}
 
 /// Convert a closed vertex word into the parallel arc and cut-point representations under test.
 ///
@@ -100,7 +134,7 @@ fn splice_reducibility_detects_nominal_reductions(
 /// @ai-generated
 #[test]
 fn enumerate_closed_trails_too_large_order() {
-    assert!(enumerate_closed_trail_patterns([0, 1, 2, 3].into(), 5).is_empty());
+    assert!(enumerate_closed_trail_patterns(complete_help_arcs(&[0, 1, 2, 3]), 5).is_empty());
 }
 
 /// Pattern enumeration uses only helper IDs and normalizes their order and duplicates.
@@ -108,9 +142,17 @@ fn enumerate_closed_trails_too_large_order() {
 /// @ai-generated
 #[test]
 fn enumerate_closed_trails_excludes_non_helpers() {
-    let patterns = enumerate_closed_trail_patterns([3, 1, 3].into(), 2);
+    let mut duplicated_arcs = complete_help_arcs(&[1, 3]);
+    duplicated_arcs.push(StaticHelpArc {
+        helper: 3,
+        beneficiary: 1,
+    });
+    let patterns = enumerate_closed_trail_patterns(duplicated_arcs, 2);
 
-    assert_eq!(patterns, enumerate_closed_trail_patterns([1, 3].into(), 2));
+    assert_eq!(
+        patterns,
+        enumerate_closed_trail_patterns(complete_help_arcs(&[1, 3]), 2)
+    );
     assert_eq!(patterns.len(), 2);
     assert!(
         patterns
@@ -118,6 +160,53 @@ fn enumerate_closed_trails_excludes_non_helpers() {
             .flat_map(|pattern| &pattern.arcs)
             .all(|arc| { [1, 3].contains(&arc.helper) && [1, 3].contains(&arc.beneficiary) })
     );
+}
+
+/// A sparse eight-agent ring emits only its eight rooted rotations, not complete-graph patterns.
+///
+/// @ai-generated
+#[test]
+fn sparse_eight_agent_ring_enumerates_only_feasible_closed_trails() {
+    let ring = (0..8)
+        .map(|helper| StaticHelpArc {
+            helper,
+            beneficiary: (helper + 1) % 8,
+        })
+        .collect::<Vec<_>>();
+
+    let patterns = enumerate_closed_trail_patterns(ring.clone(), 8);
+
+    assert_eq!(patterns.len(), 8);
+    assert!(patterns.iter().all(|pattern| pattern.arcs.len() == 8));
+    assert!(
+        patterns
+            .iter()
+            .flat_map(|pattern| &pattern.arcs)
+            .all(|arc| ring.contains(arc))
+    );
+}
+
+/// Agents outside the root's strongly connected region cannot occur in a closed-trail pattern.
+///
+/// @ai-generated
+#[test]
+fn closed_trail_enumeration_prunes_one_way_branches() {
+    let arcs = vec![
+        StaticHelpArc {
+            helper: 0,
+            beneficiary: 1,
+        },
+        StaticHelpArc {
+            helper: 1,
+            beneficiary: 0,
+        },
+        StaticHelpArc {
+            helper: 1,
+            beneficiary: 2,
+        },
+    ];
+
+    assert!(enumerate_closed_trail_patterns(arcs, 3).is_empty());
 }
 
 /// Starting from the root enumerates the only possible order-two closed trail and restores state.
@@ -129,7 +218,16 @@ fn enumerate_from_emits_closed_trail_and_restores_root_prefix() {
     let mut arcs = Vec::new();
     let mut patterns = Vec::new();
 
-    enumerate_from(&[0, 1], 2, 2, 0, &mut vertices, &mut arcs, &mut patterns);
+    let outgoing = outgoing_from(&complete_help_arcs(&[0, 1]));
+    let component = HashSet::from([0, 1]);
+    TrailSearch {
+        outgoing: &outgoing,
+        closed_component: &component,
+        order: 2,
+        max_len: 2,
+        root: 0,
+    }
+    .enumerate_from(&mut vertices, &mut arcs, &mut patterns);
     assert_eq!(patterns.len(), 1);
     assert_eq!(
         patterns[0].arcs,
@@ -159,7 +257,16 @@ fn enumerate_from_extends_and_restores_existing_prefix() {
     let mut arcs = vec![prefix];
     let mut patterns = Vec::new();
 
-    enumerate_from(&[0, 1, 2], 3, 4, 0, &mut vertices, &mut arcs, &mut patterns);
+    let outgoing = outgoing_from(&complete_help_arcs(&[0, 1, 2]));
+    let component = HashSet::from([0, 1, 2]);
+    TrailSearch {
+        outgoing: &outgoing,
+        closed_component: &component,
+        order: 3,
+        max_len: 4,
+        root: 0,
+    }
+    .enumerate_from(&mut vertices, &mut arcs, &mut patterns);
 
     assert_eq!(vertices, vec![0, 1]);
     assert_eq!(arcs, vec![prefix]);
@@ -194,7 +301,16 @@ fn enumerate_from_stops_at_maximum_length() {
     let mut arcs = vec![prefix];
     let mut patterns = Vec::new();
 
-    enumerate_from(&[0, 1], 2, 1, 0, &mut vertices, &mut arcs, &mut patterns);
+    let outgoing = outgoing_from(&complete_help_arcs(&[0, 1]));
+    let component = HashSet::from([0, 1]);
+    TrailSearch {
+        outgoing: &outgoing,
+        closed_component: &component,
+        order: 2,
+        max_len: 1,
+        root: 0,
+    }
+    .enumerate_from(&mut vertices, &mut arcs, &mut patterns);
 
     assert_eq!(vertices, vec![0, 1]);
     assert_eq!(arcs, vec![prefix]);
@@ -229,12 +345,12 @@ fn irreducible_closed_trail_bound_is_tight_for_small_orders() {
 /// @ai-generated
 #[test]
 fn four_agent_pattern_counts_match_the_irreducible_basis() {
-    let helper_ids = vec![0, 1, 2, 3];
+    let complete_arcs = complete_help_arcs(&[0, 1, 2, 3]);
     assert_eq!(
-        enumerate_closed_trail_patterns(helper_ids.clone(), 2).len(),
+        enumerate_closed_trail_patterns(complete_arcs.clone(), 2).len(),
         12
     );
-    let order_three = enumerate_closed_trail_patterns(helper_ids.clone(), 3);
+    let order_three = enumerate_closed_trail_patterns(complete_arcs.clone(), 3);
     assert_eq!(
         order_three
             .iter()
@@ -251,11 +367,11 @@ fn four_agent_pattern_counts_match_the_irreducible_basis() {
     );
     assert_eq!(order_three.len(), 72);
     assert_eq!(
-        enumerate_closed_trail_patterns(helper_ids.clone(), 4).len(),
+        enumerate_closed_trail_patterns(complete_arcs.clone(), 4).len(),
         336
     );
     assert_eq!(
-        enumerate_closed_trail_patterns(helper_ids.clone(), 4),
-        enumerate_closed_trail_patterns(helper_ids.clone(), 4)
+        enumerate_closed_trail_patterns(complete_arcs.clone(), 4),
+        enumerate_closed_trail_patterns(complete_arcs, 4)
     );
 }
