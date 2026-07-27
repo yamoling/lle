@@ -313,11 +313,10 @@ fn test_set_state_available_actions() {
     w.set_state(&s).unwrap();
     let actions = w.available_actions();
     assert_eq!(actions.len(), 1);
-    assert_eq!(actions[0].len(), 4);
+    assert_eq!(actions[0].len(), 3);
     assert!(actions[0].contains(&Action::South));
     assert!(actions[0].contains(&Action::Stay));
     assert!(actions[0].contains(&Action::East));
-    assert!(actions[0].contains(&Action::Trigger));
 }
 
 #[test]
@@ -362,17 +361,17 @@ fn parse_inconsistent_row_lengths() {
     ) {
         Ok(_) => panic!("Should not be able to parse worlds with inconsistent row lengths"),
         Err(e) => match e {
-            ParseError::Inconsistent3Dimensions {
-                actual_n_dims,
-                expected_n_dims,
-                layer,
+            ParseError::Inconsistent2Dimensions {
+                actual_n_cols,
+                expected_n_cols,
+                row,
                 ..
             } => {
-                assert_eq!(actual_n_dims, (2, 1));
-                assert_eq!(expected_n_dims, (3, 1));
-                assert_eq!(layer, 0);
+                assert_eq!(actual_n_cols, 2);
+                assert_eq!(expected_n_cols, 3);
+                assert_eq!(row, 1);
             }
-            _ => panic!("Expected InconsistentDimensions, got {e:?}"),
+            _ => panic!("Expected Inconsistent2Dimensions, got {e:?}"),
         },
     }
 }
@@ -388,17 +387,17 @@ fn parse_inconsistent_size_between_layers() {
     ) {
         Ok(_) => panic!("Should not be able to parse worlds with inconsistent row lengths"),
         Err(e) => match e {
-            ParseError::Inconsistent3Dimensions {
-                actual_n_dims,
-                expected_n_dims,
-                layer,
+            ParseError::Inconsistent2Dimensions {
+                actual_n_cols,
+                expected_n_cols,
+                row,
                 ..
             } => {
-                assert_eq!(actual_n_dims, (2, 2));
-                assert_eq!(expected_n_dims, (3, 2));
-                assert_eq!(layer, 1);
+                assert_eq!(actual_n_cols, 2);
+                assert_eq!(expected_n_cols, 3);
+                assert_eq!(row, 0);
             }
-            _ => panic!("Expected InconsistentDimensions, got {e:?}"),
+            _ => panic!("Expected Inconsistent2Dimensions, got {e:?}"),
         },
     }
 }
@@ -917,4 +916,71 @@ fn test_button_pulses_lift_down_moves_agent_to_lower_layer() {
 
     assert_eq!(world.agents_positions()[0], button_pos);
     assert_eq!(world.agents_positions()[1], dest_pos);
+}
+
+#[test]
+fn test_button_authorized_agent_id_blocks_other_agents() {
+    let button_pos = Position::new2d(0, 0);
+    let lift_pos = Position::new2d(0, 1);
+    let tiles = vec![
+        (button_pos, Tile::Button(Button::new(1).restricted_to(1))),
+        (lift_pos, Tile::Lift(Lift::new(Direction::East, None, 1))),
+    ];
+    // Agent 0 stands on the button, but it is restricted to agent 1.
+    let mut world = build_lift_button_world(3, tiles, vec![button_pos, lift_pos]);
+
+    let events = world.step(&[Action::Trigger, Action::Stay]).unwrap();
+
+    assert!(events.is_empty());
+    assert_eq!(world.agents_positions()[0], button_pos);
+    // The lift was never pulsed, so its rider (agent 1) stays put.
+    assert_eq!(world.agents_positions()[1], lift_pos);
+}
+
+#[test]
+fn test_lift_authorized_agent_id_blocks_other_riders() {
+    let button_pos = Position::new2d(0, 0);
+    let lift_pos = Position::new2d(0, 1);
+    let tiles = vec![
+        (button_pos, Tile::Button(Button::new(5))),
+        (lift_pos, Tile::Lift(Lift::new(Direction::East, Some(0), 5))),
+    ];
+    // Agent 1 rides the lift, but it is restricted to agent 0.
+    let mut world = build_lift_button_world(3, tiles, vec![button_pos, lift_pos]);
+
+    world.step(&[Action::Trigger, Action::Stay]).unwrap();
+
+    assert_eq!(world.agents_positions()[1], lift_pos);
+}
+
+#[test]
+fn test_lift_authorized_agent_id_allows_matching_rider() {
+    let lift_pos = Position::new2d(0, 0);
+    let dest_pos = Position::new2d(0, 1);
+    let button_pos = Position::new2d(0, 2);
+    let tiles = vec![
+        (lift_pos, Tile::Lift(Lift::new(Direction::East, Some(0), 5))),
+        (button_pos, Tile::Button(Button::new(5))),
+    ];
+    // Agent 0 rides the lift (matches its authorized_agent_id); agent 1 triggers.
+    let mut world = build_lift_button_world(3, tiles, vec![lift_pos, button_pos]);
+
+    world.step(&[Action::Stay, Action::Trigger]).unwrap();
+
+    assert_eq!(world.agents_positions()[0], dest_pos);
+    assert_eq!(world.agents_positions()[1], button_pos);
+}
+
+#[test]
+fn test_available_actions_trigger_only_on_button() {
+    let button_pos = Position::new2d(0, 0);
+    let floor_pos = Position::new2d(0, 1);
+    let tiles = vec![(button_pos, Tile::Button(Button::new(0)))];
+    let mut world = build_lift_button_world(3, tiles, vec![button_pos, floor_pos]);
+    world.reset();
+
+    let available = world.available_actions();
+
+    assert!(available[0].contains(&Action::Trigger));
+    assert!(!available[1].contains(&Action::Trigger));
 }

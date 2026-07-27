@@ -127,13 +127,13 @@ impl Tile {
             Self::Lift(lift) => {
                 if lift.authorized_agent_id().is_some() {
                     return format!(
-                        "T{}{}{}",
-                        lift.group_id(),
+                        "T{}{}A{}",
                         lift.direction().to_file_string(),
+                        lift.group_id(),
                         lift.authorized_agent_id().unwrap()
                     );
                 } else {
-                    return format!("T{}{}", lift.group_id(), lift.direction().to_file_string());
+                    return format!("T{}{}", lift.direction().to_file_string(), lift.group_id());
                 }
             }
             Self::Button(button) => {
@@ -180,6 +180,16 @@ impl Tile {
         match self {
             Self::Button(button) => button.actuate(),
             _ => None,
+        }
+    }
+
+    /// Whether taking `Action::Trigger` while standing on this tile does anything
+    /// (i.e. `actuate()` would be dispatched to a real handler). Kept in sync with
+    /// `actuate()`'s match arms — a future triggerable tile needs both updated.
+    pub fn is_triggerable(&self) -> bool {
+        match self {
+            Self::Button(_) => true,
+            _ => false,
         }
     }
 }

@@ -102,6 +102,22 @@ impl World {
             .into_iter()
             .map(|(p, s)| (p, s.into()))
             .collect();
+        let lift_configs = self
+            .tiles()
+            .into_iter()
+            .filter_map(|(pos, tile)| match tile {
+                Tile::Lift(lift) => Some((pos, lift.into())),
+                _ => None,
+            })
+            .collect();
+        let button_configs = self
+            .tiles()
+            .into_iter()
+            .filter_map(|(pos, tile)| match tile {
+                Tile::Button(button) => Some((pos, button.into())),
+                _ => None,
+            })
+            .collect();
         WorldConfig::new(
             self.width,
             self.height,
@@ -112,6 +128,8 @@ impl World {
             self.exits.clone(),
             self.wall_positions.clone(),
             source_configs,
+            lift_configs,
+            button_configs,
         )
     }
 
@@ -147,12 +165,9 @@ impl World {
     pub fn sources(&self) -> Vec<(Position, &LaserSource)> {
         self.laser_source_positions
             .iter()
-            .map(|pos| {
-                if let Tile::LaserSource(source) = self.grid.at(pos) {
-                    (pos.clone(), source)
-                } else {
-                    unreachable!()
-                }
+            .map(|pos| match self.grid.at(pos) {
+                Tile::LaserSource(source) => (pos.clone(), source),
+                _ => unreachable!(),
             })
             .collect()
     }
@@ -325,7 +340,7 @@ impl World {
     fn compute_available_actions(&self) -> Vec<Vec<Action>> {
         let mut available_actions = vec![];
         for (agent, agent_pos) in izip!(&self.agents, &self.agents_positions) {
-            let mut agent_actions = vec![Action::Stay, Action::Trigger];
+            let mut agent_actions = vec![Action::Stay];
             if agent.is_alive() && !agent.has_arrived() {
                 for action in [Action::North, Action::East, Action::South, Action::West] {
                     if let Ok(pos) = &action + agent_pos {
@@ -335,6 +350,9 @@ impl World {
                             }
                         }
                     }
+                }
+                if matches!(self.at(agent_pos), Some(tile) if tile.is_triggerable()) {
+                    agent_actions.push(Action::Trigger);
                 }
             }
             available_actions.push(agent_actions);
@@ -457,6 +475,12 @@ impl World {
                 let Some(agent_id) = lift.agent() else {
                     continue;
                 };
+                if lift
+                    .authorized_agent_id()
+                    .is_some_and(|auth| auth != agent_id)
+                {
+                    continue;
+                }
                 let Ok(dest) = lift.destination(pos) else {
                     continue;
                 };

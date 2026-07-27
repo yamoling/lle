@@ -7,7 +7,7 @@ use crate::{
     log_debug,
 };
 
-use super::{AgentConfig, PositionsConfig, TomlLaserConfig};
+use super::{AgentConfig, PositionsConfig, TomlButtonConfig, TomlLaserConfig, TomlLiftConfig};
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -31,6 +31,10 @@ pub struct TomlConfig {
     pub lasers: Vec<TomlLaserConfig>,
     #[serde(default)]
     pub starts: Vec<PositionsConfig>,
+    #[serde(default)]
+    pub lifts: Vec<TomlLiftConfig>,
+    #[serde(default)]
+    pub buttons: Vec<TomlButtonConfig>,
 }
 impl TomlConfig {
     fn complete_with_world_string(&mut self) -> Result<(), ParseError> {
@@ -103,6 +107,18 @@ impl TomlConfig {
                 .iter()
                 .map(|(pos, laser)| TomlLaserConfig::from_laser_config(laser, *pos)),
         );
+        self.lifts.extend(
+            config
+                .lifts()
+                .iter()
+                .map(|(pos, lift)| TomlLiftConfig::from_lift_config(lift, *pos)),
+        );
+        self.buttons.extend(
+            config
+                .buttons()
+                .iter()
+                .map(|(pos, button)| TomlButtonConfig::from_button_config(button, *pos)),
+        );
         Ok(())
     }
 
@@ -135,7 +151,14 @@ pub fn parse(toml_content: &str) -> Result<WorldConfig, ParseError> {
                 let key = message.split('`').nth(1).unwrap_or("<unknown key>").into();
                 return Err(ParseError::UnknownTomlKey { key, message });
             }
-            return Err(ParseError::NotV2);
+            // If the content isn't valid TOML at all, it might be a v1 plain-text
+            // map string, so let the caller fall back to the v1 parser. If it IS
+            // valid TOML but fails to match our schema, surface a clear TOML error
+            // instead of a confusing v1 parse error.
+            if toml::from_str::<toml::Value>(toml_content).is_err() {
+                return Err(ParseError::NotV2);
+            }
+            return Err(ParseError::InvalidTomlDocument { message });
         }
     };
     data.try_into()
@@ -180,6 +203,12 @@ impl TryInto<WorldConfig> for TomlConfig {
             })
             .collect::<Result<Vec<_>, _>>()?;
         let source_configs = self.lasers.iter().map(|l| (l.position, l.into())).collect();
+        let lift_configs = self.lifts.iter().map(|l| (l.position, l.into())).collect();
+        let button_configs = self
+            .buttons
+            .iter()
+            .map(|b| (b.position, b.into()))
+            .collect();
         Ok(WorldConfig::new(
             width,
             height,
@@ -190,6 +219,8 @@ impl TryInto<WorldConfig> for TomlConfig {
             exit_positions,
             walls_positions,
             source_configs,
+            lift_configs,
+            button_configs,
         ))
     }
 }
@@ -217,6 +248,17 @@ impl From<&WorldConfig> for TomlConfig {
             .iter()
             .map(|(pos, laser)| TomlLaserConfig::from_laser_config(laser, *pos))
             .collect();
+        let lifts = value
+            .lifts()
+            .iter()
+            .map(|(pos, lift)| TomlLiftConfig::from_lift_config(lift, *pos))
+            .collect();
+        let buttons = value
+            .buttons()
+            .iter()
+            .map(|(pos, button)| TomlButtonConfig::from_button_config(button, *pos))
+            .collect();
+
         Self {
             width: Some(width),
             height: Some(height),
@@ -230,6 +272,8 @@ impl From<&WorldConfig> for TomlConfig {
             voids,
             lasers,
             starts: vec![],
+            lifts,
+            buttons,
         }
     }
 }
@@ -445,5 +489,128 @@ exits = [{ col = 4 }]
         for starts in w.possible_starts() {
             assert_eq!(starts.len(), 9);
         }
+    }
+
+    #[test]
+    fn empty_world_string_returns_parse_error_not_panic() {
+        match parse(r#"world_string = """#) {
+            Err(ParseError::EmptyWorld) => {}
+            other => panic!("Expected ParseError::EmptyWorld, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn malformed_lift_table_returns_invalid_toml_document() {
+        let toml_content = r#"
+width = 3
+height = 3
+[[lifts]]
+direction = "North"
+group_id = "oops"
+[lifts.position]
+i = 0
+j = 0
+k = 0
+"#;
+        match parse(toml_content) {
+            Err(ParseError::InvalidTomlDocument { .. }) => {}
+            other => panic!("Expected ParseError::InvalidTomlDocument, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn malformed_button_table_missing_required_field() {
+        let toml_content = r#"
+width = 3
+height = 3
+[[buttons]]
+[buttons.position]
+i = 0
+j = 0
+k = 0
+"#;
+        match parse(toml_content) {
+            Err(ParseError::InvalidTomlDocument { .. }) => {}
+            other => panic!("Expected ParseError::InvalidTomlDocument, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn unknown_field_in_lift_table_is_reported() {
+        let toml_content = r#"
+width = 3
+height = 3
+[[lifts]]
+direction = "North"
+group_id = 0
+directoin = "typo"
+[lifts.position]
+i = 0
+j = 0
+k = 0
+"#;
+        match parse(toml_content) {
+            Err(ParseError::UnknownTomlKey { key, .. }) => {
+                assert_eq!(key, "directoin");
+            }
+            other => panic!("Expected ParseError::UnknownTomlKey, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn unknown_field_in_button_table_is_reported() {
+        let toml_content = r#"
+width = 3
+height = 3
+[[buttons]]
+group_id = 0
+gruop_id = 0
+[buttons.position]
+i = 0
+j = 0
+k = 0
+"#;
+        match parse(toml_content) {
+            Err(ParseError::UnknownTomlKey { key, .. }) => {
+                assert_eq!(key, "gruop_id");
+            }
+            other => panic!("Expected ParseError::UnknownTomlKey, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_toml_with_buttons_and_lifts_round_trip() {
+        let toml_content = r#"
+width = 3
+height = 3
+[[lifts]]
+direction = "North"
+group_id = 1
+authorized_agent_id = 0
+[lifts.position]
+i = 0
+j = 2
+k = 0
+
+[[buttons]]
+group_id = 1
+[buttons.position]
+i = 1
+j = 1
+k = 0
+"#;
+        let config = parse(toml_content).unwrap();
+        assert_eq!(config.lifts().len(), 1);
+        let (pos, lift) = &config.lifts()[0];
+        assert_eq!(*pos, Position { i: 0, j: 2, k: 0 });
+        assert_eq!(lift.direction, crate::tiles::Direction::North);
+        assert_eq!(lift.group_id, 1);
+        assert_eq!(lift.authorized_agent_id, Some(0));
+
+        assert_eq!(config.buttons().len(), 1);
+        let (pos, button) = &config.buttons()[0];
+        assert_eq!(*pos, Position { i: 1, j: 1, k: 0 });
+        assert_eq!(button.group_id, 1);
+        assert_eq!(button.authorized_agent_id, None);
     }
 }

@@ -7,7 +7,10 @@ use std::{collections::HashSet, vec};
 
 use crate::ParseError;
 
-use super::{laser_config::LaserConfig, parser_v1::to_v1_string, toml::TomlConfig};
+use super::{
+    button_config::ButtonConfig, laser_config::LaserConfig, lift_config::LiftConfig,
+    parser_v1::to_v1_string, toml::TomlConfig,
+};
 
 #[derive(Debug)]
 pub struct WorldConfig {
@@ -20,6 +23,8 @@ pub struct WorldConfig {
     exits: Vec<Position>,
     walls: Vec<Position>,
     lasers: Vec<(Position, LaserConfig)>,
+    lifts: Vec<(Position, LiftConfig)>,
+    buttons: Vec<(Position, ButtonConfig)>,
 }
 
 impl WorldConfig {
@@ -33,9 +38,11 @@ impl WorldConfig {
         exit_positions: Vec<Position>,
         walls_positions: Vec<Position>,
         source_configs: Vec<(Position, LaserConfig)>,
+        lift_configs: Vec<(Position, LiftConfig)>,
+        button_configs: Vec<(Position, ButtonConfig)>,
     ) -> Self {
         log_debug!(
-            "creating WorldConfig with width={}, height={}, layers={}, {} gems, {} random start positions, {} voids, {} exits, {} walls, and {} laser sources",
+            "creating WorldConfig with width={}, height={}, layers={}, {} gems, {} random start positions, {} voids, {} exits, {} walls, {} laser sources, {} lifts, {} buttons",
             width,
             height,
             layers,
@@ -48,6 +55,8 @@ impl WorldConfig {
             exit_positions.len(),
             walls_positions.len(),
             source_configs.len(),
+            lift_configs.len(),
+            button_configs.len(),
         );
         Self {
             width,
@@ -59,6 +68,8 @@ impl WorldConfig {
             exits: exit_positions,
             walls: walls_positions,
             lasers: source_configs,
+            lifts: lift_configs,
+            buttons: button_configs,
         }
     }
 
@@ -96,6 +107,14 @@ impl WorldConfig {
 
     pub fn sources(&self) -> &Vec<(Position, LaserConfig)> {
         &self.lasers
+    }
+
+    pub fn lifts(&self) -> &Vec<(Position, LiftConfig)> {
+        &self.lifts
+    }
+
+    pub fn buttons(&self) -> &Vec<(Position, ButtonConfig)> {
+        &self.buttons
     }
 
     pub fn add_random_starts(&mut self, starts: Vec<Vec<Position>>) {
@@ -220,6 +239,12 @@ impl WorldConfig {
         }
         for pos in &self.walls {
             grid.replace_at(pos, Tile::Wall);
+        }
+        for (pos, config) in &self.lifts {
+            grid.replace_at(pos, Tile::Lift(config.build()));
+        }
+        for (pos, config) in &self.buttons {
+            grid.replace_at(pos, Tile::Button(config.build()));
         }
         let laser_positions = self.laser_setup(&mut grid).into_iter().collect();
         (grid, laser_positions)

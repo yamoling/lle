@@ -34,7 +34,11 @@ def test_time_reward():
     . .  . ."""
     ).build()
     env.reset()
+    # Trigger is only a legal action while standing on a Button, which this
+    # world does not have.
     for action in Action.variants():
+        if action == Action.TRIGGER:
+            continue
         reward = env.step([action.value]).reward
         assert reward == 0
 

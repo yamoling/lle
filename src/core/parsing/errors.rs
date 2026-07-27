@@ -50,6 +50,9 @@ pub enum ParseError {
     InvalidAgentId {
         given_agent_id: String,
     },
+    InvalidGroupId {
+        given_group_id: String,
+    },
     InvalidDirection {
         given: String,
         expected: String,
@@ -83,6 +86,9 @@ pub enum ParseError {
     MissingLayers,
     UnknownTomlKey {
         key: String,
+        message: String,
+    },
+    InvalidTomlDocument {
         message: String,
     },
     NotV2,

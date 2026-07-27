@@ -1,6 +1,6 @@
 use crate::{
     WorldEvent,
-    agent::{self, Agent, AgentId},
+    agent::{Agent, AgentId},
 };
 /// A pressure-plate-like tile. Standing on it does nothing by itself; taking
 /// `Action::Trigger` while standing on it pulses every `Lift` sharing the
@@ -25,6 +25,12 @@ impl Button {
 
     pub fn group_id(&self) -> usize {
         self.group_id
+    }
+
+    /// Restrict this button to only be actuable by the given agent.
+    pub fn restricted_to(mut self, agent_id: AgentId) -> Self {
+        self.authorized_agent_id = Some(agent_id);
+        self
     }
 
     pub fn enter(&mut self, agent: &mut Agent) -> Option<WorldEvent> {

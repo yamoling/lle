@@ -1,4 +1,7 @@
-use super::{ParseError, laser_config::LaserConfig, world_config::WorldConfig};
+use super::{
+    ParseError, button_config::ButtonConfig, laser_config::LaserConfig, lift_config::LiftConfig,
+    world_config::WorldConfig,
+};
 use crate::{AgentId, Grid, Position, log_warn};
 use crate::{log_debug, log_info};
 
@@ -13,6 +16,8 @@ pub struct ParsingData {
     pub exit_positions: Vec<Position>,
     pub walls_positions: Vec<Position>,
     pub laser_configs: Vec<(Position, LaserConfig)>,
+    pub lift_configs: Vec<(Position, LiftConfig)>,
+    pub button_configs: Vec<(Position, ButtonConfig)>,
 }
 
 impl ParsingData {
@@ -23,6 +28,14 @@ impl ParsingData {
     pub fn add_laser_source(&mut self, pos: Position, config: LaserConfig) {
         self.laser_configs.push((pos, config));
         self.walls_positions.push(pos);
+    }
+
+    pub fn add_lift(&mut self, pos: Position, config: LiftConfig) {
+        self.lift_configs.push((pos, config));
+    }
+
+    pub fn add_button(&mut self, pos: Position, config: ButtonConfig) {
+        self.button_configs.push((pos, config));
     }
 
     pub fn add_start_position(
@@ -65,14 +78,15 @@ impl ParsingData {
         self.height += 1;
     }
 
-    pub fn add_row(&mut self, n_cols: usize, line: &str) -> Result<(), ParseError> {
+    pub fn add_row(&mut self, n_cols: usize, line: &str, row: usize) -> Result<(), ParseError> {
         log_debug!("Adding row with {} columns: {}", n_cols, line);
         if let Some(w) = self.width {
             if w != n_cols {
-                return Err(ParseError::Inconsistent3Dimensions {
-                    expected_n_dims: (w, self.height),
-                    actual_n_dims: (n_cols, self.height),
-                    layer: self.layers, // dont realy care about the layer number in the error message
+                return Err(ParseError::Inconsistent2Dimensions {
+                    row_str: line.to_string(),
+                    expected_n_cols: w,
+                    actual_n_cols: n_cols,
+                    row,
                 });
             }
         } else {
@@ -94,15 +108,8 @@ impl ParsingData {
                 }
             }
             _ => {
-                log_warn!("
-                Missing width or height for the previous layer, setting width to {} and height to {} based on the dimensions of the current layer
-                "
-                , hw.0, hw.1);
-                return Err(ParseError::Inconsistent3Dimensions {
-                    expected_n_dims: (self.height, self.width.unwrap()),
-                    actual_n_dims: hw,
-                    layer: self.layers,
-                });
+                log_warn!("Attempted to add a layer with no rows parsed (empty world)");
+                return Err(ParseError::EmptyWorld);
             }
         }
         self.layers += 1;
@@ -129,6 +136,8 @@ impl TryInto<WorldConfig> for ParsingData {
             self.exit_positions,
             self.walls_positions,
             self.laser_configs,
+            self.lift_configs,
+            self.button_configs,
         ))
     }
 }
@@ -159,6 +168,12 @@ pub fn to_v1_string(config: &WorldConfig) -> Result<String, ()> {
     for (pos, config) in config.sources() {
         res.replace_at(&pos, config.to_string());
     }
+    for (pos, config) in config.lifts() {
+        res.replace_at(&pos, config.to_string());
+    }
+    for (pos, config) in config.buttons() {
+        res.replace_at(&pos, config.to_string());
+    }
     Ok((&res).into())
 }
 
@@ -179,7 +194,6 @@ pub fn parse(world_str: &str) -> Result<WorldConfig, ParseError> {
                 row,
                 n_cols
             );
-            assert!(n_cols > 0 && row > 0); // there should be at least one row in the previous layer
             data.add_layer((row, n_cols))?;
             row = 0;
             layer += 1;
@@ -210,6 +224,14 @@ pub fn parse(world_str: &str) -> Result<WorldConfig, ParseError> {
                     let source_config = LaserConfig::from_str(token, data.n_lasers())?;
                     data.add_laser_source(pos, source_config);
                 }
+                'T' => {
+                    let lift_config = LiftConfig::from_str(token)?;
+                    data.add_lift(pos, lift_config);
+                }
+                'B' => {
+                    let button_config = ButtonConfig::from_str(token)?;
+                    data.add_button(pos, button_config);
+                }
                 _ => {
                     return Err(ParseError::InvalidTile {
                         tile_str: token.into(),
@@ -219,7 +241,7 @@ pub fn parse(world_str: &str) -> Result<WorldConfig, ParseError> {
                 }
             }
         }
-        data.add_row(n_cols, line)?;
+        data.add_row(n_cols, line, row)?;
         if layer == 0 {
             data.increase_height();
         }
@@ -237,9 +259,85 @@ pub fn parse(world_str: &str) -> Result<WorldConfig, ParseError> {
 
 #[cfg(test)]
 mod tests {
-    use crate::ParseError;
+    use crate::{
+        ParseError, Position,
+        tiles::{Direction, Tile},
+    };
 
     use super::parse;
+
+    #[test]
+    fn test_parse_lift_and_button() {
+        let config = parse(
+            "
+            S0 .  TN0A1
+            .  B0 .
+            .  .  X
+            ",
+        )
+        .unwrap();
+        let world = config.to_world().unwrap();
+
+        match world.at(&Position { i: 0, j: 2, k: 0 }) {
+            Some(Tile::Lift(lift)) => {
+                assert_eq!(lift.direction(), Direction::North);
+                assert_eq!(lift.group_id(), 0);
+                assert_eq!(lift.authorized_agent_id(), Some(1));
+            }
+            other => panic!("Expected a Lift tile, got {:?}", other),
+        }
+
+        match world.at(&Position { i: 1, j: 1, k: 0 }) {
+            Some(Tile::Button(button)) => {
+                assert_eq!(button.group_id(), 0);
+                assert_eq!(button.authorized_agent_id(), None);
+            }
+            other => panic!("Expected a Button tile, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_lift_button_invalid_group_id() {
+        match parse(
+            "
+            S0 TNx
+            .  X
+            ",
+        ) {
+            Err(ParseError::InvalidGroupId { .. }) => {}
+            other => panic!("Expected ParseError::InvalidGroupId, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_lift_button_round_trip() {
+        let config = parse(
+            "
+            S0 .  TN0A1
+            .  B0 .
+            .  .  X
+            ",
+        )
+        .unwrap();
+        let as_string = super::to_v1_string(&config).unwrap();
+        let reparsed = parse(&as_string).unwrap();
+        let world = reparsed.to_world().unwrap();
+
+        match world.at(&Position { i: 0, j: 2, k: 0 }) {
+            Some(Tile::Lift(lift)) => {
+                assert_eq!(lift.direction(), Direction::North);
+                assert_eq!(lift.group_id(), 0);
+                assert_eq!(lift.authorized_agent_id(), Some(1));
+            }
+            other => panic!("Expected a Lift tile, got {:?}", other),
+        }
+        match world.at(&Position { i: 1, j: 1, k: 0 }) {
+            Some(Tile::Button(button)) => {
+                assert_eq!(button.group_id(), 0);
+            }
+            other => panic!("Expected a Button tile, got {:?}", other),
+        }
+    }
 
     #[test]
     fn test_laser_kill_on_spawn() {
@@ -281,6 +379,47 @@ mod tests {
             ),
             Err(ParseError::NotEnoughExitTiles { .. }) => panic!("There are enough exit tiles"),
             Err(e) => panic!("Unexpected error: {:?}", e),
+        }
+    }
+
+    #[test]
+    fn test_empty_string_returns_empty_world_not_panic() {
+        match parse("") {
+            Err(ParseError::EmptyWorld) => {}
+            other => panic!("Expected ParseError::EmptyWorld, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_leading_semicolon_returns_parse_error() {
+        match parse(";\nS0 X") {
+            Err(ParseError::EmptyWorld) => {}
+            other => panic!("Expected ParseError::EmptyWorld, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_doubled_semicolon_returns_parse_error() {
+        match parse("S0 X\n;\n;") {
+            Err(ParseError::Inconsistent3Dimensions { .. }) => {}
+            other => panic!("Expected ParseError::Inconsistent3Dimensions, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_row_length_mismatch_returns_inconsistent_2d() {
+        match parse("X S0 .\n. .") {
+            Err(ParseError::Inconsistent2Dimensions {
+                expected_n_cols,
+                actual_n_cols,
+                row,
+                ..
+            }) => {
+                assert_eq!(expected_n_cols, 3);
+                assert_eq!(actual_n_cols, 2);
+                assert_eq!(row, 1);
+            }
+            other => panic!("Expected ParseError::Inconsistent2Dimensions, got {:?}", other),
         }
     }
 }

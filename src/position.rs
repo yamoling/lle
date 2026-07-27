@@ -70,7 +70,7 @@ impl Add<CardinalDirection> for Position {
     type Output = Result<Position, RuntimeWorldError>;
 
     fn add(self, rhs: CardinalDirection) -> Self::Output {
-        self + Direction::from(rhs) // up down case not handled yet! 
+        self + Direction::from(rhs)
     }
 }
 

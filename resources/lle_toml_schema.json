@@ -78,6 +78,22 @@
         "$ref": "#/definitions/PositionsConfig"
       },
       "default": []
+    },
+    "lifts": {
+      "type": "array",
+      "description": "Lift tile configurations. A lift is a one-shot elevator: pressing a button sharing its group_id relocates whichever agent stands on it by one step in its direction. Example:\n[[lifts]]\ndirection = \"Up\"\ngroup_id = 0\n[lifts.position]\ni = 0\nj = 0\nk = 0",
+      "items": {
+        "$ref": "#/definitions/LiftConfig"
+      },
+      "default": []
+    },
+    "buttons": {
+      "type": "array",
+      "description": "Button tile configurations. Taking the Trigger action while standing on a button pulses every Lift sharing its group_id. Example:\n[[buttons]]\ngroup_id = 0\n[buttons.position]\ni = 1\nj = 1\nk = 0",
+      "items": {
+        "$ref": "#/definitions/ButtonConfig"
+      },
+      "default": []
     }
   },
   "additionalProperties": false,
@@ -254,6 +270,118 @@
         "w",
         "s"
       ]
+    },
+    "PositionIJK": {
+      "type": "object",
+      "description": "An exact position specified by row index i, column index j, and layer index k `{ i=2, j=3, k=0 }`. Unlike PositionIJ, k is mandatory since lifts/buttons are placed on a specific floor.",
+      "properties": {
+        "i": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Row index (0-based)"
+        },
+        "j": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Column index (0-based)"
+        },
+        "k": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Layer/floor index (0-based)"
+        }
+      },
+      "required": [
+        "i",
+        "j",
+        "k"
+      ],
+      "additionalProperties": false
+    },
+    "LiftDirection": {
+      "type": "string",
+      "description": "Direction a lift moves its rider in, including floor changes. Accepted values are: \"North\", \"East\", \"South\", \"West\", \"Up\", \"Down\" (or shorthand \"N\", \"E\", \"S\", \"W\", \"U\", \"D\", or lowercase).",
+      "enum": [
+        "North",
+        "East",
+        "South",
+        "West",
+        "Up",
+        "Down",
+        "N",
+        "E",
+        "S",
+        "W",
+        "U",
+        "D",
+        "north",
+        "east",
+        "south",
+        "west",
+        "up",
+        "down",
+        "n",
+        "e",
+        "s",
+        "w",
+        "u",
+        "d"
+      ]
+    },
+    "LiftConfig": {
+      "type": "object",
+      "description": "Configuration for a lift tile. Example:\n[[lifts]]\ndirection = \"Up\"\ngroup_id = 0\n[lifts.position]\ni = 0\nj = 0\nk = 0",
+      "properties": {
+        "direction": {
+          "$ref": "#/definitions/LiftDirection",
+          "description": "The direction the lift relocates its rider in. Example: direction = \"Up\""
+        },
+        "authorized_agent_id": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "If set, only this agent is relocated when the lift is pulsed; other riders are left in place. Example: authorized_agent_id = 1"
+        },
+        "position": {
+          "$ref": "#/definitions/PositionIJK",
+          "description": "The position of the lift on the grid. Example:\n[lifts.position]\ni = 0\nj = 0\nk = 0"
+        },
+        "group_id": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "The group this lift belongs to; a button with the same group_id will pulse it. Example: group_id = 0"
+        }
+      },
+      "required": [
+        "direction",
+        "position",
+        "group_id"
+      ],
+      "additionalProperties": false
+    },
+    "ButtonConfig": {
+      "type": "object",
+      "description": "Configuration for a button tile. Example:\n[[buttons]]\ngroup_id = 0\n[buttons.position]\ni = 1\nj = 1\nk = 0",
+      "properties": {
+        "authorized_agent_id": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "If set, only this agent can actuate the button. Example: authorized_agent_id = 0"
+        },
+        "position": {
+          "$ref": "#/definitions/PositionIJK",
+          "description": "The position of the button on the grid. Example:\n[buttons.position]\ni = 1\nj = 1\nk = 0"
+        },
+        "group_id": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "The lift group this button pulses when actuated. Example: group_id = 0"
+        }
+      },
+      "required": [
+        "position",
+        "group_id"
+      ],
+      "additionalProperties": false
     }
   }
 }

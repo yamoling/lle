@@ -15,8 +15,8 @@ use crate::{
 pub struct Lift {
     direction: Direction,
     agent: Option<AgentId>,
-    /// If set, only this agent is allowed to step onto the lift.
-    /// Not yet enforced: see CLAUDE.md / plan notes on `pre_enter`.
+    /// If set, only this agent will be relocated when the lift is pulsed;
+    /// other riders are left in place (enforced in `World::resolve_lift_moves`).
     authorized_agent_id: Cell<Option<AgentId>>,
     group_id: usize,
     /// Set by `notify()` when a same-group `Button` was actuated this tick;

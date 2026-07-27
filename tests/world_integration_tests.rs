@@ -11,10 +11,9 @@ fn test_available_actions() {
     .unwrap();
     w.reset();
     let available = w.available_actions();
-    assert_eq!(available[0].len(), 3);
+    assert_eq!(available[0].len(), 2);
     assert!(available[0].contains(&Action::Stay));
     assert!(available[0].contains(&Action::East));
-    assert!(available[0].contains(&Action::Trigger));
 }
 
 #[test]
@@ -29,14 +28,8 @@ fn test_available_actions_two_agents() {
     .unwrap();
     w.reset();
     let available = w.available_actions();
-    let expected_0 = [
-        Action::Stay,
-        Action::East,
-        Action::West,
-        Action::South,
-        Action::Trigger,
-    ];
-    let expected_1 = [Action::Stay, Action::East, Action::West, Action::Trigger];
+    let expected_0 = [Action::Stay, Action::East, Action::West, Action::South];
+    let expected_1 = [Action::Stay, Action::East, Action::West];
     assert_eq!(available[0].len(), expected_0.len());
     assert_eq!(available[1].len(), expected_1.len());
     for a in &expected_0 {
@@ -60,14 +53,8 @@ fn test_available_actions_exit() {
     w.reset();
     // On reset
     let available = w.available_actions();
-    let expected_0 = [
-        Action::Stay,
-        Action::East,
-        Action::West,
-        Action::South,
-        Action::Trigger,
-    ];
-    let expected_1 = [Action::Stay, Action::East, Action::West, Action::Trigger];
+    let expected_0 = [Action::Stay, Action::East, Action::West, Action::South];
+    let expected_1 = [Action::Stay, Action::East, Action::West];
     assert_eq!(available[0].len(), expected_0.len());
     assert_eq!(available[1].len(), expected_1.len());
     assert!(expected_0.iter().all(|a| available[0].contains(a)));
@@ -76,8 +63,8 @@ fn test_available_actions_exit() {
     // Step once (South, East)
     w.step(&[Action::South, Action::East]).unwrap();
     let available = w.available_actions();
-    let expected_0 = [Action::Stay, Action::Trigger];
-    let expected_1 = [Action::Stay, Action::West, Action::South, Action::Trigger];
+    let expected_0 = [Action::Stay];
+    let expected_1 = [Action::Stay, Action::West, Action::South];
     assert_eq!(available[0].len(), expected_0.len());
     assert_eq!(available[1].len(), expected_1.len());
     assert!(expected_0.iter().all(|a| available[0].contains(a)));
@@ -86,14 +73,8 @@ fn test_available_actions_exit() {
     // Step once (Stay, South)
     w.step(&[Action::Stay, Action::South]).unwrap();
     let available = w.available_actions();
-    let expected_0 = [Action::Stay, Action::Trigger];
-    let expected_1 = [
-        Action::Stay,
-        Action::West,
-        Action::South,
-        Action::North,
-        Action::Trigger,
-    ];
+    let expected_0 = [Action::Stay];
+    let expected_1 = [Action::Stay, Action::West, Action::South, Action::North];
     assert_eq!(available[0].len(), expected_0.len());
     assert_eq!(available[1].len(), expected_1.len());
     assert!(expected_0.iter().all(|a| available[0].contains(a)));
@@ -102,8 +83,8 @@ fn test_available_actions_exit() {
     // Step once (Stay, South)
     w.step(&[Action::Stay, Action::South]).unwrap();
     let available = w.available_actions();
-    let expected_0 = [Action::Stay, Action::Trigger];
-    let expected_1 = [Action::Stay, Action::Trigger];
+    let expected_0 = [Action::Stay];
+    let expected_1 = [Action::Stay];
     assert_eq!(available[0].len(), expected_0.len());
     assert_eq!(available[1].len(), expected_1.len());
     assert!(expected_0.iter().all(|a| available[0].contains(a)));
@@ -533,7 +514,7 @@ fn available_joint_actions() {
     .unwrap();
     w.reset();
     let available = w.available_joint_actions();
-    assert_eq!(available.len(), 12);
+    assert_eq!(available.len(), 6);
     let expected = [
         [Action::Stay, Action::Stay],
         [Action::Stay, Action::West],
@@ -556,7 +537,7 @@ fn num_available_joint_actions() {
     .unwrap();
     w.reset();
     let available = w.available_joint_actions();
-    assert_eq!(available.len(), 4 * 4 * 3);
+    assert_eq!(available.len(), 3 * 3 * 2);
 }
 
 #[test]

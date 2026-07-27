@@ -916,3 +916,272 @@ walls = [{ i_min = 1, i_max = 5, j_min = 2, j_max = 8 }]
 "#,
     );
 }
+
+// ===================== Lift / Button =====================
+
+#[test]
+fn valid_lift_minimal() {
+    assert_valid(
+        r#"
+width = 5
+height = 5
+
+[[lifts]]
+direction = "North"
+group_id = 0
+position = { i = 0, j = 0, k = 0 }
+"#,
+    );
+}
+
+#[test]
+fn valid_lift_with_authorized_agent() {
+    assert_valid(
+        r#"
+width = 5
+height = 5
+
+[[lifts]]
+direction = "North"
+group_id = 0
+authorized_agent_id = 1
+position = { i = 0, j = 0, k = 0 }
+"#,
+    );
+}
+
+#[test]
+fn valid_lift_direction_up_down() {
+    assert_valid(
+        r#"
+width = 5
+height = 5
+
+[[lifts]]
+direction = "Up"
+group_id = 0
+position = { i = 0, j = 0, k = 0 }
+
+[[lifts]]
+direction = "Down"
+group_id = 1
+position = { i = 0, j = 1, k = 1 }
+"#,
+    );
+}
+
+#[test]
+fn valid_lift_direction_alias_short() {
+    assert_valid(
+        r#"
+width = 5
+height = 5
+
+[[lifts]]
+direction = "U"
+group_id = 0
+position = { i = 0, j = 0, k = 0 }
+"#,
+    );
+}
+
+#[test]
+fn valid_lift_direction_alias_lowercase() {
+    assert_valid(
+        r#"
+width = 5
+height = 5
+
+[[lifts]]
+direction = "down"
+group_id = 0
+position = { i = 0, j = 0, k = 0 }
+"#,
+    );
+}
+
+#[test]
+fn valid_button_minimal() {
+    assert_valid(
+        r#"
+width = 5
+height = 5
+
+[[buttons]]
+group_id = 0
+position = { i = 1, j = 1, k = 0 }
+"#,
+    );
+}
+
+#[test]
+fn valid_button_with_authorized_agent() {
+    assert_valid(
+        r#"
+width = 5
+height = 5
+
+[[buttons]]
+group_id = 0
+authorized_agent_id = 0
+position = { i = 1, j = 1, k = 0 }
+"#,
+    );
+}
+
+#[test]
+fn valid_multiple_buttons_and_lifts_same_group() {
+    assert_valid(
+        r#"
+width = 5
+height = 5
+
+[[buttons]]
+group_id = 3
+position = { i = 0, j = 0, k = 0 }
+
+[[buttons]]
+group_id = 3
+position = { i = 0, j = 1, k = 0 }
+
+[[lifts]]
+direction = "East"
+group_id = 3
+position = { i = 0, j = 2, k = 0 }
+
+[[lifts]]
+direction = "West"
+group_id = 3
+position = { i = 0, j = 4, k = 0 }
+"#,
+    );
+}
+
+#[test]
+fn invalid_lift_missing_direction() {
+    assert_invalid(
+        r#"
+width = 5
+height = 5
+
+[[lifts]]
+group_id = 0
+position = { i = 0, j = 0, k = 0 }
+"#,
+    );
+}
+
+#[test]
+fn invalid_lift_missing_position() {
+    assert_invalid(
+        r#"
+width = 5
+height = 5
+
+[[lifts]]
+direction = "North"
+group_id = 0
+"#,
+    );
+}
+
+#[test]
+fn invalid_lift_missing_group_id() {
+    assert_invalid(
+        r#"
+width = 5
+height = 5
+
+[[lifts]]
+direction = "North"
+position = { i = 0, j = 0, k = 0 }
+"#,
+    );
+}
+
+#[test]
+fn invalid_lift_bad_direction() {
+    assert_invalid(
+        r#"
+width = 5
+height = 5
+
+[[lifts]]
+direction = "UpLeft"
+group_id = 0
+position = { i = 0, j = 0, k = 0 }
+"#,
+    );
+}
+
+#[test]
+fn invalid_lift_extra_field() {
+    assert_invalid(
+        r#"
+width = 5
+height = 5
+
+[[lifts]]
+direction = "North"
+group_id = 0
+position = { i = 0, j = 0, k = 0 }
+color = "red"
+"#,
+    );
+}
+
+#[test]
+fn invalid_lift_position_missing_k() {
+    assert_invalid(
+        r#"
+width = 5
+height = 5
+
+[[lifts]]
+direction = "North"
+group_id = 0
+position = { i = 0, j = 0 }
+"#,
+    );
+}
+
+#[test]
+fn invalid_button_missing_position() {
+    assert_invalid(
+        r#"
+width = 5
+height = 5
+
+[[buttons]]
+group_id = 0
+"#,
+    );
+}
+
+#[test]
+fn invalid_button_missing_group_id() {
+    assert_invalid(
+        r#"
+width = 5
+height = 5
+
+[[buttons]]
+position = { i = 1, j = 1, k = 0 }
+"#,
+    );
+}
+
+#[test]
+fn invalid_button_extra_field() {
+    assert_invalid(
+        r#"
+width = 5
+height = 5
+
+[[buttons]]
+group_id = 0
+position = { i = 1, j = 1, k = 0 }
+color = "red"
+"#,
+    );
+}

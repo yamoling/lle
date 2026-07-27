@@ -88,6 +88,9 @@ pub fn parse_error_to_exception(error: ParseError) -> PyErr {
         ParseError::InvalidAgentId { given_agent_id } => {
             format!("Can not parse agent id: {given_agent_id}. Expected an interger >= 0.")
         }
+        ParseError::InvalidGroupId { given_group_id } => {
+            format!("Can not parse group id: {given_group_id}. Expected an integer >= 0.")
+        }
         ParseError::InvalidLaserSourceAgentId { asked_id, n_agents } => {
             format!(
                 "Invalid laser source agent id: {asked_id}. There are only {n_agents} agents -> expected an id between 0 and {}.",
@@ -137,6 +140,9 @@ pub fn parse_error_to_exception(error: ParseError) -> PyErr {
         ParseError::MissingWidth => "Missing width in the world configuration file".into(),
         ParseError::MissingLayers => "Missing layers in the world configuration file".into(),
         ParseError::UnknownTomlKey { message, .. } => message,
+        ParseError::InvalidTomlDocument { message } => {
+            format!("Invalid TOML document: {message}")
+        }
         ParseError::NotV2 => panic!("NotV2 exception should not be raised here"),
     };
     ParsingError::new_err(msg)
