@@ -8,7 +8,20 @@ from __future__ import annotations
 
 import pytest
 from lle import World
-from lle.generator import Chained, Constraint, Cooperative, Independent, Interdependent, Solvable, WorldRequirements, generate
+from lle.generator import (
+    Chained,
+    Constraint,
+    Convergent,
+    Cooperative,
+    Divergent,
+    Independent,
+    Interdependent,
+    Solvable,
+    WorldRequirements,
+    generate,
+)
+
+from .world_layouts import CONVERGENT_2_TIGHT, DIVERGENT_2_TIGHT
 
 
 @pytest.mark.parametrize(("level", "solution_length"), [(1, 10), (2, 10), (3, 10), (4, 10), (5, 19), (6, 21)])
@@ -71,6 +84,21 @@ def test_mutual_standard_levels():
         assert mutual.is_satisfied_by(world)
 
 
+def test_convergent_and_divergent_predicates_delegate_to_characterizer():
+    """The generator predicates accept their respective SAT-characterized layouts."""
+    assert Constraint(5, Convergent(2)).is_satisfied_by(CONVERGENT_2_TIGHT.world())
+    assert Constraint(2, Divergent(2)).is_satisfied_by(DIVERGENT_2_TIGHT.world())
+    assert not Constraint(5, Divergent(2)).is_satisfied_by(CONVERGENT_2_TIGHT.world())
+    assert not Constraint(2, Convergent(2)).is_satisfied_by(DIVERGENT_2_TIGHT.world())
+
+
+@pytest.mark.parametrize("predicate", [Convergent, Divergent])
+@pytest.mark.parametrize("k", [-1, 0, 1])
+def test_convergence_and_divergence_predicates_reject_invalid_thresholds(predicate, k: int):
+    with pytest.raises(ValueError):
+        predicate(k)
+
+
 def test_constraint_uses_its_t_max():
     constraint = Constraint(21, Cooperative())
     # t_max=21 → level 6 is solvable and cooperative → True
@@ -86,9 +114,12 @@ def test_filter_mutual_rejects_level6_with_insufficient_t_max():
 
 
 def test_world_requirements_for_atoms():
+    """Each predicate exposes the minimum resources that make it possible."""
     assert Solvable().requirements == WorldRequirements()
     assert Independent().requirements == WorldRequirements()
     assert Cooperative().requirements == WorldRequirements(min_lasers=1, min_agents=2)
+    assert Convergent(2).requirements == WorldRequirements(min_lasers=2, min_agents=3)
+    assert Divergent(2).requirements == WorldRequirements(min_lasers=1, min_agents=3)
     assert Interdependent(2).requirements == WorldRequirements(min_lasers=2, min_agents=2)
 
 
@@ -110,8 +141,13 @@ def test_generate_independent_produces_independent_world():
 
 
 def test_last_filter_call_wins():
+    """Each fluent predicate shortcut replaces the previously selected predicate."""
     builder = generate(width=5, height=5, n_agents=2).cooperative().interdependent(2)
     assert isinstance(builder._constraint.predicate, Interdependent)
+    builder = generate(width=5, height=5, n_agents=3).convergent(2)
+    assert isinstance(builder._constraint.predicate, Convergent)
+    builder = generate(width=5, height=5, n_agents=3).divergent(2)
+    assert isinstance(builder._constraint.predicate, Divergent)
     builder = generate(width=5, height=5, n_agents=2).interdependent(2).independent()
     assert isinstance(builder._constraint.predicate, Independent)
 
@@ -143,12 +179,12 @@ def test_generate_error_mutual_n_lasers_lt_2():
 
 def test_generate_error_chained_n_agents_lt_2():
     with pytest.raises(ValueError, match="agents"):
-        generate(width=5, height=5, n_agents=1).chained().build(max_attempts=1)
+        generate(width=5, height=5, n_agents=1).chained(2).build(max_attempts=1)
 
 
 def test_generate_error_chained_n_lasers_lt_2():
     with pytest.raises(ValueError, match="laser"):
-        generate(width=5, height=5, n_agents=2).lasers(1).chained().build(max_attempts=1)
+        generate(width=5, height=5, n_agents=2).lasers(1).chained(2).build(max_attempts=1)
 
 
 # ---------------------------------------------------------------------------
@@ -163,7 +199,7 @@ def test_default_lasers_chained_n_agents_2():
     raising "Chained cooperation requires at least 2 lasers" because the
     auto-resolved count was n_agents-1 = 1.  The fix defaults to min(n_agents, 2).
     """
-    builder = generate(width=5, height=5, n_agents=2).lanes().chained()
+    builder = generate(width=5, height=5, n_agents=2).lanes().chained(2)
     placement = builder._resolve_placement(builder._starts)
     n_lasers = builder._resolve_n_lasers(placement)
     assert n_lasers >= 2, f"Expected auto n_lasers >= 2 for chained predicate with n_agents=2, got {n_lasers}"
@@ -183,7 +219,7 @@ def test_default_lasers_mutual_n_agents_2():
 
 def test_default_lasers_chained_does_not_raise_on_build():
     """End-to-end: generate().lanes().chained().build() must not raise ValueError."""
-    generate(width=5, height=5, n_agents=2).lanes().chained().build(max_attempts=1)
+    generate(width=5, height=5, n_agents=2).lanes().chained(2).build(max_attempts=1)
 
 
 def test_default_lasers_mutual_does_not_raise_on_build():
@@ -193,7 +229,7 @@ def test_default_lasers_mutual_does_not_raise_on_build():
 
 def test_explicit_laser_count_overrides_default():
     """An explicit lasers() call must always win over the smart default."""
-    builder = generate(width=5, height=5, n_agents=3).lasers(3).chained()
+    builder = generate(width=5, height=5, n_agents=3).lasers(3).chained(2)
     placement = builder._resolve_placement(builder._starts)
     n_lasers = builder._resolve_n_lasers(placement)
     assert n_lasers == 3

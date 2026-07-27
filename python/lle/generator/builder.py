@@ -36,7 +36,18 @@ from typing import Iterator, Literal, overload
 
 from ..world import World
 from .generator import WorldGenerator
-from .world_filter import Asymmetric, Chained, Constraint, Cooperative, Independent, Interdependent, Predicate, Solvable
+from .world_filter import (
+    Asymmetric,
+    Chained,
+    Constraint,
+    Convergent,
+    Cooperative,
+    Divergent,
+    Independent,
+    Interdependent,
+    Predicate,
+    Solvable,
+)
 
 StartsMode = Literal["random", "edge", "clustered"]
 ExitsMode = Literal["random", "edge", "cluster", "opposite"]
@@ -234,7 +245,7 @@ class GeneratorBuilder:
         """Require worlds that need cooperation within the configured solver horizon."""
         return self.require(Cooperative())
 
-    def chained(self, length: int = 2) -> GeneratorBuilder:
+    def chained(self, length: int) -> GeneratorBuilder:
         """Require chained cooperation of at least `length` help edges."""
         return self.require(Chained(length))
 
@@ -242,9 +253,17 @@ class GeneratorBuilder:
         """Require mutual cooperation: every agent both helps and is helped."""
         return self.interdependent(2)
 
-    def interdependent(self, order: int = 2) -> GeneratorBuilder:
+    def interdependent(self, order: int) -> GeneratorBuilder:
         """Require temporal interdependence of exactly `order` agents."""
         return self.require(Interdependent(order))
+
+    def convergent(self, k: int) -> GeneratorBuilder:
+        """Require one beneficiary to receive help from at least `k` distinct agents."""
+        return self.require(Convergent(k))
+
+    def divergent(self, k: int) -> GeneratorBuilder:
+        """Require one helper to assist at least `k` distinct beneficiaries."""
+        return self.require(Divergent(k))
 
     def asymmetric(self) -> GeneratorBuilder:
         """Require asymmetric cooperation."""

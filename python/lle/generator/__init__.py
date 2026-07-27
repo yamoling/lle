@@ -11,9 +11,10 @@ worlds = list(lle.generate(width=5, height=5, n_agents=2).walls(2, style="shapes
 ```
 
 Predicate atoms (`Solvable`, `Independent`, `Cooperative`, `Chained`,
-`Interdependent`, …) describe behavioural constraints and are accepted by
-`GeneratorBuilder.require(...)`; the named methods (`cooperative()`, `chained()`,
-`mutual()`, …) cover the common cases without constructing predicates by hand.
+`Convergent`, `Divergent`, `Interdependent`, …) describe behavioural constraints
+and are accepted by `GeneratorBuilder.require(...)`; the named methods
+(`cooperative()`, `chained()`, `convergent()`, `divergent()`, `mutual()`, …)
+cover the common cases without constructing predicates by hand.
 
 `CustomGenerator` remains available for advanced or direct use, but
 `generate(...)` is the recommended path.
@@ -30,7 +31,9 @@ from .world_filter import (
     Asymmetric,
     Chained,
     Constraint,
+    Convergent,
     Cooperative,
+    Divergent,
     Independent,
     Interdependent,
     Not,
@@ -50,6 +53,8 @@ __all__ = [
     "Not",
     "Constraint",
     "WorldFilter",
+    "Convergent",
+    "Divergent",
     "WorldRequirements",
     "Solvable",
     "Independent",
@@ -72,15 +77,16 @@ def generate(width: int = 10, height: int = 10, n_agents: int = 3, t_max: int | 
       `starts(...)` / `exits(...)`.
     - Lasers and walls: `lasers(...)`, `walls(...)`.
     - Behaviour: `solvable()` (default), `independent()`, `cooperative(...)`,
-      `chained(...)`, `mutual(...)`, or `require(filter)`.
+      `chained(...)`, `convergent(...)`, `divergent(...)`, `mutual(...)`, or
+      `require(filter)`.
     - Terminals: `build(...)` for a single `World`, `take(n, ...)` for an
       iterator of worlds.
 
     # Examples
     ```python
-    world = lle.generate(width=5, height=5, n_agents=2).build(seed=0)
-    world1 = lle.generate(width=5, height=5, n_agents=2).lasers(1).cooperative().cap(10).build()
-    world2 = lle.generate(width=5, height=5, n_agents=2).clustered().lasers(2).mutual().cap(10).build()
+    world1 = lle.generate(width=5, height=5, n_agents=2).build(seed=0)
+    world2 = lle.generate(width=5, height=5, n_agents=2).lasers(1).cooperative().cap(10).build()
+    world3 = lle.generate(width=5, height=5, n_agents=2).clustered().lasers(2).mutual().cap(10).build()
     worlds = lle.generate(width=4, height=4, n_agents=2).starts("edge").exits("opposite").lasers(1).cooperative().cap(10).take(2)
     ```
     """

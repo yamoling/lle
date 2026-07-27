@@ -177,6 +177,52 @@ class Chained(Predicate):
 
 
 @dataclass(frozen=True)
+class Convergent(Predicate):
+    """Matches worlds requiring one beneficiary to receive help from ``k`` agents."""
+
+    k: int
+
+    def __post_init__(self) -> None:
+        """Reject thresholds that cannot express convergence."""
+        if self.k < 2:
+            raise ValueError(f"Convergence requires at least 2 distinct helpers, got {self.k}.")
+
+    def holds(self, c: WorldCharacterizer) -> bool:
+        return c.is_convergent(self.k)
+
+    @property
+    def requirements(self) -> WorldRequirements:
+        return WorldRequirements(min_lasers=self.k, min_agents=self.k + 1)
+
+    @property
+    def cost(self) -> int:
+        return 20 + self.k
+
+
+@dataclass(frozen=True)
+class Divergent(Predicate):
+    """Matches worlds requiring one helper to assist ``k`` distinct beneficiaries."""
+
+    k: int = 2
+
+    def __post_init__(self) -> None:
+        """Reject thresholds that cannot express divergence."""
+        if self.k < 2:
+            raise ValueError(f"Divergence requires at least 2 distinct beneficiaries, got {self.k}.")
+
+    def holds(self, c: WorldCharacterizer) -> bool:
+        return c.is_divergent(self.k)
+
+    @property
+    def requirements(self) -> WorldRequirements:
+        return WorldRequirements(min_lasers=1, min_agents=self.k + 1)
+
+    @property
+    def cost(self) -> int:
+        return 20 + self.k
+
+
+@dataclass(frozen=True)
 class Interdependent(Predicate):
     """Matches worlds that require a temporal dependency cycle of at least ``order`` agents."""
 
