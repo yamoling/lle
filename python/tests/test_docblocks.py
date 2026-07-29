@@ -17,7 +17,7 @@ _FENCE = re.compile(r"```python\n(.*?)```", re.DOTALL)
 
 def _collect_from(path: Path) -> list[tuple[str, str]]:
     """Return (id, code) pairs for every python fenced block in path's docstrings."""
-    source = path.read_text()
+    source = path.read_text(encoding="utf-8", errors="strict")
     try:
         tree = ast.parse(source, filename=str(path))
     except SyntaxError:
@@ -46,7 +46,7 @@ def _collect_from(path: Path) -> list[tuple[str, str]]:
 
 def _collect_from_md(path: Path) -> list[tuple[str, str]]:
     """Return (id, code) pairs for every python fenced block in a Markdown file."""
-    source = path.read_text()
+    source = path.read_text(encoding="utf-8", errors="strict")
     rel = path.relative_to(ROOT)
     return [(f"{rel}[{i}]", textwrap.dedent(code)) for i, code in enumerate(_FENCE.findall(source))]
 
