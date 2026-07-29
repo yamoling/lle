@@ -1,7 +1,6 @@
 use crate::{
     RuntimeWorldError, WorldEvent,
     agent::{Agent, AgentId},
-    rendering::{TileVisitor, VisitorData},
 };
 use core::panic;
 
@@ -22,7 +21,7 @@ impl Tile {
     pub fn pre_enter(&mut self, agent: &Agent) -> Result<(), RuntimeWorldError> {
         match self {
             Self::Laser(laser) => laser.pre_enter(agent),
-            Self::Wall | Self::LaserSource(_) => return Err(RuntimeWorldError::TileNotWalkable),
+            Self::Wall | Self::LaserSource(_) => Err(RuntimeWorldError::TileNotWalkable),
             _ => Ok(()),
         }
     }
@@ -123,17 +122,4 @@ impl Tile {
         }
         .to_string()
     }
-
-    pub fn accept(&self, visitor: &dyn TileVisitor, data: &mut VisitorData) {
-        match self {
-            Self::Gem(gem) => visitor.visit_gem(gem, data),
-            Self::Laser(laser) => visitor.visit_laser(laser, data),
-            Self::LaserSource(source) => visitor.visit_laser_source(source, data),
-            _ => {} // Nothing to do
-        };
-    }
 }
-
-#[cfg(test)]
-#[path = "../../unit_tests/test_tile.rs"]
-mod tests;

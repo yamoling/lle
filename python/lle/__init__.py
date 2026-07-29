@@ -6,105 +6,103 @@ multi-agent reinforcement learning. Lasers are the central mechanic:
 agents die when they enter an active beam unless their colour matches the one
 of the laser, in which case they can block the beam and let others pass safely.
 
-![pdoc logo](../../docs/lvl6-annotated.png)
+![LLE](../../docs/lvl6-annotated.png)
 
-LLE gives you two complementary ways to work with a world:
-- `World` for low-level, deterministic control of maps, states, and steps.
-- `LLE` for a higher-level MARL environment compatible with `marlenv`.
-- `generate`, `solve`, `is_cooperative`, and `characterize` for SAT-based generation and analysis.
+LLE provides two complementary ways to work with a world:
+- `World` for low-level control of maps, states, and steps.
+- `LLE` for a higher-level MARL environment compatible with the [`marlenv` library](https://github.com/yamoling/multi-agent-rlenv).
+- `generate`, `solve`, `is_cooperative`, `is_convergent`, `is_divergent`, and `characterize` for SAT-based world generation and analysis.
 
-## Quick start
+## Low-level `World`
+Use `World` when you want precise control over a custom map, a saved state, or
+individual actions. It is the most direct interface to the environment.
+
+
 Create a simple world, run a step, then restore the previous state:
-
 ```python
 from lle import Action, World
 
+level3 = World.level(3)
 world = World("S0 . G X")
 world.reset()
 state = world.get_state()
 world.step(Action.EAST)
+print(world.agents_positions)  # [(0, 1)]
 world.set_state(state)
+print(world.exit_pos)          # [(0, 3)]
 ```
 
+## High-level `LLE`
+Use `LLE` when you want a ready-to-use MARL environment with multiple types of observations (partial, full, 1d, 3d, ...).
+The usual workflow is `lle.level(...)`, `lle.from_str(...)`, or `lle.from_file(...)`, followed by
+builder methods such as `obs_type(...)`, `state_type(...)`, and `build()`.
+
+
 Build an environment for MARL experiments:
-
 ```python
-import lle
-
 env = lle.level(6).obs_type("layered").build()
 observation, state = env.reset()
 action = env.sample_action()
 step = env.step(action)
+print(step.reward)
 ```
 
-## Main entry points
-
-### `World`
-Use `World` when you want precise control over a custom map, a saved state, or
-individual actions. It is the most direct interface to the environment.
-
-### `LLE`
-Use `LLE` when you want a ready-to-use MARL environment. The usual workflow is
-`lle.level(...)`, `lle.from_str(...)`, or `lle.from_file(...)`, followed by
-builder methods such as `obs_type(...)`, `state_type(...)`, and `build()`.
-
-### Generation and analysis
-Install the optional generator extra to use SAT-based generation and solving:
-
-```bash
-pip install laser-learning-environment[generator]
-```
-
-- `lle.generate(...)` builds a solvable world on demand.
-- `lle.solve(world, t_max)` searches for the shortest joint plan that reaches all exits within the time bound.
-- `lle.is_cooperative(world)` checks whether the world requires laser blocking to be solvable.
-- `lle.characterize(world, t_max)` proves, via SAT/UNSAT, which agent dependencies *every* plan of length ≤ t requires.
-
-`lle.generate(...)` and the solver helpers live in `lle.generator` and
-`lle.solver`, but `import lle` re-exports them for convenience.
-
-These helpers raise `ImportError` when the optional `generator` extra is not
-installed. `generate(...)` raises `ValueError` when you ask for an impossible
-or unsupported configuration.
-
-Example:
+## Solving a world
+`lle.solve(world, t_max)` finds a shortest joint plan (sequence of joint actions) within `t_max` steps,
+or `None` if such plan does not exist. This solving is performed via a SAT solver.
+More details about the solver can be found in the `lle.solver` module.
 
 ```python
-import lle
-from lle import World
-
-world = lle.generate(kind="random", height=5, width=5, n_agents=2, seed=0)
-plan = lle.solve(world, 5)
+world = lle.World.level(5)
+plan = lle.solve(world, 20)
 assert plan is not None
 world.reset()
 for joint_action in plan:
     world.step(joint_action)
-assert lle.is_cooperative(World.level(6))
 ```
 
-## Procedural generation
+## Characterizing a world
+The cooperation requirements of a world can be characterized by calling `lle.characterize(world, t_max)`,
+which returns a `WorldCharacterizer` that can be queried to determine the intrinsic cooperative properties
+of the world (i.e. every solution to the world within `t_max` steps has these properties).
 
-`lle.generate(kind=..., **kwargs)` builds a world using one of three procedural generators. See `lle.generator` for the full argument matrix:
-
-- `kind="random"` — random layout. It validates geometry and SAT-verifies solvability.
-- `kind="constructive"` — lane-based layout with an explicit constructive solution.
-- `kind="level6_style"` — Level-6-inspired clustered starts and exits. This
-  kind defaults to an exactly mutual cooperative configuration.
-
-The `cooperation` argument lets you constrain the requested cooperation
-behaviour. You can pass `True`, `False`, or `None`.
-
-Examples:
+Helper functions such as `lle.is_cooperative`, `lle.is_interdependent(k)`, `lle.is_convergent(world, k=2)` or `lle.is_divergent(world, k=2)` can also be used. Note that if multiple properties
+should be checked, it is more efficient to use `lle.characterize` and query the `WorldCharacterizer` because it
+avoids redundant recomputation of the same properties.
 
 ```python
-import lle
-
-lle.generate(kind="random", height=5, width=5, n_agents=2)
-lle.generate(kind="random", height=6, width=6, n_agents=2, n_lasers=2, cooperative=True)
-lle.generate(kind="level6_style", n_agents=4, n_lasers=3, t_max=21)
-lle.generate(kind="constructive", n_lasers=2, cooperative=True)
-lle.generate(kind="constructive", n_lasers=3)
+specs = lle.characterize(World.level(6), t_max=21)
+assert not specs.is_independent()
+assert specs.is_cooperative()
+assert specs.is_interdependent(2)
+assert not lle.is_cooperative(World.level(1))
+assert lle.is_cooperative(World.level(3))
+assert not lle.is_interdependent(World.level(3), 2, t_max=21)
+assert not lle.is_convergent(World.level(3), t_max=21)
+assert not lle.is_divergent(World.level(3), t_max=21)
 ```
+
+
+## World procedural generation
+The `lle.generator` module provides procedural world generation functionalities. The simplest
+way to generate a world is by calling `lle.generate(width, height, n_agents).build()`.
+`lle.generate(...)` returns a `GeneratorBuilder` that can be chained with parameters to
+customize the layout generation. Call `build()` or `take(n)` to generate one or multiple worlds respectively.
+
+```python
+gen = lle.generate(width=5, height=5, n_agents=2)
+world = gen.build()         # One single world
+worlds = list(gen.take(3))  # Three worlds
+builder = lle.generate(width=4, height=4, n_agents=2).lasers(1).cooperative().cap(10)
+builder = lle.generate(width=4, height=4, n_agents=2).lasers(2).interdependent(2).cap(10)
+two_worlds = list(lle.generate(width=4, height=4, n_agents=2).lasers(1).cooperative().cap(10).take(2))
+```
+
+**Builder options** — layout: `random()`, `lanes()`, `clustered()`, `starts(...)` / `exits(...)`.
+Obstacles: `lasers(n, placement=..., span=...)`, `walls(n, style=...)`.
+Behaviour: `solvable()` (default), `independent()`, `cooperative()`, `chained(n)`, `interdependent(n)`, or `require(...)`.
+
+See `lle.generator` for the full method reference.
 
 ## Custom maps
 
@@ -112,21 +110,68 @@ You can create custom maps from either a plain string or a TOML file.
 The plain-string format encodes one tile per token and uses whitespace to
 separate tiles.
 
-```python
-from lle import World
+| Character | Tile | Walkable | Comment |
+------------|------|----------|---------|
+| `.` | Floor | Yes | The most basic tile. |
+| `@` | Wall  | No | A wall that blocks lasers. |
+| `X` | Exit  | Yes | An exit tile. The agent can no longer move after reaching it. |
+| `G` | Gem   | Yes | A gem to collect. |
+| `S<n>` | Start | Yes | Start position of agent `n`. |
+| `L<n><d>` | Laser source | No | Source of a laser of colour `n` (a number) beaming toward the direction `d` (N, S, E, W). |
+| `V` | Void | Yes | A void tile. The agent dies if it walks on it |
 
-world = World("S0 . G X")
+For instance, the following map string yields the image shown below.
+
+```text
+S0 . G . X
+S1 @ . . .
+L0E . . V V
+@  @ . V V
+G  . . . X
 ```
+![pdoc logo](../../docs/example_custom.png)
 
 TOML maps are useful when you want richer placement rules, such as random start
-positions.
+positions. Positions can be specified as a list of positions `{i, j}` or as rectangles `{i_min, i_max, j_min, j_max}`,
+and the `world_string` field can be used to define the map as discussed above. The full list of authorized
+keys is defined by the JSON schema as shown in the below example.
 
-## More details
+```toml
+#:schema https://raw.githubusercontent.com/yamoling/lle/refs/heads/master/resources/lle_toml_schema.json
+width = 10 # Optional, deduced from `world_string`
+height = 5 # Optional, deduced from `world_string`
+exits = [{ j_min = 9 }] # Exits on all cells with j>=9
+gems = [{ i = 0, j = 2 }] # One single gem at position (0, 2)
+starts = [{ row = 2}] # All tiles on row=2 are start positions for all agents
+world_string = '''
+X . . . S1 . . . . .
+. . . . .  . . . . .
+. . . . .  . . . . .
+. . . . .  . . . . .
+. . . . S2 . . . . .
+'''
 
-The root package re-exports the most common classes and helpers so that
-`import lle` is enough for most use cases. See the module pages for
-`World`, `LLE`, `generator`, `solver`, `tiles`, `world`, and `observations`
-for the full API.
+[[agents]]
+# Define a rectangle of possible start positions with both ends included.
+# The default minimal value is 0.
+# The default maximal value is the width (for j) or height (for i) of the map.
+starts = [{ i_min = 0, i_max = 2 }] # Rectangle from (0, 0) to (2, 4) included
+
+[[agents]]
+# Deduced from the string map that agent 1 has a start position at (0, 5).
+
+[[agents]]
+# Can either start on the 2nd row or on the 7th column.
+starts = [{ row = 2 }, { col = 7 }]
+
+[[agents]]
+# Start positions can be a mix of rectangles, rows, columns and positions.
+starts = [
+    { i = 4, j = 9 },
+    { i_min = 1, i_max = 3, j_min = 0, j_max = 3 },
+    { j_min = 4 },
+]
+```
 
 ## Citing our work
 The environment has been presented at [EWRL 2023](https://openreview.net/pdf?id=IPfdjr4rIs) and at [BNAIC 2023](https://bnaic2023.tudelft.nl/static/media/BNAICBENELEARN_2023_paper_124.c9f5d29e757e5ee27c44.pdf) where it received the best paper award.
@@ -142,17 +187,19 @@ The environment has been presented at [EWRL 2023](https://openreview.net/pdf?id=
 ```
 """
 
-from .lle import __version__, agent, exceptions, tiles, world  # noqa # prevent import reordering
+from .lle import *  # noqa -> prevent import reordering
 
 
 from .agent import Agent
 from .env import LLE
-from .generator import generate
+from .generator import generate, GeneratorBuilder
 from .observations import ObservationType
 from .solver import solve
 from .types import AgentId, LaserId, Position
 from .world import Action, EventType, World, WorldEvent, WorldState
-from .characterization import is_cooperative, characterize
+from .characterization import is_cooperative, characterize, is_asymmetric, is_chained, is_convergent, is_divergent
+from . import tiles, exceptions, world, agent, env, generator, characterization, solver, observations
+
 
 __version__: str
 from_file = LLE.from_file
@@ -168,6 +215,11 @@ __all__ = [
     "exceptions",
     "tiles",
     "agent",
+    "env",
+    "generator",
+    "solver",
+    "characterization",
+    "observations",
     "Agent",
     "World",
     "WorldState",
@@ -182,6 +234,11 @@ __all__ = [
     "level",
     "solve",
     "is_cooperative",
+    "is_asymmetric",
+    "is_chained",
+    "is_convergent",
+    "is_divergent",
     "generate",
+    "GeneratorBuilder",
     "characterize",
 ]

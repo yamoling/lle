@@ -173,6 +173,12 @@ pub fn runtime_error_to_pyexception(error: RuntimeWorldError) -> PyErr {
         RuntimeWorldError::MutexPoisoned => {
             panic!("Mutex poisoned ! Check your code for deadlocks or exceptions.")
         }
+        RuntimeWorldError::InvalidActionDelta { di, dj } => {
+            PyValueError::new_err(format!("Invalid action delta: ({di}, {dj})"))
+        }
+        RuntimeWorldError::PositionsNotAdjacent { pos_0, pos1 } => {
+            PyValueError::new_err(format!("Positions are not adjacent: {pos_0:?} vs {pos1:?}"))
+        }
     }
 }
 
@@ -192,5 +198,8 @@ pub fn solver_error_to_exception(error: crate::solver::errors::SolverError) -> P
         } => SolverError::new_err(format!(
             "Invalid trajectory: prev_pos={prev_pos:?}, current_pos={current_pos:?}, agent={agent}, index={index}"
         )),
+        crate::solver::errors::SolverError::MissingPosition { agent, t } => SolverError::new_err(
+            format!("Incomplete model: agent {agent} has no decoded position at time step {t}."),
+        ),
     }
 }

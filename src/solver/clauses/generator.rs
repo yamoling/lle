@@ -1,145 +1,145 @@
-use std::collections::HashSet;
-
+use crate::solver::SolveMode;
 use crate::solver::errors::SolverError;
-use crate::{Action, Position, World};
+use crate::{Action, World};
 
-use super::super::context::ConstraintContext;
-use super::Clause;
-use super::Literal;
-use super::{VarKey, VarPool};
+use super::VarKey;
+use super::engine::ClauseEngine;
+use super::{Clause, Literal, ParameterizedStepBuffer, StepBuffer};
 
-/// Determines which extra clauses/assumptions `ClauseGenerator::generate` emits.
-#[derive(Clone, Copy, Default)]
-pub enum SolveMode {
-    /// Standard world rules only.
-    #[default]
-    Standard,
-    /// No non-owner agent may enter any laser span.
-    NoCooperation,
-    /// No pair of agents may mutually cooperate (each helping the other).
-    NoMutualCooperation,
+type ClauseBuffer = StepBuffer<Clause>;
+type ParameterizedClauseBuffer = ParameterizedStepBuffer<Clause>;
+type LiteralBuffer = StepBuffer<Literal>;
+
+/// The smallest meaningful threshold of the degree-based solve modes.
+const MIN_DEGREE_THRESHOLD: usize = 2;
+
+/// Reject a degree threshold below `2` before any variable or clause is allocated.
+///
+/// [`SolveMode`] is a public enum, so a caller may construct a parameterized variant directly and
+/// bypass the string parser. A threshold of `0` would make `combinations(0)` emit the empty clause
+/// and turn every query UNSAT, and a threshold of `1` would forbid all help; failing loudly is
+/// preferable to either accidental semantics.
+///
+/// @ai-generated
+fn assert_threshold(k: usize, variant: &str) {
+    assert!(
+        k >= MIN_DEGREE_THRESHOLD,
+        "SolveMode::{variant} requires a threshold >= {MIN_DEGREE_THRESHOLD}, got {k}."
+    );
 }
 
-impl SolveMode {
-    pub fn from_str(s: &str) -> Result<Self, String> {
-        match s {
-            "standard" => Ok(SolveMode::Standard),
-            "no-cooperation" => Ok(SolveMode::NoCooperation),
-            "no-mutual-cooperation" => Ok(SolveMode::NoMutualCooperation),
-            _ => Err(format!(
-                "Unknown solve mode: '{}'. Expected one of: 'standard', 'no-cooperation', 'no-mutual-cooperation'",
-                s
-            )),
-        }
-    }
-}
-
-/// Generates the SAT clauses for a bounded planning horizon, combining initialization,
-/// movement, laser constraints, mode-specific constraints, and the objective.
+/// Generates the SAT clauses for a bounded planning horizon.
+///
+/// The generator is a thin façade over a [`ClauseEngine`] (which knows how to produce the clauses
+/// for one step) and a set of [`StepBuffer`]s (which cache those clauses per time step). Each mode
+/// simply declares which buffers feed it; the buffers fill themselves on demand. The generator
+/// itself is oblivious to the caching mechanism: it never tracks how far generation has progressed.
+///
+/// One generator answers repeated queries with different [`SolveMode`]s without rebuilding the
+/// shared world constraints, because the relevant buffers persist between calls.
 pub struct ClauseGenerator {
-    pub(super) ctx: ConstraintContext,
-    pub(super) pool: VarPool,
-    pub(super) exits: HashSet<Position>,
-    mode: SolveMode,
-    /// `clause_buffer[t]` = world-enforcing (+ mode-specific) clauses for step `t`.
-    clause_buffer: Vec<Vec<Clause>>,
-    /// `assumption_buffer[t]` = per-step assumptions for step `t`.
-    assumption_buffer: Vec<Vec<Literal>>,
-    /// Steps 0..=generated_until have been buffered; `None` means nothing buffered yet.
-    generated_until: Option<usize>,
+    engine: ClauseEngine,
+    /// Movement constraints shared by every solve mode.
+    movements: ClauseBuffer,
+    /// Laser constraints with beam activation.
+    lasers: ClauseBuffer,
+    /// Shared `help(h, b, t)` clauses encoding for all tracked help pairs.
+    help: ClauseBuffer,
+    /// Blocking chain clauses cached independently for every requested chain length.
+    chains: ParameterizedClauseBuffer,
+    /// Closed-trail interdependence clauses cached independently for every exact order.
+    interdependence: ParameterizedClauseBuffer,
+    no_cooperation_assumptions: LiteralBuffer,
 }
 
 impl ClauseGenerator {
-    pub fn new(world: &World, t_max: usize, mode: SolveMode) -> Self {
+    pub fn new(world: &World, t_max: usize) -> Self {
+        let capacity = t_max + 1;
         Self {
-            exits: world.exits_positions().into_iter().collect(),
-            ctx: ConstraintContext::new(world, t_max),
-            pool: VarPool::new(),
-            mode,
-            clause_buffer: vec![Vec::new(); t_max + 1],
-            assumption_buffer: vec![Vec::new(); t_max + 1],
-            generated_until: None,
+            engine: ClauseEngine::new(world, t_max),
+            movements: StepBuffer::new(ClauseEngine::generate_movement_clauses, capacity),
+            lasers: StepBuffer::new(ClauseEngine::generate_laser_clauses, capacity),
+            help: StepBuffer::new(ClauseEngine::generate_help_clauses, capacity),
+            chains: ParameterizedStepBuffer::new(ClauseEngine::generate_chain_clauses, capacity),
+            interdependence: ParameterizedStepBuffer::new(
+                ClauseEngine::generate_interdependence_clauses,
+                capacity,
+            ),
+            no_cooperation_assumptions: StepBuffer::new(
+                ClauseEngine::assume_no_cooperation_at,
+                capacity,
+            ),
         }
     }
 
-    /// Generate all clauses and assumptions required to solve the problem at step `t`.
+    /// Generate all clauses and assumptions required to solve the problem at horizon `t`.
     ///
-    /// Fills the internal buffers for any steps not yet cached, then returns:
-    /// - All buffered world-enforcing (and mode-specific) clauses for steps `0..=t`
-    /// - The objective clauses for horizon `t` (every agent on an exit)
-    /// - For `NoMutualCooperation`: the current mutual-forbid clauses and assumptions
-    /// - For `NoCooperation`: per-step no-cooperation assumptions for steps `0..=t`
-    pub fn generate(&mut self, t: usize) -> (Vec<Clause>, Vec<Literal>) {
-        let start = self.generated_until.map_or(0, |u| u + 1);
-        for tt in start..=t {
-            self.ctx.update(tt);
-            self.fill_clauses(tt);
-            self.fill_assumptions(tt);
-        }
-        if start <= t {
-            self.generated_until = Some(t);
+    /// Gathers the movement clauses, laser clauses, any cooperation-support clauses the `mode` needs,
+    /// the objective, and the horizon-scoped forbid clauses/assumptions. Every per-step buffer lazily
+    /// produces and caches the steps it has not seen yet. Horizon-wide cooperation summaries are
+    /// regenerated for the requested horizon because their definitions span the whole prefix.
+    pub fn generate(
+        &mut self,
+        t: usize,
+        mode: SolveMode,
+        collect_gems: bool,
+    ) -> (Vec<Clause>, Vec<Literal>) {
+        let mut clauses: Vec<_> = self.movements.gather_until(&mut self.engine, t).collect();
+        let mut assumptions = vec![];
+        match mode {
+            SolveMode::Standard => {
+                clauses.extend(self.lasers.gather_until(&mut self.engine, t));
+            }
+            SolveMode::NoCooperation => {
+                assumptions.extend(
+                    self.no_cooperation_assumptions
+                        .gather_until(&mut self.engine, t),
+                );
+            }
+            SolveMode::NoAsymmetricCooperation => {
+                clauses.extend(self.lasers.gather_until(&mut self.engine, t));
+                clauses.extend(self.help.gather_until(&mut self.engine, t));
+                clauses.extend(self.engine.generate_is_helped(t));
+                clauses.extend(self.engine.generate_provides_help(t));
+                clauses.extend(self.engine.encode_asymmetry(t));
+                assumptions.extend(self.engine.assume_no_asymmetry(t));
+            }
+            SolveMode::NoChainedCooperation(length) => {
+                clauses.extend(self.lasers.gather_until(&mut self.engine, t));
+                clauses.extend(self.help.gather_until(&mut self.engine, t));
+                clauses.extend(self.chains.gather_until(&mut self.engine, t, length));
+            }
+            SolveMode::NoInterdependence(order) => {
+                clauses.extend(self.lasers.gather_until(&mut self.engine, t));
+                clauses.extend(self.help.gather_until(&mut self.engine, t));
+                clauses.extend(
+                    self.interdependence
+                        .gather_until(&mut self.engine, t, order),
+                );
+            }
+            SolveMode::NoConvergentCooperation(k) => {
+                assert_threshold(k, "NoConvergentCooperation");
+                clauses.extend(self.lasers.gather_until(&mut self.engine, t));
+                clauses.extend(self.help.gather_until(&mut self.engine, t));
+                clauses.extend(self.engine.generate_pairwise_help_clauses(t));
+                clauses.extend(self.engine.generate_no_convergence_clauses(t, k));
+            }
+            SolveMode::NoDivergentCooperation(k) => {
+                assert_threshold(k, "NoDivergentCooperation");
+                clauses.extend(self.lasers.gather_until(&mut self.engine, t));
+                clauses.extend(self.help.gather_until(&mut self.engine, t));
+                clauses.extend(self.engine.generate_pairwise_help_clauses(t));
+                clauses.extend(self.engine.generate_no_divergence_clauses(t, k));
+            }
         }
 
-        let mut clauses: Vec<Clause> = self.clause_buffer[..=t].iter().flatten().cloned().collect();
-        let mut assumptions: Vec<Literal> = self.assumption_buffer[..=t]
-            .iter()
-            .flatten()
-            .copied()
-            .collect();
-        clauses.extend(self.objective(t));
-        if matches!(self.mode, SolveMode::NoMutualCooperation) {
-            let (mc, ma) = self.forbid_mutual_cooperation();
-            clauses.extend(mc);
-            assumptions.extend(ma);
-        }
-
+        clauses.extend(self.engine.objective(t, collect_gems));
         (clauses, assumptions)
     }
 
-    fn fill_clauses(&mut self, t: usize) {
-        let mut clauses = Vec::new();
-        clauses.extend(self.initialization(t));
-        clauses.extend(self.exactly_one_position(t));
-        clauses.extend(self.time_wise_adjacency(t));
-        clauses.extend(self.no_overlap(t));
-        clauses.extend(self.no_following_conflict(t));
-        clauses.extend(self.stays_on_exit(t));
-        let (beam_clauses, active_lit) = self.beam_activation(t);
-        clauses.extend(beam_clauses);
-        clauses.extend(self.no_step_on_active_laser(t, &active_lit));
-        if matches!(self.mode, SolveMode::NoMutualCooperation) {
-            clauses.extend(self.dependency_clauses(t));
-        }
-        self.clause_buffer[t] = clauses;
-    }
-
-    fn fill_assumptions(&mut self, t: usize) {
-        self.assumption_buffer[t] = match self.mode {
-            SolveMode::Standard | SolveMode::NoMutualCooperation => vec![],
-            SolveMode::NoCooperation => self.assume_no_cooperation(t),
-        };
-    }
-
-    /// Objective clauses for horizon `t`: every agent must be on an exit. Not cached.
-    pub fn objective(&mut self, t: usize) -> Vec<Clause> {
-        self.ctx.update(t);
-        let mut clauses = Vec::with_capacity(self.ctx.n_agents);
-        for agent in 0..self.ctx.n_agents {
-            let reachable = self.ctx.relevant_positions(t, &[agent]);
-            let positions: Vec<Position> = self
-                .exits
-                .iter()
-                .copied()
-                .filter(|p| reachable.contains(p))
-                .collect();
-            clauses.push(
-                positions
-                    .into_iter()
-                    .map(|p| self.pool.agent(agent, p, t))
-                    .collect(),
-            );
-        }
-        clauses
+    /// Objective clauses for horizon `t`. Not cached.
+    pub fn objective(&mut self, t: usize, collect_gems: bool) -> Vec<Clause> {
+        self.engine.objective(t, collect_gems)
     }
 
     #[inline]
@@ -148,30 +148,34 @@ impl ClauseGenerator {
         literals: &[i32],
         t_end: usize,
     ) -> Result<Vec<Vec<Action>>, SolverError> {
-        self.pool.decode_plan(literals, t_end)
+        self.engine.decode_plan(literals, t_end)
     }
 
     #[inline]
     pub fn t_max(&self) -> usize {
-        self.ctx.t_max
+        self.engine.t_max()
     }
 
     #[inline]
     pub fn solution_lower_bound(&self) -> usize {
-        self.ctx.solution_lower_bound
+        self.engine.solution_lower_bound()
     }
 
     pub fn exists(&self, key: &VarKey) -> bool {
-        self.pool.exists(key)
+        self.engine.exists(key)
     }
 
     pub fn n_vars(&self) -> usize {
-        self.pool.n_vars()
+        self.engine.n_vars()
     }
 
     /// Return the SAT literal assigned to `key`, or `None` if it was never created.
     /// Useful in tests to inspect clause literals without accessing the pool directly.
     pub fn literal(&self, key: &VarKey) -> Option<i32> {
-        self.pool.get(key)
+        self.engine.literal(key)
     }
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/test_clause_generation.rs"]
+mod tests;

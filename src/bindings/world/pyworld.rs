@@ -34,10 +34,10 @@ use crate::{Action, AgentId, Renderer, Tile, World};
 /// from lle import World
 /// # Create from a predefined level
 /// w1 = World.level(5)
-/// # Create from a file
-/// w2 = World.from_file("my_map.txt")
 /// # Create from a string
-/// w3 = World("S0 X")
+/// w2 = World("S0 X")
+/// # From a file
+/// w3 = World.from_file("resources/levels/lvl1")
 /// ```
 #[gen_stub_pyclass]
 #[pyclass(name = "World", module = "lle.world", subclass, skip_from_py_object)]
@@ -66,6 +66,11 @@ pub struct PyWorld {
     /// The number of agents in the world.
     #[pyo3(get)]
     n_agents: usize,
+    // `World` is `!Send + !Sync`, so the type system cannot prove `Arc<Mutex<World>>` is
+    // `Send + Sync`, which triggers `clippy::arc_with_non_send_sync`. The `Arc` is nonetheless
+    // correct: `Mutex` provides exclusive access to `World`, and `Arc`'s atomic ref-count is
+    // required for safe concurrent clone/drop in free-threaded Python. Thread safety for
+    // `PyWorld` itself is asserted manually below.
     world: Arc<Mutex<World>>,
     renderer: Renderer,
 }
@@ -101,7 +106,7 @@ impl From<World> for PyWorld {
             n_gems: world.n_gems(),
             n_agents: world.n_agents(),
             renderer,
-            world: Arc::new(Mutex::new(world)),
+            world: wrap_world(world),
         }
     }
 }
@@ -144,7 +149,8 @@ impl PyWorld {
     /// Raises:
     ///     `FileNotFoundError`: if the file does not exist.
     #[staticmethod]
-    fn from_file(filename: String) -> PyResult<Self> {
+    fn from_file(filename: std::path::PathBuf) -> PyResult<Self> {
+        let filename = filename.to_string_lossy();
         let world = match World::from_file(&filename) {
             Ok(world) => world,
             Err(e) => return Err(parse_error_to_exception(e)),
@@ -209,7 +215,7 @@ impl PyWorld {
             .lock()
             .unwrap()
             .agents_positions()
-            .into_iter()
+            .iter()
             .map(|p| (*p).into())
             .collect()
     }
@@ -230,7 +236,7 @@ impl PyWorld {
         let mut state = world.get_state();
         state.agents_positions = agents_positions.into_iter().map(|p| p.into()).collect();
         match world.set_state(&state) {
-            Ok(events) => Ok(events.iter().map(|e| PyWorldEvent::from(e)).collect()),
+            Ok(events) => Ok(events.iter().map(PyWorldEvent::from).collect()),
             Err(e) => Err(runtime_error_to_pyexception(e)),
         }
     }
@@ -266,7 +272,7 @@ impl PyWorld {
         let mut state = world.get_state();
         state.agents_positions[agent_id] = position.into();
         match world.set_state(&state) {
-            Ok(events) => Ok(events.iter().map(|e| PyWorldEvent::from(e)).collect()),
+            Ok(events) => Ok(events.iter().map(PyWorldEvent::from).collect()),
             Err(e) => Err(runtime_error_to_pyexception(e)),
         }
     }
@@ -305,7 +311,6 @@ impl PyWorld {
         let arc_world = self.world.clone();
         let world = self.world.lock().unwrap();
         izip!(world.gems_positions(), world.gems())
-            .into_iter()
             .map(|(pos, gem)| PyGem::new(gem, pos.into(), arc_world.clone()))
             .collect()
     }
@@ -329,7 +334,6 @@ impl PyWorld {
         let world = self.world.lock().unwrap();
         world
             .sources()
-            .iter()
             .map(|(pos, laser_source)| {
                 PyLaserSource::new(arc_world.clone(), pos.into(), laser_source)
             })
@@ -424,8 +428,7 @@ impl PyWorld {
         let actions: Vec<Action> = actions.into_iter().map(|a| a.into()).collect();
         match self.world.lock().unwrap().step(&actions) {
             Ok(events) => {
-                let events: Vec<PyWorldEvent> =
-                    events.iter().map(|e| PyWorldEvent::from(e)).collect();
+                let events: Vec<PyWorldEvent> = events.iter().map(PyWorldEvent::from).collect();
                 Ok(events)
             }
             Err(e) => Err(runtime_error_to_pyexception(e)),
@@ -456,7 +459,7 @@ impl PyWorld {
             .unwrap()
             .available_actions()
             .iter()
-            .map(|a| a.iter().map(|a| PyAction::from(a)).collect())
+            .map(|a| a.iter().map(PyAction::from).collect())
             .collect()
     }
 
@@ -477,7 +480,7 @@ impl PyWorld {
             .unwrap()
             .available_joint_actions()
             .iter()
-            .map(|a| a.iter().map(|a| PyAction::from(a)).collect())
+            .map(|a| a.iter().map(PyAction::from).collect())
             .collect()
     }
 
@@ -519,7 +522,7 @@ impl PyWorld {
     ///     `InvalidWorldStateError`: if the state is invalid.
     fn set_state(&mut self, state: PyWorldState) -> PyResult<Vec<PyWorldEvent>> {
         match self.world.lock().unwrap().set_state(&state.into()) {
-            Ok(events) => Ok(events.iter().map(|e| PyWorldEvent::from(e)).collect()),
+            Ok(events) => Ok(events.iter().map(PyWorldEvent::from).collect()),
             Err(e) => Err(runtime_error_to_pyexception(e)),
         }
     }
@@ -549,7 +552,7 @@ impl PyWorld {
     /// It required "default arguments" to be provided to the __new__ method
     /// before replacing them by the actual values in __setstate__.
     pub fn __getnewargs__<'py>(&self, py: Python<'py>) -> Bound<'py, PyTuple> {
-        PyTuple::new(py, vec![String::from("S0 X")].iter()).unwrap()
+        PyTuple::new(py, [String::from("S0 X")].iter()).unwrap()
     }
 
     /// Enable serialisation with pickle
@@ -586,14 +589,18 @@ impl PyWorld {
             .collect();
         self.wall_pos = world.walls().iter().map(|p| (*p).into()).collect();
         self.void_pos = world.void_positions().iter().map(|p| (*p).into()).collect();
-        self.world = Arc::new(Mutex::new(world));
+        self.world = wrap_world(world);
         Ok(())
     }
 
     pub fn __repr__(&self) -> String {
         let mut res = format!(
-            "World(height={}, width={}, n_gems={}, n_agents={})",
-            self.height, self.width, self.n_gems, self.n_agents
+            "World(height={}, width={}, n_gems={}, n_agents={}, world_string={})",
+            self.height,
+            self.width,
+            self.n_gems,
+            self.n_agents,
+            self.world_string()
         );
         let w = self.world.lock().unwrap();
         res.push_str(
@@ -621,22 +628,17 @@ impl Clone for PyWorld {
             width: self.width,
             n_gems: self.n_gems,
             n_agents: self.n_agents,
-            world: Arc::new(Mutex::new(world)),
+            world: wrap_world(world),
             renderer,
         }
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::PyWorld;
-
-    #[test]
-    /// This test simulates the pickling and unpickling process of a world.
-    fn pickle() {
-        let world = PyWorld::level(1).unwrap();
-        let bin = world.__getstate__().unwrap();
-        let mut new_world = PyWorld::new("S0 X".to_string()).unwrap();
-        new_world.__setstate__(bin).unwrap();
-    }
+#[allow(clippy::arc_with_non_send_sync)] // see note on World: !Send + free-threaded refcount
+fn wrap_world(world: World) -> Arc<Mutex<World>> {
+    Arc::new(Mutex::new(world))
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/test_pyworld.rs"]
+mod tests;

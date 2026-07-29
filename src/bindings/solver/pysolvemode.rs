@@ -1,120 +1,186 @@
 use pyo3::{exceptions::PyValueError, prelude::*};
-use pyo3_stub_gen::derive::{gen_stub_pyclass_enum, gen_stub_pymethods};
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use crate::solver::SolveMode;
 
 /// The solving mode used by `ClauseGenerator`.
 ///
-/// Controls which extra constraints and assumptions are emitted by `generate(t)`:
+/// Build one with the factory methods (`SolveMode.standard()`, `SolveMode.no_chain(length=3)`,
+/// …) or parse one from its canonical string with `SolveMode.from_str("no-chain-3")`. The
+/// available modes control which extra clauses and assumptions are emitted by `generate(t)`:
 ///
-/// - `STANDARD` — world rules only; agents may cooperate freely.
-/// - `NO_COOPERATION` — per-step unit assumptions forbidding any non-owner agent from occupying
-///   a laser span. Equivalent to treating every beam as permanently active.
-/// - `NO_MUTUAL_COOPERATION` — dependency indicator clauses plus horizon-level mutual-forbid
-///   clauses and assumptions, ruling out plans where two agents each help the other.
+/// - `standard()` — world rules only; agents may cooperate freely.
+/// - `no_cooperation()` — forbids any non-owner agent from occupying a laser span. Equivalent to
+///   treating every beam as permanently active.
+/// - `no_asymmetric()` — rules out plans where an agent helps someone without ever being helped.
+/// - `no_mutual()` — rules out plans where two agents each help the other.
+/// - `no_chain(length=2)` — rules out plans containing a non-decreasing-time temporal chain of
+///   `length` help edges or more (`a → b → c` is a chain of length 2).
+/// - `no_interdependence(order=2)` — rules out plans whose dependency graph contains a temporal
+///   closed trail with exactly `order` distinct agents. Timestamps are non-decreasing; agents and
+///   static arcs may repeat at later times, but temporal edges may not repeat. Other exact orders
+///   remain allowed. `no_interdependence(2)` coincides with `no_mutual()`.
+/// - `no_convergence(k=2)` — rules out plans where one beneficiary receives help from at least `k`
+///   distinct helpers.
+/// - `no_divergence(k=2)` — rules out plans where one helper helps at least `k` distinct
+///   beneficiaries. This is the outgoing dual of `no_convergence`.
 ///
 /// ```python
-/// from lle.solver.constraints import ClauseGenerator, SolveMode
+/// from lle.solver.clauses import ClauseGenerator, SolveMode
 /// from lle import World
 ///
-/// gen = ClauseGenerator(World.level(6), t_max=21, mode=SolveMode.NO_MUTUAL_COOPERATION)
+/// gen = ClauseGenerator(World.level(6), t_max=21)
 /// for t in range(gen.solution_lower_bound, gen.t_max + 1):
-///     clauses, assumptions = gen.generate(t)
+///     clauses, assumptions = gen.generate(t, mode=SolveMode.no_chain(2))
 ///     ...
 /// ```
-#[gen_stub_pyclass_enum]
+#[gen_stub_pyclass]
 #[pyclass(
     name = "SolveMode",
-    module = "lle.solver.constraints",
-    eq,
+    module = "lle.solver.clauses",
     frozen,
+    eq,
+    hash,
     from_py_object
 )]
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum PySolveMode {
-    #[pyo3(name = "STANDARD")]
-    Standard,
-    #[pyo3(name = "NO_COOPERATION")]
-    NoCooperation,
-    #[pyo3(name = "NO_MUTUAL_COOPERATION")]
-    NoMutualCooperation,
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct PySolveMode {
+    inner: SolveMode,
 }
 
 impl From<&PySolveMode> for SolveMode {
     fn from(m: &PySolveMode) -> Self {
-        match m {
-            PySolveMode::Standard => SolveMode::Standard,
-            PySolveMode::NoCooperation => SolveMode::NoCooperation,
-            PySolveMode::NoMutualCooperation => SolveMode::NoMutualCooperation,
-        }
+        m.inner
     }
 }
 
 impl From<PySolveMode> for SolveMode {
     fn from(m: PySolveMode) -> Self {
-        SolveMode::from(&m)
+        m.inner
+    }
+}
+
+impl From<SolveMode> for PySolveMode {
+    fn from(inner: SolveMode) -> Self {
+        Self { inner }
+    }
+}
+
+impl std::str::FromStr for PySolveMode {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, String> {
+        s.parse::<SolveMode>().map(Into::into)
     }
 }
 
 #[gen_stub_pymethods]
 #[pymethods]
 impl PySolveMode {
+    /// World rules only; agents may cooperate freely.
     #[staticmethod]
-    const fn variants() -> [PySolveMode; 3] {
-        [
-            PySolveMode::Standard,
-            PySolveMode::NoCooperation,
-            PySolveMode::NoMutualCooperation,
-        ]
+    fn standard() -> Self {
+        SolveMode::Standard.into()
     }
 
-    /// The canonical string representation, e.g. `"no-cooperation"`.
-    /// Matches the string literals accepted by `ClauseGenerator` and `solve`.
+    /// Forbid any non-owner agent from entering a laser span (every beam is treated as active).
+    #[staticmethod]
+    fn no_cooperation() -> Self {
+        SolveMode::NoCooperation.into()
+    }
+
+    /// Forbid plans where an agent helps someone without ever being helped by another agent.
+    #[staticmethod]
+    fn no_asymmetric() -> Self {
+        SolveMode::NoAsymmetricCooperation.into()
+    }
+
+    /// Forbid plans where two agents each help the other.
+    ///
+    /// Equivalent to [`SolveMode::NoInterdependence(2)`].
+    #[staticmethod]
+    fn no_mutual() -> Self {
+        SolveMode::NoInterdependence(2).into()
+    }
+
+    /// Forbid any non-decreasing-time temporal chain of `length` help edges or more. `length` must be `>= 2`.
+    #[staticmethod]
+    #[pyo3(signature = (length=2))]
+    fn no_chain(length: i64) -> PyResult<Self> {
+        Self::checked(length, "no_chain", SolveMode::NoChainedCooperation)
+    }
+
+    /// Forbid any temporal closed trail with exactly `order` distinct agents. `order` must be `>= 2`.
+    #[staticmethod]
+    #[pyo3(signature = (order=2))]
+    fn no_interdependence(order: i64) -> PyResult<Self> {
+        Self::checked(order, "no_interdependence", SolveMode::NoInterdependence)
+    }
+
+    /// Forbid any beneficiary from receiving help from at least `k` distinct helpers. `k` must be `>= 2`.
+    #[staticmethod]
+    #[pyo3(signature = (k=2))]
+    fn no_convergence(k: i64) -> PyResult<Self> {
+        Self::checked(k, "no_convergence", SolveMode::NoConvergentCooperation)
+    }
+
+    /// Forbid any helper from helping at least `k` distinct beneficiaries. `k` must be `>= 2`.
+    ///
+    /// @ai-generated
+    #[staticmethod]
+    #[pyo3(signature = (k=2))]
+    fn no_divergence(k: i64) -> PyResult<Self> {
+        Self::checked(k, "no_divergence", SolveMode::NoDivergentCooperation)
+    }
+
+    /// Parse a canonical string (e.g. `"standard"`, `"no-chain-3"`, `"no-divergence-3"`).
+    ///
+    /// `"no-chain"`, `"no-interdependence"`, `"no-convergence"`, and `"no-divergence"` accept a
+    /// `"-n"` suffix for their parameter. Their bare forms are aliases for the corresponding
+    /// `"-2"` forms.
+    ///
+    /// @ai-generated
+    #[staticmethod]
+    #[pyo3(name = "from_str")]
+    pub fn parse(
+        #[gen_stub(override_type(
+            type_repr = "typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-mutual', 'no-chain', 'no-interdependence', 'no-convergence', 'no-divergence'] | builtins.str"
+        ))]
+        value: &str,
+    ) -> PyResult<Self> {
+        value.parse::<Self>().map_err(PyValueError::new_err)
+    }
+
+    /// The canonical string representation, inverse of `from_str` (e.g. `"no-chain-3"`).
+    /// Default parameters are rendered without a suffix (`"no-chain"`, `"no-interdependence"`,
+    /// `"no-convergence"`, `"no-divergence"`).
     #[getter]
-    #[gen_stub(override_return_type(type_repr="typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation']", imports=("typing")))]
-    pub fn value(&self) -> &'static str {
-        match self {
-            Self::Standard => "standard",
-            Self::NoCooperation => "no-cooperation",
-            Self::NoMutualCooperation => "no-mutual-cooperation",
-        }
+    pub fn value(&self) -> String {
+        self.inner.canonical()
     }
 
-    fn __str__(&self) -> &'static str {
-        self.value()
+    fn __str__(&self) -> String {
+        self.inner.canonical()
     }
 
     fn __repr__(&self) -> String {
-        format!(
-            "SolveMode.{}",
-            match self {
-                Self::Standard => "STANDARD",
-                Self::NoCooperation => "NO_COOPERATION",
-                Self::NoMutualCooperation => "NO_MUTUAL_COOPERATION",
-            }
-        )
+        format!("SolveMode.from_str({:?})", self.inner.canonical())
     }
+}
 
-    fn __hash__(&self) -> u64 {
-        match self {
-            Self::Standard => 0,
-            Self::NoCooperation => 1,
-            Self::NoMutualCooperation => 2,
+impl PySolveMode {
+    /// Build a parametrized mode, rejecting thresholds below the minimum (`2`).
+    ///
+    /// The parameter is accepted as a signed integer so that negative Python values reach this
+    /// explicit check instead of failing earlier with an `OverflowError` during conversion.
+    ///
+    /// @ai-generated
+    fn checked(n: i64, factory: &str, build: fn(usize) -> SolveMode) -> PyResult<Self> {
+        if n < 2 {
+            return Err(PyValueError::new_err(format!(
+                "{factory}: the minimal rejected threshold must be >= 2, got {n}."
+            )));
         }
-    }
-
-    #[staticmethod]
-    pub fn from_str(
-        #[gen_stub(override_type(type_repr="typing.Literal['standard', 'no-cooperation', 'no-mutual-cooperation']", imports=("typing")))]
-        value: &str,
-    ) -> PyResult<Self> {
-        match value {
-            "standard" => Ok(Self::Standard),
-            "no-cooperation" => Ok(Self::NoCooperation),
-            "no-mutual-cooperation" => Ok(Self::NoMutualCooperation),
-            _ => Err(PyValueError::new_err(format!(
-                "invalid solve mode: {value}"
-            ))),
-        }
+        Ok(build(n as usize).into())
     }
 }

@@ -17,5 +17,5 @@ pub fn parse(file_content: &str) -> Result<World, ParseError> {
         Err(ParseError::NotV2) => parse_v1(file_content)?,
         Err(other) => return Err(other),
     };
-    config.to_world()
+    config.into_world()
 }

@@ -1,10 +1,10 @@
 use image::{GenericImage, Rgb, RgbImage, RgbaImage};
 use itertools::izip;
 
-use super::{sprites, TileVisitor, BLACK, GRID_GREY};
+use super::{BLACK, GRID_GREY, sprites};
 use crate::{
     core::World,
-    tiles::{Direction, Gem, Laser, LaserSource},
+    tiles::{Direction, Gem, Laser, LaserSource, Tile},
 };
 
 use super::{BACKGROUND_GREY, TILE_SIZE};
@@ -52,7 +52,15 @@ impl Renderer {
         for pos in world.exits_positions() {
             let x = pos.x() as u32 * TILE_SIZE;
             let y = pos.y() as u32 * TILE_SIZE;
-            draw_rectangle(&mut self.static_frame, x, y, TILE_SIZE, TILE_SIZE, BLACK, 3);
+            draw_rectangle(
+                &mut self.static_frame,
+                x + 1,
+                y + 1,
+                TILE_SIZE - 1,
+                TILE_SIZE - 1,
+                BLACK,
+                2,
+            );
         }
 
         // Void
@@ -72,7 +80,7 @@ impl Renderer {
                 y: pos.y() as u32 * TILE_SIZE,
                 frame: &mut frame,
             };
-            self.visit_laser(laser, &mut data);
+            self.draw_laser(laser, &mut data);
         }
         for (pos, gem) in izip!(world.gems_positions(), world.gems()) {
             let mut data = VisitorData {
@@ -80,12 +88,12 @@ impl Renderer {
                 y: pos.y() as u32 * TILE_SIZE,
                 frame: &mut frame,
             };
-            self.visit_gem(&gem, &mut data);
+            self.draw_gem(gem, &mut data);
         }
         for (id, pos) in world.agents_positions().iter().enumerate() {
             let x = pos.x() as u32 * TILE_SIZE;
             let y = pos.y() as u32 * TILE_SIZE;
-            add_transparent_image(&mut frame, &sprites::AGENTS[id], x, y);
+            add_transparent_image(&mut frame, sprites::agent(id), x, y);
         }
         for (pos, source) in world.sources() {
             let mut data = VisitorData {
@@ -93,7 +101,7 @@ impl Renderer {
                 y: pos.y() as u32 * TILE_SIZE,
                 frame: &mut frame,
             };
-            self.visit_laser_source(source, &mut data);
+            self.draw_laser_source(source, &mut data);
         }
         draw_grid(&mut frame);
         frame
@@ -152,57 +160,57 @@ fn draw_rectangle(
     let horizontal_line = RgbImage::from_pixel(width, thickness, color);
     let vertical_line = RgbImage::from_pixel(thickness, height, color);
     img.copy_from(&horizontal_line, x, y).unwrap();
-    img.copy_from(&horizontal_line, x, y + height - thickness + 1)
+    img.copy_from(&horizontal_line, x, y + height - thickness)
         .unwrap();
     img.copy_from(&vertical_line, x, y).unwrap();
-    img.copy_from(&vertical_line, x + width - thickness + 1, y)
+    img.copy_from(&vertical_line, x + width - thickness, y)
         .unwrap();
 }
 
-impl TileVisitor for Renderer {
-    fn visit_gem(&self, gem: &Gem, data: &mut VisitorData) {
+impl Renderer {
+    /// Draw whichever tile sits at this cell, dispatching on its variant.
+    ///
+    /// @ai-generated
+    fn draw_tile(&self, tile: &Tile, data: &mut VisitorData) {
+        match tile {
+            Tile::Gem(gem) => self.draw_gem(gem, data),
+            Tile::Laser(laser) => self.draw_laser(laser, data),
+            Tile::LaserSource(source) => self.draw_laser_source(source, data),
+            _ => {} // Nothing to draw.
+        }
+    }
+
+    fn draw_gem(&self, gem: &Gem, data: &mut VisitorData) {
         if !gem.is_collected() {
             add_transparent_image(data.frame, &sprites::GEM, data.x, data.y);
         }
     }
 
-    fn visit_laser(&self, laser: &Laser, data: &mut VisitorData) {
+    fn draw_laser(&self, laser: &Laser, data: &mut VisitorData) {
         if laser.is_on() {
             let agent_id = laser.agent_id();
             let laser_sprite = match laser.direction() {
-                Direction::North | Direction::South => &sprites::VERTICAL_LASERS[agent_id],
-                Direction::East | Direction::West => &sprites::HORIZONTAL_LASERS[agent_id],
+                Direction::North | Direction::South => sprites::vertical_laser(agent_id),
+                Direction::East | Direction::West => sprites::horizontal_laser(agent_id),
             };
             add_transparent_image(data.frame, laser_sprite, data.x, data.y);
         }
         // Draw the tile below the laser
-        laser.wrapped().accept(self, data);
+        self.draw_tile(laser.wrapped(), data);
     }
 
-    fn visit_laser_source(&self, source: &LaserSource, data: &mut VisitorData) {
+    fn draw_laser_source(&self, source: &LaserSource, data: &mut VisitorData) {
         let agent_id = source.agent_id();
         let source_sprite = match source.direction() {
-            Direction::North => &sprites::LASER_SOURCES_NORTH[agent_id],
-            Direction::East => &sprites::LASER_SOURCES_EAST[agent_id],
-            Direction::South => &sprites::LASER_SOURCES_SOUTH[agent_id],
-            Direction::West => &sprites::LASER_SOURCES_WEST[agent_id],
+            Direction::North => sprites::laser_source_north(agent_id),
+            Direction::East => sprites::laser_source_east(agent_id),
+            Direction::South => sprites::laser_source_south(agent_id),
+            Direction::West => sprites::laser_source_west(agent_id),
         };
         data.frame.copy_from(source_sprite, data.x, data.y).unwrap();
     }
 }
 
 #[cfg(test)]
-mod test_renderer {
-    use crate::{rendering::TILE_SIZE, Renderer, World};
-
-    #[test]
-    fn pixel_dimensions() {
-        let world = World::try_from("S0 . X").unwrap();
-        let renderer = Renderer::new(&world);
-        assert_eq!(TILE_SIZE * world.width() as u32 + 1, renderer.pixel_width());
-        assert_eq!(
-            TILE_SIZE * world.height() as u32 + 1,
-            renderer.pixel_height()
-        );
-    }
-}
+#[path = "../unit_tests/test_renderer.rs"]
+mod test_renderer;

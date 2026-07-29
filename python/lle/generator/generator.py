@@ -1,46 +1,131 @@
-"""Shared machinery for internal world generators.
-
-Generators sample candidate layouts, build a `World`, and optionally filter
-it by solvability or cooperation profile. Subclasses only have to implement
-`_make_candidate_layout`.
-"""
+"""Customizable layout generator with explicit control over every placement decision."""
 
 from __future__ import annotations
 
 import multiprocessing as mp
 import random
 import sys
-from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Literal
 
 from tqdm import tqdm
 
+from ..types import Position
 from ..world import World
-from ._candidates import CandidateLayout
-from ._world_builder import WorldBuilder
-from .world_filter import WorldFilter
+from .candidates import CandidateLayout
+from .placements import (
+    LayoutRetry,
+    PlacementCtx,
+    place_agents,
+    place_exits,
+    place_lasers,
+    place_room_walls,
+    place_walls,
+)
+from .world_builder import WorldBuilder
+from .world_filter import Constraint
 
 
-class _LayoutRetry(Exception):
-    """Raised by a generator when sampling produced an unusable layout."""
+@dataclass
+class AgentConfig:
+    mode: Literal["random", "edge", "clustered"]
 
 
-class Generator(ABC):
+@dataclass
+class ExitConfig:
+    mode: Literal["random", "edge", "cluster", "opposite"]
+
+
+@dataclass
+class LaserConfig:
+    n: int
+    placement: Literal["free", "cross-agent", "cross-cluster"]
+    span: int | Literal["any", "across"]
+
+
+@dataclass
+class WallConfig:
+    n: int
+    style: Literal["individual", "shapes"]
+
+
+@dataclass
+class RoomsConfig:
+    n_rows: int
+    n_cols: int
+    door_size: int
+
+
+class WorldGenerator:
+    """Generator with explicit, composable placement strategies.
+
+    Parameters
+    ----------
+    starts:
+        Agent start placement —`"random"` (anywhere),`"edge"` (one edge,
+        random direction each attempt), or`"clustered"` (rectangular group,
+        random anchor each attempt).
+    exits:
+        Exit placement — same modes as`starts`, plus`"opposite"` which
+        mirrors the agent edge/cluster to the far side of the grid.
+    n_lasers:
+        Number of laser sources (0 = no lasers).
+    laser_placement:
+       `"free"` — valid position anywhere outside reserved cells.
+       `"cross-agent"` — structural laser perpendicular to agent lanes,
+        crossing all of them (requires`starts="edge"`).
+       `"cross-cluster"` — corridor laser between start and exit clusters
+        (requires`starts="clustered"` and`exits` in
+       `{"opposite", "cluster"}`).
+    laser_span:
+        Minimum beam length.`"any"` enforces the 2-tile minimum.`"across"`
+        requires the beam to reach the far grid boundary untruncated. An integer
+        sets an explicit minimum tile count (>= 2).
+    n_walls:
+        Number of wall tiles.`"auto"` uses ~10 % of the grid.
+    walls_style:
+       `"individual"` places single-cell walls;`"shapes"` groups them into
+        connected bars / L-shapes / 2×2 blocks.
+    constraint:
+        A :class:`Constraint` applied after layout generation. `None` accepts
+        any geometrically valid world.
+    """
+
     def __init__(
         self,
         *,
         width: int,
         height: int,
         n_agents: int = 2,
+        starts: Literal["random", "edge", "clustered"] = "random",
+        exits: Literal["random", "edge", "cluster", "opposite"] = "random",
         n_lasers: int = 0,
-        n_walls: int,
-        world_filter: WorldFilter | None = None,
+        laser_placement: Literal["free", "cross-agent", "cross-cluster"] = "free",
+        laser_span: int | Literal["any", "across"] = "any",
+        n_walls: int | Literal["auto"] = "auto",
+        walls_style: Literal["individual", "shapes"] = "individual",
+        n_rooms_rows: int = 0,
+        n_rooms_cols: int = 0,
+        door_size: int = 1,
+        constraint: Constraint | None = None,
     ):
+        if exits == "opposite" and starts not in ("edge", "clustered"):
+            raise ValueError("exits='opposite' requires starts='edge' or starts='clustered', not 'random'.")
+        if laser_placement == "cross-agent" and starts != "edge":
+            raise ValueError("laser_placement='cross-agent' requires starts='edge'.")
+        if laser_placement == "cross-cluster" and starts != "clustered":
+            raise ValueError("laser_placement='cross-cluster' requires starts='clustered'.")
+        if laser_placement == "cross-cluster" and exits not in ("opposite", "cluster"):
+            raise ValueError("laser_placement='cross-cluster' requires exits='opposite' or exits='cluster'.")
+        if isinstance(laser_span, int) and laser_span < 2:
+            raise ValueError(f"laser_span must be >= 2, got {laser_span}.")
+
         if width < 1:
             raise ValueError(f"Grid width must be >= 1. Got {width}")
         if height < 1:
             raise ValueError(f"Grid height must be >= 1. Got {height}")
-        self.rows, self.cols = height, width
-        self.area = self.rows * self.cols
+        self.height, self.width = height, width
+        area = height * width
 
         if n_agents < 1:
             raise ValueError(f"agents must be >= 1. Got {n_agents}")
@@ -51,24 +136,87 @@ class Generator(ABC):
         if n_lasers > n_agents:
             raise ValueError(f"lasers must be <= agents (one laser source per colour). Got lasers={n_lasers}, agents={n_agents}.")
         self.n_lasers = n_lasers
-        self.n_walls = n_walls
-        if self.n_walls < 0:
-            raise ValueError(f"num_walls must be >= 0. Got {self.n_walls}")
-        if self.n_walls >= (self.area / 2):
-            raise ValueError(f"num_walls must be < size/2. Got num_walls={self.n_walls}, size={self.area}")
 
-        self.world_filter = world_filter
+        # Verify that minimal requirements are met
+        if constraint is not None:
+            requirements = constraint.requirements
+            if n_agents < requirements.min_agents:
+                raise ValueError(f"Constraint requires at least {requirements.min_agents} agents, got {n_agents}.")
+            if n_lasers < requirements.min_lasers:
+                raise ValueError(f"Constraint requires at least {requirements.min_lasers} laser sources, got {n_lasers}.")
 
-        total_needed = (2 * self.agents) + self.n_walls + self.n_lasers
-        if total_needed > self.area:
-            raise ValueError(f"layout requires {total_needed} unique cells, but grid has only {self.area}")
+        if n_rooms_rows > 0:
+            # In rooms mode the walls are structural dividers, not random fills.
+            self.n_walls = 0
+            self._rooms_cfg: RoomsConfig | None = RoomsConfig(n_rooms_rows, n_rooms_cols, door_size)
+            self._wall_cfg = WallConfig(n=0, style=walls_style)
+        else:
+            resolved_n_walls = (width * height) // 10 if n_walls == "auto" else n_walls
+            self.n_walls = resolved_n_walls
+            if self.n_walls < 0:
+                raise ValueError(f"num_walls must be >= 0. Got {self.n_walls}")
+            if self.n_walls >= (area / 2):
+                raise ValueError(f"num_walls must be < size/2. Got num_walls={self.n_walls}, size={area}")
+            total_needed = (2 * self.agents) + self.n_walls + self.n_lasers
+            if total_needed > area:
+                raise ValueError(f"layout requires {total_needed} unique cells, but grid has only {area}")
+            self._rooms_cfg = None
+            self._wall_cfg = WallConfig(n=resolved_n_walls, style=walls_style)
+
+        self.constraint = constraint
         self._rng = random.Random()
 
-    @abstractmethod
-    def _make_candidate_layout(self) -> CandidateLayout: ...
+        self._agent_cfg = AgentConfig(mode=starts)
+        self._exit_cfg = ExitConfig(mode=exits)
+        self._laser_cfg = LaserConfig(n=n_lasers, placement=laser_placement, span=laser_span)
 
-    def _build_world(self, layout: CandidateLayout):
-        b = WorldBuilder(self.cols, self.rows)
+    # ------------------------------------------------------------------
+    # Layout assembly
+    # ------------------------------------------------------------------
+
+    def _make_candidate_layout(self) -> CandidateLayout:
+        ctx = PlacementCtx()
+        # Pre-compute structural room walls so agents/exits/lasers avoid them.
+        if self._rooms_cfg is not None:
+            room_walls = place_room_walls(
+                self._rooms_cfg.n_rows,
+                self._rooms_cfg.n_cols,
+                self._rooms_cfg.door_size,
+                self.height,
+                self.width,
+            )
+            forbidden: set[Position] = set(room_walls)
+        else:
+            room_walls = None
+            forbidden = set()
+
+        agents, reserved = place_agents(
+            self._agent_cfg.mode, self.agents, self.height, self.width, self._rng, ctx, forbidden=forbidden or None
+        )
+        exits, reserved = place_exits(self._exit_cfg.mode, self.agents, self.height, self.width, self._rng, reserved, ctx)
+        lasers, reserved = place_lasers(
+            self._laser_cfg.n,
+            self._laser_cfg.placement,
+            self._laser_cfg.span,
+            self.agents,
+            self.height,
+            self.width,
+            self._rng,
+            reserved,
+            ctx,
+        )
+        walls = (
+            room_walls
+            if room_walls is not None
+            else place_walls(self._wall_cfg.n, self._wall_cfg.style, reserved, self.height, self.width, self._rng)
+        )
+        layout = CandidateLayout(self.height, self.width, agents=agents, exits=exits, walls=walls, lasers=lasers)
+        if not layout.is_geometry_valid():
+            raise LayoutRetry()
+        return layout
+
+    def _build_world(self, layout: CandidateLayout) -> World:
+        b = WorldBuilder(self.width, self.height)
         for agent_id, pos in enumerate(layout.agents):
             b.add_agent(agent_id, pos)
         for pos in layout.exits:
@@ -79,31 +227,31 @@ class Generator(ABC):
             b.add_laser(owner, pos, direction)
         return b.build()
 
-    def _accept_world(self, world: World) -> bool:
-        if self.world_filter is None:
-            return True
-        return self.world_filter.is_satisfied_by(world)
-
-    def _try_generate(self, seed: int | None):
+    def _try_generate(self, seed: int | None) -> World | None:
         if seed is not None:
             self._rng.seed(seed)
         try:
             layout = self._make_candidate_layout()
-        except _LayoutRetry:
-            return
+        except LayoutRetry:
+            return None
         if layout is None:
-            return
-        try:
-            world = self._build_world(layout)
-        except Exception:
-            return
-        try:
-            if self._accept_world(world):
-                return world
-        except Exception:
-            return
+            return None
+        world = self._build_world(layout)
+        if self._accept_world(world):
+            return world
+        return None
 
-    def generate(self, max_attempts: int | None, seed: int | None = None):
+    def _accept_world(self, world: World):
+        if self.constraint is None:
+            return True
+        try:
+            if self.constraint.is_satisfied_by(world):
+                return True
+        except BaseException as e:
+            raise RuntimeError(f"Error while checking world constraints: {e}") from e
+        return False
+
+    def generate(self, max_attempts: int | None, seed: int | None = None) -> World | None:
         if seed is not None:
             self._rng.seed(seed)
         if max_attempts is None:
@@ -116,27 +264,28 @@ class Generator(ABC):
                 return maybe_world
         return None
 
-    def generate_n(self, n: int, n_jobs: int, seed: int | None = None, max_attempts: int | None = None, quiet: bool = False):
-        if seed is not None:
-            self._rng.seed(seed)
-        if n_jobs < 1:
-            raise ValueError("Invalid argument in 'generate_n': n_jobs must be >=1")
-        show_attemps = max_attempts is not None
-        if max_attempts is None:
-            max_attempts = sys.maxsize
+    def _generate_n_single(self, n: int, max_attempts: int):
         n_generated = 0
+        for i in range(max_attempts):
+            result = self._try_generate(None)
+            yield i, result
+            if result is not None:
+                n_generated += 1
+                if n_generated >= n:
+                    return
+
+    def _generate_n_multi(self, n: int, n_jobs: int, max_attempts: int, seed: int | None):
+        """Dispatch attempts across a worker pool, each seeded from `seed` so the run is reproducible."""
+        n_generated = 0
+        self._rng.seed(seed)
+        seeds = (self._rng.randrange(sys.maxsize) for _ in range(max_attempts))
         try:
-            with mp.Pool(n_jobs) as pool, tqdm(total=n, disable=quiet) as pbar:
-                # Worker seeds are 0, 1, 2, ...
-                results = pool.imap_unordered(self._try_generate, range(max_attempts))
+            with mp.Pool(n_jobs) as pool:
+                results = pool.imap_unordered(self._try_generate, seeds)
                 for i, result in enumerate(results):
-                    if show_attemps and not quiet:
-                        budget_percent = 100 * (i + 1) / max_attempts
-                        pbar.set_description(f"{budget_percent:.2f}% budget elapsed")
+                    yield i, result
                     if result is not None:
                         n_generated += 1
-                        pbar.update(1)
-                        yield result
                         if n_generated >= n:
                             pool.terminate()
                             return
@@ -144,4 +293,24 @@ class Generator(ABC):
             raise RuntimeError(
                 "Error in the processing pool. Do you have an \"if __name__ == '__main__':\" guard around the entry of the main script?"
             ) from e
-        return
+
+    def generate_n(self, n: int, n_jobs: int, seed: int | None = None, max_attempts: int | None = None, quiet: bool = False):
+        if seed is not None:
+            self._rng.seed(seed)
+        if n_jobs < 1:
+            raise ValueError("Invalid argument in 'generate_n': n_jobs must be >=1")
+        show_attempts = max_attempts is not None
+        if max_attempts is None:
+            max_attempts = sys.maxsize
+        if n_jobs == 1:
+            generator = self._generate_n_single(n, max_attempts)
+        else:
+            generator = self._generate_n_multi(n, n_jobs, max_attempts, seed)
+        with tqdm(total=n, disable=quiet) as pbar:
+            for i, result in generator:
+                if show_attempts and not quiet:
+                    budget_percent = 100 * (i + 1) / max_attempts
+                    pbar.set_description(f"{budget_percent:.2f}% budget elapsed")
+                if result is not None:
+                    pbar.update(1)
+                    yield result

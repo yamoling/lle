@@ -23,13 +23,16 @@ email = "yannick.molinghen@ulb.be"
 [dependency-groups]
 dev = [
   "basedpyright>=1.39.3",
+  "marimo>=0.23.9",
+  "matplotlib>=3.10.9",
   "maturin>=1.7.0",
-  "opencv-python>=4.13.0.92",
   "orjson>=3.11.7",
   "pdoc>=16.0.0",
   "pip>=24.2",
+  "polars>=1.42.1",
   "pyinstrument>=5.1.2",
   "pytest>=9.0.0",
+  "ruff>=0.15.21",
 ]
 
 [build-system]
@@ -40,14 +43,12 @@ build-backend = "maturin"
 typeCheckingMode = "standard"
 
 [tool.maturin]
-features = ["pyo3/extension-module"]
+features = ["python-bindings", "pyo3/extension-module"]
 module-name = "lle"
 python-source = "python"
 
 [tool.pytest.ini_options]
-markers = [
-    "slow: marks tests that invoke the SAT solver or full generation loops",
-]
+testpaths = ["python/tests"]
 
 [tool.ruff]
 line-length = 140

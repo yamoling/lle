@@ -8,7 +8,7 @@ import random
 from dataclasses import dataclass
 from enum import IntEnum
 from functools import cached_property
-from typing import Literal, Optional
+from typing import Literal
 
 import numpy as np
 import numpy.typing as npt
@@ -158,17 +158,17 @@ class LLE(DiscreteMARLEnv):
                 available_actions[agent, action.value] = True
         return available_actions
 
-    def step(self, action):
+    def step(self, action: npt.ArrayLike):
         if self.done:
             raise ValueError("Cannot step in a done environment")
-        action = np.array(action)
-        agents_actions = [Action(a) for a in action]
+        actions = np.array(action)
+        agents_actions = [Action(a) for a in actions]
         events = self.world.step(agents_actions)
         # Beware to compute the reward before checking if the episode is done !
         reward = self.reward_strategy.compute_reward(events)
         self.done = self.compute_done()
         return Step(
-            action,
+            actions,
             self.get_observation(),
             self.get_state(),
             reward=reward,
@@ -176,7 +176,7 @@ class LLE(DiscreteMARLEnv):
             info={"gems_collected": self.world.gems_collected, "exit_rate": self.n_arrived / self.n_agents},
         )
 
-    def reset(self, *, seed: Optional[int] = None):
+    def reset(self, *, seed: int | None = None):
         if seed is not None:
             self.seed(seed)
         self.world.reset()

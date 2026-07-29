@@ -11,10 +11,9 @@ pub fn get_level_str(level: &str) -> Option<&'static str> {
     let level = level.to_lowercase();
     let level: usize = if let Some(level) = level.strip_prefix("lvl") {
         level.parse().unwrap()
-    } else if let Some(level) = level.strip_prefix("level") {
-        level.parse().unwrap()
     } else {
-        return None;
+        let level = level.strip_prefix("level")?;
+        level.parse().unwrap()
     };
     LEVELS.get(level - 1).copied()
 }

@@ -1,4 +1,4 @@
-use std::{collections::HashSet, vec};
+use std::{collections::HashSet, fmt::Display, vec};
 
 use crate::{
     Position, World,
@@ -22,6 +22,7 @@ pub struct WorldConfig {
 }
 
 impl WorldConfig {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         width: usize,
         height: usize,
@@ -96,18 +97,14 @@ impl WorldConfig {
         self.gems.extend(gems);
     }
 
-    fn filter_positions(
-        &self,
-        positions: Vec<Position>,
-        forbidden: &Vec<Position>,
-    ) -> Vec<Position> {
+    fn filter_positions(&self, positions: Vec<Position>, forbidden: &[Position]) -> Vec<Position> {
         positions
             .into_iter()
             .filter(|pos| !forbidden.contains(pos))
             .collect()
     }
 
-    pub fn to_world(mut self) -> Result<World, ParseError> {
+    pub fn into_world(mut self) -> Result<World, ParseError> {
         self.pre_validate()?;
         let (grid, lasers_positions) = self.make_grid();
         self.post_validate()?;
@@ -122,14 +119,6 @@ impl WorldConfig {
             source_positions,
             lasers_positions,
         ))
-    }
-
-    pub fn to_string(&self) -> String {
-        if let Ok(string) = to_v1_string(&self) {
-            return string;
-        }
-        let toml_config: TomlConfig = self.into();
-        toml_config.to_toml_string()
     }
 
     fn pre_validate(&self) -> Result<(), ParseError> {
@@ -211,7 +200,7 @@ impl WorldConfig {
 
     /// Place the laser sources and wrap the required tiles behind a
     /// `Laser` tile.
-    fn laser_setup(&mut self, grid: &mut Vec<Vec<Tile>>) -> HashSet<Position> {
+    fn laser_setup(&mut self, grid: &mut [Vec<Tile>]) -> HashSet<Position> {
         let mut laser_positions = HashSet::new();
         let width = grid[0].len() as i32;
         let height: i32 = grid.len() as i32;
@@ -235,10 +224,11 @@ impl WorldConfig {
             let source = source.build(beam_positions.len());
             let mut is_blocked = false;
             for (i, pos) in beam_positions.into_iter().enumerate() {
-                if let Some(agent_starts) = self.random_starts.get(source.agent_id()) {
-                    if agent_starts.len() == 1 && agent_starts.contains(&pos) {
-                        is_blocked = true;
-                    }
+                if let Some(agent_starts) = self.random_starts.get(source.agent_id())
+                    && agent_starts.len() == 1
+                    && agent_starts.contains(&pos)
+                {
+                    is_blocked = true;
                 }
                 let wrapped = grid[pos.i].remove(pos.j);
                 let laser = Tile::Laser(Laser::new(wrapped, source.beam(), i));
@@ -248,13 +238,7 @@ impl WorldConfig {
                         if start_agent_id == source.agent_id() {
                             continue;
                         }
-                        let len_before = starts.len();
                         starts.retain(|start| *start != pos);
-                        if starts.len() != len_before {
-                            eprintln!(
-                                "[WARNING] {pos:?} is not a valid start position for agent {start_agent_id} since the agent would be killed on startup. The starting position {pos:?} has therefore been removed for agent {start_agent_id}."
-                            );
-                        }
                     }
                 }
 
@@ -263,5 +247,15 @@ impl WorldConfig {
             grid[pos.i][pos.j] = Tile::LaserSource(source);
         }
         laser_positions
+    }
+}
+
+impl Display for WorldConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Ok(string) = to_v1_string(self) {
+            return write!(f, "{string}");
+        }
+        let toml_config: TomlConfig = self.into();
+        write!(f, "{}", toml_config.to_toml_string())
     }
 }

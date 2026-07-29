@@ -33,6 +33,24 @@ mod lle {
 
     #[pymodule]
     mod world {
+        use pyo3::prelude::*;
+
+        #[pymodule]
+        #[pyo3(name = "rendering")]
+        mod rendering_module {
+            use pyo3::prelude::*;
+            use pyo3_stub_gen::module_variable;
+
+            module_variable!("lle.world.rendering", "TILE_SIZE", u32);
+
+            #[pymodule_init]
+            fn init(m: &Bound<'_, PyModule>) -> PyResult<()> {
+                m.add("TILE_SIZE", crate::rendering::TILE_SIZE)
+            }
+        }
+
+        #[pymodule_export]
+        use self::rendering_module as rendering;
         #[pymodule_export]
         use super::super::world::PyAction;
         #[pymodule_export]
@@ -67,23 +85,21 @@ mod lle {
 
     #[pymodule_init]
     fn init(m: &Bound<'_, PyModule>) -> PyResult<()> {
-        use super::utils::RegisterSubmodules;
-
         let py = m.py();
         // Workaround for to be able to write `from lle.tiles import X`.
         // See https://github.com/PyO3/pyo3/issues/759
-        m.register_submodules("lle")?;
+        super::utils::register_submodules(m, "lle")?;
         m.add("__version__", crate::VERSION)?;
 
         // `lle.solver` is a regular Python package (`python/lle/solver/__init__.py`), so unlike
         // the other submodules we must not register a native module at `lle.solver`.
-        // Instead, we register `lle.solver.constraints` directly in sys.modules so the
-        //  Python package finds it already present when it does `from .constraints import ...`.
+        // Instead, we register `lle.solver.clauses` directly in sys.modules so the
+        //  Python package finds it already present when it does `from .clauses import ...`.
         let sys_modules = py.import("sys")?.getattr("modules")?;
-        let constraints = PyModule::new(py, "constraints")?;
-        constraints.add_class::<super::solver::PyClauseGenerator>()?;
-        constraints.add_class::<super::solver::PySolveMode>()?;
-        sys_modules.set_item("lle.solver.constraints", &constraints)
+        let clauses = PyModule::new(py, "clauses")?;
+        clauses.add_class::<super::solver::PyClauseGenerator>()?;
+        clauses.add_class::<super::solver::PySolveMode>()?;
+        sys_modules.set_item("lle.solver.clauses", &clauses)
     }
 }
 

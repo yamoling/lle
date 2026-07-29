@@ -9,8 +9,10 @@ This document catalogues every optimization applied to the bounded-planning SAT 
 | Agent reachability map | Variable pruning | Complete |
 | Exit-reachability filtering | Variable pruning | Complete |
 | Relevant laser path | Variable pruning | Complete |
+| Unblockable laser tile pruning | Variable pruning | Complete |
 | Constant-active beam tile | Variable pruning | Complete |
 | Start tile pruning | Variable pruning | Complete |
+| Forced exit pruning | Variable pruning | Complete |
 | First beam tile pruning | Variable pruning | Complete |
 | At-most-one encoding selection | Clause encoding | Complete |
 | Incremental clause buffering | Clause generation | Complete |
@@ -59,6 +61,33 @@ Because both sets are stored as dense bitsets over the grid, the intersection is
 
 **Implementation.** In the $t = 1$ update of $\text{relevant}(A, t)$, the start positions of all agents $B \neq A$ are explicitly removed. This single-step removal propagates into subsequent timesteps if the start position happens to be the only route between $A$'s starting neighbourhood and the rest of the grid, though typically the effect is local to $t = 1$.
 
+### 1.4 Forced exit pruning
+
+**Intuition.** When a world has exactly as many exits as agents, every exit must be occupied in any satisfying objective state: all agents must end on an exit, and no-overlap forbids two agents from sharing the same exit tile. If an exit can be reached by exactly one agent, then that agent is forced to use that exit. Since exits are absorbing, that same agent cannot stop on any other exit at any earlier or final timestep.
+
+For example, in the benchmark layout below, agent 2 is the only agent that can reach exit $(4, 1)$ because the adjacent non-exit access is the first tile of laser colour 2. Therefore, exit positions $(4, 2)$ and $(4, 3)$ can be removed from agent 2's relevant-position map.
+
+```text
+ @  S0 S1 S2
+L0E .  .  .
+L1E .  .  .
+L2E .  .  .
+ @  X  X  X
+```
+
+**Implementation.** After the raw relevant-position map has been filtered by movement, exit reachability, first beam tiles, and unblockable laser tiles, each timestep scans the exit positions. If the number of exits equals the number of agents, and an exit is present in exactly one agent's relevant set, that exit is recorded as uniquely forced for that agent. Agents with exactly one uniquely forced exit then have every other exit removed from their relevant-position set for that timestep.
+
+The optimization is conservative: it is disabled when the number of exits differs from the number of agents, and it does not prune an agent that is the sole candidate for multiple exits at the same timestep.
+
+#### Actual gain
+
+On the benchmark layout above with `t_max = 20`, standard solving mode, and no gems, the generated formula changed as follows:
+
+| Metric | Before | After | Absolute reduction | Relative reduction |
+|---|---:|---:|---:|---:|
+| Variables | 1 230 | 1 169 | 61 | 4.96% |
+| Clauses | 4 278 | 3 949 | 329 | 7.69% |
+
 ---
 
 ## 2. Variable pruning for laser beams
@@ -80,13 +109,28 @@ $$\text{rel\_beam}(l, t) = \bigl\{ p_i \in \text{path}(l) \mid p_i \in \text{rel
 
 The beam tiles are scanned in order; a flag tracks whether any upstream tile is blockable by the owner, and downstream tiles are included only when that flag is set and some non-owner can reach them.
 
-### 2.2 Constant-active beam tile
+### 2.2 Unblockable laser tile pruning
+
+**Intuition.** The relevant-position map and the relevant-laser-path map are mutually informative. If a non-owner agent $a$ can reach a downstream beam tile $p_i$ at time $t$, that position is only genuinely relevant if the beam owner can block the beam on some strictly upstream tile $p_j$ with $j < i$ at the same time step. If no such upstream block is possible, then $p_i$ is necessarily active for $a$ and $\text{agent}(a, p_i, t)$ is always false.
+
+This is stronger than merely omitting a laser variable. Without this pruning, the SAT encoding may still create an agent-position variable for $\text{agent}(a, p_i, t)$ and later force it false with a constant-active unit clause (§2.3). Removing the position directly from $\text{relevant}(a, t)$ avoids creating that variable and also removes all clauses that would have mentioned it: exactly-one-position clauses, movement clauses, overlap clauses, following-conflict clauses, and laser-safety clauses.
+
+The upstream block must be strict. A non-owner standing on $p_i$ cannot rely on the owner also blocking at $p_i$, because no-overlap forbids both agents from occupying the same tile at the same time. This is why the first beam tile of a foreign laser is always pruned (§2.4).
+
+**Implementation.** After the raw $\text{relevant}(a, t)$ sets have been computed for all agents and filtered by exit reachability, each laser path is scanned in order. For a laser $l$ owned by $c$, the scan maintains a Boolean flag indicating whether a tile already seen upstream belongs to $\text{relevant}(c, t)$. Until that flag becomes true, every scanned beam tile is removed from $\text{relevant}(a, t)$ for all $a \neq c$.
+
+The same pass also contributes to the relevant-laser-path cache: owner-reachable beam tiles are inserted immediately, and downstream candidate tiles are recorded once an upstream block exists. After all lasers have pruned positions, the downstream candidates are finalized against the fully pruned $\text{relevant}(a, t)$ sets. This two-phase finalization avoids order-dependent results when laser paths overlap or cross.
+
+#### Actual gain
+The gain is roughly 0.4% in clauses and 0.4% in number of variables for levels 5 and 6 of LLE.
+
+### 2.3 Constant-active beam tile
 
 **Intuition.** If a beam tile $p_i$ is not in $\text{rel\_beam}(l, t)$ — the owner cannot block the beam at or before $p_i$ — the beam is permanently active at $p_i$ for all valid agent configurations. The constraint on a non-owner agent $a$ simplifies to the unit clause $\neg\text{agent}(a, p_i, t)$, which the SAT solver propagates for free.
 
-**Implementation.** During the `no_step_on_active_laser` pass, tiles absent from the laser variable map are treated as constant-active. For each non-owner agent $a$ whose relevant positions include such a tile, a unit clause $[-\text{agent}(a, p_i, t)]$ is emitted instead of a binary clause.
+**Implementation.** During the `no_step_on_active_laser` pass, tiles absent from the laser variable map are treated as constant-active. For each non-owner agent $a$ whose relevant positions include such a tile, a unit clause $[-\text{agent}(a, p_i, t)]$ is emitted instead of a binary clause. With unblockable laser tile pruning (§2.2), many such agent-position variables are removed earlier and no unit clause is needed.
 
-### 2.3 First beam tile pruning
+### 2.4 First beam tile pruning
 
 **Intuition.** The first tile $p_0$ of any beam can only be blocked by the owning agent standing on $p_0$ itself. For a non-owner agent $a$ to be safely at $p_0$, the beam must be inactive, which requires the owner to also occupy $p_0$ — impossible by the no-overlap constraint. Therefore $p_0$ can be removed from $\text{relevant}(a, t)$ for every non-owner $a$ and every $t$.
 

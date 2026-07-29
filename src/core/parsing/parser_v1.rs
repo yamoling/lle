@@ -29,7 +29,7 @@ impl ParsingData {
         agent_id: AgentId,
         pos: Position,
     ) -> Result<(), ParseError> {
-        while self.start_positions.len() <= agent_id as usize {
+        while self.start_positions.len() <= agent_id {
             self.start_positions.push(Vec::new());
         }
         if !self.start_positions[agent_id].is_empty() {
@@ -98,26 +98,26 @@ impl TryInto<WorldConfig> for ParsingData {
 }
 
 pub fn to_v1_string(config: &WorldConfig) -> Result<String, ()> {
-    let mut res = vec![vec![String::from("."); config.width()]; config.height()];
+    let mut res = vec![vec![String::from(" . "); config.width()]; config.height()];
     for (agent_num, pos) in config.random_starts().iter().enumerate() {
         if pos.len() > 1 {
             return Err(());
         }
         let pos = pos[0];
-        res[pos.i][pos.j] = format!("S{agent_num}");
+        res[pos.i][pos.j] = format!("S{agent_num} ");
     }
 
     for pos in config.gems() {
-        res[pos.i][pos.j] = "G".into();
+        res[pos.i][pos.j] = " G ".into();
     }
     for pos in config.walls() {
-        res[pos.i][pos.j] = "@".into();
+        res[pos.i][pos.j] = " @ ".into();
     }
     for pos in config.exits() {
-        res[pos.i][pos.j] = "X".into();
+        res[pos.i][pos.j] = " X ".into();
     }
     for pos in config.voids() {
-        res[pos.i][pos.j] = "V".into();
+        res[pos.i][pos.j] = " V ".into();
     }
     for (pos, config) in config.sources() {
         res[pos.i][pos.j] = config.to_string();
@@ -175,48 +175,5 @@ pub fn parse(world_str: &str) -> Result<WorldConfig, ParseError> {
 }
 
 #[cfg(test)]
-mod tests {
-    use crate::ParseError;
-
-    use super::parse;
-
-    #[test]
-    fn test_laser_kill_on_spawn() {
-        let config = parse(
-            "
-        L1S  X  .
-         S0 S1  X
-        ",
-        )
-        .unwrap();
-        let world = config.to_world();
-        match world {
-            Ok(_) => panic!(
-                "The start location of agent 0 should have been removed and no remaining start position remains for agent 0"
-            ),
-            Err(ParseError::AgentWithoutStart { .. }) => {}
-            Err(ParseError::NotEnoughExitTiles { .. }) => {}
-            Err(e) => panic!("Unexpected error: {:?}", e),
-        }
-    }
-
-    #[test]
-    fn test_laser_blocked_on_spawn() {
-        let config = parse(
-            "
-        L1E . S1 S0 X
-        L0E .  .  . X
-        ",
-        )
-        .unwrap();
-        let world = config.to_world();
-        match world {
-            Ok(_) => {}
-            Err(ParseError::AgentWithoutStart { .. }) => panic!(
-                "The start location of agent 0 should have been removed and no remaining start position remains for agent 0"
-            ),
-            Err(ParseError::NotEnoughExitTiles { .. }) => panic!("There are enough exit tiles"),
-            Err(e) => panic!("Unexpected error: {:?}", e),
-        }
-    }
-}
+#[path = "../../unit_tests/test_parser_v1.rs"]
+mod tests;

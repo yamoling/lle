@@ -1,7 +1,8 @@
-use crate::{Position, Tile, World, solver::context::ConstraintContext};
+use crate::{Position, Tile, World, solver::context::ConstraintContext, tiles::Direction};
 use rstest::rstest;
 use rstest_reuse::{self, apply, template};
 use std::collections::HashSet;
+use strum::IntoEnumIterator;
 
 fn pos(i: usize, j: usize) -> Position {
     Position { i, j }
@@ -34,7 +35,7 @@ fn test_reachable_positions_grow_with_time() {
     let positions_t1: Vec<_> = reachable_t1.iter().collect();
     // With 9 steps remaining and exit at distance 1 from adjacent cells, both (0,0) and (0,1) should be reachable
     assert!(
-        positions_t1.len() >= 1,
+        !positions_t1.is_empty(),
         "At t=1, should reach at least some positions"
     );
 
@@ -43,9 +44,117 @@ fn test_reachable_positions_grow_with_time() {
     let reachable_t2 = ctx.relevant_positions(2, &[0]);
     let positions_t2: Vec<_> = reachable_t2.iter().collect();
     assert!(
-        positions_t2.len() > 0,
+        !positions_t2.is_empty(),
         "At t=2, should still have reachable positions"
     );
+}
+
+/// Agent 1 should only keep positions from which it can still reach its bottom-right exit.
+/// - the only way for agent 1 to go down is via the rightmost column, because the centre
+///   column is the first laser tile of a different colour. As a result, this tile is never
+///   walkable for agent 1.
+/// - since agent 1 must go down the rightmost column, it will reach the bottom right exit,
+///   and will never be able to leave it.
+///
+/// This is why, the only "relevant positions" for agent 1 are:
+///  - the top row `[(0, 0), (0, 1), (0, 2)]`;
+///  - the rightmost tile of the second row `[(1, 2)]`;
+///  - and the bottom right exit tile `[(2, 2)]`.
+#[test]
+fn agent_1_relevant_positions_exclude_blocked_laser_route() {
+    let t_max = 10;
+    let world = World::try_from(
+        " S0 . S1
+         L0E . .
+          X  . X",
+    )
+    .expect("failed to parse world");
+    let mut ctx = ConstraintContext::new(&world, t_max);
+    ctx.update(t_max);
+
+    let expected: HashSet<Position> = [pos(0, 0), pos(0, 1), pos(0, 2), pos(1, 2), pos(2, 2)]
+        .into_iter()
+        .collect();
+    let actual: HashSet<Position> = ctx.relevant_positions_for_agent(1, 5).into_iter().collect();
+    assert_eq!(actual, expected);
+}
+
+/// In this tested world, tile (1, 2) shoud no longer be considered as "relevant"
+/// to agent 1 at time step `t_max-1` because it is impossible for agent 0 to
+/// be blocking the laser at that time step AND to reach the exit.
+#[test]
+fn unblockable_laser_tiles_should_not_be_relevant_to_foreign_colour_agents() {
+    let t_max = 10;
+    let world = World::try_from(
+        " S0 . S1
+         L0E . .
+          X  . X",
+    )
+    .expect("failed to parse world");
+    let mut ctx = ConstraintContext::new(&world, t_max);
+    ctx.update(t_max);
+
+    // It is present at t_max-2
+    assert!(
+        ctx.relevant_positions_for_agent(1, t_max - 2)
+            .contains(&pos(1, 2))
+    );
+    // But not at t_max-1 nor at t_max
+    assert!(
+        !ctx.relevant_positions_for_agent(1, t_max - 1)
+            .contains(&pos(1, 2))
+    );
+    assert!(
+        !ctx.relevant_positions_for_agent(1, t_max)
+            .contains(&pos(1, 2))
+    );
+}
+
+/// Checks that adjacent exits do not let agents bypass a forbidden first beam tile.
+#[test]
+fn only_owner_can_reach_exit_behind_first_beam_tile() {
+    let t_max = 10;
+    let world = World::try_from(
+        " @  S0 S1 S2
+         L0E .  .  .
+         L1E .  .  .
+         L2E .  .  .
+          @  X  X  X",
+    )
+    .expect("failed to parse world");
+    let mut ctx = ConstraintContext::new(&world, t_max);
+    ctx.update(t_max);
+
+    let blocked_exit = pos(4, 1);
+    let agents_that_can_reach_blocked_exit: Vec<usize> = (0..world.n_agents())
+        .filter(|&agent| {
+            ctx.relevant_positions_for_agent(agent, t_max)
+                .contains(&blocked_exit)
+        })
+        .collect();
+
+    assert_eq!(agents_that_can_reach_blocked_exit, vec![2]);
+}
+
+/// Checks that an agent forced onto a unique exit does not keep variables for other exits.
+#[test]
+fn agent_with_unique_exit_cannot_reach_other_exits() {
+    let t_max = 10;
+    let world = World::try_from(
+        " @  S0 S1 S2
+         L0E .  .  .
+         L1E .  .  .
+         L2E .  .  .
+          @  X  X  X",
+    )
+    .expect("failed to parse world");
+    let mut ctx = ConstraintContext::new(&world, t_max);
+    ctx.update(t_max);
+
+    let agent_2_reachable = ctx.relevant_positions_for_agent(2, t_max);
+    assert!(agent_2_reachable.contains(&pos(4, 1)));
+    assert!(!agent_2_reachable.contains(&pos(4, 2)));
+    assert!(!agent_2_reachable.contains(&pos(4, 3)));
 }
 
 #[test]
@@ -53,7 +162,7 @@ fn test_laser_path_accessibility() {
     let world = World::try_from("S0 L0E X").expect("Failed to parse world");
     let ctx = ConstraintContext::new(&world, 5);
 
-    let sources = world.sources();
+    let sources = world.sources().collect::<Vec<_>>();
     assert_eq!(sources.len(), 1);
     let _source = &sources[0].1;
 
@@ -203,16 +312,17 @@ fn exit_reachable_basic(#[case] map_str: &str, #[case] distance: usize) {
 }
 
 #[apply(standard_levels)]
-fn valid_positions_exclude_walls_and_void_in_std_levels(level: usize) {
+fn valid_positions_exclude_walls_voids_and_laser_sources_in_std_levels(level: usize) {
     let world = World::get_level(level).expect("Failed to load level");
     let ctx = ConstraintContext::new(&world, 10);
     let walls: HashSet<Position> = world.walls().into_iter().collect();
     let voids: HashSet<Position> = world.void_positions().into_iter().collect();
+    let laser_sources: HashSet<Position> = world.sources().map(|(pos, _)| pos).collect();
     for i in 0..world.height() {
         for j in 0..world.width() {
             let p = pos(i, j);
-            let is_valid = !ctx.predecessors[i][j].is_empty();
-            if walls.contains(&p) || voids.contains(&p) {
+            let is_valid = !ctx.neighbours[i][j].is_empty();
+            if walls.contains(&p) || voids.contains(&p) || laser_sources.contains(&p) {
                 assert!(!is_valid, "level {level}: ({i},{j}) should not be valid");
             } else {
                 assert!(is_valid, "level {level}: ({i},{j}) should be valid");
@@ -230,11 +340,181 @@ fn valid_positions_exclude_void() {
     )
     .expect("Failed to parse world");
     let ctx = ConstraintContext::new(&world, 10);
-    let is_valid = |i: usize, j: usize| !ctx.predecessors[i][j].is_empty();
+    let is_valid = |i: usize, j: usize| !ctx.neighbours[i][j].is_empty();
     assert!(!is_valid(0, 1));
     assert!(!is_valid(1, 1));
     assert!(is_valid(0, 0));
     assert!(is_valid(1, 0));
+}
+
+/// Laser sources are invalid positions for movement graph generation, like walls and voids.
+#[test]
+fn valid_positions_exclude_laser_sources() {
+    let world = World::try_from(
+        "
+        S0 L0E .
+        .   .  X",
+    )
+    .expect("Failed to parse world");
+    let ctx = ConstraintContext::new(&world, 10);
+
+    assert!(ctx.neighbours[0][1].is_empty());
+    assert!(ctx.predecessors[0][1].is_empty());
+    assert!(!ctx.neighbours[0][0].contains(&pos(0, 1)));
+    assert!(!ctx.neighbours[0][2].contains(&pos(0, 1)));
+    assert!(!ctx.neighbours[1][1].contains(&pos(0, 1)));
+}
+
+// ==================== neighbours ====================
+
+/// Neighbours for regular floor-like tiles include staying in place and every walkable cardinal
+/// neighbour inside the world bounds.
+#[test]
+fn neighbours_include_stay_and_walkable_cardinal_tiles() {
+    for level in 1..=6 {
+        let world = World::get_level(level).unwrap();
+        let ctx = ConstraintContext::new(&world, 10);
+        let walls: HashSet<Position> = world.walls().into_iter().collect();
+        let voids: HashSet<Position> = world.void_positions().into_iter().collect();
+        let laser_sources: HashSet<Position> = world.sources().map(|(pos, _)| pos).collect();
+        let exits: HashSet<Position> = world.exits_positions().into_iter().collect();
+        let is_invalid =
+            |p: &Position| walls.contains(p) || voids.contains(p) || laser_sources.contains(p);
+
+        for i in 0..world.height() {
+            for j in 0..world.width() {
+                let p = pos(i, j);
+                let actual_neighbours = &ctx.neighbours[i][j];
+                if is_invalid(&p) {
+                    assert!(
+                        actual_neighbours.is_empty(),
+                        "Level {level}: invalid tile ({i},{j}) should not have neighbours"
+                    );
+                    continue;
+                }
+
+                let expected: HashSet<Position> = if exits.contains(&p) {
+                    HashSet::from([p])
+                } else {
+                    // Neighbours are the position itself + the non-walls neighbours
+                    std::iter::once(p)
+                        .chain(
+                            Direction::iter()
+                                .filter_map(|d| (p + d).ok())
+                                .filter(|n| n.i < world.height() && n.j < world.width())
+                                .filter(|n| !is_invalid(n)),
+                        )
+                        .collect()
+                };
+                let actual: HashSet<Position> = actual_neighbours.iter().collect();
+                assert_eq!(actual, expected, "Level {level}: neighbours[{i}][{j}]");
+            }
+        }
+    }
+}
+
+/// Neighbour generation should not cross world boundaries and should not expose walls or voids as
+/// walkable successors.
+#[test]
+fn neighbours_exclude_boundaries_walls_and_voids() {
+    let world = World::try_from(
+        "
+        S0 @ .
+        V  . X",
+    )
+    .expect("Failed to parse world");
+    let ctx = ConstraintContext::new(&world, 10);
+
+    let start_neighbours: HashSet<Position> = ctx.neighbours[0][0].iter().collect();
+    assert_eq!(start_neighbours, HashSet::from([pos(0, 0)]));
+
+    let centre_neighbours: HashSet<Position> = ctx.neighbours[1][1].iter().collect();
+    assert_eq!(centre_neighbours, HashSet::from([pos(1, 1), pos(1, 2)]));
+    assert!(
+        !centre_neighbours.contains(&pos(0, 1)),
+        "walls should not be successors"
+    );
+    assert!(
+        !centre_neighbours.contains(&pos(1, 0)),
+        "voids should not be successors"
+    );
+    assert!(
+        ctx.neighbours[0][1].is_empty(),
+        "walls should have no neighbours"
+    );
+    assert!(
+        ctx.neighbours[1][0].is_empty(),
+        "voids should have no neighbours"
+    );
+}
+
+/// `prev_neighbours` should return only predecessors that were relevant to the agent one step
+/// earlier, not every geometrically possible predecessor.
+#[test]
+fn prev_neighbours_filters_by_previous_relevant_positions() {
+    let world = World::try_from("S0 . X").expect("Failed to parse world");
+    let mut ctx = ConstraintContext::new(&world, 5);
+    ctx.update(1);
+
+    assert!(ctx.prev_neighbours(0, &pos(0, 1), 0).is_empty());
+    assert_eq!(
+        ctx.prev_neighbours(0, &pos(0, 1), 1)
+            .iter()
+            .collect::<HashSet<_>>(),
+        HashSet::from([pos(0, 0)])
+    );
+    assert_eq!(
+        ctx.prev_neighbours(0, &pos(0, 0), 1)
+            .iter()
+            .collect::<HashSet<_>>(),
+        HashSet::from([pos(0, 0)])
+    );
+    assert!(ctx.prev_neighbours(0, &pos(0, 2), 1).is_empty());
+}
+
+/// Laser source tiles are not walkable: they should not be successors of adjacent walkable tiles,
+/// and they should not have neighbours themselves.
+#[test]
+fn laser_source_neighbours_are_empty_and_unreachable() {
+    let world = World::try_from(
+        "
+        S0 L0E .
+        .   .  X",
+    )
+    .expect("Failed to parse world");
+    let ctx = ConstraintContext::new(&world, 10);
+
+    let start_neighbours: HashSet<Position> = ctx.neighbours[0][0].iter().collect();
+    assert_eq!(start_neighbours, HashSet::from([pos(0, 0), pos(1, 0)]));
+
+    let centre_neighbours: HashSet<Position> = ctx.neighbours[1][1].iter().collect();
+    assert_eq!(
+        centre_neighbours,
+        HashSet::from([pos(1, 1), pos(1, 0), pos(1, 2)])
+    );
+
+    assert!(
+        ctx.neighbours[0][1].is_empty(),
+        "laser sources should have no neighbours"
+    );
+}
+
+/// Exit tiles are terminal for neighbour generation: once an agent reaches an exit, it can only
+/// remain there.
+///
+/// @ai-generated
+#[test]
+fn exit_neighbours_only_allow_staying() {
+    let world = World::try_from(
+        "
+        .  X .
+        S0 . .",
+    )
+    .expect("Failed to parse world");
+    let ctx = ConstraintContext::new(&world, 10);
+
+    let exit_neighbours: HashSet<Position> = ctx.neighbours[0][1].iter().collect();
+    assert_eq!(exit_neighbours, HashSet::from([pos(0, 1)]));
 }
 
 // ==================== laser_sources / paths ====================

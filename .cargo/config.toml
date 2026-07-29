@@ -1,0 +1,3 @@
+[alias]
+stub-gen = "run --bin stub-gen --features python-bindings"
+nt = "nextest run --failure-output final --no-fail-fast"

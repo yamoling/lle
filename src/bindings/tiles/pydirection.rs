@@ -41,9 +41,9 @@ impl From<Direction> for PyDirection {
     }
 }
 
-impl Into<Direction> for &PyDirection {
-    fn into(self) -> Direction {
-        match self {
+impl From<&PyDirection> for Direction {
+    fn from(d: &PyDirection) -> Direction {
+        match d {
             PyDirection::North => Direction::North,
             PyDirection::East => Direction::East,
             PyDirection::South => Direction::South,
@@ -52,9 +52,9 @@ impl Into<Direction> for &PyDirection {
     }
 }
 
-impl Into<&str> for PyDirection {
-    fn into(self) -> &'static str {
-        match self {
+impl From<PyDirection> for &'static str {
+    fn from(d: PyDirection) -> &'static str {
+        match d {
             PyDirection::North => "N",
             PyDirection::East => "E",
             PyDirection::South => "S",
@@ -146,7 +146,7 @@ impl PyDirection {
     /// It required "default arguments" to be provided to the __new__ method
     /// before replacing them by the actual values in __setstate__.
     pub fn __getnewargs__<'py>(&self, py: Python<'py>) -> Bound<'py, PyTuple> {
-        PyTuple::new(py, vec![String::from("N")].iter()).unwrap()
+        PyTuple::new(py, [String::from("N")].iter()).unwrap()
     }
 
     pub fn __setstate__(&mut self, state: String) {

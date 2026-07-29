@@ -159,9 +159,9 @@ impl PyAction {
     }
 }
 
-impl Into<Action> for &PyAction {
-    fn into(self) -> Action {
-        match self {
+impl From<&PyAction> for Action {
+    fn from(a: &PyAction) -> Action {
+        match a {
             PyAction::North => Action::North,
             PyAction::South => Action::South,
             PyAction::East => Action::East,
@@ -171,9 +171,9 @@ impl Into<Action> for &PyAction {
     }
 }
 
-impl Into<Action> for PyAction {
-    fn into(self) -> Action {
-        match self {
+impl From<PyAction> for Action {
+    fn from(a: PyAction) -> Action {
+        match a {
             PyAction::North => Action::North,
             PyAction::South => Action::South,
             PyAction::East => Action::East,

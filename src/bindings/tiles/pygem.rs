@@ -31,7 +31,7 @@ impl PyGem {
     pub fn new(gem: &Gem, pos: (usize, usize), world: Arc<Mutex<World>>) -> Self {
         Self {
             is_collected: gem.is_collected(),
-            pos: pos.into(),
+            pos,
             world,
         }
     }
@@ -50,7 +50,7 @@ impl PyGem {
 
     pub fn collect(&mut self) -> PyResult<()> {
         let world = &mut self.world.lock().unwrap();
-        let tile = inner(world, self.pos.clone().into())?;
+        let tile = inner(world, self.pos.into())?;
         match tile {
             Tile::Gem(gem) => gem.collect(),
             _ => {
@@ -67,7 +67,7 @@ impl PyGem {
     #[getter]
     pub fn agent(&self) -> Option<AgentId> {
         let world = self.world.lock().unwrap();
-        let tile = world.at(&self.pos.clone().into())?;
+        let tile = world.at(&self.pos.into())?;
         match tile {
             Tile::Gem(gem) => gem.agent(),
             _ => None,

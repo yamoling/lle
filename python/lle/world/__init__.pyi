@@ -7,13 +7,17 @@ from lle import agent
 from lle import tiles
 import numpy
 import numpy.typing
+import os
+import pathlib
 import typing
+from . import rendering
 __all__ = [
     "Action",
     "EventType",
     "World",
     "WorldEvent",
     "WorldState",
+    "rendering",
 ]
 
 class World:
@@ -26,10 +30,10 @@ class World:
     from lle import World
     # Create from a predefined level
     w1 = World.level(5)
-    # Create from a file
-    w2 = World.from_file("my_map.txt")
     # Create from a string
-    w3 = World("S0 X")
+    w2 = World("S0 X")
+    # From a file
+    w3 = World.from_file("resources/levels/lvl1")
     ```
     """
     @property
@@ -135,7 +139,7 @@ class World:
             `ValueError` if the file is not a valid level (inconsistent dimensions or invalid grid).
         """
     @staticmethod
-    def from_file(filename: builtins.str) -> World:
+    def from_file(filename: builtins.str | os.PathLike | pathlib.Path) -> World:
         r"""
         Parse the content of `filename` to create a World.
         
@@ -176,6 +180,15 @@ class World:
         Raises:
            `IndexError`: if the position is out of bounds.
            `ValueError`: if the agent id does not exist.
+        
+        Example:
+        ```python
+        world = World("S0 . . X")
+        world.reset()
+        events = world.set_agent_position(0, (0, 2))
+        events = world.step([Action.EAST])
+        assert events[0].event_type == EventType.AGENT_EXIT
+        ```
         """
     def gem_at(self, position: tuple[builtins.int, builtins.int]) -> tiles.Gem:
         r"""
@@ -183,6 +196,16 @@ class World:
         Raises:
           `PyIndexError`: if the position is out of bounds.
           `PyValueError`: if the tile at the given position is not a gem.
+        
+        Example:
+        ```python
+        world = World("S0 G X")
+        world.reset()
+        gem = world.gem_at((0, 1))
+        assert not gem.is_collected
+        world.step([Action.EAST])
+        assert world.gem_at((0, 1)).is_collected
+        ```
         """
     def source_at(self, position: tuple[builtins.int, builtins.int]) -> tiles.LaserSource:
         r"""
@@ -190,6 +213,16 @@ class World:
         Raises:
          `PyIndexError`: if the position is out of bounds.
          `PyValueError`: if the tile at the given position is not a laser source.
+        
+        Example:
+        ```python
+        world = World("S0 L0E X\n.  .   X")
+        world.reset()
+        src = world.source_at((0, 1))
+        assert src.is_enabled
+        src.disable()
+        assert all(not laser.is_on for laser in world.lasers)
+        ```
         """
     def seed(self, seed_value: builtins.int) -> None: ...
     def step(self, action: Action | typing.Sequence[Action]) -> builtins.list[WorldEvent]:
@@ -232,6 +265,15 @@ class World:
         The actions available for agent `n` are given by `world.available_actions()[n]`.
         Returns:
            The list of available actions for each agent.
+        
+        Example:
+        ```python
+        world = World("S0 @ X")  # wall blocks East
+        world.reset()
+        actions = world.available_actions()
+        assert Action.EAST not in actions[0]
+        assert Action.STAY in actions[0]
+        ```
         """
     def available_joint_actions(self) -> builtins.list[builtins.list[Action]]:
         r"""
@@ -319,11 +361,11 @@ class WorldState:
     w = World("S0 . X")
     w.reset()
     s1 = w.get_state()
-    s2 = WorldState([(0, 1), [], [True]])
-    world.set_state(s2)
+    s2 = WorldState([(0, 1)], [], [True])
+    w.set_state(s2)
     ```
     ## Inheritance
-    To inherit from `WorldState`, it is required to override the `__new__` method such that you its signature
+    To inherit from `WorldState`, it is required to override the `__new__` method such that its signature
     is compatible with `__init__`, i.e. it accepts the same leading arguments in the same order.
     Additionally, the `__new__` method **must** call the `super()` constructor with the parameters of the parent class, as shown below.
     ```python

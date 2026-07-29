@@ -19,6 +19,12 @@ pub enum SolverError {
         agent: AgentId,
         index: usize,
     },
+    /// The decoded model has no position for `agent` at time step `t`, so the trajectory cannot be
+    /// reconstructed. This signals an incomplete or malformed SAT model.
+    MissingPosition {
+        agent: AgentId,
+        t: usize,
+    },
 }
 
 impl Display for SolverError {
@@ -41,6 +47,10 @@ impl Display for SolverError {
                     "Invalid trajectory at index {index}: agent {agent} goes from {prev_pos:?} to {next_pos:?} (i.e. a distance of {distance} tiles), which does not match any possible action."
                 )
             }
+            SolverError::MissingPosition { agent, t } => write!(
+                f,
+                "Incomplete model: agent {agent} has no decoded position at time step {t}."
+            ),
         }
     }
 }
