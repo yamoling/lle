@@ -19,6 +19,8 @@ impl ClauseEngine {
     }
 
     /// Every agent is in exactly one position at any given time step.
+    /// This actually encodes an "at most one" constraint, but it is required to
+    /// be exactly one to find a solution.
     pub(super) fn exactly_one_position(&mut self, t: usize) -> Vec<Clause> {
         let mut clauses = Vec::new();
         for agent in 0..self.ctx.n_agents {

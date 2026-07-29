@@ -430,7 +430,3 @@ fn previous_same_prefix_lens(arcs: &[StaticHelpArc]) -> Vec<Option<usize>> {
 #[cfg(test)]
 #[path = "../unit_tests/engine/test_interdependence.rs"]
 mod tests;
-
-#[cfg(test)]
-#[path = "../../.agents/scratches/probe_interdependence.rs"]
-mod probe;
