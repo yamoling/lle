@@ -196,18 +196,84 @@ impl From<CardinalDirection> for Direction {
     }
 }
 
-impl TryFrom<Direction> for CardinalDirection {
+/// A direction restricted to the vertical axis (floor changes only).
+///
+/// Kept as a distinct type (rather than reusing [`Direction`]) so that a `Lift` -
+/// which can only ever move an agent between layers, never sideways - cannot
+/// silently be handed `North`/`East`/`South`/`West`: the compiler rejects it
+/// instead.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, EnumIter)]
+pub enum VerticalDirection {
+    #[serde(alias = "U", alias = "up", alias = "u")]
+    Up,
+    #[serde(alias = "D", alias = "down", alias = "d")]
+    Down,
+}
+
+impl VerticalDirection {
+    pub fn delta(&self) -> (i32, i32, i32) {
+        match self {
+            VerticalDirection::Up => (0, 0, 1),
+            VerticalDirection::Down => (0, 0, -1),
+        }
+    }
+
+    pub fn opposite(&self) -> VerticalDirection {
+        match self {
+            VerticalDirection::Up => VerticalDirection::Down,
+            VerticalDirection::Down => VerticalDirection::Up,
+        }
+    }
+
+    pub fn to_file_string(&self) -> String {
+        match self {
+            VerticalDirection::Up => "U".to_string(),
+            VerticalDirection::Down => "D".to_string(),
+        }
+    }
+}
+
+impl Display for VerticalDirection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+
+impl TryFrom<&str> for VerticalDirection {
     type Error = ParseError;
-    fn try_from(value: Direction) -> Result<Self, Self::Error> {
-        match value {
-            Direction::North => Ok(CardinalDirection::North),
-            Direction::East => Ok(CardinalDirection::East),
-            Direction::South => Ok(CardinalDirection::South),
-            Direction::West => Ok(CardinalDirection::West),
-            Direction::Up | Direction::Down => Err(ParseError::InvalidDirection {
-                given: value.to_file_string(),
-                expected: "{{N, E, S, W}} (a horizontal direction).".into(),
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value.to_lowercase().as_str() {
+            "u" | "up" => Ok(VerticalDirection::Up),
+            "d" | "down" => Ok(VerticalDirection::Down),
+            _ => Err(ParseError::InvalidDirection {
+                given: value.into(),
+                expected: "{{U, D, up, down}} (a vertical direction).".into(),
             }),
+        }
+    }
+}
+
+impl TryFrom<char> for VerticalDirection {
+    type Error = ParseError;
+    fn try_from(value: char) -> Result<Self, Self::Error> {
+        VerticalDirection::try_from(value.to_string().as_str())
+    }
+}
+
+impl Into<&str> for VerticalDirection {
+    fn into(self) -> &'static str {
+        match self {
+            VerticalDirection::Up => "U",
+            VerticalDirection::Down => "D",
+        }
+    }
+}
+
+impl From<VerticalDirection> for Direction {
+    fn from(value: VerticalDirection) -> Self {
+        match value {
+            VerticalDirection::Up => Direction::Up,
+            VerticalDirection::Down => Direction::Down,
         }
     }
 }

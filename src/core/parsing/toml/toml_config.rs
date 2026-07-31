@@ -505,7 +505,7 @@ exits = [{ col = 4 }]
 width = 3
 height = 3
 [[lifts]]
-direction = "North"
+direction = "Up"
 group_id = "oops"
 [lifts.position]
 i = 0
@@ -541,7 +541,7 @@ k = 0
 width = 3
 height = 3
 [[lifts]]
-direction = "North"
+direction = "Up"
 group_id = 0
 directoin = "typo"
 [lifts.position]
@@ -584,7 +584,7 @@ k = 0
 width = 3
 height = 3
 [[lifts]]
-direction = "North"
+direction = "Up"
 group_id = 1
 authorized_agent_id = 0
 [lifts.position]
@@ -603,7 +603,7 @@ k = 0
         assert_eq!(config.lifts().len(), 1);
         let (pos, lift) = &config.lifts()[0];
         assert_eq!(*pos, Position { i: 0, j: 2, k: 0 });
-        assert_eq!(lift.direction, crate::tiles::Direction::North);
+        assert_eq!(lift.direction, crate::tiles::VerticalDirection::Up);
         assert_eq!(lift.group_id, 1);
         assert_eq!(lift.authorized_agent_id, Some(0));
 

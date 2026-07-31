@@ -12,7 +12,7 @@ use crate::{
         levels,
         parsing::{WorldConfig, parse},
     },
-    tiles::{Gem, Laser, LaserSource, Tile},
+    tiles::{Button, Gem, Laser, LaserSource, Lift, Tile},
     utils::{find_duplicates, sample_different},
 };
 
@@ -28,6 +28,8 @@ pub struct World {
     laser_source_positions: Vec<Position>,
     lasers_positions: Vec<Position>,
     gems_positions: Vec<Position>,
+    lift_positions: Vec<Position>,
+    button_positions: Vec<Position>,
     /// Possible random start position of each agent.
     random_start_positions: Vec<Vec<Position>>,
     void_positions: Vec<Position>,
@@ -52,6 +54,8 @@ impl World {
         walls_positions: Vec<Position>,
         source_positions: Vec<Position>,
         lasers_positions: Vec<Position>,
+        lift_positions: Vec<Position>,
+        button_positions: Vec<Position>,
     ) -> Self {
         let agents = random_start_positions
             .iter()
@@ -74,6 +78,8 @@ impl World {
             available_actions: vec![],
             laser_source_positions: source_positions,
             lasers_positions,
+            lift_positions,
+            button_positions,
             rng: rand::SeedableRng::seed_from_u64(0u64),
         };
         w.reset();
@@ -103,20 +109,14 @@ impl World {
             .map(|(p, s)| (p, s.into()))
             .collect();
         let lift_configs = self
-            .tiles()
+            .lifts()
             .into_iter()
-            .filter_map(|(pos, tile)| match tile {
-                Tile::Lift(lift) => Some((pos, lift.into())),
-                _ => None,
-            })
+            .map(|(pos, lift)| (pos, lift.into()))
             .collect();
         let button_configs = self
-            .tiles()
+            .buttons()
             .into_iter()
-            .filter_map(|(pos, tile)| match tile {
-                Tile::Button(button) => Some((pos, button.into())),
-                _ => None,
-            })
+            .map(|(pos, button)| (pos, button.into()))
             .collect();
         WorldConfig::new(
             self.width,
@@ -170,6 +170,34 @@ impl World {
                 _ => unreachable!(),
             })
             .collect()
+    }
+
+    pub fn lifts(&self) -> Vec<(Position, &Lift)> {
+        self.lift_positions
+            .iter()
+            .map(|pos| match self.grid.at(pos) {
+                Tile::Lift(lift) => (pos.clone(), lift),
+                _ => unreachable!(),
+            })
+            .collect()
+    }
+
+    pub fn buttons(&self) -> Vec<(Position, &Button)> {
+        self.button_positions
+            .iter()
+            .map(|pos| match self.grid.at(pos) {
+                Tile::Button(button) => (pos.clone(), button),
+                _ => unreachable!(),
+            })
+            .collect()
+    }
+
+    pub fn n_lifts(&self) -> usize {
+        self.lift_positions.len()
+    }
+
+    pub fn n_buttons(&self) -> usize {
+        self.button_positions.len()
     }
 
     pub fn lasers(&self) -> Vec<(Position, &Laser)> {
@@ -452,11 +480,9 @@ impl World {
 
     /// Pulse every `Lift` sharing one of `group_ids`.
     fn notify_lift_groups(&self, group_ids: &[usize]) {
-        for (_, tile) in self.tiles() {
-            if let Tile::Lift(lift) = tile {
-                if group_ids.contains(&lift.group_id()) {
-                    lift.notify();
-                }
+        for (_, lift) in self.lifts() {
+            if group_ids.contains(&lift.group_id()) {
+                lift.notify();
             }
         }
     }
@@ -467,26 +493,24 @@ impl World {
     /// nothing this tick.
     fn resolve_lift_moves(&self) -> Vec<(AgentId, Position)> {
         let mut moves = vec![];
-        for (pos, tile) in self.tiles() {
-            if let Tile::Lift(lift) = tile {
-                if !lift.take_triggered() {
-                    continue;
-                }
-                let Some(agent_id) = lift.agent() else {
-                    continue;
-                };
-                if lift
-                    .authorized_agent_id()
-                    .is_some_and(|auth| auth != agent_id)
-                {
-                    continue;
-                }
-                let Ok(dest) = lift.destination(pos) else {
-                    continue;
-                };
-                if matches!(self.at(&dest), Some(t) if t.is_walkable()) {
-                    moves.push((agent_id, dest));
-                }
+        for (pos, lift) in self.lifts() {
+            if !lift.take_triggered() {
+                continue;
+            }
+            let Some(agent_id) = lift.agent() else {
+                continue;
+            };
+            if lift
+                .authorized_agent_id()
+                .is_some_and(|auth| auth != agent_id)
+            {
+                continue;
+            }
+            let Ok(dest) = lift.destination(pos) else {
+                continue;
+            };
+            if matches!(self.at(&dest), Some(t) if t.is_walkable()) {
+                moves.push((agent_id, dest));
             }
         }
         moves
@@ -553,10 +577,23 @@ impl World {
             let lift_moves = self.resolve_lift_moves();
             if !lift_moves.is_empty() {
                 let mut second_pass_positions = self.agents_positions.clone();
-                for (agent_id, dest) in lift_moves {
-                    second_pass_positions[agent_id] = dest;
+                for (agent_id, dest) in &lift_moves {
+                    second_pass_positions[*agent_id] = *dest;
                 }
                 World::solve_vertex_conflicts(&mut second_pass_positions, &self.agents_positions);
+                // Only emit an event for agents whose lift-relocation actually
+                // survived vertex-conflict resolution (a colliding destination
+                // reverts the agent back to its lift, in which case there was no
+                // move to report).
+                for (agent_id, dest) in &lift_moves {
+                    if second_pass_positions[*agent_id] == *dest {
+                        events.push(WorldEvent::LiftMoved {
+                            agent_id: *agent_id,
+                            from: self.agents_positions[*agent_id],
+                            to: *dest,
+                        });
+                    }
+                }
                 events.extend(self.resolve_move(second_pass_positions)?);
             }
         }

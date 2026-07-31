@@ -4,7 +4,7 @@ use itertools::izip;
 use super::{BLACK, GRID_GREY, TileVisitor, sprites};
 use crate::{
     core::World,
-    tiles::{Button, CardinalDirection, Gem, Laser, LaserSource, Lift},
+    tiles::{Button, CardinalDirection, Gem, Laser, LaserSource, Lift, VerticalDirection},
 };
 
 use super::{BACKGROUND_GREY, TILE_SIZE};
@@ -108,6 +108,22 @@ impl Renderer {
                 frame: &mut frame_stack[pos.z() as usize],
             };
             self.visit_gem(&gem, &mut data);
+        }
+        for (pos, lift) in world.lifts() {
+            let mut data = VisitorData {
+                x: pos.x() as u32 * TILE_SIZE,
+                y: pos.y() as u32 * TILE_SIZE,
+                frame: &mut frame_stack[pos.z() as usize],
+            };
+            self.visit_lift(lift, &mut data);
+        }
+        for (pos, button) in world.buttons() {
+            let mut data = VisitorData {
+                x: pos.x() as u32 * TILE_SIZE,
+                y: pos.y() as u32 * TILE_SIZE,
+                frame: &mut frame_stack[pos.z() as usize],
+            };
+            self.visit_button(button, &mut data);
         }
         for (id, pos) in world.agents_positions().iter().enumerate() {
             let x = pos.x() as u32 * TILE_SIZE;
@@ -236,6 +252,65 @@ fn draw_rectangle(
         .unwrap();
 }
 
+/// Corner offset (in pixels) at which the ~14px `AGENT_LOCK` badge is drawn
+/// within a 32px tile, keeping it fully inside the tile with a small margin.
+const BADGE_OFFSET: u32 = TILE_SIZE - 14 - 2;
+
+/// Recolor a white-on-transparent mask sprite by multiplying its RGB channels
+/// by `color`, preserving per-pixel alpha. Used for `Lift`/`Button` sprites,
+/// whose `group_id` is unbounded (unlike the 4 fixed agent colors), so their
+/// color can't be baked into a fixed set of sprite files the way
+/// `sprites::AGENTS` is.
+fn tint_image(sprite: &RgbaImage, color: Rgb<u8>) -> RgbaImage {
+    RgbaImage::from_fn(sprite.width(), sprite.height(), |x, y| {
+        let p = sprite.get_pixel(x, y).0;
+        image::Rgba([
+            (p[0] as u32 * color.0[0] as u32 / 255) as u8,
+            (p[1] as u32 * color.0[1] as u32 / 255) as u8,
+            (p[2] as u32 * color.0[2] as u32 / 255) as u8,
+            p[3],
+        ])
+    })
+}
+
+/// Fixed colors for the per-agent restriction badge, indexed by `AgentId`,
+/// matching the order of the `agents/{red,blue,green,yellow}.png` sprites.
+/// Unlike `group_color`, this is a fixed 4-entry table since agent count is
+/// bounded the same way `sprites::AGENTS` is.
+const AGENT_COLORS: [Rgb<u8>; 4] = [
+    Rgb([220, 20, 20]),
+    Rgb([30, 80, 220]),
+    Rgb([30, 160, 60]),
+    Rgb([220, 190, 20]),
+];
+
+/// A deterministic, visually distinct color for a given `group_id`, obtained by
+/// rotating the hue by the golden angle each time so consecutive group ids don't
+/// look alike.
+fn group_color(group_id: usize) -> Rgb<u8> {
+    let hue = (group_id as f32 * 137.508) % 360.0;
+    hsv_to_rgb(hue, 0.65, 0.9)
+}
+
+fn hsv_to_rgb(h: f32, s: f32, v: f32) -> Rgb<u8> {
+    let c = v * s;
+    let x = c * (1.0 - ((h / 60.0) % 2.0 - 1.0).abs());
+    let m = v - c;
+    let (r, g, b) = match h as u32 {
+        0..=59 => (c, x, 0.0),
+        60..=119 => (x, c, 0.0),
+        120..=179 => (0.0, c, x),
+        180..=239 => (0.0, x, c),
+        240..=299 => (x, 0.0, c),
+        _ => (c, 0.0, x),
+    };
+    Rgb([
+        (((r + m) * 255.0).round()) as u8,
+        (((g + m) * 255.0).round()) as u8,
+        (((b + m) * 255.0).round()) as u8,
+    ])
+}
+
 impl TileVisitor for Renderer {
     fn visit_gem(&self, gem: &Gem, data: &mut VisitorData) {
         if !gem.is_collected() {
@@ -271,10 +346,42 @@ impl TileVisitor for Renderer {
         data.frame.copy_from(source_sprite, data.x, data.y).unwrap();
     }
 
-    // Real rendering (sprites, positioning) is out of scope for now.
-    fn visit_lift(&self, _lift: &Lift, _data: &mut VisitorData) {}
+    fn visit_lift(&self, lift: &Lift, data: &mut VisitorData) {
+        let sprite = match lift.direction() {
+            VerticalDirection::Up => &*sprites::LIFT_UP,
+            VerticalDirection::Down => &*sprites::LIFT_DOWN,
+        };
+        let tinted = tint_image(sprite, group_color(lift.group_id()));
+        add_transparent_image(data.frame, &tinted, data.x, data.y);
+        if let Some(agent_id) = lift.authorized_agent_id() {
+            let badge = tint_image(&sprites::AGENT_LOCK, AGENT_COLORS[agent_id]);
+            add_transparent_image(
+                data.frame,
+                &badge,
+                data.x + BADGE_OFFSET,
+                data.y + BADGE_OFFSET,
+            );
+        }
+    }
 
-    fn visit_button(&self, _button: &Button, _data: &mut VisitorData) {}
+    fn visit_button(&self, button: &Button, data: &mut VisitorData) {
+        let sprite = if button.agent().is_some() {
+            &*sprites::BUTTON_PRESSED
+        } else {
+            &*sprites::BUTTON_IDLE
+        };
+        let tinted = tint_image(sprite, group_color(button.group_id()));
+        add_transparent_image(data.frame, &tinted, data.x, data.y);
+        if let Some(agent_id) = button.authorized_agent_id() {
+            let badge = tint_image(&sprites::AGENT_LOCK, AGENT_COLORS[agent_id]);
+            add_transparent_image(
+                data.frame,
+                &badge,
+                data.x + BADGE_OFFSET,
+                data.y + BADGE_OFFSET,
+            );
+        }
+    }
 }
 
 #[cfg(test)]
@@ -289,6 +396,59 @@ mod test_renderer {
         assert_eq!(
             TILE_SIZE * world.height() as u32 + 1,
             renderer.pixel_height()
+        );
+    }
+
+    #[test]
+    fn lift_and_button_are_rendered() {
+        let world = World::try_from("S0 . TU0\nB0 .  X").unwrap();
+        let renderer = Renderer::new(&world);
+        let image = renderer.update(&world);
+
+        // A plain floor tile is left as the untouched background fill.
+        let floor_pixel = *image.get_pixel(TILE_SIZE + TILE_SIZE / 2, TILE_SIZE / 2);
+
+        // Lift at (row 0, col 2): the up-arrow sprite covers the tile center.
+        let lift_pixel = *image.get_pixel(2 * TILE_SIZE + TILE_SIZE / 2, TILE_SIZE / 2);
+        assert_ne!(lift_pixel, floor_pixel);
+
+        // Button at (row 1, col 0), unoccupied: only the idle ring is drawn
+        // (the tile center is transparent), so sample a pixel on the ring itself.
+        let button_pixel = *image.get_pixel(TILE_SIZE / 2, TILE_SIZE + 5);
+        assert_ne!(button_pixel, floor_pixel);
+    }
+
+    #[test]
+    fn lift_and_button_restriction_badge_is_rendered() {
+        // Same group_id (0), same shape/direction — only the `A0` suffix
+        // restricts the tile to agent 0. The badge should be the only
+        // difference between the two renders.
+        let unrestricted = World::try_from("S0 . TU0\nB0 .  X").unwrap();
+        let restricted = World::try_from("S0 . TU0A0\nB0A0 .  X").unwrap();
+
+        let unrestricted_image = Renderer::new(&unrestricted).update(&unrestricted);
+        let restricted_image = Renderer::new(&restricted).update(&restricted);
+
+        const BADGE_OFFSET: u32 = TILE_SIZE - 14 - 2;
+        // Offset of an opaque pixel inside the badge sprite itself (its
+        // top-left corner is transparent, so sampling BADGE_OFFSET alone
+        // would land on background/sprite-underneath, not the badge).
+        const BADGE_INNER: u32 = 7;
+
+        // Lift at (row 0, col 2).
+        let lift_x = 2 * TILE_SIZE + BADGE_OFFSET + BADGE_INNER;
+        let lift_y = BADGE_OFFSET + BADGE_INNER;
+        assert_ne!(
+            *restricted_image.get_pixel(lift_x, lift_y),
+            *unrestricted_image.get_pixel(lift_x, lift_y)
+        );
+
+        // Button at (row 1, col 0).
+        let button_x = BADGE_OFFSET + BADGE_INNER;
+        let button_y = TILE_SIZE + BADGE_OFFSET + BADGE_INNER;
+        assert_ne!(
+            *restricted_image.get_pixel(button_x, button_y),
+            *unrestricted_image.get_pixel(button_x, button_y)
         );
     }
 }

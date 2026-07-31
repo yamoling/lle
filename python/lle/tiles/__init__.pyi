@@ -5,11 +5,42 @@ import builtins
 import enum
 import typing
 __all__ = [
+    "Button",
     "Direction",
     "Gem",
     "Laser",
     "LaserSource",
+    "Lift",
 ]
+
+@typing.final
+class Button:
+    r"""
+    A pressure-plate tile: taking `Action.TRIGGER` while standing on it
+    pulses every `Lift` sharing the same `group_id`.
+    """
+    @property
+    def group_id(self) -> builtins.int:
+        r"""
+        The group shared with the `Lift`(s) this button can pulse.
+        """
+    @property
+    def authorized_agent_id(self) -> typing.Optional[builtins.int]:
+        r"""
+        If set, only this agent can actuate the button.
+        """
+    @property
+    def pos(self) -> builtins.tuple[int, int, int]:
+        r"""
+        The (i, j, k) position of the button.
+        """
+    @property
+    def agent(self) -> typing.Optional[builtins.int]:
+        r"""
+        The id of the agent currently standing on the tile, if any.
+        """
+    def __str__(self) -> builtins.str: ...
+    def __repr__(self) -> builtins.str: ...
 
 @typing.final
 class Gem:
@@ -142,6 +173,42 @@ class LaserSource:
     def __hash__(self) -> builtins.int:
         r"""
         Hash based on the `laser_id`.
+        """
+    def __str__(self) -> builtins.str: ...
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class Lift:
+    r"""
+    A one-shot elevator tile: pressing a `Button` sharing the same `group_id`
+    relocates whichever agent stands on the lift by one step in its `direction`.
+    """
+    @property
+    def direction(self) -> builtins.str:
+        r"""
+        The direction in which the lift moves its occupant: "U" (up a layer)
+        or "D" (down a layer). A lift only ever moves an agent between
+        layers, never sideways.
+        """
+    @property
+    def group_id(self) -> builtins.int:
+        r"""
+        The group shared with the `Button`(s) that can pulse this lift.
+        """
+    @property
+    def authorized_agent_id(self) -> typing.Optional[builtins.int]:
+        r"""
+        If set, only this agent is relocated when the lift is pulsed.
+        """
+    @property
+    def pos(self) -> builtins.tuple[int, int, int]:
+        r"""
+        The (i, j, k) position of the lift.
+        """
+    @property
+    def agent(self) -> typing.Optional[builtins.int]:
+        r"""
+        The id of the agent currently standing on the tile, if any.
         """
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...

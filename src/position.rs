@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     Action, RuntimeWorldError,
-    tiles::{CardinalDirection, Direction},
+    tiles::{CardinalDirection, Direction, VerticalDirection},
 };
 
 #[derive(Debug, Clone, Copy, Eq, Hash, Deserialize, Serialize)]
@@ -70,6 +70,14 @@ impl Add<CardinalDirection> for Position {
     type Output = Result<Position, RuntimeWorldError>;
 
     fn add(self, rhs: CardinalDirection) -> Self::Output {
+        self + Direction::from(rhs)
+    }
+}
+
+impl Add<VerticalDirection> for Position {
+    type Output = Result<Position, RuntimeWorldError>;
+
+    fn add(self, rhs: VerticalDirection) -> Self::Output {
         self + Direction::from(rhs)
     }
 }

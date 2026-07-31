@@ -1,5 +1,9 @@
-import lle
 import logging
+from time import sleep
+
+import lle
+from lle import Action
+
 
 def setup_logging():
     root = logging.getLogger()
@@ -12,14 +16,41 @@ def setup_logging():
     root.handlers.clear()
     root.addHandler(fileHandler)
 
+
 setup_logging()
+
+N, S, E, W, STAY, TRIGGER = (
+    Action.NORTH,
+    Action.SOUTH,
+    Action.EAST,
+    Action.WEST,
+    Action.STAY,
+    Action.TRIGGER,
+)
+solution = [
+    (E, E),
+    (E, E),
+    (E, STAY),
+    (STAY, N),
+    (STAY, TRIGGER),
+    (W, E),
+    (TRIGGER, STAY),
+    (W, S),
+    (W, STAY),
+    (S, STAY),
+]
 
 env = lle.from_file("lift.toml").build()
 done = False
 obs, state = env.reset()
-while not done:
-    env.render() # Uncomment to render
-    actions = env.sample_action()
-    step = env.step(actions)
+for actions in solution:
+    env.render()  # uncomment to render
+    sleep(1)  # uncomment to slow down the rendering
+    step = env.step([action.value for action in actions])
     # Access the step data with `step.obs`, `step.reward`, ...
-    done = step.is_terminal # Either done or truncated
+    done = step.is_terminal  # Either done or truncated
+    if done:
+        break
+
+assert done, "The hand-crafted solution did not resolve the level"
+print(f"Solved lift.toml in {len(solution)} steps, final reward={step.reward}")

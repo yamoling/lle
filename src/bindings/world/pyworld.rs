@@ -15,7 +15,7 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use crate::bindings::{
     pyagent::PyAgent,
     pyexceptions::{parse_error_to_exception, runtime_error_to_pyexception},
-    tiles::{PyGem, PyLaser, PyLaserSource},
+    tiles::{PyButton, PyGem, PyLaser, PyLaserSource, PyLift},
     world::{PyAction, PyPosition, PyWorldEvent, PyWorldState},
 };
 use crate::{Action, AgentId, Renderer, Tile, World};
@@ -349,6 +349,30 @@ impl PyWorld {
             .map(|(pos, laser_source)| {
                 PyLaserSource::new(arc_world.clone(), pos.into(), laser_source)
             })
+            .collect()
+    }
+
+    /// Every lift tile in the world.
+    #[getter]
+    fn lifts(&self) -> Vec<PyLift> {
+        let arc_world = self.world.clone();
+        let world = self.world.lock().unwrap();
+        world
+            .lifts()
+            .iter()
+            .map(|(pos, lift)| PyLift::new(lift, *pos, arc_world.clone()))
+            .collect()
+    }
+
+    /// Every button tile in the world.
+    #[getter]
+    fn buttons(&self) -> Vec<PyButton> {
+        let arc_world = self.world.clone();
+        let world = self.world.lock().unwrap();
+        world
+            .buttons()
+            .iter()
+            .map(|(pos, button)| PyButton::new(button, *pos, arc_world.clone()))
             .collect()
     }
 

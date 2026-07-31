@@ -199,19 +199,31 @@ class LayeredPadded(ObservationGenerator):
         self.VOID = self.WALL + 1
         self.GEM = self.VOID + 1
         self.EXIT = self.GEM + 1
-        self._shape = (self.EXIT + 1, world.height, world.width, world.layers)
+        self.LIFT = self.EXIT + 1
+        self.BUTTON = self.LIFT + 1
+        self._shape = (self.BUTTON + 1, world.height, world.width, world.layers)
         self.ordered_gem_pos = sorted(gem.pos for gem in world.gems)
 
         self.static_obs = self._setup()
 
     def _setup(self):
-        """Initialise static layers such as walls, voids, gems, and exits."""
+        """Initialise static layers such as walls, voids, gems, exits, lifts and buttons."""
         obs = np.zeros(self._shape, dtype=np.float32)
         for i, j, k in self._world.wall_pos:
             obs[self.WALL, i, j, k] = 1.0
 
         for i, j, k in self._world.void_pos:
             obs[self.VOID, i, j, k] = 1.0
+
+        # Lift/button positions never change during an episode, so they can be
+        # baked into the static layers just like walls/voids.
+        for lift in self._world.lifts:
+            i, j, k = lift.pos
+            obs[self.LIFT, i, j, k] = 1.0 if lift.direction == "U" else -1.0
+
+        for button in self._world.buttons:
+            i, j, k = button.pos
+            obs[self.BUTTON, i, j, k] = 1.0
 
         return obs
 
@@ -300,13 +312,15 @@ class PartialGenerator(ObservationGenerator):
         super().__init__(world)
         assert square_size % 2 == 1, "Can only use odd numbers for the square size"
         self.size = square_size
-        # Each agent, each laser, walls, gems, exits
-        self._shape = (world.n_agents + world.n_agents + 3, self.size, self.size)
+        # Each agent, each laser, walls, gems, exits, lifts, buttons
+        self._shape = (world.n_agents + world.n_agents + 5, self.size, self.size)
         self._center = self.size // 2
         self.WALL = world.n_agents
         self.LASER_0 = self.WALL + 1
         self.GEM = self.LASER_0 + world.n_agents
         self.EXIT = self.GEM + 1
+        self.LIFT = self.EXIT + 1
+        self.BUTTON = self.LIFT + 1
 
     @property
     def shape(self) -> tuple[int, int, int]:
@@ -343,6 +357,18 @@ class PartialGenerator(ObservationGenerator):
             # Laser sources
             for source in self._world.laser_sources:
                 self.encode_layer(obs[a, self.LASER_0 + source.agent_id], agent_pos, [source.pos], fill_value=-1.0)
+            # Lifts (direction encoded as +1.0 for up, -1.0 for down)
+            self.encode_layer(
+                obs[a, self.LIFT], agent_pos, [lift.pos for lift in self._world.lifts if lift.direction == "U"]
+            )
+            self.encode_layer(
+                obs[a, self.LIFT],
+                agent_pos,
+                [lift.pos for lift in self._world.lifts if lift.direction == "D"],
+                fill_value=-1.0,
+            )
+            # Buttons
+            self.encode_layer(obs[a, self.BUTTON], agent_pos, [button.pos for button in self._world.buttons])
         return obs
 
     def _get_lasers_positions(self) -> dict[AgentId, list[Position]]:

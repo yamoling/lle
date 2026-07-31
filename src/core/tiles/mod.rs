@@ -8,7 +8,7 @@ mod tile;
 mod void;
 
 pub use button::Button;
-pub use direction::{CardinalDirection, Direction};
+pub use direction::{CardinalDirection, Direction, VerticalDirection};
 pub use gem::Gem;
 pub use laser::{Laser, LaserBeam};
 pub use laser_source::{LaserId, LaserSource};

@@ -64,3 +64,33 @@ pub static LASER_SOURCES_WEST: LazyLock<[RgbImage; 4]> =
 
 pub static WALL: LazyLock<RgbImage> =
     LazyLock::new(|| RgbImage::from_pixel(TILE_SIZE, TILE_SIZE, BLACK));
+
+pub static LIFT_UP: LazyLock<RgbaImage> = LazyLock::new(|| {
+    image::load_from_memory_with_format(LIFT_UP_BYTES, image::ImageFormat::Png)
+        .unwrap()
+        .to_rgba8()
+});
+
+pub static LIFT_DOWN: LazyLock<RgbaImage> = LazyLock::new(|| {
+    image::load_from_memory_with_format(LIFT_DOWN_BYTES, image::ImageFormat::Png)
+        .unwrap()
+        .to_rgba8()
+});
+
+pub static BUTTON_IDLE: LazyLock<RgbaImage> = LazyLock::new(|| {
+    image::load_from_memory_with_format(BUTTON_IDLE_BYTES, image::ImageFormat::Png)
+        .unwrap()
+        .to_rgba8()
+});
+
+pub static BUTTON_PRESSED: LazyLock<RgbaImage> = LazyLock::new(|| {
+    image::load_from_memory_with_format(BUTTON_PRESSED_BYTES, image::ImageFormat::Png)
+        .unwrap()
+        .to_rgba8()
+});
+
+pub static AGENT_LOCK: LazyLock<RgbaImage> = LazyLock::new(|| {
+    image::load_from_memory_with_format(AGENT_LOCK_BYTES, image::ImageFormat::Png)
+        .unwrap()
+        .to_rgba8()
+});

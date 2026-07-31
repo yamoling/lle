@@ -3,7 +3,7 @@ use std::cell::Cell;
 use crate::{
     Position, RuntimeWorldError, WorldEvent,
     agent::{Agent, AgentId},
-    tiles::Direction,
+    tiles::VerticalDirection,
 };
 
 /// A one-shot elevator tile. Lifts have no persistent on/off state (unlike
@@ -13,7 +13,7 @@ use crate::{
 
 #[derive(Debug)]
 pub struct Lift {
-    direction: Direction,
+    direction: VerticalDirection,
     agent: Option<AgentId>,
     /// If set, only this agent will be relocated when the lift is pulsed;
     /// other riders are left in place (enforced in `World::resolve_lift_moves`).
@@ -27,7 +27,7 @@ pub struct Lift {
 
 impl Lift {
     pub fn new(
-        direction: Direction,
+        direction: VerticalDirection,
         authorized_agent_id: Option<AgentId>,
         group_id: usize,
     ) -> Self {
@@ -40,7 +40,7 @@ impl Lift {
         }
     }
 
-    pub fn direction(&self) -> Direction {
+    pub fn direction(&self) -> VerticalDirection {
         self.direction
     }
 

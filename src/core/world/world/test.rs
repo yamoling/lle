@@ -5,7 +5,7 @@ use crate::{
     Action, Grid, ParseError, Position, RuntimeWorldError, WorldEvent,
     agent::Agent,
     core::WorldState,
-    tiles::{Button, Direction, Laser, Lift, Tile},
+    tiles::{Button, Laser, Lift, Tile, VerticalDirection},
 };
 
 use super::World;
@@ -709,16 +709,26 @@ fn set_exits_old_exit_inactive() {
     assert!(events.is_empty());
 }
 
-/// Builds a 1-row world directly (bypassing the text parser, which doesn't
-/// support Lift/Button yet) with the given tiles placed on top of a floor,
-/// and one agent per given start position.
-fn build_lift_button_world(
+/// Builds a world directly (bypassing the text parser) with the given tiles
+/// placed on top of a floor, and one agent per given start position. `Lift`
+/// only ever moves an agent along `k`, so tests that need actual lift
+/// movement use `layers > 1` and keep independent lift/button setups apart
+/// by column (`j`) instead of by row.
+fn build_lift_world(
     width: usize,
+    layers: usize,
     tiles: Vec<(Position, Tile)>,
     starts: Vec<Position>,
 ) -> World {
-    let mut grid = Grid::<Tile>::new(width, 1, 1).default_init();
+    let mut grid = Grid::<Tile>::new(width, 1, layers).default_init();
+    let mut lift_positions = vec![];
+    let mut button_positions = vec![];
     for (pos, tile) in tiles {
+        match &tile {
+            Tile::Lift(_) => lift_positions.push(pos),
+            Tile::Button(_) => button_positions.push(pos),
+            _ => {}
+        }
         grid.replace_at(&pos, tile);
     }
     let random_start_positions = starts.into_iter().map(|p| vec![p]).collect();
@@ -731,26 +741,30 @@ fn build_lift_button_world(
         vec![],
         vec![],
         vec![],
+        lift_positions,
+        button_positions,
     )
-}
-
-fn floor() -> Tile {
-    Tile::Floor { agent: None }
 }
 
 #[test]
 fn test_button_pulses_lift_only_moves_same_group_occupant() {
-    let button_pos = Position::new2d(0, 0);
-    let lift1_pos = Position::new2d(0, 1);
-    let dest1_pos = Position::new2d(0, 2);
-    let lift2_pos = Position::new2d(0, 3);
+    let button_pos = Position { i: 0, j: 0, k: 0 };
+    let lift1_pos = Position { i: 0, j: 1, k: 0 };
+    let dest1_pos = Position { i: 0, j: 1, k: 1 };
+    let lift2_pos = Position { i: 0, j: 2, k: 0 };
 
     let tiles = vec![
         (button_pos, Tile::Button(Button::new(1))),
-        (lift1_pos, Tile::Lift(Lift::new(Direction::East, None, 1))),
-        (lift2_pos, Tile::Lift(Lift::new(Direction::East, None, 2))),
+        (
+            lift1_pos,
+            Tile::Lift(Lift::new(VerticalDirection::Up, None, 1)),
+        ),
+        (
+            lift2_pos,
+            Tile::Lift(Lift::new(VerticalDirection::Up, None, 2)),
+        ),
     ];
-    let mut world = build_lift_button_world(5, tiles, vec![button_pos, lift1_pos, lift2_pos]);
+    let mut world = build_lift_world(3, 2, tiles, vec![button_pos, lift1_pos, lift2_pos]);
 
     world
         .step(&[Action::Trigger, Action::Stay, Action::Stay])
@@ -764,13 +778,16 @@ fn test_button_pulses_lift_only_moves_same_group_occupant() {
 
 #[test]
 fn test_lift_with_no_occupant_does_nothing() {
-    let button_pos = Position::new2d(0, 0);
-    let lift_pos = Position::new2d(0, 1);
+    let button_pos = Position { i: 0, j: 0, k: 0 };
+    let lift_pos = Position { i: 0, j: 1, k: 0 };
     let tiles = vec![
         (button_pos, Tile::Button(Button::new(1))),
-        (lift_pos, Tile::Lift(Lift::new(Direction::East, None, 1))),
+        (
+            lift_pos,
+            Tile::Lift(Lift::new(VerticalDirection::Up, None, 1)),
+        ),
     ];
-    let mut world = build_lift_button_world(3, tiles, vec![button_pos]);
+    let mut world = build_lift_world(2, 2, tiles, vec![button_pos]);
 
     let events = world.step(&[Action::Trigger]).unwrap();
 
@@ -780,18 +797,24 @@ fn test_lift_with_no_occupant_does_nothing() {
 
 #[test]
 fn test_two_lifts_same_group_both_move() {
-    let button_pos = Position::new2d(0, 0);
-    let lift_a = Position::new2d(0, 1);
-    let dest_a = Position::new2d(0, 2);
-    let dest_b = Position::new2d(0, 3);
-    let lift_b = Position::new2d(0, 4);
+    let button_pos = Position { i: 0, j: 0, k: 0 };
+    let lift_a = Position { i: 0, j: 1, k: 0 };
+    let dest_a = Position { i: 0, j: 1, k: 1 };
+    let lift_b = Position { i: 0, j: 2, k: 1 };
+    let dest_b = Position { i: 0, j: 2, k: 0 };
 
     let tiles = vec![
         (button_pos, Tile::Button(Button::new(9))),
-        (lift_a, Tile::Lift(Lift::new(Direction::East, None, 9))),
-        (lift_b, Tile::Lift(Lift::new(Direction::West, None, 9))),
+        (
+            lift_a,
+            Tile::Lift(Lift::new(VerticalDirection::Up, None, 9)),
+        ),
+        (
+            lift_b,
+            Tile::Lift(Lift::new(VerticalDirection::Down, None, 9)),
+        ),
     ];
-    let mut world = build_lift_button_world(5, tiles, vec![button_pos, lift_a, lift_b]);
+    let mut world = build_lift_world(3, 2, tiles, vec![button_pos, lift_a, lift_b]);
 
     world
         .step(&[Action::Trigger, Action::Stay, Action::Stay])
@@ -803,37 +826,52 @@ fn test_two_lifts_same_group_both_move() {
 
 #[test]
 fn test_colliding_lift_destinations_revert() {
-    let button_pos = Position::new2d(0, 0);
-    let lift_a = Position::new2d(0, 1);
-    let lift_b = Position::new2d(0, 3);
+    let button_pos = Position { i: 0, j: 1, k: 0 };
+    let lift_a = Position { i: 0, j: 0, k: 0 };
+    let lift_b = Position { i: 0, j: 0, k: 2 };
 
     let tiles = vec![
         (button_pos, Tile::Button(Button::new(3))),
-        (lift_a, Tile::Lift(Lift::new(Direction::East, None, 3))),
-        (lift_b, Tile::Lift(Lift::new(Direction::West, None, 3))),
+        (
+            lift_a,
+            Tile::Lift(Lift::new(VerticalDirection::Up, None, 3)),
+        ),
+        (
+            lift_b,
+            Tile::Lift(Lift::new(VerticalDirection::Down, None, 3)),
+        ),
     ];
-    let mut world = build_lift_button_world(4, tiles, vec![button_pos, lift_a, lift_b]);
+    let mut world = build_lift_world(2, 3, tiles, vec![button_pos, lift_a, lift_b]);
 
-    world
+    let events = world
         .step(&[Action::Trigger, Action::Stay, Action::Stay])
         .unwrap();
 
-    // Both lifts targeted position (0, 2): the conflict reverts both riders
-    // back to where they stood (on their respective lifts).
+    // Both lifts targeted position (0, 0, 1): the conflict reverts both
+    // riders back to where they stood (on their respective lifts).
     assert_eq!(world.agents_positions()[1], lift_a);
     assert_eq!(world.agents_positions()[2], lift_b);
+    // Neither reverted move should be reported as a `LiftMoved` event.
+    assert!(
+        !events
+            .iter()
+            .any(|e| matches!(e, WorldEvent::LiftMoved { .. }))
+    );
 }
 
 #[test]
 fn test_lift_destination_out_of_bounds_is_noop() {
-    let button_pos = Position::new2d(0, 0);
-    let lift_pos = Position::new2d(0, 1);
+    let button_pos = Position { i: 0, j: 0, k: 0 };
+    let lift_pos = Position { i: 0, j: 1, k: 0 };
     let tiles = vec![
         (button_pos, Tile::Button(Button::new(1))),
-        (lift_pos, Tile::Lift(Lift::new(Direction::East, None, 1))),
+        (
+            lift_pos,
+            Tile::Lift(Lift::new(VerticalDirection::Up, None, 1)),
+        ),
     ];
-    // Width 2: lift sits on the last column, so East runs off the grid.
-    let mut world = build_lift_button_world(2, tiles, vec![button_pos, lift_pos]);
+    // A single layer: the lift's `Up` destination (k=1) is out of bounds.
+    let mut world = build_lift_world(2, 1, tiles, vec![button_pos, lift_pos]);
 
     let events = world.step(&[Action::Trigger, Action::Stay]).unwrap();
 
@@ -843,45 +881,22 @@ fn test_lift_destination_out_of_bounds_is_noop() {
 
 #[test]
 fn test_lift_destination_wall_is_noop() {
-    let button_pos = Position::new2d(0, 0);
-    let lift_pos = Position::new2d(0, 1);
-    let wall_pos = Position::new2d(0, 2);
+    let button_pos = Position { i: 0, j: 0, k: 0 };
+    let lift_pos = Position { i: 0, j: 1, k: 0 };
+    let wall_pos = Position { i: 0, j: 1, k: 1 };
     let tiles = vec![
         (button_pos, Tile::Button(Button::new(1))),
-        (lift_pos, Tile::Lift(Lift::new(Direction::East, None, 1))),
+        (
+            lift_pos,
+            Tile::Lift(Lift::new(VerticalDirection::Up, None, 1)),
+        ),
         (wall_pos, Tile::Wall),
     ];
-    let mut world = build_lift_button_world(3, tiles, vec![button_pos, lift_pos]);
+    let mut world = build_lift_world(2, 2, tiles, vec![button_pos, lift_pos]);
 
     world.step(&[Action::Trigger, Action::Stay]).unwrap();
 
     assert_eq!(world.agents_positions()[1], lift_pos);
-}
-
-/// Builds a two-column, two-layer world (bypassing the text parser, which
-/// doesn't support Lift/Button yet) with the given tiles placed, and one
-/// agent per given start position. Two columns keep the button's cell
-/// distinct from the lift's destination cell, so a floor-changing move
-/// doesn't collide with the (stationary) button-standing agent.
-fn build_multi_layer_lift_button_world(
-    tiles: Vec<(Position, Tile)>,
-    starts: Vec<Position>,
-) -> World {
-    let mut grid = Grid::<Tile>::new(2, 1, 2).default_init();
-    for (pos, tile) in tiles {
-        grid.replace_at(&pos, tile);
-    }
-    let random_start_positions = starts.into_iter().map(|p| vec![p]).collect();
-    World::new(
-        grid,
-        vec![],
-        random_start_positions,
-        vec![],
-        vec![],
-        vec![],
-        vec![],
-        vec![],
-    )
 }
 
 #[test]
@@ -891,14 +906,22 @@ fn test_button_pulses_lift_up_moves_agent_to_higher_layer() {
     let dest_pos = Position { i: 0, j: 1, k: 1 };
     let tiles = vec![
         (button_pos, Tile::Button(Button::new(1))),
-        (lift_pos, Tile::Lift(Lift::new(Direction::Up, None, 1))),
+        (
+            lift_pos,
+            Tile::Lift(Lift::new(VerticalDirection::Up, None, 1)),
+        ),
     ];
-    let mut world = build_multi_layer_lift_button_world(tiles, vec![button_pos, lift_pos]);
+    let mut world = build_lift_world(2, 2, tiles, vec![button_pos, lift_pos]);
 
-    world.step(&[Action::Trigger, Action::Stay]).unwrap();
+    let events = world.step(&[Action::Trigger, Action::Stay]).unwrap();
 
     assert_eq!(world.agents_positions()[0], button_pos);
     assert_eq!(world.agents_positions()[1], dest_pos);
+    assert!(events.contains(&WorldEvent::LiftMoved {
+        agent_id: 1,
+        from: lift_pos,
+        to: dest_pos,
+    }));
 }
 
 #[test]
@@ -908,9 +931,12 @@ fn test_button_pulses_lift_down_moves_agent_to_lower_layer() {
     let dest_pos = Position { i: 0, j: 1, k: 0 };
     let tiles = vec![
         (button_pos, Tile::Button(Button::new(1))),
-        (lift_pos, Tile::Lift(Lift::new(Direction::Down, None, 1))),
+        (
+            lift_pos,
+            Tile::Lift(Lift::new(VerticalDirection::Down, None, 1)),
+        ),
     ];
-    let mut world = build_multi_layer_lift_button_world(tiles, vec![button_pos, lift_pos]);
+    let mut world = build_lift_world(2, 2, tiles, vec![button_pos, lift_pos]);
 
     world.step(&[Action::Trigger, Action::Stay]).unwrap();
 
@@ -920,14 +946,17 @@ fn test_button_pulses_lift_down_moves_agent_to_lower_layer() {
 
 #[test]
 fn test_button_authorized_agent_id_blocks_other_agents() {
-    let button_pos = Position::new2d(0, 0);
-    let lift_pos = Position::new2d(0, 1);
+    let button_pos = Position { i: 0, j: 0, k: 0 };
+    let lift_pos = Position { i: 0, j: 1, k: 0 };
     let tiles = vec![
         (button_pos, Tile::Button(Button::new(1).restricted_to(1))),
-        (lift_pos, Tile::Lift(Lift::new(Direction::East, None, 1))),
+        (
+            lift_pos,
+            Tile::Lift(Lift::new(VerticalDirection::Up, None, 1)),
+        ),
     ];
     // Agent 0 stands on the button, but it is restricted to agent 1.
-    let mut world = build_lift_button_world(3, tiles, vec![button_pos, lift_pos]);
+    let mut world = build_lift_world(2, 2, tiles, vec![button_pos, lift_pos]);
 
     let events = world.step(&[Action::Trigger, Action::Stay]).unwrap();
 
@@ -939,14 +968,17 @@ fn test_button_authorized_agent_id_blocks_other_agents() {
 
 #[test]
 fn test_lift_authorized_agent_id_blocks_other_riders() {
-    let button_pos = Position::new2d(0, 0);
-    let lift_pos = Position::new2d(0, 1);
+    let button_pos = Position { i: 0, j: 0, k: 0 };
+    let lift_pos = Position { i: 0, j: 1, k: 0 };
     let tiles = vec![
         (button_pos, Tile::Button(Button::new(5))),
-        (lift_pos, Tile::Lift(Lift::new(Direction::East, Some(0), 5))),
+        (
+            lift_pos,
+            Tile::Lift(Lift::new(VerticalDirection::Up, Some(0), 5)),
+        ),
     ];
     // Agent 1 rides the lift, but it is restricted to agent 0.
-    let mut world = build_lift_button_world(3, tiles, vec![button_pos, lift_pos]);
+    let mut world = build_lift_world(2, 2, tiles, vec![button_pos, lift_pos]);
 
     world.step(&[Action::Trigger, Action::Stay]).unwrap();
 
@@ -955,15 +987,18 @@ fn test_lift_authorized_agent_id_blocks_other_riders() {
 
 #[test]
 fn test_lift_authorized_agent_id_allows_matching_rider() {
-    let lift_pos = Position::new2d(0, 0);
-    let dest_pos = Position::new2d(0, 1);
-    let button_pos = Position::new2d(0, 2);
+    let lift_pos = Position { i: 0, j: 0, k: 0 };
+    let dest_pos = Position { i: 0, j: 0, k: 1 };
+    let button_pos = Position { i: 0, j: 1, k: 0 };
     let tiles = vec![
-        (lift_pos, Tile::Lift(Lift::new(Direction::East, Some(0), 5))),
+        (
+            lift_pos,
+            Tile::Lift(Lift::new(VerticalDirection::Up, Some(0), 5)),
+        ),
         (button_pos, Tile::Button(Button::new(5))),
     ];
     // Agent 0 rides the lift (matches its authorized_agent_id); agent 1 triggers.
-    let mut world = build_lift_button_world(3, tiles, vec![lift_pos, button_pos]);
+    let mut world = build_lift_world(2, 2, tiles, vec![lift_pos, button_pos]);
 
     world.step(&[Action::Stay, Action::Trigger]).unwrap();
 
@@ -976,7 +1011,7 @@ fn test_available_actions_trigger_only_on_button() {
     let button_pos = Position::new2d(0, 0);
     let floor_pos = Position::new2d(0, 1);
     let tiles = vec![(button_pos, Tile::Button(Button::new(0)))];
-    let mut world = build_lift_button_world(3, tiles, vec![button_pos, floor_pos]);
+    let mut world = build_lift_world(3, 1, tiles, vec![button_pos, floor_pos]);
     world.reset();
 
     let available = world.available_actions();

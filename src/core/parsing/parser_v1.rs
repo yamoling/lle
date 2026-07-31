@@ -261,7 +261,7 @@ pub fn parse(world_str: &str) -> Result<WorldConfig, ParseError> {
 mod tests {
     use crate::{
         ParseError, Position,
-        tiles::{Direction, Tile},
+        tiles::{Tile, VerticalDirection},
     };
 
     use super::parse;
@@ -270,7 +270,7 @@ mod tests {
     fn test_parse_lift_and_button() {
         let config = parse(
             "
-            S0 .  TN0A1
+            S0 .  TU0A1
             .  B0 .
             .  .  X
             ",
@@ -280,7 +280,7 @@ mod tests {
 
         match world.at(&Position { i: 0, j: 2, k: 0 }) {
             Some(Tile::Lift(lift)) => {
-                assert_eq!(lift.direction(), Direction::North);
+                assert_eq!(lift.direction(), VerticalDirection::Up);
                 assert_eq!(lift.group_id(), 0);
                 assert_eq!(lift.authorized_agent_id(), Some(1));
             }
@@ -300,7 +300,7 @@ mod tests {
     fn test_parse_lift_button_invalid_group_id() {
         match parse(
             "
-            S0 TNx
+            S0 TUx
             .  X
             ",
         ) {
@@ -313,7 +313,7 @@ mod tests {
     fn test_lift_button_round_trip() {
         let config = parse(
             "
-            S0 .  TN0A1
+            S0 .  TU0A1
             .  B0 .
             .  .  X
             ",
@@ -325,7 +325,7 @@ mod tests {
 
         match world.at(&Position { i: 0, j: 2, k: 0 }) {
             Some(Tile::Lift(lift)) => {
-                assert_eq!(lift.direction(), Direction::North);
+                assert_eq!(lift.direction(), VerticalDirection::Up);
                 assert_eq!(lift.group_id(), 0);
                 assert_eq!(lift.authorized_agent_id(), Some(1));
             }

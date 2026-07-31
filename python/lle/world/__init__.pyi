@@ -122,6 +122,16 @@ class World:
         All the laser sources of the environment
         """
     @property
+    def lifts(self) -> builtins.list[tiles.Lift]:
+        r"""
+        Every lift tile in the world.
+        """
+    @property
+    def buttons(self) -> builtins.list[tiles.Button]:
+        r"""
+        Every button tile in the world.
+        """
+    @property
     def start_pos(self) -> builtins.list[builtins.tuple[int, int, int]]:
         r"""
         The start position of each agent for this reset.
@@ -351,7 +361,17 @@ class WorldEvent:
     def event_type(self) -> EventType: ...
     @property
     def agent_id(self) -> builtins.int: ...
-    def __new__(cls, event_type: EventType, agent_id: builtins.int) -> WorldEvent: ...
+    @property
+    def from_position(self) -> typing.Optional[builtins.tuple[int, int, int]]:
+        r"""
+        The position the agent was relocated from. Only set for `LIFT_MOVED` events.
+        """
+    @property
+    def to_position(self) -> typing.Optional[builtins.tuple[int, int, int]]:
+        r"""
+        The position the agent was relocated to. Only set for `LIFT_MOVED` events.
+        """
+    def __new__(cls, event_type: EventType, agent_id: builtins.int, from_position: typing.Optional[builtins.tuple[int, int] | tuple[int, int, int]] = None, to_position: typing.Optional[builtins.tuple[int, int] | tuple[int, int, int]] = None) -> WorldEvent: ...
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...
 
@@ -488,6 +508,7 @@ class EventType(enum.Enum):
     AGENT_EXIT = ...
     GEM_COLLECTED = ...
     AGENT_DIED = ...
+    LIFT_MOVED = ...
 
     def __repr__(self) -> builtins.str: ...
     def __hash__(self) -> builtins.int: ...

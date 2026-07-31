@@ -1,11 +1,11 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{AgentId, Position, core::parsing::lift_config::LiftConfig, tiles::Direction};
+use crate::{AgentId, Position, core::parsing::lift_config::LiftConfig, tiles::VerticalDirection};
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct TomlLiftConfig {
-    pub direction: Direction,
+    pub direction: VerticalDirection,
     pub authorized_agent_id: Option<AgentId>,
     pub position: Position,
     pub group_id: usize,

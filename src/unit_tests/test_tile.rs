@@ -3,7 +3,7 @@ use std::rc::Rc;
 use crate::{
     AgentId, Position, Tile,
     agent::Agent,
-    tiles::{Button, CardinalDirection, Direction, Gem, Laser, LaserBeam, Lift, Void},
+    tiles::{Button, CardinalDirection, Gem, Laser, LaserBeam, Lift, VerticalDirection, Void},
 };
 
 fn make_laser(agent_id: AgentId, length: usize) -> Laser {
@@ -133,9 +133,9 @@ fn test_button_basic() {
 #[test]
 fn test_lift_basic() {
     let mut agent = Agent::new(0);
-    let lift = Lift::new(Direction::East, None, 2);
+    let lift = Lift::new(VerticalDirection::Up, None, 2);
     assert_eq!(lift.group_id(), 2);
-    assert_eq!(lift.direction(), Direction::East);
+    assert_eq!(lift.direction(), VerticalDirection::Up);
     assert_eq!(lift.authorized_agent_id(), None);
     assert!(!lift.take_triggered()); // never notified yet
 
@@ -145,7 +145,7 @@ fn test_lift_basic() {
 
     assert_eq!(
         lift.destination(Position::new2d(0, 1)).unwrap(),
-        Position::new2d(0, 2)
+        Position { i: 0, j: 1, k: 1 }
     );
 
     let mut tile = Tile::Lift(lift);

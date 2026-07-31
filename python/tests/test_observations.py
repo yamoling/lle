@@ -155,6 +155,40 @@ def test_observe_layered_gems_walls():
     assert np.all(layers[:, VOID_LAYER] == 0)
 
 
+def test_observe_layered_lift_button():
+    world = World(
+        """
+        S0 . TU0
+        .  . X
+        ;
+        .  . TD0
+        .  . .
+        """
+    )
+    observer = Layered(world)
+    world.reset()
+    layers = observer.observe()
+
+    assert np.all(layers[:, observer.LIFT, 0, 2, 0] == 1.0)  # Up direction
+    assert np.all(layers[:, observer.LIFT, 0, 2, 1] == -1.0)  # Down direction
+    # No lift on a plain floor tile
+    assert np.all(layers[:, observer.LIFT, 0, 1, 0] == 0.0)
+
+
+def test_observe_layered_button():
+    world = World(
+        """
+        S0 B0 X
+        """
+    )
+    observer = Layered(world)
+    world.reset()
+    layers = observer.observe()
+
+    assert np.all(layers[:, observer.BUTTON, 0, 1, 0] == 1.0)
+    assert np.all(layers[:, observer.BUTTON, 0, 0, 0] == 0.0)
+
+
 def test_observe_layered_void():
     world = World(
         """
@@ -185,14 +219,14 @@ def test_observe_flattened():
 """
     )
     observer = ObservationType.FLATTENED.get_observation_generator(world)
-    #  4 layers: walls, gems, exits, voids
+    #  6 layers: walls, gems, exits, voids, lifts, buttons
     # +2 layer per agent: location, lasers
-    assert observer.shape == (world.width * world.height* 1 * (world.n_agents * 2 + 4),)
+    assert observer.shape == (world.width * world.height* 1 * (world.n_agents * 2 + 6),)
     world.reset()
     obs = observer.observe()
     assert obs.shape == (
         1,
-        (world.n_agents * 2 + 4) * world.width * world.height* 1,
+        (world.n_agents * 2 + 6) * world.width * world.height* 1,
     )
 
 
@@ -324,6 +358,23 @@ def test_partial_3x3_lasers():
 
     assert obs0[observer.LASER_0 + 1, 2, 1] == -1
     assert obs0[observer.LASER_0 + 1, 2, 2] == 1
+
+
+def test_partial_3x3_lift_button():
+    world = World(
+        """
+        TU0 S0 B0
+        .   .  .
+        .   .  X
+        """
+    )
+    world.reset()
+
+    observer = PartialGenerator(world, 3)
+    (obs0,) = observer.observe()
+
+    assert obs0[observer.LIFT, 1, 0] == 1
+    assert obs0[observer.BUTTON, 1, 2] == 1
 
 
 def test_padded_layered():

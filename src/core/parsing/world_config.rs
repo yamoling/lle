@@ -153,6 +153,8 @@ impl WorldConfig {
         let (grid, lasers_positions) = self.make_grid();
         self.post_validate()?;
         let source_positions = self.lasers.iter().map(|(pos, _)| *pos).collect();
+        let lift_positions = self.lifts.iter().map(|(pos, _)| *pos).collect();
+        let button_positions = self.buttons.iter().map(|(pos, _)| *pos).collect();
         Ok(World::new(
             grid,
             self.gems,
@@ -162,6 +164,8 @@ impl WorldConfig {
             self.walls,
             source_positions,
             lasers_positions,
+            lift_positions,
+            button_positions,
         ))
     }
 

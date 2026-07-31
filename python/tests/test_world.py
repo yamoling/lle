@@ -126,6 +126,28 @@ S1 L1N X"""
     assert world.gems_collected == 0
 
 
+def test_lift_moved_event():
+    world = World(
+        """
+        S0 .  TU0
+        S1 B0 X
+        ;
+        .  .  .
+        .  .  X
+        """
+    )
+    world.reset()
+    world.step([Action.EAST, Action.EAST])  # agent 0 -> next to the lift, agent 1 -> onto the button
+    events = world.step([Action.EAST, Action.TRIGGER])  # agent 0 onto the lift, agent 1 triggers
+
+    lift_events = [e for e in events if e.event_type == EventType.LIFT_MOVED]
+    assert len(lift_events) == 1
+    assert lift_events[0].agent_id == 0
+    assert lift_events[0].from_position == (0, 2, 0)
+    assert lift_events[0].to_position == (0, 2, 1)
+    assert world.agents_positions[0] == (0, 2, 1)
+
+
 def test_world_gem_collected_and_agent_has_arrived():
     world = World(
         """
