@@ -69,6 +69,8 @@ impl ClauseEngine {
     ///
     /// The map disambiguates those cases. `Some(lit)` yields the conditional clause
     /// `agent_on_tile -> !lit`; `None` yields a unit clause forbidding the tile entirely.
+    ///
+    /// @ai-generated
     pub(super) fn no_step_on_active_laser(
         &mut self,
         t: usize,
@@ -77,7 +79,7 @@ impl ClauseEngine {
         let mut clauses = Vec::new();
         let sources = self.laser_source_snapshot();
         for agent in 0..self.ctx.n_agents {
-            let reachable = self.ctx.relevant_positions(t, &[agent]);
+            let reachable = self.ctx.relevant_positions_for_agent(agent, t);
             for &(source_agent_id, laser_id, ref path) in &sources {
                 if source_agent_id == agent {
                     continue;

@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 use strum::IntoEnumIterator;
 
-use super::position_set::PositionSet;
+use super::position_set::{Intersection, PositionSet};
 use crate::Position;
 use crate::{World, tiles::Direction};
 
@@ -374,6 +374,7 @@ impl ConstraintContext {
     /// exit-reachability), i.e. intersection of the positions relevant to each agent individually.
     ///
     /// See `relevant_positions_for_agent` for more details.
+    #[cfg(test)]
     pub fn relevant_positions(&self, t: usize, agents: &[usize]) -> PositionSet {
         if agents.is_empty() {
             return PositionSet::empty(self.height, self.width);
@@ -385,16 +386,23 @@ impl ConstraintContext {
         reachable
     }
 
-    /// Positions the agent could have occupied at time `t - 1` to reach `(i, j)` at `t`.
-    /// Assumes `update` has already been called for this `t`.
+    /// Lazily iterate positions the agent could have occupied at `t - 1` to reach `pos` at `t`.
+    /// Assumes `update` has already been called for this `t` and that `t > 0`.
+    ///
+    /// @ai-generated
+    pub fn prev_neighbours_iter(&self, agent: usize, pos: &Position, t: usize) -> Intersection<'_> {
+        self.predecessors[pos.i][pos.j].intersection(&self.relevant_positions[agent][t - 1])
+    }
+
+    /// Materialize predecessor positions for tests that exercise the `t == 0` boundary.
+    #[cfg(test)]
     pub fn prev_neighbours(&self, agent: usize, pos: &Position, t: usize) -> PositionSet {
         if t == 0 {
             return PositionSet::empty(self.height, self.width);
         }
-        let mut pred = self.predecessors[pos.i][pos.j].clone();
-        let reachable = &self.relevant_positions[agent][t - 1];
-        pred.intersect_with(reachable);
-        pred
+        let mut predecessors = self.predecessors[pos.i][pos.j].clone();
+        predecessors.intersect_with(&self.relevant_positions[agent][t - 1]);
+        predecessors
     }
 
     /// The reachable laser tiles positions for a given laser source at time `t`: the beam tiles

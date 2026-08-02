@@ -47,6 +47,8 @@ impl ClauseEngine {
     }
 
     /// If an agent is at `(x, y)` at time `t`, it must have been in an adjacent cell at `t - 1`.
+    ///
+    /// @ai-generated
     pub(super) fn time_wise_adjacency(&mut self, t: usize) -> Vec<Clause> {
         if t == 0 {
             return Vec::new();
@@ -55,7 +57,7 @@ impl ClauseEngine {
         for agent in 0..self.ctx.n_agents {
             let positions = self.ctx.relevant_positions_for_agent(agent, t);
             for pos in positions {
-                let prev_positions = self.ctx.prev_neighbours(agent, &pos, t);
+                let prev_positions = self.ctx.prev_neighbours_iter(agent, &pos, t);
                 let current_var = self.pool.agent(agent, pos, t);
                 let mut clause = vec![-current_var];
                 for prev in prev_positions {
@@ -68,11 +70,15 @@ impl ClauseEngine {
     }
 
     /// Two agents cannot occupy the same cell at the same time.
+    ///
+    /// @ai-generated
     pub(super) fn no_overlap(&mut self, t: usize) -> Vec<Clause> {
         let mut clauses = Vec::new();
         for c1 in 0..self.ctx.n_agents {
             for c2 in c1 + 1..self.ctx.n_agents {
-                for pos in self.ctx.relevant_positions(t, &[c1, c2]) {
+                let c1_positions = self.ctx.relevant_positions_for_agent(c1, t);
+                let c2_positions = self.ctx.relevant_positions_for_agent(c2, t);
+                for pos in c1_positions.intersection(c2_positions) {
                     let v1 = self.pool.agent(c1, pos, t);
                     let v2 = self.pool.agent(c2, pos, t);
                     clauses.push(vec![-v1, -v2]);
@@ -83,22 +89,24 @@ impl ClauseEngine {
     }
 
     /// Prevent two agents from swapping positions (vertex-following conflicts).
+    ///
+    /// @ai-generated
     pub(super) fn no_following_conflict(&mut self, t: usize) -> Vec<Clause> {
         if t == 0 || self.ctx.n_agents == 0 {
             return Vec::new();
         }
         let mut clauses = Vec::new();
         for (c1, c2) in (0..self.ctx.n_agents).tuple_combinations() {
-            let prev_c1 = self.ctx.relevant_positions(t - 1, &[c1]);
-            let cur_c2 = self.ctx.relevant_positions(t, &[c2]);
-            for pos in prev_c1.intersection(&cur_c2) {
+            let prev_c1 = self.ctx.relevant_positions_for_agent(c1, t - 1);
+            let cur_c2 = self.ctx.relevant_positions_for_agent(c2, t);
+            for pos in prev_c1.intersection(cur_c2) {
                 let a2 = self.pool.agent(c2, pos, t);
                 let a1_prev = self.pool.agent(c1, pos, t - 1);
                 clauses.push(implies(a2, -a1_prev));
             }
-            let cur_c1 = self.ctx.relevant_positions(t, &[c1]);
-            let prev_c2 = self.ctx.relevant_positions(t - 1, &[c2]);
-            for pos in cur_c1.intersection(&prev_c2) {
+            let cur_c1 = self.ctx.relevant_positions_for_agent(c1, t);
+            let prev_c2 = self.ctx.relevant_positions_for_agent(c2, t - 1);
+            for pos in cur_c1.intersection(prev_c2) {
                 let a1 = self.pool.agent(c1, pos, t);
                 let a2_prev = self.pool.agent(c2, pos, t - 1);
                 clauses.push(implies(a1, -a2_prev));

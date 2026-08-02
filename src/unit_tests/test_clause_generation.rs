@@ -414,6 +414,22 @@ fn test_gem_must_be_collected_clause_3gems() {
     );
 }
 
+/// Cached gem objectives must match a fresh engine after non-monotone horizon queries.
+///
+/// @ai-generated
+#[test]
+fn cached_gem_literals_preserve_shorter_objectives() {
+    let world = World::try_from("S0 G . G X").expect("Failed to parse world");
+    let mut cached = ClauseEngine::new(&world, 6);
+    cached.gems_must_be_collected(6);
+    let cached_shorter = cached.gems_must_be_collected(4);
+
+    let mut fresh = ClauseEngine::new(&world, 6);
+    let fresh_shorter = fresh.gems_must_be_collected(4);
+
+    assert_eq!(cached_shorter, fresh_shorter);
+}
+
 // ─── beam_activation ─────────────────────────────────────────────────────────
 
 /// For the first blockable beam tile, `beam_activation` encodes `active ↔ ¬agent_var`

@@ -70,7 +70,7 @@ class Solver:
 
         low = t_min
         high = t_max
-        best_plan = None
+        best_model: tuple[list[int], int] | None = None
         while low <= high:
             mid = (low + high) // 2
             clauses, assumptions = self.generator.generate(mid, mode=parsed_mode, collect_gems=collect_gems)
@@ -79,12 +79,15 @@ class Solver:
                 random.shuffle(assumptions)
             model = solve_model(clauses, assumptions=assumptions)
             if model is not None:
-                best_plan = _to_plan(self.generator.decode_plan(model, mid))
+                best_model = (model, mid)
                 high = mid - 1
             else:
                 low = mid + 1
 
-        return best_plan
+        if best_model is None:
+            return None
+        model, horizon = best_model
+        return _to_plan(self.generator.decode_plan(model, horizon))
 
 
 @overload

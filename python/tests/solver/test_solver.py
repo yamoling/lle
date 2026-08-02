@@ -1,3 +1,5 @@
+import importlib
+
 import lle
 import pytest
 from lle import Action, World
@@ -144,3 +146,55 @@ def test_collect_gems_is_per_solve_call():
     solver = Solver(world, 2)
     assert solver.solve(collect_gems=False) is not None
     assert solver.solve(collect_gems=True) is not None
+
+
+def test_solver_decodes_only_the_shortest_satisfiable_model(monkeypatch: pytest.MonkeyPatch):
+    """Binary search decodes once after retaining its shortest satisfiable model.
+
+    @ai-generated
+    """
+
+    class FakeGenerator:
+        """Minimal generator test double that records model decoding."""
+
+        solution_lower_bound = 0
+
+        def __init__(self) -> None:
+            self.decode_calls: list[int] = []
+
+        def generate(self, horizon: int, *, mode: object, collect_gems: bool):
+            """Encode the queried horizon in a single test clause.
+
+            @ai-generated
+            """
+            return [[horizon]], []
+
+        def decode_plan(self, model: list[int], horizon: int):
+            """Record the selected horizon and return a plan of matching length.
+
+            @ai-generated
+            """
+            self.decode_calls.append(horizon)
+            return [[Action.STAY] for _ in range(horizon)]
+
+    def fake_solve_model(clauses: list[list[int]], *, assumptions: list[int] | None = None):
+        """Return SAT for horizons at least three.
+
+        @ai-generated
+        """
+        return [1] if clauses[0][0] >= 3 else None
+
+    solver_module = importlib.import_module("lle.solver.solver")
+    monkeypatch.setattr(solver_module, "solve_model", fake_solve_model)
+
+    solver = Solver.__new__(Solver)
+    solver.world = World("S0 X")
+    solver.t_max = 10
+    generator = FakeGenerator()
+    solver.generator = generator  # type: ignore[assignment]
+
+    plan = solver.solve()
+
+    assert plan is not None
+    assert len(plan) == 3
+    assert generator.decode_calls == [3]

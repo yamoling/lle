@@ -8,8 +8,8 @@ use crate::solver::interdependence::{
     ClosedTrailPattern, StaticHelpArc, enumerate_closed_trail_patterns,
 };
 use crate::solver::position_set::PositionSet;
-use crate::solver::{Clause, VarKey};
-use crate::{Action, World};
+use crate::solver::{Clause, Literal, VarKey};
+use crate::{Action, Position, World};
 
 /// Mutable substrate shared by every clause-producing routine.
 ///
@@ -25,7 +25,9 @@ pub struct ClauseEngine {
     pub ctx: ConstraintContext,
     pub pool: VarPool,
     pub exits: PositionSet,
-    pub gems: PositionSet,
+    pub gems: Vec<Position>,
+    pub(super) gem_literal_chunks: Vec<Vec<Vec<Literal>>>,
+    pub(super) next_uncached_gem_time: usize,
     chain_patterns: HashMap<usize, Vec<ChainPattern>>,
     interdependence_patterns: HashMap<usize, Vec<ClosedTrailPattern>>,
 }
@@ -33,17 +35,23 @@ pub struct ClauseEngine {
 impl ClauseEngine {
     pub fn new(world: &World, t_max: usize) -> Self {
         let ctx = ConstraintContext::new(world, t_max);
+        let gems = PositionSet::from_positions(
+            world.height(),
+            world.width(),
+            world.gems_positions().into_iter(),
+        )
+        .iter()
+        .collect::<Vec<_>>();
+        let gem_literal_chunks = vec![Vec::new(); gems.len()];
         Self {
             exits: PositionSet::from_positions(
                 world.height(),
                 world.width(),
                 world.exits_positions().into_iter(),
             ),
-            gems: PositionSet::from_positions(
-                world.height(),
-                world.width(),
-                world.gems_positions().into_iter(),
-            ),
+            gems,
+            gem_literal_chunks,
+            next_uncached_gem_time: 1,
             ctx,
             pool: VarPool::new(),
             chain_patterns: HashMap::new(),
