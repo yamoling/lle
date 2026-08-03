@@ -86,6 +86,21 @@ impl std::str::FromStr for SolveMode {
 }
 
 impl SolveMode {
+    /// Whether shortest-plan solving must probe horizons in ascending order.
+    ///
+    /// Higher temporal chains and exact-order interdependence can become unsatisfiable when a plan
+    /// is padded, because repeated help edges at later timestamps can complete a forbidden trail.
+    /// Other modes are proven upward-monotone under terminal-state stuttering.
+    ///
+    /// @ai-generated
+    pub fn requires_ascending_horizon_search(&self) -> bool {
+        matches!(
+            self,
+            SolveMode::NoChainedCooperation(length) | SolveMode::NoInterdependence(length)
+                if *length >= 3
+        )
+    }
+
     /// The canonical string representation, inverse of [`SolveMode::from_str`]. The default
     /// length (2) is rendered without a suffix (e.g. `"no-chain"`) so the canonical strings of
     /// the base modes match the documented `SolveModeLiteral` values.
@@ -186,6 +201,32 @@ mod tests {
             "no-divergence-3",
         ] {
             assert_eq!(SolveMode::from_str(s).unwrap().canonical(), s);
+        }
+    }
+
+    /// Higher temporal modes use ascending probes while proven monotone modes retain binary search.
+    ///
+    /// @ai-generated
+    #[test]
+    fn classifies_horizon_search_policy() {
+        for mode in [
+            SolveMode::Standard,
+            SolveMode::NoCooperation,
+            SolveMode::NoAsymmetricCooperation,
+            SolveMode::NoChainedCooperation(2),
+            SolveMode::NoInterdependence(2),
+            SolveMode::NoConvergentCooperation(2),
+            SolveMode::NoDivergentCooperation(2),
+        ] {
+            assert!(!mode.requires_ascending_horizon_search(), "{mode:?}");
+        }
+        for mode in [
+            SolveMode::NoChainedCooperation(3),
+            SolveMode::NoChainedCooperation(5),
+            SolveMode::NoInterdependence(3),
+            SolveMode::NoInterdependence(4),
+        ] {
+            assert!(mode.requires_ascending_horizon_search(), "{mode:?}");
         }
     }
 

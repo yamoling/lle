@@ -20,6 +20,24 @@ def _parse_mode(mode: SolveModeLiteral | str | SolveMode) -> SolveMode:
     return mode
 
 
+def _solve_at_horizon(
+    generator: ClauseGenerator,
+    horizon: int,
+    mode: SolveMode,
+    collect_gems: bool,
+    shuffle: bool,
+) -> list[int] | None:
+    """Solve one exact-horizon query with the requested clause ordering.
+
+    @ai-generated
+    """
+    clauses, assumptions = generator.generate(horizon, mode=mode, collect_gems=collect_gems)
+    if shuffle:
+        random.shuffle(clauses)
+        random.shuffle(assumptions)
+    return solve_model(clauses, assumptions=assumptions)
+
+
 class Solver:
     """Reusable SAT solver facade for one world and maximum horizon.
 
@@ -53,6 +71,10 @@ class Solver:
 
         `override_t_max` may restrict the horizon for this call, but it cannot exceed the solver's
         construction-time `t_max` because the underlying Rust generator was built for that bound.
+        Modes whose exact-horizon satisfiability is not proven upward-monotone are probed in
+        ascending order; all other modes use binary search.
+
+        @ai-generated
         """
         if override_t_max is None:
             t_max = self.t_max
@@ -68,16 +90,19 @@ class Solver:
         if t_min > t_max:
             return None
 
+        if parsed_mode.requires_ascending_horizon_search:
+            for horizon in range(t_min, t_max + 1):
+                model = _solve_at_horizon(self.generator, horizon, parsed_mode, collect_gems, shuffle)
+                if model is not None:
+                    return _to_plan(self.generator.decode_plan(model, horizon))
+            return None
+
         low = t_min
         high = t_max
         best_model: tuple[list[int], int] | None = None
         while low <= high:
             mid = (low + high) // 2
-            clauses, assumptions = self.generator.generate(mid, mode=parsed_mode, collect_gems=collect_gems)
-            if shuffle:
-                random.shuffle(clauses)
-                random.shuffle(assumptions)
-            model = solve_model(clauses, assumptions=assumptions)
+            model = _solve_at_horizon(self.generator, mid, parsed_mode, collect_gems, shuffle)
             if model is not None:
                 best_model = (model, mid)
                 high = mid - 1

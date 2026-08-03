@@ -1,5 +1,5 @@
 import pytest
-from lle import solve
+from lle import World, solve
 from lle.characterization import profile_plan
 from lle.solver import SolveMode, Solver
 
@@ -50,3 +50,42 @@ def test_no_chain_cache_matches_fresh_solver_across_lengths_and_horizons():
             if chain_length is not None:
                 # Independently replay the result to verify that it obeys the requested bound.
                 assert not profile_plan(LEVEL_6.world(), cached_plan).is_chained(chain_length)
+
+
+def test_no_chain_five_finds_short_plan_before_larger_unsatisfiable_horizons():
+    """Ascending search finds the recorded SAT-to-UNSAT horizon counterexample.
+
+    @ai-generated
+    """
+    world_text = """
+L0E S0 S1 L1W
+L0E X  X  L1W
+"""
+    mode = SolveMode.no_chain(5)
+    solver = Solver(World(world_text), 6)
+
+    plan = solver.solve(mode)
+
+    assert plan is not None
+    assert len(plan) == 1
+    profile = profile_plan(World(world_text), plan)
+    assert profile.is_chained(4)
+    assert not profile.is_chained(5)
+    assert solver.solve(mode, t_min=2) is None
+
+
+def test_no_chain_five_exact_horizon_sequence_is_not_upward_monotone():
+    """The recorded world is SAT only at exact horizon one for `no-chain-5`.
+
+    @ai-generated
+    """
+    world_text = """
+L0E S0 S1 L1W
+L0E X  X  L1W
+"""
+    mode = SolveMode.no_chain(5)
+    solver = Solver(World(world_text), 6)
+
+    exact_sat = [solver.solve(mode, t_min=horizon, override_t_max=horizon) is not None for horizon in range(1, 7)]
+
+    assert exact_sat == [True, False, False, False, False, False]

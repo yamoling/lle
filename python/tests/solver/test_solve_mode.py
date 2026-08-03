@@ -121,6 +121,31 @@ def test_solve_mode_literal_includes_no_divergence():
     assert "no-divergence" in get_args(SolveModeLiteral)
 
 
+def test_horizon_search_policy_is_exposed_by_solve_mode():
+    """Only higher temporal trail modes require ascending horizon probes.
+
+    @ai-generated
+    """
+    binary_modes = [
+        SolveMode.standard(),
+        SolveMode.no_cooperation(),
+        SolveMode.no_asymmetric(),
+        SolveMode.no_chain(2),
+        SolveMode.no_mutual(),
+        SolveMode.no_convergence(2),
+        SolveMode.no_divergence(2),
+    ]
+    ascending_modes = [
+        SolveMode.no_chain(3),
+        SolveMode.no_chain(5),
+        SolveMode.no_interdependence(3),
+        SolveMode.no_interdependence(4),
+    ]
+
+    assert all(not mode.requires_ascending_horizon_search for mode in binary_modes)
+    assert all(mode.requires_ascending_horizon_search for mode in ascending_modes)
+
+
 def test_solve_accepts_the_divergence_mode_as_a_string():
     """The direct string path reaches the divergence encoding.
 

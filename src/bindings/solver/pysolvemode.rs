@@ -151,6 +151,14 @@ impl PySolveMode {
         value.parse::<Self>().map_err(PyValueError::new_err)
     }
 
+    /// Whether shortest-plan solving must probe horizons in ascending order.
+    ///
+    /// @ai-generated
+    #[getter]
+    pub fn requires_ascending_horizon_search(&self) -> bool {
+        self.inner.requires_ascending_horizon_search()
+    }
+
     /// The canonical string representation, inverse of `from_str` (e.g. `"no-chain-3"`).
     /// Default parameters are rendered without a suffix (`"no-chain"`, `"no-interdependence"`,
     /// `"no-convergence"`, `"no-divergence"`).

@@ -2,8 +2,10 @@
 # ruff: noqa: E501, F401, F403, F405
 
 import builtins
-from lle import world
 import typing
+
+from lle import world
+
 __all__ = [
     "ClauseGenerator",
     "SolveMode",
@@ -14,17 +16,17 @@ class ClauseGenerator:
     r"""
     Generates the SAT clauses (CNF, as lists of signed integer literals) used by
     `lle.solver.Solver` and decodes solver models back into joint-action plans.
-    
+
     The constraint generation itself (agent movement, collisions, laser propagation and blocking)
     is implemented in Rust for performance; SAT solving remains delegated to Python (e.g.
     `pysat.solvers.Minisat22`). One generator can be reused across modes because domain clauses are
     cached independently from cooperation-specific support clauses.
-    
+
     ```python
     from pysat.solvers import Minisat22
     from lle import World
     from lle.solver.clauses import ClauseGenerator
-    
+
     world = World.level(1)
     gen = ClauseGenerator(world, t_max=20)
     clauses, assumptions = gen.generate(10, mode="standard", collect_gems=False)
@@ -54,21 +56,33 @@ class ClauseGenerator:
         r"""
         Build a clause generator for the given `world`, considering plans of length up to `t_max`.
         """
-    def generate(self, t: builtins.int, mode: typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-mutual', 'no-chain', 'no-interdependence', 'no-convergence', 'no-divergence'] | builtins.str | SolveMode | None = None, collect_gems: builtins.bool = False) -> tuple[builtins.list[builtins.list[builtins.int]], builtins.list[builtins.int]]:
+    def generate(
+        self,
+        t: builtins.int,
+        mode: typing.Literal[
+            "standard", "no-cooperation", "no-asymmetric", "no-mutual", "no-chain", "no-interdependence", "no-convergence", "no-divergence"
+        ]
+        | builtins.str
+        | SolveMode
+        | None = None,
+        collect_gems: builtins.bool = False,
+    ) -> tuple[builtins.list[builtins.list[builtins.int]], builtins.list[builtins.int]]:
         r"""
         Generate all clauses and assumptions required to solve the problem at horizon `t`.
-        
+
         `mode` accepts either a `SolveMode` instance or its canonical string (`"standard"`,
         `"no-cooperation"`, `"no-asymmetric"`, `"no-mutual"`, `"no-chain[-N]"`,
         `"no-interdependence[-N]"`, `"no-convergence[-N]"`, `"no-divergence[-N]"`). `collect_gems` adds gem-collection
         clauses to the objective.
-        
+
         Returns `(clauses, assumptions)` ready to be fed to `solve_model`.
         """
-    def objective(self, t: builtins.int, collect_gems: builtins.bool = False) -> tuple[builtins.list[builtins.list[builtins.int]], builtins.list[builtins.int]]:
+    def objective(
+        self, t: builtins.int, collect_gems: builtins.bool = False
+    ) -> tuple[builtins.list[builtins.list[builtins.int]], builtins.list[builtins.int]]:
         r"""
         Generate only the objective clauses for horizon `t`.
-        
+
         Returns `(clauses, [])`. Useful for callers that manage the SAT solver directly and want to
         append the objective separately.
         """
@@ -76,7 +90,7 @@ class ClauseGenerator:
         r"""
         Decode a SAT model (as returned by `solver.get_model()`) into a joint-action plan
         of length `t_end`, i.e. a list of `t_end` joint actions (one action per agent).
-        
+
         Raises:
             `ValueError`: if the model does not encode a coherent sequence of moves.
         """
@@ -85,11 +99,11 @@ class ClauseGenerator:
 class SolveMode:
     r"""
     The solving mode used by `ClauseGenerator`.
-    
+
     Build one with the factory methods (`SolveMode.standard()`, `SolveMode.no_chain(length=3)`,
     …) or parse one from its canonical string with `SolveMode.from_str("no-chain-3")`. The
     available modes control which extra clauses and assumptions are emitted by `generate(t)`:
-    
+
     - `standard()` — world rules only; agents may cooperate freely.
     - `no_cooperation()` — forbids any non-owner agent from occupying a laser span. Equivalent to
       treating every beam as permanently active.
@@ -105,17 +119,24 @@ class SolveMode:
       distinct helpers.
     - `no_divergence(k=2)` — rules out plans where one helper helps at least `k` distinct
       beneficiaries. This is the outgoing dual of `no_convergence`.
-    
+
     ```python
     from lle.solver.clauses import ClauseGenerator, SolveMode
     from lle import World
-    
+
     gen = ClauseGenerator(World.level(6), t_max=21)
     for t in range(gen.solution_lower_bound, gen.t_max + 1):
         clauses, assumptions = gen.generate(t, mode=SolveMode.no_chain(2))
         ...
     ```
     """
+    @property
+    def requires_ascending_horizon_search(self) -> builtins.bool:
+        r"""
+        Whether shortest-plan solving must probe horizons in ascending order.
+
+        @ai-generated
+        """
     @property
     def value(self) -> builtins.str:
         r"""
@@ -144,7 +165,7 @@ class SolveMode:
     def no_mutual() -> SolveMode:
         r"""
         Forbid plans where two agents each help the other.
-        
+
         Equivalent to [`SolveMode::NoInterdependence(2)`].
         """
     @staticmethod
@@ -166,20 +187,24 @@ class SolveMode:
     def no_divergence(k: builtins.int = 2) -> SolveMode:
         r"""
         Forbid any helper from helping at least `k` distinct beneficiaries. `k` must be `>= 2`.
-        
+
         @ai-generated
         """
     @staticmethod
-    def from_str(value: typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-mutual', 'no-chain', 'no-interdependence', 'no-convergence', 'no-divergence'] | builtins.str) -> SolveMode:
+    def from_str(
+        value: typing.Literal[
+            "standard", "no-cooperation", "no-asymmetric", "no-mutual", "no-chain", "no-interdependence", "no-convergence", "no-divergence"
+        ]
+        | builtins.str,
+    ) -> SolveMode:
         r"""
         Parse a canonical string (e.g. `"standard"`, `"no-chain-3"`, `"no-divergence-3"`).
-        
+
         `"no-chain"`, `"no-interdependence"`, `"no-convergence"`, and `"no-divergence"` accept a
         `"-n"` suffix for their parameter. Their bare forms are aliases for the corresponding
         `"-2"` forms.
-        
+
         @ai-generated
         """
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...
-

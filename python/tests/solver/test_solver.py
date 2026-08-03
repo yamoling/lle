@@ -3,7 +3,7 @@ import importlib
 import lle
 import pytest
 from lle import Action, World
-from lle.solver import Solver
+from lle.solver import SolveMode, Solver
 
 from ..world_layouts import (
     BLOCKED_UNSOLVABLE,
@@ -198,3 +198,115 @@ def test_solver_decodes_only_the_shortest_satisfiable_model(monkeypatch: pytest.
     assert plan is not None
     assert len(plan) == 3
     assert generator.decode_calls == [3]
+
+
+@pytest.mark.parametrize("mode", [SolveMode.no_chain(3), SolveMode.no_interdependence(3)])
+def test_conditional_temporal_modes_probe_horizons_in_ascending_order(monkeypatch: pytest.MonkeyPatch, mode: SolveMode):
+    """Conditional temporal modes stop at the first satisfiable ascending probe.
+
+    @ai-generated
+    """
+
+    class FakeGenerator:
+        """Record generated and decoded horizons for one solver invocation.
+
+        @ai-generated
+        """
+
+        solution_lower_bound = 1
+
+        def __init__(self) -> None:
+            self.generated: list[int] = []
+            self.decoded: list[int] = []
+
+        def generate(self, horizon: int, *, mode: object, collect_gems: bool):
+            """Encode and record one queried horizon.
+
+            @ai-generated
+            """
+            self.generated.append(horizon)
+            return [[horizon]], []
+
+        def decode_plan(self, model: list[int], horizon: int):
+            """Record the selected horizon and return a matching dummy plan.
+
+            @ai-generated
+            """
+            self.decoded.append(horizon)
+            return [[Action.STAY] for _ in range(horizon)]
+
+    def fake_solve_model(clauses: list[list[int]], *, assumptions: list[int] | None = None):
+        """Return SAT first at horizon three.
+
+        @ai-generated
+        """
+        return [1] if clauses[0][0] == 3 else None
+
+    solver_module = importlib.import_module("lle.solver.solver")
+    monkeypatch.setattr(solver_module, "solve_model", fake_solve_model)
+    solver = Solver.__new__(Solver)
+    solver.world = World("S0 X")
+    solver.t_max = 8
+    generator = FakeGenerator()
+    solver.generator = generator  # type: ignore[assignment]
+
+    plan = solver.solve(mode, t_min=2)
+
+    assert plan is not None
+    assert len(plan) == 3
+    assert generator.generated == [2, 3]
+    assert generator.decoded == [3]
+
+
+def test_binary_mode_retains_nonascending_probe_order(monkeypatch: pytest.MonkeyPatch):
+    """A proven monotone mode continues to use logarithmic binary probes.
+
+    @ai-generated
+    """
+
+    class FakeGenerator:
+        """Record binary-search horizon probes.
+
+        @ai-generated
+        """
+
+        solution_lower_bound = 0
+
+        def __init__(self) -> None:
+            self.generated: list[int] = []
+
+        def generate(self, horizon: int, *, mode: object, collect_gems: bool):
+            """Encode and record one queried horizon.
+
+            @ai-generated
+            """
+            self.generated.append(horizon)
+            return [[horizon]], []
+
+        def decode_plan(self, model: list[int], horizon: int):
+            """Return a dummy plan at the selected horizon.
+
+            @ai-generated
+            """
+            return [[Action.STAY] for _ in range(horizon)]
+
+    def fake_solve_model(clauses: list[list[int]], *, assumptions: list[int] | None = None):
+        """Model an upward-monotone SAT boundary at horizon three.
+
+        @ai-generated
+        """
+        return [1] if clauses[0][0] >= 3 else None
+
+    solver_module = importlib.import_module("lle.solver.solver")
+    monkeypatch.setattr(solver_module, "solve_model", fake_solve_model)
+    solver = Solver.__new__(Solver)
+    solver.world = World("S0 X")
+    solver.t_max = 8
+    generator = FakeGenerator()
+    solver.generator = generator  # type: ignore[assignment]
+
+    plan = solver.solve(SolveMode.standard())
+
+    assert plan is not None
+    assert len(plan) == 3
+    assert generator.generated == [4, 1, 2, 3]
