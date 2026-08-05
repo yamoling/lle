@@ -1,6 +1,7 @@
 from typing import get_args
 
 import numpy as np
+import pytest
 from lle import LLE, Action, ObservationType, World
 from lle.observations import AgentZeroPerspective, Layered, ObservationTypeLiteral, PartialGenerator
 
@@ -169,10 +170,11 @@ def test_observe_layered_lift_button():
     world.reset()
     layers = observer.observe()
 
-    assert np.all(layers[:, observer.LIFT, 0, 2, 0] == 1.0)  # Up direction
-    assert np.all(layers[:, observer.LIFT, 0, 2, 1] == -1.0)  # Down direction
+    lift_0 = observer.LIFT_0 + observer.group_index[0]
+    assert np.all(layers[:, lift_0, 0, 2, 0] == 1.0)  # Up direction
+    assert np.all(layers[:, lift_0, 0, 2, 1] == -1.0)  # Down direction
     # No lift on a plain floor tile
-    assert np.all(layers[:, observer.LIFT, 0, 1, 0] == 0.0)
+    assert np.all(layers[:, lift_0, 0, 1, 0] == 0.0)
 
 
 def test_observe_layered_button():
@@ -185,8 +187,87 @@ def test_observe_layered_button():
     world.reset()
     layers = observer.observe()
 
-    assert np.all(layers[:, observer.BUTTON, 0, 1, 0] == 1.0)
-    assert np.all(layers[:, observer.BUTTON, 0, 0, 0] == 0.0)
+    button_0 = observer.BUTTON_0 + observer.group_index[0]
+    assert np.all(layers[:, button_0, 0, 1, 0] == 1.0)
+    assert np.all(layers[:, button_0, 0, 0, 0] == 0.0)
+
+
+def test_observe_layered_lift_button_groups_are_distinct():
+    world = World(
+        """
+        S0 TU0 B0  X
+        .  TU2 B2  .
+        ;
+        .  .   .   .
+        .  .   .   .
+        """
+    )
+    observer = Layered(world)
+    world.reset()
+    layers = observer.observe()
+
+    group_a, group_b = observer.group_index[0], observer.group_index[2]
+    assert group_a != group_b
+    # A lift and a button of the same group share the same group offset.
+    assert layers[0, observer.LIFT_0 + group_a, 0, 1, 0] == 1.0
+    assert layers[0, observer.BUTTON_0 + group_a, 0, 2, 0] == 1.0
+    assert layers[0, observer.LIFT_0 + group_b, 1, 1, 0] == 1.0
+    assert layers[0, observer.BUTTON_0 + group_b, 1, 2, 0] == 1.0
+    # ... and do not bleed into the other group's channels.
+    assert layers[0, observer.LIFT_0 + group_b, 0, 1, 0] == 0.0
+    assert layers[0, observer.BUTTON_0 + group_b, 0, 2, 0] == 0.0
+
+
+def test_observe_layered_authorization():
+    world = World(
+        """
+        S0 B0A1 B0  X
+        S1 .    TU0 X
+        ;
+        .  .    .   .
+        .  .    .   .
+        """
+    )
+    observer = Layered(world)
+    world.reset()
+    layers = observer.observe()
+
+    # `B0A1` may only be actuated by agent 1.
+    assert layers[0, observer.AUTH_0 + 0, 0, 1, 0] == 0.0
+    assert layers[0, observer.AUTH_0 + 1, 0, 1, 0] == 1.0
+    # An unrestricted button is usable by everyone.
+    assert layers[0, observer.AUTH_0 + 0, 0, 2, 0] == 1.0
+    assert layers[0, observer.AUTH_0 + 1, 0, 2, 0] == 1.0
+    # Same for an unrestricted lift.
+    assert layers[0, observer.AUTH_0 + 0, 1, 2, 0] == 1.0
+    assert layers[0, observer.AUTH_0 + 1, 1, 2, 0] == 1.0
+    # Nothing is flagged on a plain floor tile.
+    assert np.all(layers[0, observer.AUTH_0 : observer.AUTH_0 + 2, 1, 1, 0] == 0.0)
+
+
+def test_observe_layered_authorized_lift():
+    world = World(
+        """
+        S0 TU0A1 X
+        S1 .     X
+        ;
+        .  .     .
+        .  .     .
+        """
+    )
+    observer = Layered(world)
+    world.reset()
+    layers = observer.observe()
+
+    assert layers[0, observer.AUTH_0 + 0, 0, 1, 0] == 0.0
+    assert layers[0, observer.AUTH_0 + 1, 0, 1, 0] == 1.0
+
+
+def test_observe_layered_no_lift_no_button_has_no_lift_section():
+    world = World("S0 . X")
+    observer = Layered(world)
+    assert observer.n_groups == 0
+    assert observer.shape[0] == 2 * world.n_agents + 4
 
 
 def test_observe_layered_void():
@@ -219,14 +300,14 @@ def test_observe_flattened():
 """
     )
     observer = ObservationType.FLATTENED.get_observation_generator(world)
-    #  6 layers: walls, gems, exits, voids, lifts, buttons
+    #  4 layers: walls, gems, exits, voids (this world has no lift nor button)
     # +2 layer per agent: location, lasers
-    assert observer.shape == (world.width * world.height* 1 * (world.n_agents * 2 + 6),)
+    assert observer.shape == (world.width * world.height* 1 * (world.n_agents * 2 + 4),)
     world.reset()
     obs = observer.observe()
     assert obs.shape == (
         1,
-        (world.n_agents * 2 + 6) * world.width * world.height* 1,
+        (world.n_agents * 2 + 4) * world.width * world.height* 1,
     )
 
 
@@ -373,8 +454,51 @@ def test_partial_3x3_lift_button():
     observer = PartialGenerator(world, 3)
     (obs0,) = observer.observe()
 
-    assert obs0[observer.LIFT, 1, 0] == 1
-    assert obs0[observer.BUTTON, 1, 2] == 1
+    assert obs0[observer.LIFT_0 + observer.group_index[0], 1, 0] == 1
+    assert obs0[observer.BUTTON_0 + observer.group_index[0], 1, 2] == 1
+    # Both tiles are unrestricted, so the only agent is authorized on both.
+    assert obs0[observer.AUTH_0 + 0, 1, 0] == 1
+    assert obs0[observer.AUTH_0 + 0, 1, 2] == 1
+
+
+def test_partial_3x3_authorization():
+    world = World(
+        """
+        B0A1 S0 B0A0
+        S1   .  .
+        X    .  X
+        """
+    )
+    world.reset()
+
+    observer = PartialGenerator(world, 3)
+    obs0, _ = observer.observe()
+
+    # Agent 0 sees that it may use the button on its right but not the one on its left.
+    assert obs0[observer.AUTH_0 + 0, 1, 0] == 0
+    assert obs0[observer.AUTH_0 + 1, 1, 0] == 1
+    assert obs0[observer.AUTH_0 + 0, 1, 2] == 1
+    assert obs0[observer.AUTH_0 + 1, 1, 2] == 0
+
+
+def test_partial_3x3_ignores_other_floors():
+    world = World(
+        """
+        S0 . X
+        .  . .
+        ;
+        .  G .
+        .  . .
+        """
+    )
+    world.reset()
+
+    observer = PartialGenerator(world, 3)
+    (obs0,) = observer.observe()
+
+    # The gem sits at (0, 1) on the floor below: it must not leak into the
+    # window of an agent standing on floor 0.
+    assert np.all(obs0[observer.GEM] == 0.0)
 
 
 def test_padded_layered():
@@ -389,6 +513,108 @@ def test_padded_layered():
     obs = ObservationType.LAYERED_PADDED_3AGENTS.get_observation_generator(world)
     assert obs.shape[0] == baseline.shape[0] + 6
     assert obs.shape[1:] == baseline.shape[1:]
+
+
+# Same geometry and agent count, only the number of lift/button groups differs.
+_ZERO_GROUPS = """S0 .   .  X
+                  S1 .   .  X
+                  ;
+                  .  .   .  .
+                  .  .   .  ."""
+_ONE_GROUP = """S0 TU0 B0 X
+                S1 .   .  X
+                ;
+                .  .   .  .
+                .  .   .  ."""
+_TWO_GROUPS = """S0 TU0 B0 X
+                 S1 TU1 B1 X
+                 ;
+                 .  .   .  .
+                 .  .   .  ."""
+
+
+def test_group_count_changes_shape_by_default():
+    """Without a declared budget, the shape follows the map's group count."""
+    shapes = {
+        ObservationType.LAYERED.get_observation_generator(World(src)).shape[0]
+        for src in (_ZERO_GROUPS, _ONE_GROUP, _TWO_GROUPS)
+    }
+    assert len(shapes) == 3
+
+
+def test_declared_n_groups_pins_the_shape():
+    """A declared budget makes maps with different group counts interchangeable."""
+    for obs_type in (ObservationType.LAYERED, ObservationType.FLATTENED, ObservationType.PARTIAL_3x3):
+        shapes = {
+            obs_type.get_observation_generator(World(src), n_groups=3).shape
+            for src in (_ZERO_GROUPS, _ONE_GROUP, _TWO_GROUPS)
+        }
+        assert len(shapes) == 1, f"{obs_type.name} shapes differ: {shapes}"
+
+
+def test_declared_n_groups_reserves_empty_channels():
+    world = World(_ONE_GROUP)
+    observer = ObservationType.LAYERED.get_observation_generator(world, n_groups=3)
+    assert observer.n_groups == 3
+    layers = observer.observe()
+    # The world only uses the first group, the two reserved ones stay empty.
+    assert np.any(layers[0, observer.LIFT_0 + 0] != 0.0)
+    assert np.all(layers[0, observer.LIFT_0 + 1 : observer.BUTTON_0] == 0.0)
+    assert np.all(layers[0, observer.BUTTON_0 + 1 : observer.AUTH_0] == 0.0)
+
+
+def test_declared_n_groups_on_a_world_without_lifts():
+    """The section is emitted on a lift-free map so it stays shape-compatible."""
+    observer = ObservationType.LAYERED.get_observation_generator(World(_ZERO_GROUPS), n_groups=2)
+    layers = observer.observe()
+    assert observer.shape[0] == 3 * 2 + 4 + 2 * 2
+    assert np.all(layers[:, observer.LIFT_0 :] == 0.0)
+
+
+def test_n_groups_too_small_raises():
+    with pytest.raises(ValueError):
+        ObservationType.LAYERED.get_observation_generator(World(_TWO_GROUPS), n_groups=1)
+    with pytest.raises(ValueError):
+        ObservationType.PARTIAL_3x3.get_observation_generator(World(_ONE_GROUP), n_groups=0)
+
+
+def test_set_world_refreshes_static_layers():
+    observer = ObservationType.LAYERED.get_observation_generator(World(_ONE_GROUP), n_groups=3)
+    observer.set_world(World(_TWO_GROUPS))
+    layers = observer.observe()
+
+    # The second group of the new world is now visible...
+    assert layers[0, observer.LIFT_0 + observer.group_index[1], 1, 1, 0] == 1.0
+    assert layers[0, observer.BUTTON_0 + observer.group_index[1], 1, 2, 0] == 1.0
+    # ... and so is its authorization block.
+    assert np.all(layers[0, observer.AUTH_0 : observer.AUTH_0 + 2, 1, 1, 0] == 1.0)
+
+
+def test_set_world_refreshes_walls():
+    observer = ObservationType.LAYERED.get_observation_generator(World("S0 @ X"))
+    assert observer.observe()[0, observer.WALL, 0, 1, 0] == 1.0
+    observer.set_world(World("S0 . X"))
+    assert observer.observe()[0, observer.WALL, 0, 1, 0] == 0.0
+
+
+def test_set_world_rejects_a_world_that_would_reshape():
+    observer = ObservationType.LAYERED.get_observation_generator(World(_ONE_GROUP))
+    with pytest.raises(ValueError):  # more groups than reserved
+        observer.set_world(World(_TWO_GROUPS))
+    with pytest.raises(ValueError):  # different dimensions
+        observer.set_world(World("S0 . X"))
+
+    observer = ObservationType.LAYERED.get_observation_generator(World("S0 . X"))
+    with pytest.raises(ValueError):  # more agents than reserved
+        observer.set_world(World("S0 S1 X X"))
+
+
+def test_set_world_partial_allows_other_dimensions():
+    """The partial window is map-independent, so only the budgets have to hold."""
+    observer = ObservationType.PARTIAL_3x3.get_observation_generator(World(_ONE_GROUP), n_groups=2)
+    observer.set_world(World(_TWO_GROUPS))
+    (obs0, _) = observer.observe()
+    assert obs0[observer.LIFT_0 + observer.group_index[0], 1, 2] == 1.0
 
 
 def test_perspective():
@@ -419,6 +645,28 @@ def test_perspective():
     assert np.all(obs1[L0, 2, :3] == 1)
 
     assert np.all(obs2[L0] == 0)
+
+
+def test_perspective_swaps_authorization():
+    world = World("""
+                  S0 S1 B0A1 X
+                  .  .  .    X
+                  ;
+                  .  .  TU0  .
+                  .  .  .    .
+                  """)
+    world.reset()
+    generator = AgentZeroPerspective(world)
+    obs = generator.observe()
+    AUTH = generator.AUTH_0
+
+    # The button is restricted to agent 1, so each observer sees the
+    # authorization in the slot matching its own permuted identity.
+    assert obs[0, AUTH + 0, 0, 2, 0] == 0
+    assert obs[0, AUTH + 1, 0, 2, 0] == 1
+    # From agent 1's perspective, agent 1 has been swapped into slot 0.
+    assert obs[1, AUTH + 0, 0, 2, 0] == 1
+    assert obs[1, AUTH + 1, 0, 2, 0] == 0
 
 
 def _perform_tests_extras_one_agent(env: LLE):
