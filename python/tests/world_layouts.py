@@ -766,6 +766,35 @@ S3  .   .  .   @
     ),
 )
 
+FIVE_AGENT_INTERDEPENDENT_8_CHAIN_9 = Layout(
+    "five-agent-interdependent-8-chain-9",
+    """
+@   S0 S1  @   @   @   @   @
+L0E .  .   .   @   S2  @   @
+@   .  L1E .   .   .   @   @
+@   .  .   X   L2W .   @   @
+@   .  .   .   .   .   @   @
+L0E .  .   .   .   @   S3  @
+@   .  .   L1E .   .   .   @
+@   .  .   .   X   L3W .   @
+@   .  .   .   .   .   .   @
+L0E .  .   .   .   .   @   S4
+@   .  .   .   L1E .   .   .
+@   .  .   .   .   X   L4W .
+@   .  .   X   X   .   .   .
+""",
+    (
+        expect(
+            26,
+            solvable=True,
+            chained={2: True, 3: True, 4: True, 5: True, 6: True, 7: True},  # , 8: True, 9: True, 10: False},
+            interdependent={2: False, 3: True, 4: True, 5: True},  # , 6: False},
+            convergent={2: True, 3: True, 4: False},
+            divergent={2: True, 3: True, 4: False},
+        ),
+    ),
+)
+
 EIGHT_AGENT_INTERDEPENDENT_8 = Layout(
     "eight-agent-interdependent-8",
     """
@@ -838,6 +867,7 @@ ALL_LAYOUTS = [
     THREE_AGENT_WITH_TWO_AGENT_CYCLE,
     PAPER_INTERDEPENDENT_3,
     FOUR_AGENT_INTERDEPENDENT_4_CHAIN_6,
+    FIVE_AGENT_INTERDEPENDENT_8_CHAIN_9,
     EIGHT_AGENT_INTERDEPENDENT_8,
     EIGHT_AGENT_INTERDEPENDENT_8_PERIMETER,
 ]
