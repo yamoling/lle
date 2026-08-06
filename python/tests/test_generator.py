@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import lle
 import pytest
 from lle.generator.generator import WorldGenerator
 from lle.generator.world_filter import Chained, Constraint, Cooperative, Interdependent

@@ -41,6 +41,10 @@ class PlacementCtx:
 
 
 def cluster_shape(n_agents: int) -> tuple[int, int]:
+    """Pick a rectangular (rows, cols) shape holding exactly `n_agents` cells.
+
+    Supports 1 to 4 agents; the orientation (e.g. 1x2 vs 2x1) is chosen at random.
+    """
     match n_agents:
         case 1:
             return (1, 1)
@@ -68,6 +72,11 @@ def place_agents(
     ctx: PlacementCtx,
     forbidden: set[Position] | None = None,
 ) -> tuple[list[Position], set[Position]]:
+    """Place `n_agents` start positions according to `mode` (`"random"`, `"edge"`, or `"clustered"`).
+
+    Returns the chosen positions and the updated reserved-cell set (agents plus any `forbidden`
+    cells). Raises `LayoutRetry` if the grid cannot accommodate the requested layout.
+    """
     _forbidden = forbidden or set()
 
     if mode == "random":
@@ -129,6 +138,12 @@ def place_exits(
     reserved: set[Position],
     ctx: PlacementCtx,
 ) -> tuple[list[Position], set[Position]]:
+    """Place `n_agents` exit positions according to `mode`.
+
+    `"opposite"` mirrors the agent layout recorded in `ctx` (from `place_agents`) to the far edge
+    or corner, and requires `ctx.edge` or `ctx.agent_anchor` to be set. Returns the chosen
+    positions and the updated reserved-cell set. Raises `LayoutRetry` if placement fails.
+    """
     if mode == "random":
         free = [(r, c) for r in range(height) for c in range(width) if (r, c) not in reserved]
         if len(free) < n_agents:
@@ -311,6 +326,12 @@ def place_lasers(
     reserved: set[Position],
     ctx: PlacementCtx,
 ) -> tuple[list[tuple[int, Position, Direction]], set[Position]]:
+    """Place `n_lasers` laser sources according to `placement` (`"free"`, `"cross-agent"`, or
+    `"cross-cluster"`), each beam satisfying the minimum `span`.
+
+    Returns `(color, position, direction)` triples with colours assigned randomly from the agent
+    pool, plus the updated reserved-cell set. Raises `LayoutRetry` if placement fails.
+    """
     if n_lasers == 0:
         return [], reserved
     if placement == "free":
@@ -508,6 +529,8 @@ def place_walls(
     width: int,
     rng: random.Random,
 ) -> list[Position]:
+    """Place `n_walls` wall cells among the free cells, as single tiles (`"individual"`) or
+    connected mini-shapes (`"shapes"`)."""
     free = [(r, c) for r in range(height) for c in range(width) if (r, c) not in reserved]
     if style == "shapes":
         return place_wall_shapes(free, n_walls, rng)

@@ -10,7 +10,7 @@ from .geometry import beam_tiles, points_out_immediately
 
 @dataclass(frozen=True)
 class CandidateLayout:
-    """ "Candidate layouts sampled by generators before world construction.
+    """Candidate layouts sampled by generators before world construction.
 
     A `CandidateLayout` stores the raw positions chosen by a generator before the
     layout is turned into a `World`.

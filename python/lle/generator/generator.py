@@ -252,6 +252,11 @@ class WorldGenerator:
         return False
 
     def generate(self, max_attempts: int | None, seed: int | None = None) -> World | None:
+        """Sample layouts until one satisfies the constraint, up to `max_attempts` tries.
+
+        Returns the accepted `World`, or `None` if `max_attempts` is exhausted first. With
+        `max_attempts=None` the search runs until it succeeds.
+        """
         if seed is not None:
             self._rng.seed(seed)
         if max_attempts is None:
@@ -295,6 +300,12 @@ class WorldGenerator:
             ) from e
 
     def generate_n(self, n: int, n_jobs: int, seed: int | None = None, max_attempts: int | None = None, quiet: bool = False):
+        """Yield up to `n` accepted worlds, one at a time, as they are generated.
+
+        Uses a single-process generator when `n_jobs == 1`, or a worker pool otherwise. The
+        stream may yield fewer than `n` worlds if `max_attempts` is exhausted first. `quiet`
+        disables the `tqdm` progress bar.
+        """
         if seed is not None:
             self._rng.seed(seed)
         if n_jobs < 1:

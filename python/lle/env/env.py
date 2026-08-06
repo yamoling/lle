@@ -167,13 +167,25 @@ class LLE(DiscreteMARLEnv):
         # Beware to compute the reward before checking if the episode is done !
         reward = self.reward_strategy.compute_reward(events)
         self.done = self.compute_done()
+        metrics = {
+            key: value
+            for i, agent in enumerate(self.world.agents)
+            for key, value in {
+                f"has-arrived-{i}": agent.has_arrived,
+                f"is-alive-{i}": agent.is_alive,
+            }.items()
+        }
         return Step(
             actions,
             self.get_observation(),
             self.get_state(),
             reward=reward,
             done=self.done,
-            info={"gems_collected": self.world.gems_collected, "exit_rate": self.n_arrived / self.n_agents},
+            info={
+                "gems_collected": self.world.gems_collected,
+                "exit_rate": self.n_arrived / self.n_agents,
+                **metrics,
+            },
         )
 
     def reset(self, *, seed: int | None = None):

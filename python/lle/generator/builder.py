@@ -109,15 +109,15 @@ class GeneratorBuilder:
 
     def clustered(self) -> GeneratorBuilder:
         """Group starts and exits into opposite clusters. Equivalent to
-        `self.start("clustered").exits("opposite")`. Check these functions for mor informatin."""
+        `self.starts("clustered").exits("opposite")`. See `starts()` and `exits()` for details."""
         return self._set_layout("clustered", "opposite")
 
     def starts(self, mode: StartsMode) -> GeneratorBuilder:
         """
-        Set the agent start placement:`"random"`,`"edge"`, or`"clustered"`.
+        Set the agent start placement: `"random"`, `"edge"`, or `"clustered"`.
 
         - `"edge"` places the start positions on one edge of the grid.
-        - `"clustered"` places the start positions in an adjacent cluster. Depending on on
+        - `"clustered"` places the start positions in an adjacent cluster. Depending on
             the number of agents, the shape of the cluster can vary (2x1, 1x2, 3x1, 1x3, 2x2, 1x4, 4x1, ...).
         """
         self._starts = mode
@@ -126,7 +126,7 @@ class GeneratorBuilder:
 
     def exits(self, mode: ExitsMode) -> GeneratorBuilder:
         """
-        Set the exit placement:`"random"`,`"edge"`,`"cluster"`, or`"opposite"`.
+        Set the exit placement: `"random"`, `"edge"`, `"cluster"`, or `"opposite"`.
 
         - `"edge"` places exits on one edge of the grid (independently of where agents start).
         - `"cluster"` groups exits into an adjacent cluster, mirroring the shape logic of
