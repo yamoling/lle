@@ -37,7 +37,7 @@ def test_standard_level_with_high_t_min(level: int, solution_length):
     We build a constraint whose t_min requirement is above the actual solution limit.
     Therefore, the world should be rejected since a solution exists with a length <= `t_min`."""
     world = World.level(level)
-    c = Constraint(solution_length + 5, t_min=solution_length + 1)
+    c = Constraint(solution_length + 5, min_solution_length=solution_length + 1)
     assert not c.is_satisfied_by(world)
 
 
@@ -130,7 +130,7 @@ def test_world_requirements_compose_over_boolean_expressions():
 
 
 def test_generate_cooperative_shortcut_produces_cooperative_world():
-    world = generate(width=5, height=5, n_agents=2).lasers(2).cooperative().build()
+    world = generate(width=5, height=5, n_agents=2, t_max=20).lasers(2).cooperative().build()
     assert Constraint(20, Cooperative()).is_satisfied_by(world)
 
 

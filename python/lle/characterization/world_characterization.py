@@ -11,10 +11,6 @@ from .monotone_cache import MonotoneCache
 from .plan import profile_plan
 
 
-class NotSolvableError(ValueError):
-    """Raised when a world is not solvable."""
-
-
 @final
 class WorldCharacterizer:
     """
@@ -42,27 +38,16 @@ class WorldCharacterizer:
         return len({source.agent_id for source in self.world.laser_sources})
 
     def is_cooperative(self):
-        """
-        # Returns
-        Returns whether the world is cooperative.
-
-        # Raises
-            -`NotSolvableError` if the world is not solvable
-        """
         if not self.is_solvable():
-            raise NotSolvableError("World is not solvable")
+            return False
         return self.shortest_independent_path is None
 
     def is_solvable(self):
         return self.shortest_path is not None
 
     def is_independent(self):
-        """
-        # Raises
-            -`NotSolvableError` if the world is not solvable
-        """
         if not self.is_solvable():
-            raise NotSolvableError("World is not solvable.")
+            return False
         return self.shortest_independent_path is not None
 
     def is_asymmetric(self):
@@ -71,13 +56,10 @@ class WorldCharacterizer:
         - the world is solvable,
         - at least one solution exhibits a help edge whose helper is never helped, and
         - no solution within `t_max` avoids all such asymmetric help edges.
-
-        # Raises
-            -`NotSolvableError` if the world is not solvable
         """
         path = self.shortest_path
         if path is None:
-            raise NotSolvableError("Cannot determine if requires asymmetric cooperation if unsolvable.")
+            return False
         if self.n_laser_colours == 0:
             return False
         profile = profile_plan(self.world, path)
@@ -101,9 +83,6 @@ class WorldCharacterizer:
 
         A mutual cycle `a → b → a` is a chain of length 2 even when the two help events occur
         simultaneously, because chained cooperation uses non-decreasing timestamps.
-
-        # Raises
-            -`NotSolvableError` if the world is not solvable
         """
         if length < 2:
             raise ValueError(f"Chain length must be >= 2, got {length}.")
@@ -111,7 +90,7 @@ class WorldCharacterizer:
         if cached is not None:
             return cached
         if self.shortest_path is None:
-            raise NotSolvableError("World is not solvable")
+            return False
         profile = profile_plan(self.world, self.shortest_path)
         if not profile.is_chained(length):
             res = False
@@ -128,7 +107,6 @@ class WorldCharacterizer:
 
         # Raises
             - `ValueError` if `k < 2`.
-            - `NotSolvableError` if the world is not solvable.
         """
         if k < 2:
             raise ValueError(f"Convergence requires at least 2 distinct helpers, got {k}.")
@@ -137,7 +115,7 @@ class WorldCharacterizer:
             return cached
         path = self.shortest_path
         if path is None:
-            raise NotSolvableError("World is not solvable")
+            return False
         if not profile_plan(self.world, path).is_convergent(k):
             res = False
         else:
@@ -154,7 +132,6 @@ class WorldCharacterizer:
 
         # Raises
             - `ValueError` if `k < 2`.
-            - `NotSolvableError` if the world is not solvable.
         """
         if k < 2:
             raise ValueError(f"Divergence requires at least 2 distinct beneficiaries, got {k}.")
@@ -165,7 +142,7 @@ class WorldCharacterizer:
             return cached
         path = self.shortest_path
         if path is None:
-            raise NotSolvableError("World is not solvable")
+            return False
         if not profile_plan(self.world, path).is_divergent(k):
             res = False
         else:
@@ -191,7 +168,7 @@ class WorldCharacterizer:
         if cached is not None:
             return cached
         if self.shortest_path is None:
-            raise NotSolvableError("World is not solvable")
+            return False
         profile = profile_plan(self.world, self.shortest_path)
         if not profile.is_interdependent(n_agents):
             res = False
@@ -202,46 +179,43 @@ class WorldCharacterizer:
 
     @cached_property
     def shortest_path(self):
-        return self._solver.solve()
+        return self._solver.find_shortest(SolveMode.standard())
 
     @cached_property
     def shortest_independent_path(self):
-        """The length of the shortest valid plan within [lower_bound, t_max] that does not involve cooperation, or None if unsolvable."""
-        return self._solver.solve(SolveMode.no_cooperation())
+        """The shortest valid plan within `t_max` that does not involve cooperation, or `None`."""
+        return self._solver.find_shortest(SolveMode.no_cooperation())
 
     @cached_property
     def shortest_non_asymmetric_path(self):
-        return self._solver.solve(SolveMode.no_asymmetric())
+        return self._solver.find_shortest(SolveMode.no_asymmetric())
 
     @cached_property
     def shortest_non_mutual_path(self):
-        return self._solver.solve(SolveMode.no_mutual())
+        return self._solver.find_shortest(SolveMode.no_mutual())
 
     def compute_shortest_path_without_chain(self, length: int):
         if length < 2:
             raise ValueError(f"Chain length must be >= 2, got {length}.")
-        return self._solver.solve(SolveMode.no_chain(length))
+        return self._solver.find_shortest(SolveMode.no_chain(length))
 
     def compute_shortest_path_without_convergence(self, k: int):
         """Return the shortest plan that avoids k-convergence, or `None` if none exists."""
         if k < 2:
             raise ValueError(f"Convergence requires at least 2 distinct helpers, got {k}.")
-        return self._solver.solve(SolveMode.no_convergence(k))
+        return self._solver.find_shortest(SolveMode.no_convergence(k))
 
     def compute_shortest_path_without_divergence(self, k: int):
-        """Return the shortest plan that avoids k-divergence, or `None` if none exists.
-
-        @ai-generated
-        """
+        """Return the shortest plan that avoids k-divergence, or `None` if none exists."""
         if k < 2:
             raise ValueError(f"Divergence requires at least 2 distinct beneficiaries, got {k}.")
-        return self._solver.solve(SolveMode.no_divergence(k))
+        return self._solver.find_shortest(SolveMode.no_divergence(k))
 
     def compute_shortest_non_interdependent_path(self, order: int):
         """Shortest plan within `t_max` that avoids every cycle of exactly `order`, or None."""
         if order < 2:
             raise ValueError(f"Interdependence order must be >= 2, got {order}.")
-        return self._solver.solve(SolveMode.no_interdependence(order))
+        return self._solver.find_shortest(SolveMode.no_interdependence(order))
 
     @override
     def __eq__(self, value: object, /):

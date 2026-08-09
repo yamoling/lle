@@ -46,4 +46,4 @@ jobs:
         run: |
           uv sync
           uv run maturin dev --release
-          uv run pytest
+          uv run pytest -x

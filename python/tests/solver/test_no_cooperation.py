@@ -19,8 +19,8 @@ def test_no_cooperation_mode_matches_world_specification(test_case: ScalarProper
 def test_reusable_solver_across_modes():
     """One solver can find both the short cooperative and longer independent plans."""
     solver = Solver(ONE_WAY_DETOUR.world(), 10)
-    standard = solver.solve("standard")
-    no_cooperation = solver.solve("no-cooperation")
+    standard = solver.solve(6, mode="standard")
+    no_cooperation = solver.solve(mode="no-cooperation")
     assert standard is not None
     assert no_cooperation is not None
     assert len(standard) < len(no_cooperation)

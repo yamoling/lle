@@ -20,7 +20,7 @@ def test_standard_mode_matches_world_specification(property_case: ScalarProperty
 
 def test_solve_simple_world_returns_shortest_plan():
     world = World("S0 . . X")
-    plan = lle.solve(world, 15)
+    plan = lle.solve(world, 15, path_length=3)
     assert plan is not None
     assert len(plan) == 3
     assert all(isinstance(row, tuple) for row in plan)
@@ -29,9 +29,26 @@ def test_solve_simple_world_returns_shortest_plan():
 
 def test_solve_fixed_length():
     world = World("S0 . . X")
-    plan = lle.solve(world, 5, 5)
+    plan = lle.solve(world, 5)
     assert plan is not None
     assert len(plan) == 5
+
+
+def test_find_shortest_uses_the_heuristic_lower_bound():
+    plan = Solver(World("S0 . . X"), 5).find_shortest()
+    assert plan is not None
+    assert len(plan) == 3
+
+
+def test_find_shortest_honours_t_min():
+    plan = Solver(World("S0 . . X"), 5).find_shortest(t_min=4)
+    assert plan is not None
+    assert len(plan) == 4
+
+
+def test_find_shortest_rejects_t_min_above_t_max():
+    with pytest.raises(ValueError, match="exceeds this solver's t_max"):
+        Solver(World("S0 . . X"), 5).find_shortest(t_min=6)
 
 
 def test_solve_unsolvable_returns_none():
@@ -136,7 +153,7 @@ S1  .   .   .   L0N
 def test_solver_override_t_max_cannot_exceed_construction_bound():
     solver = Solver(World("S0 . . X"), 5)
     with pytest.raises(ValueError, match="exceeds this solver's t_max"):
-        solver.solve(override_t_max=6)
+        solver.solve(6)
 
 
 def test_collect_gems_is_per_solve_call():

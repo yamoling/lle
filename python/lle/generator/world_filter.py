@@ -3,8 +3,9 @@
 A :class:`Predicate` describes a world property computed by
 :class:`lle.characterization.WorldCharacterizer`. Predicates are value objects:
 they do not own a solver horizon. The generator wraps them in a
-:class:`Constraint`, which adds the shared ``t_max`` / ``t_min`` horizon used
-when accepting or rejecting candidate worlds.
+:class:`Constraint`, which adds the shared ``t_max`` evaluation horizon and
+optional ``t_min`` shortest-solution threshold used when accepting or rejecting
+candidate worlds.
 """
 
 from __future__ import annotations
@@ -310,21 +311,20 @@ class Constraint:
 
     t_max: int
     predicate: Predicate = field(default_factory=Solvable)
-    t_min: int | None = None
+    min_solution_length: int | None = None
 
     @property
     def requirements(self):
         return self.predicate.requirements
 
     def is_satisfied_by(self, world: World):
-        if self.t_min is not None and self.t_min > 0:
-            from .. import solver
-
-            if solver.solve(world, self.t_min - 1) is not None:
-                return False
+        """Return whether `world` satisfies this generator constraint."""
         c = WorldCharacterizer(world, self.t_max)
-        if not c.is_solvable():
-            return False
+        if self.min_solution_length is not None:
+            if c.shortest_path is None:
+                return False
+            if len(c.shortest_path) < self.min_solution_length:
+                return False
         return self.predicate.holds(c)
 
 

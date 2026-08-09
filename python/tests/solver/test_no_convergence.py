@@ -50,8 +50,8 @@ def test_no_convergence_cache_matches_fresh_solver_across_thresholds_and_horizon
         (SolveMode.no_convergence(3), 4, 3),
         (SolveMode.no_convergence(2), 5, 2),
     ):
-        cached_plan = shared_solver.solve(mode, override_t_max=horizon)
-        fresh_plan = Solver(CONVERGENT_2_TIGHT.world(), 5).solve(mode, override_t_max=horizon)
+        cached_plan = shared_solver.solve(path_length=horizon, mode=mode)
+        fresh_plan = Solver(CONVERGENT_2_TIGHT.world(), 5).solve(path_length=horizon, mode=mode)
         assert (cached_plan is None) is (fresh_plan is None)
         if cached_plan is not None:
             assert fresh_plan is not None

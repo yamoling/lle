@@ -1,7 +1,7 @@
 """Incremental SAT solver that builds constraints incrementally for time-bounded solving."""
 
 import random
-from typing import Literal, overload
+from typing import Literal
 
 from pysat.solvers import Minisat22  # pyright: ignore[reportMissingTypeStubs]
 
@@ -42,105 +42,97 @@ class Solver:
 
     def solve(
         self,
-        mode: SolveModeLiteral | str | SolveMode = "standard",
+        path_length: int | Literal["auto"] = "auto",
         *,
-        t_min: int = 0,
-        override_t_max: int | None = None,
+        mode: SolveModeLiteral | str | SolveMode = "standard",
         collect_gems: bool = False,
         shuffle: bool = False,
     ) -> list[tuple[Action, ...]] | None:
-        """Find the shortest plan for this solver's world.
+        """Find a plan with the requested length.
 
-        `override_t_max` may restrict the horizon for this call, but it cannot exceed the solver's
-        construction-time `t_max` because the underlying Rust generator was built for that bound.
+        `path_length` is the exact number of joint actions in the returned plan.
+        When it is `"auto"` (the default), this solver's construction-time
+        `t_max` is used. A requested length cannot exceed `t_max`.
         """
-        if override_t_max is None:
-            t_max = self.t_max
-        elif override_t_max > self.t_max:
+        if path_length == "auto":
+            path_length = self.t_max
+        elif path_length < 0:
+            raise ValueError(f"path_length must be non-negative, got {path_length}.")
+        elif path_length > self.t_max:
             raise ValueError(
-                f"override_t_max={override_t_max} exceeds this solver's t_max={self.t_max}. Construct a new Solver with a larger t_max."
+                f"path_length={path_length} exceeds this solver's t_max={self.t_max}. Construct a new Solver with a larger t_max."
             )
-        else:
-            t_max = override_t_max
 
-        parsed_mode = _parse_mode(mode)
-        t_min = max(self.solution_lower_bound, t_min)
-        if t_min > t_max:
+        if path_length < self.solution_lower_bound:
             return None
 
-        low = t_min
-        high = t_max
-        best_plan = None
-        while low <= high:
-            mid = (low + high) // 2
-            clauses, assumptions = self.generator.generate(mid, mode=parsed_mode, collect_gems=collect_gems)
-            if shuffle:
-                random.shuffle(clauses)
-                random.shuffle(assumptions)
-            model = solve_model(clauses, assumptions=assumptions)
-            if model is not None:
-                best_plan = _to_plan(self.generator.decode_plan(model, mid))
-                high = mid - 1
-            else:
-                low = mid + 1
+        parsed_mode = _parse_mode(mode)
+        clauses, assumptions = self.generator.generate(path_length, mode=parsed_mode, collect_gems=collect_gems)
+        if shuffle:
+            random.shuffle(clauses)
+            random.shuffle(assumptions)
+        model = solve_model(clauses, assumptions=assumptions)
+        if model is None:
+            return None
+        return _to_plan(self.generator.decode_plan(model, path_length))
 
-        return best_plan
+    def find_shortest(
+        self,
+        mode: SolveModeLiteral | str | SolveMode = "standard",
+        *,
+        t_min: int | None = None,
+        collect_gems: bool = False,
+        shuffle: bool = False,
+    ) -> list[tuple[Action, ...]] | None:
+        """Find the shortest plan from `t_min` through this solver's `t_max`.
+
+        When `t_min` is omitted, the search begins at the heuristic
+        `solution_lower_bound`. A supplied `t_min` cannot exceed `t_max`.
+        Candidate lengths are checked in ascending order, one step at a
+        time, so the first plan found is the shortest at or above the requested
+        lower bound.
+        """
+        if t_min is None or t_min < self.solution_lower_bound:
+            t_min = self.solution_lower_bound
+        elif t_min > self.t_max:
+            raise ValueError(f"t_min={t_min} exceeds this solver's t_max={self.t_max}.")
+
+        for path_length in range(t_min, self.t_max + 1):
+            plan = self.solve(
+                path_length=path_length,
+                mode=mode,
+                collect_gems=collect_gems,
+                shuffle=shuffle,
+            )
+            if plan is not None:
+                return plan
+        return None
 
 
-@overload
 def solve(
     world: World,
     t_max: int | Literal["auto"] = "auto",
     /,
     *,
+    path_length: int | Literal["auto"] = "auto",
     mode: SolveModeLiteral | str | SolveMode = "standard",
     collect_gems: bool = False,
     shuffle: bool = False,
-) -> list[tuple[Action, ...]] | None: ...
+) -> list[tuple[Action, ...]] | None:
+    """Solve `world` with a fixed solver horizon and requested path length.
 
+    `t_max` configures the construction-time episode horizon. `path_length`
+    selects the exact plan length for this query; when it is `"auto"` (the
+    default), `t_max` is used.
 
-@overload
-def solve(
-    world: World,
-    t_min: int,
-    t_max: int | Literal["auto"] = "auto",
-    /,
-    *,
-    mode: SolveModeLiteral | str | SolveMode = "standard",
-    collect_gems: bool = False,
-    shuffle: bool = False,
-) -> list[tuple[Action, ...]] | None: ...
-
-
-def solve(
-    world: World,
-    /,
-    *min_max: int | Literal["auto"],
-    mode: SolveModeLiteral | str | SolveMode = "standard",
-    collect_gems: bool = False,
-    shuffle: bool = False,
-):
     """
-    Find the shortest plan within the time range [t_min, t_max] (both ends included).
-
-    # Arguments:
-        - `t_min`: The minimum time step to consider.
-        - `t_max`: The maximum time step to consider. Defaults to (width * height) // 2.
-        - `mode`: The solving mode. Check the `SolveMode` enum for more information.
-        - `collect_gems`: Whether all gems must be collected before solving succeeds.
-    """
-    match min_max:
-        case ():
-            t_min = 0
-            t_max = "auto"
-        case (t_max,):
-            t_min = 0
-        case (int(t_min), t_max):
-            pass
-        case _:
-            raise ValueError(f"Invalid arguments: (world, {min_max})")
-    solver = Solver(world, t_max)
-    return solver.solve(mode, t_min=t_min, collect_gems=collect_gems, shuffle=shuffle)
+    resolved_t_max = _default_t_max(world) if t_max == "auto" else t_max
+    return Solver(world, resolved_t_max).solve(
+        path_length=path_length,
+        mode=mode,
+        collect_gems=collect_gems,
+        shuffle=shuffle,
+    )
 
 
 def solve_model(clauses: list[list[int]], *, assumptions: list[int] | None = None) -> list[int] | None:

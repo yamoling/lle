@@ -48,8 +48,9 @@ print(step.reward)
 ```
 
 ## Solving a world
-`lle.solve(world, t_max)` finds a shortest joint plan (sequence of joint actions) within `t_max` steps,
-or `None` if such plan does not exist. This solving is performed via a SAT solver.
+`lle.solve(world, t_max, path_length="auto")` creates a solver with episode horizon `t_max` and
+finds a joint plan of exactly `path_length` steps. When `path_length` is `"auto"` (the default), it
+uses `t_max`. This solving is performed via a SAT solver.
 More details about the solver can be found in the `lle.solver` module.
 
 ```python

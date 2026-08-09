@@ -92,12 +92,10 @@ def test_compute_shortest_non_interdependent_path_rejects_order_below_2():
             wc.compute_shortest_non_interdependent_path(order)
 
 
-def test_unsolvable_world_raises_on_is_interdependent():
+def test_unsolvable_world_is_not_interdependent():
     """Interdependence is undefined for an unsolvable world."""
     world = BLOCKED_UNSOLVABLE.world()
-
-    with pytest.raises(ValueError):
-        WorldCharacterizer(world, t_max=10).is_interdependent(2)
+    assert not WorldCharacterizer(world, t_max=10).is_interdependent(2)
 
 
 def test_is_interdependent_is_cached():

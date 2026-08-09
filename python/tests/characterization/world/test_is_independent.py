@@ -17,9 +17,7 @@ def test_is_independent(case: ScalarPropertyCase):
     assert characterizer.is_independent() is case.expected
 
 
-def test_unsolvable_world_raises_on_is_independent():
+def test_unsolvable_world_is_not_independent():
     """Reject independence queries when the catalog world has no solution."""
     world = BLOCKED_UNSOLVABLE.world()
-
-    with pytest.raises(ValueError):
-        WorldCharacterizer(world, t_max=10).is_independent()
+    assert not WorldCharacterizer(world, t_max=10).is_independent()

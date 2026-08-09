@@ -38,11 +38,11 @@ def test_no_chain_cache_matches_fresh_solver_across_lengths_and_horizons():
         (SolveMode.no_chain(2), 20, 2),
         (SolveMode.no_chain(2), 21, 2),
     ):
-        cached_plan = shared_solver.solve(mode, override_t_max=horizon)
+        cached_plan = shared_solver.solve(path_length=horizon, mode=mode)
         # A fresh solver is the reference result because it has no cached clauses.
-        fresh_plan = Solver(LEVEL_6.world(), 21).solve(mode, override_t_max=horizon)
+        fresh_plan = Solver(LEVEL_6.world(), 21).solve(path_length=horizon, mode=mode)
 
-        # Caching must not change whether the SAT query is solvable or its shortest plan length.
+        # Caching must not change whether the exact-length SAT query is solvable.
         assert (cached_plan is None) is (fresh_plan is None)
         if cached_plan is not None:
             assert fresh_plan is not None

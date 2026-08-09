@@ -32,12 +32,10 @@ def test_compute_shortest_path_without_chain_rejects_length_below_2():
             wc.compute_shortest_path_without_chain(length)
 
 
-def test_unsolvable_world_raises_on_is_chained():
+def test_unsolvable_world_is_not_chained():
     """Chained cooperation is undefined for an unsolvable world."""
     world = BLOCKED_UNSOLVABLE.world()
-
-    with pytest.raises(ValueError):
-        WorldCharacterizer(world, t_max=10).is_chained(2)
+    assert not WorldCharacterizer(world, t_max=10).is_chained(2)
 
 
 def test_is_chained_repeated_query_uses_cached_result(monkeypatch: pytest.MonkeyPatch):

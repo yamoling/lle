@@ -4,7 +4,6 @@ import lle
 import lle.characterization as characterization
 import pytest
 from lle.characterization import WorldCharacterizer
-from lle.characterization.world_characterization import NotSolvableError
 
 from ...mocks import fail_if_called
 from ...world_layouts import (
@@ -39,10 +38,8 @@ def test_convergence_public_entry_points_reject_threshold_below_two(k: int):
             helper()
 
 
-def test_unsolvable_world_raises_on_is_convergent():
-    """Convergence is undefined for an unsolvable world."""
-    with pytest.raises(NotSolvableError):
-        WorldCharacterizer(BLOCKED_UNSOLVABLE.world(), t_max=10).is_convergent(2)
+def test_unsolvable_world_is_not_convergent():
+    assert not WorldCharacterizer(BLOCKED_UNSOLVABLE.world(), t_max=10).is_convergent(2)
 
 
 def test_is_convergent_repeated_query_uses_cached_result(monkeypatch: pytest.MonkeyPatch):

@@ -33,7 +33,7 @@ def report(name: str, world: World, t_max: int) -> None:
             continue  # no plan of this length at all
         free = lle.solve(world, t, mode=SolveMode.no_interdependence(2)) is not None
         verdict = "is free of interdependent help" if free else "requires interdendence"
-        print(f"  t={t:2}: solvable, shortest plan {verdict}")
+        print(f"  t={t:2}: solvable, exact-length plan {verdict}")
     print(f"  -> requires_interdependence(t_max={t_max}) = {lle.characterize(world, t_max).is_interdependent(2)}")
 
 

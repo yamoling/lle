@@ -16,7 +16,7 @@ class MockSolver(Solver):
     def __init__(
         self,
         world: World,
-        t_max: int | Literal["auto"] = "auto",
+        t_max: int,
         *,
         responses: Mapping[str, list[tuple[Action, ...]] | None] | None = None,
     ) -> None:
@@ -32,10 +32,9 @@ class MockSolver(Solver):
     @override
     def solve(
         self,
-        mode: SolveModeLiteral | str | SolveMode = "standard",
+        path_length: int | Literal["auto"] = "auto",
         *,
-        t_min: int = 0,
-        override_t_max: int | None = None,
+        mode: SolveModeLiteral | str | SolveMode = "standard",
         collect_gems: bool = False,
         shuffle: bool = False,
     ) -> list[tuple[Action, ...]] | None:

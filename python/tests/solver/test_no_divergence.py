@@ -121,8 +121,8 @@ def test_no_divergence_cache_matches_fresh_solver_across_modes_and_horizons():
         (SolveMode.no_divergence(2), 5, 2),
         (SolveMode.no_divergence(2), 8, 2),
     ):
-        cached_plan = shared_solver.solve(mode, override_t_max=horizon)
-        fresh_plan = Solver(DIVERGENT_2_WITH_DETOUR.world(), 8).solve(mode, override_t_max=horizon)
+        cached_plan = shared_solver.solve(path_length=horizon, mode=mode)
+        fresh_plan = Solver(DIVERGENT_2_WITH_DETOUR.world(), 8).solve(path_length=horizon, mode=mode)
         assert (cached_plan is None) is (fresh_plan is None), f"{mode} at {horizon}"
         if cached_plan is not None:
             assert fresh_plan is not None

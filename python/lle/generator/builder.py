@@ -284,11 +284,9 @@ class GeneratorBuilder:
             raise TypeError(f"require() expects a Predicate or Constraint, got {type(predicate).__name__}.")
         return self
 
-    def at_least(self, t_min: int):
-        """
-        Generate world whose solutions require at least `t_min` time steps.
-        """
-        self._constraint = replace(self._constraint, t_min=t_min)
+    def at_least(self, path_length: int):
+        """Reject worlds with a solution shorter than `t_min` time steps."""
+        self._constraint = replace(self._constraint, min_solution_length=path_length)
         return self
 
     def cap(self, t_max: int):
