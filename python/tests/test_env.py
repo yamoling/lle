@@ -205,6 +205,42 @@ def test_reward_death():
     assert step.done
 
 
+def test_step_info_reports_arrival_metrics_for_each_agent():
+    env = LLE.from_str(
+        """
+    S0 X
+    S1 X
+    """
+    ).build()
+    env.reset()
+    info = env.step([Action.EAST.value, Action.STAY.value]).info
+    metrics = {key: value for key, value in info.items() if key.startswith(("has-arrived-", "is-alive-"))}
+    assert metrics == {
+        "has-arrived-0": True,
+        "is-alive-0": True,
+        "has-arrived-1": False,
+        "is-alive-1": True,
+    }
+
+
+def test_step_info_reports_death_metrics_for_each_agent():
+    env = LLE.from_str(
+        """
+    S0 L0S X
+    S1  .  X
+    """
+    ).build()
+    env.reset()
+    info = env.step([Action.STAY.value, Action.EAST.value]).info
+    metrics = {key: value for key, value in info.items() if key.startswith(("has-arrived-", "is-alive-"))}
+    assert metrics == {
+        "has-arrived-0": False,
+        "is-alive-0": True,
+        "has-arrived-1": False,
+        "is-alive-1": False,
+    }
+
+
 def test_reward_collect_and_death():
     env = LLE.from_str(
         """
