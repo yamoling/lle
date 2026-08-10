@@ -358,6 +358,10 @@ class AgentZeroPerspective(Layered):
     def __init__(self, world: World):
         super().__init__(world)
 
+    @property
+    def obs_type(self) -> ObservationType:
+        return ObservationType.AGENT0_PERSPECTIVE_LAYERED
+
     def observe(self):
         obs = super().observe()
         # Agent 0 does not have to change

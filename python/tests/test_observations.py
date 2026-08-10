@@ -367,7 +367,40 @@ def test_perspective():
     assert obs1[L0, 2, 3] == -1
     assert np.all(obs1[L0, 2, :3] == 1)
 
-    assert np.all(obs2[L0] == 0)
+
+def test_perspective2():
+    world = World("""
+                  S0  S1 S2
+                   .   .  .
+                  L0E  X  .
+                  L1E  X  .
+                  L2E  X  .
+                  """)
+    world.reset()
+    baseline = Layered(world)
+    generator = AgentZeroPerspective(world)
+
+    for actions in (None, [Action.SOUTH, Action.SOUTH, Action.SOUTH]):
+        if actions is not None:
+            world.step(actions)
+
+        layered_obs = baseline.observe()
+        perspective_obs = generator.observe()
+        assert perspective_obs.shape == (world.n_agents, *generator.shape)
+
+        for observer, position in enumerate(world.agents_positions):
+            expected = np.copy(layered_obs[observer])
+            expected[[generator.A0, generator.A0 + observer]] = expected[[generator.A0 + observer, generator.A0]]
+            expected[[generator.LASER_0, generator.LASER_0 + observer]] = expected[[generator.LASER_0 + observer, generator.LASER_0]]
+
+            np.testing.assert_array_equal(perspective_obs[observer], expected)
+            assert perspective_obs[observer, generator.A0, position[0], position[1]] == 1.0
+
+
+def test_perspective_generator_reports_its_observation_type():
+    generator = AgentZeroPerspective(World("S0 X"))
+
+    assert generator.obs_type is ObservationType.AGENT0_PERSPECTIVE_LAYERED
 
 
 def _perform_tests_extras_one_agent(env: LLE):
