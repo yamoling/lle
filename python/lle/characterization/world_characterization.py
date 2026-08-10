@@ -70,8 +70,14 @@ class WorldCharacterizer:
         return self.shortest_non_asymmetric_path is None
 
     def is_fully_coupled(self):
-        """Every agent helps every other agent at some point."""
-        raise NotImplementedError()
+        """Whether every solution makes each agent help every other agent.
+
+        The profile is false for unsolvable worlds and for worlds with fewer than two agents. For a
+        solvable world, the no-fully-coupled query proves universality when it is unsatisfiable.
+        """
+        if self.shortest_path is None:
+            return False
+        return self.shortest_non_fully_coupled_path is None
 
     def is_chained(self, length: int = 2) -> bool:
         """
@@ -193,6 +199,10 @@ class WorldCharacterizer:
     @cached_property
     def shortest_non_mutual_path(self):
         return self._solver.find_shortest(SolveMode.no_mutual())
+
+    @cached_property
+    def shortest_non_fully_coupled_path(self):
+        return self._solver.find_shortest(SolveMode.no_fully_coupled())
 
     def compute_shortest_path_without_chain(self, length: int):
         if length < 2:

@@ -14,6 +14,7 @@ use crate::solver::SolveMode;
 ///   treating every beam as permanently active.
 /// - `no_asymmetric()` — rules out plans where an agent helps someone without ever being helped.
 /// - `no_mutual()` — rules out plans where two agents each help the other.
+/// - `no_fully_coupled()` — requires at least one ordered pair of agents to lack help.
 /// - `no_chain(length=2)` — rules out plans containing a non-decreasing-time temporal chain of
 ///   `length` help edges or more (`a → b → c` is a chain of length 2).
 /// - `no_interdependence(order=2)` — rules out plans whose dependency graph contains a temporal
@@ -103,6 +104,12 @@ impl PySolveMode {
         SolveMode::NoInterdependence(2).into()
     }
 
+    /// Require at least one ordered pair of distinct agents to lack a help event.
+    #[staticmethod]
+    fn no_fully_coupled() -> Self {
+        SolveMode::NoFullyCoupledCooperation.into()
+    }
+
     /// Forbid any non-decreasing-time temporal chain of `length` help edges or more. `length` must be `>= 2`.
     #[staticmethod]
     #[pyo3(signature = (length=2))]
@@ -144,7 +151,7 @@ impl PySolveMode {
     #[pyo3(name = "from_str")]
     pub fn parse(
         #[gen_stub(override_type(
-            type_repr = "typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-mutual', 'no-chain', 'no-interdependence', 'no-convergence', 'no-divergence'] | builtins.str"
+            type_repr = "typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-mutual', 'no-fully-coupled', 'no-chain', 'no-interdependence', 'no-convergence', 'no-divergence'] | builtins.str"
         ))]
         value: &str,
     ) -> PyResult<Self> {

@@ -555,6 +555,24 @@ L1E .  .  .  .
     description="This is a fully coupled example that was used previously in the paper but was removed because the trajectories were unreadable.",
 )
 
+FULLY_COUPLED_4AGENTS = Layout(
+    "fully-coupled-4agents",
+    """
+ @  S0 S1 S2 S3 .
+L0E .  .  .  .  .
+L1E .  .  .  .  .
+L2E .  .  .  .  .
+L3E X  X  X  X  X
+""",
+    (
+        expect(
+            8,
+            fully_coupled=True,
+            interdependent={2: True, 3: True, 4: True, 5: False},
+        ),
+    ),
+)
+
 TWO_AGENT_MUTUAL_COMPACT = Layout(
     "two-agent-mutual-compact",
     """

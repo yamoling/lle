@@ -30,6 +30,9 @@ pub enum SolveMode {
     /// public, a caller may construct an invalid threshold directly, and
     /// `ClauseGenerator::generate` rejects it before allocating any clause.
     NoDivergentCooperation(usize),
+    /// At least one ordered pair of distinct agents must lack a help event over the trajectory.
+    /// Equivalently, forbids fully coupled cooperation.
+    NoFullyCoupledCooperation,
 }
 
 /// The smallest meaningful parameter for the parameterized solve modes.
@@ -62,6 +65,7 @@ impl std::str::FromStr for SolveMode {
             "no-cooperation" => Ok(SolveMode::NoCooperation),
             "no-asymmetric" => Ok(SolveMode::NoAsymmetricCooperation),
             "no-mutual" => Ok(SolveMode::NoInterdependence(2)),
+            "no-fully-coupled" => Ok(SolveMode::NoFullyCoupledCooperation),
             other => {
                 if let Some(res) = parametrized(s, "no-chain") {
                     return res.map(SolveMode::NoChainedCooperation);
@@ -77,8 +81,9 @@ impl std::str::FromStr for SolveMode {
                 }
                 Err(format!(
                     "Unknown solve mode: '{other}'. Expected one of: 'standard', 'no-cooperation', \
-                     'no-asymmetric', 'no-mutual', 'no-chain[-N]', 'no-interdependence[-N]', \
-                     'no-convergence[-N]', 'no-divergence[-N]' (N >= {MIN_LENGTH})."
+                     'no-asymmetric', 'no-mutual', 'no-fully-coupled', 'no-chain[-N]', \
+                     'no-interdependence[-N]', 'no-convergence[-N]', 'no-divergence[-N]' \
+                     (N >= {MIN_LENGTH})."
                 ))
             }
         }
@@ -98,6 +103,7 @@ impl SolveMode {
             SolveMode::NoInterdependence(n) => suffixed("no-interdependence", *n),
             SolveMode::NoConvergentCooperation(k) => suffixed("no-convergence", *k),
             SolveMode::NoDivergentCooperation(k) => suffixed("no-divergence", *k),
+            SolveMode::NoFullyCoupledCooperation => "no-fully-coupled".to_string(),
         }
     }
 }
@@ -132,6 +138,10 @@ mod tests {
         assert_eq!(
             SolveMode::from_str("no-mutual").unwrap(),
             SolveMode::NoInterdependence(2)
+        );
+        assert_eq!(
+            SolveMode::from_str("no-fully-coupled").unwrap(),
+            SolveMode::NoFullyCoupledCooperation
         );
     }
 
@@ -178,6 +188,7 @@ mod tests {
             "standard",
             "no-cooperation",
             "no-asymmetric",
+            "no-fully-coupled",
             "no-chain",
             "no-chain-3",
             "no-interdependence",

@@ -131,6 +131,12 @@ impl ClauseGenerator {
                 clauses.extend(self.engine.generate_pairwise_help_clauses(t));
                 clauses.extend(self.engine.generate_no_divergence_clauses(t, k));
             }
+            SolveMode::NoFullyCoupledCooperation => {
+                clauses.extend(self.lasers.gather_until(&mut self.engine, t));
+                clauses.extend(self.help.gather_until(&mut self.engine, t));
+                clauses.extend(self.engine.generate_pairwise_help_clauses(t));
+                clauses.extend(self.engine.generate_no_fully_coupled_clauses(t));
+            }
         }
 
         clauses.extend(self.engine.objective(t, collect_gems));

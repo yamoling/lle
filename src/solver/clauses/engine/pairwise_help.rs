@@ -51,6 +51,38 @@ impl ClauseEngine {
         clauses
     }
 
+    /// Require at least one ordered pair of distinct agents to lack help through `horizon`.
+    ///
+    /// This is the direct negative encoding of fully coupled cooperation. If every ordered pair has
+    /// a summary, one clause `¬r(0,1) ∨ ¬r(0,2) ∨ ...` requires a missing relationship. If there are
+    /// fewer than two agents, or any pair has no summary because help is geometrically impossible,
+    /// the profile is already false and no restriction is needed.
+    ///
+    /// Pairwise-help equivalences for the same `horizon` must be generated first.
+    pub fn generate_no_fully_coupled_clauses(&self, horizon: usize) -> Vec<Clause> {
+        if self.ctx.n_agents < 2 {
+            return Vec::new();
+        }
+
+        let mut missing_pair = Vec::with_capacity(self.ctx.n_agents * (self.ctx.n_agents - 1));
+        for helper in 0..self.ctx.n_agents {
+            for beneficiary in 0..self.ctx.n_agents {
+                if helper == beneficiary {
+                    continue;
+                }
+                let Some(summary) = self.pool.get(&VarKey::PairwiseHelp {
+                    helper,
+                    beneficiary,
+                    horizon,
+                }) else {
+                    return Vec::new();
+                };
+                missing_pair.push(-summary);
+            }
+        }
+        vec![missing_pair]
+    }
+
     /// Forbid any agent from being incident to `k` distinct pairwise-help summaries at `horizon`.
     ///
     /// `fixed` selects the endpoint held constant: the emitted clauses then enforce "at most
