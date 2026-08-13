@@ -6,7 +6,7 @@ SolveModeLiteral = Literal[
     "no-asymmetric",
     "no-mutual",
     "no-fully-coupled",
-    "no-chain",
+    "no-sequence",
     "no-convergence",
     "no-divergence",
     "no-interdependence",

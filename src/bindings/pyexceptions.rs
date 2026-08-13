@@ -201,5 +201,13 @@ pub fn solver_error_to_exception(error: crate::solver::errors::SolverError) -> P
         crate::solver::errors::SolverError::MissingPosition { agent, t } => SolverError::new_err(
             format!("Incomplete model: agent {agent} has no decoded position at time step {t}."),
         ),
+        // An invalid mode parameter is a caller mistake rather than an illegal solver state.
+        crate::solver::errors::SolverError::InvalidModeParameter {
+            variant,
+            value,
+            reason,
+        } => PyValueError::new_err(format!(
+            "Invalid parameter {value} for SolveMode::{variant}: {reason}"
+        )),
     }
 }

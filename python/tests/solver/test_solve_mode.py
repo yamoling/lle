@@ -5,14 +5,14 @@ from lle.solver import SolveMode, SolveModeLiteral
 
 
 def test_rust_solve_mode_rejects_invalid_lengths():
-    prefixes = ["no-chain", "no-interdependence"]
+    prefixes = ["no-sequence", "no-interdependence"]
     suffixes = ["-1", "-0", "-x"]
     combinations = [f"{p}{s}" for p in prefixes for s in suffixes] + ["bogus"]
     for bad in combinations:
         with pytest.raises(ValueError):
             SolveMode.from_str(bad)
     with pytest.raises(ValueError):
-        SolveMode.no_chain(1)
+        SolveMode.no_sequence(1)
 
 
 def test_rust_solve_mode_values():
@@ -29,11 +29,11 @@ def test_typing_solve_mode_literal():
 
 def test_rust_solve_mode_parametrized_values_round_trip():
     # Default length renders without a suffix; explicit lengths are kept.
-    assert SolveMode.no_chain().value == "no-chain"
-    assert SolveMode.no_chain(3).value == "no-chain-3"
+    assert SolveMode.no_sequence().value == "no-sequence"
+    assert SolveMode.no_sequence(3).value == "no-sequence-3"
     assert SolveMode.no_interdependence(4).value == "no-interdependence-4"
     # from_str is the inverse of value.
-    for s in ("standard", "no-chain", "no-chain-3", "no-interdependence", "no-interdependence-4"):
+    for s in ("standard", "no-sequence", "no-sequence-3", "no-interdependence", "no-interdependence-4"):
         assert SolveMode.from_str(s).value == s
     assert SolveMode.from_str("no-interdependence-2") == SolveMode.no_interdependence(2)
 
@@ -60,7 +60,7 @@ def test_parameterized_factories_raise_value_error_for_signed_input(n: int):
 
     @ai-generated
     """
-    for factory in (SolveMode.no_chain, SolveMode.no_interdependence, SolveMode.no_convergence):
+    for factory in (SolveMode.no_sequence, SolveMode.no_interdependence, SolveMode.no_convergence):
         with pytest.raises(ValueError):
             factory(n)
 
@@ -84,10 +84,7 @@ def test_no_divergence_factory_and_parser_round_trip():
 
 @pytest.mark.parametrize("k", [-1, 0, 1])
 def test_no_divergence_rejects_threshold_below_two(k: int):
-    """Invalid thresholds raise `ValueError`, never `OverflowError`.
-
-    @ai-generated
-    """
+    """Invalid thresholds raise `ValueError`, never `OverflowError`."""
     with pytest.raises(ValueError):
         SolveMode.no_divergence(k)
     with pytest.raises(ValueError):
