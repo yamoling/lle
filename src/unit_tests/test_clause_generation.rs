@@ -5,6 +5,7 @@ use crate::World;
 use crate::solver::Clause;
 use crate::solver::Literal;
 use crate::solver::clauses::ClauseEngine;
+
 use crate::solver::{ClauseGenerator, SolveMode, VarKey};
 use rstest::rstest;
 use rstest_reuse::{self, apply, template};
@@ -42,7 +43,9 @@ fn test_position_validity_single_agent() {
     let t_max = 4;
     let world = World::try_from("S0 . X").expect("Failed to parse world");
     let mut generator = ClauseGenerator::new(&world, t_max);
-    generator.generate(t_max, SolveMode::Standard, false);
+    generator
+        .generate(t_max, SolveMode::Standard, false)
+        .unwrap();
 
     let start_pos = world.starts()[0];
     // Pos (0,0) exists at t={0,1,2}
@@ -78,7 +81,7 @@ fn possible_positions_multiple_agents() {
     let t_max = 10;
     let mut cg = ClauseGenerator::new(&world, t_max);
 
-    let (clauses, assumptions) = cg.generate(t_max, SolveMode::Standard, false);
+    let (clauses, assumptions) = cg.generate(t_max, SolveMode::Standard, false).unwrap();
     assert!(!clauses.is_empty());
     assert!(assumptions.is_empty());
     // t=0, only start position
@@ -116,7 +119,7 @@ fn possible_positions_multiple_agents() {
 #[test]
 fn test_at_most_one_position_clause_structure() {
     let mut cg = build("S0 . X", 10);
-    let (clauses, _) = cg.generate(1, SolveMode::Standard, false);
+    let (clauses, _) = cg.generate(1, SolveMode::Standard, false).unwrap();
 
     let a00 = cg
         .literal(&VarKey::agent(0, pos(0, 0), 1))
@@ -139,7 +142,7 @@ fn test_at_most_one_position_clause_structure() {
 #[test]
 fn test_time_wise_adjacency_clause_structure() {
     let mut cg = build("S0 . X", 10);
-    let (clauses, _) = cg.generate(1, SolveMode::Standard, false);
+    let (clauses, _) = cg.generate(1, SolveMode::Standard, false).unwrap();
 
     let cur = cg
         .literal(&VarKey::agent(0, pos(0, 1), 1))
@@ -168,7 +171,7 @@ fn test_no_overlap_binary_exclusion_clause() {
     //   exclusive to agent 0: {(0,0)}  → no exclusion clause
     //   exclusive to agent 1: {(0,2), (0,3)}  → no exclusion clause
     let mut cg = build("S0 . S1 X X", 5);
-    let (clauses, _) = cg.generate(1, SolveMode::Standard, false);
+    let (clauses, _) = cg.generate(1, SolveMode::Standard, false).unwrap();
 
     // ── shared position (0,1): exclusion clause must exist ──────────────────
     let v0_01 = cg
@@ -215,7 +218,7 @@ fn test_no_following_conflict_encodes_swap_prohibition() {
     // S0 at (0,0), S1 at (0,1).
     // Opt 2: (0,0) is S0's start, so agent 1 cannot be there at t=1 — the variable is pruned.
     let mut cg = build("S0 S1 X X", 5);
-    let (_, _) = cg.generate(2, SolveMode::Standard, false);
+    let (_, _) = cg.generate(2, SolveMode::Standard, false).unwrap();
 
     // Agent 1 cannot be at (0,0) at t=1 (Opt 2 prunes it entirely).
     assert!(
@@ -231,7 +234,7 @@ fn test_no_following_conflict_encodes_swap_prohibition() {
     let a1_t2 = cg
         .literal(&VarKey::agent(1, pos(0, 0), 2))
         .expect("agent 1 at (0,0) t=2");
-    let clauses = cg.generate(2, SolveMode::Standard, false).0;
+    let clauses = cg.generate(2, SolveMode::Standard, false).unwrap().0;
     assert!(
         clauses
             .iter()
@@ -247,7 +250,7 @@ fn test_no_following_conflict_encodes_swap_prohibition() {
 fn test_stays_on_exit_implication_clause() {
     // "S0 . X": exit at (0,2). Agent can reach exit at t=2; at t=3 must stay.
     let mut cg = build("S0 . X", 4);
-    let (clauses, _) = cg.generate(3, SolveMode::Standard, false);
+    let (clauses, _) = cg.generate(3, SolveMode::Standard, false).unwrap();
 
     let prev = cg
         .literal(&VarKey::agent(0, pos(0, 2), 2))
@@ -424,7 +427,7 @@ fn test_beam_activation_first_tile_encodes_biconditional() {
     let world = World::try_from(". X\nS0 .\nL0N .").expect("Failed to parse world");
     let laser_id = world.sources().collect::<Vec<_>>()[0].1.laser_id();
     let mut cg = ClauseGenerator::new(&world, 10);
-    let (clauses, _) = cg.generate(2, SolveMode::Standard, false);
+    let (clauses, _) = cg.generate(2, SolveMode::Standard, false).unwrap();
 
     // At t=2 agent can reach (1,0): the first (and only) blockable tile.
     let active = cg.literal(&VarKey::laser(laser_id, pos(1, 0), 2));
@@ -454,7 +457,7 @@ fn test_beam_activation_first_tile_encodes_biconditional() {
 fn test_laser_blocking_same_colour() {
     let world = World::try_from(".   X\nS0  .\nL0N .").expect("Failed to parse world");
     let mut generator = ClauseGenerator::new(&world, 10);
-    let (clauses, _) = generator.generate(2, SolveMode::Standard, false);
+    let (clauses, _) = generator.generate(2, SolveMode::Standard, false).unwrap();
     assert!(!clauses.is_empty());
 
     assert_eq!(world.sources().count(), 1);
@@ -476,7 +479,9 @@ fn test_help_event_clauses_track_blocked_beam_usage() {
     )
     .expect("Failed to parse world");
     let mut cg = ClauseGenerator::new(&world, 4);
-    let (clauses, _) = cg.generate(2, SolveMode::NoAsymmetricCooperation, false);
+    let (clauses, _) = cg
+        .generate(2, SolveMode::NoAsymmetricCooperation, false)
+        .unwrap();
 
     let help = cg
         .literal(&VarKey::Help {
@@ -514,7 +519,7 @@ fn test_no_step_on_active_laser_binary_clause() {
     let world = World::try_from("L0S . X\n.   S1 X\nS0  . .").expect("Failed to parse world");
     let laser_id = world.sources().next().unwrap().1.laser_id();
     let mut cg = ClauseGenerator::new(&world, 2);
-    let (clauses, _) = cg.generate(1, SolveMode::Standard, false);
+    let (clauses, _) = cg.generate(1, SolveMode::Standard, false).unwrap();
 
     let agent_1_at_10 = cg.literal(&VarKey::agent(1, pos(1, 0), 1));
     let laser_at_10 = cg.literal(&VarKey::laser(laser_id, pos(1, 0), 1));
@@ -598,7 +603,7 @@ fn test_no_cooperation_forbids_non_owner_on_blockable_downstream_beam_tile() {
     .expect("Failed to parse world");
     let t_max = 3;
     let mut cg = ClauseGenerator::new(&world, t_max);
-    let (clauses, assumptions) = cg.generate(t_max, SolveMode::NoCooperation, false);
+    let (clauses, assumptions) = cg.generate(t_max, SolveMode::NoCooperation, false).unwrap();
     assert_no_cooperation_does_not_generate_beam_positions(&cg, &world, clauses, assumptions);
 }
 
@@ -618,8 +623,8 @@ fn test_no_cooperation_after_standard_generation_forbids_same_downstream_beam_ti
     .expect("Failed to parse world");
     let t_max = 9;
     let mut cg = ClauseGenerator::new(&world, t_max);
-    let _ = cg.generate(t_max, SolveMode::Standard, false);
-    let (clauses, assumptions) = cg.generate(t_max, SolveMode::NoCooperation, false);
+    let _ = cg.generate(t_max, SolveMode::Standard, false).unwrap();
+    let (clauses, assumptions) = cg.generate(t_max, SolveMode::NoCooperation, false).unwrap();
     assert_no_cooperation_does_not_generate_beam_positions(&cg, &world, clauses, assumptions);
 }
 
@@ -632,7 +637,7 @@ fn test_unblockable_beam_tile_generates_unit_clause() {
     let world = World::try_from("L0E .  .  X\nS0  @  S1 X").expect("Failed to parse world");
     let laser_id = world.sources().next().unwrap().1.laser_id();
     let mut cg = ClauseGenerator::new(&world, 4);
-    let (clauses, _) = cg.generate(2, SolveMode::Standard, false);
+    let (clauses, _) = cg.generate(2, SolveMode::Standard, false).unwrap();
 
     // The beam tile (0,2) is downstream and unreachable by agent 0 → constant-active → no var.
     assert!(
@@ -654,7 +659,7 @@ fn test_unblockable_beam_tile_generates_unit_clause() {
 fn test_laser_blocks_different_colour_agent() {
     let world = World::try_from("L0S . X\n.   S1 X\nS0  . .").expect("Failed to parse world");
     let mut generator = ClauseGenerator::new(&world, 2);
-    let (clauses, _) = generator.generate(1, SolveMode::Standard, false);
+    let (clauses, _) = generator.generate(1, SolveMode::Standard, false).unwrap();
     assert!(!clauses.is_empty());
     assert_eq!(world.n_agents(), 2);
     let sources: Vec<_> = world.sources().collect();
@@ -666,7 +671,7 @@ fn test_laser_blocks_different_colour_agent() {
 fn test_unblockable_constant_active_laser() {
     let world = World::try_from("L0E .  .  X\nS0  @  S1 X").expect("Failed to parse world");
     let mut generator = ClauseGenerator::new(&world, 4);
-    let (clauses, _) = generator.generate(2, SolveMode::Standard, false);
+    let (clauses, _) = generator.generate(2, SolveMode::Standard, false).unwrap();
     assert!(!clauses.is_empty());
 
     assert!(!generator.exists(&VarKey::Laser {
@@ -684,7 +689,7 @@ fn test_two_lasers_stop_at_each_other() {
     // L0E at (0,0) → beam (0,1); L1W at (0,2) → beam (0,1). Neither reaches past the other's source.
     let world = World::try_from("L0E . L1W X X\nS0  . S1  . .").expect("Failed to parse world");
     let mut generator = ClauseGenerator::new(&world, 10);
-    let (clauses, _) = generator.generate(2, SolveMode::Standard, false);
+    let (clauses, _) = generator.generate(2, SolveMode::Standard, false).unwrap();
     assert!(!clauses.is_empty());
 
     let sources: Vec<_> = world.sources().collect();
@@ -722,7 +727,7 @@ fn test_multiple_same_colour_same_direction_lasers_get_independent_beams() {
     let world = World::try_from(".  L0S .  L0S .\nS0 .   .  .   S1\nX  .   .  .   X")
         .expect("Failed to parse world");
     let mut cg = ClauseGenerator::new(&world, 10);
-    let (clauses, _) = cg.generate(3, SolveMode::Standard, false);
+    let (clauses, _) = cg.generate(3, SolveMode::Standard, false).unwrap();
     assert!(!clauses.is_empty());
 
     let sources: Vec<_> = world.sources().collect();
@@ -774,7 +779,7 @@ fn test_multiple_same_colour_same_direction_lasers_get_independent_beams() {
 #[test]
 fn test_opt2_start_tile_pruned_at_t1_only() {
     let mut cg = build("S0 S1 X X", 5);
-    cg.generate(2, SolveMode::Standard, false);
+    cg.generate(2, SolveMode::Standard, false).unwrap();
 
     // At t=1: each agent's other-agent start is pruned.
     assert!(
@@ -819,7 +824,7 @@ fn test_opt3_first_beam_tile_pruned_for_non_owner() {
     let world = World::try_from("L0S . X\n. S1 X\nS0 . .").expect("Failed to parse world");
     let laser_id = world.sources().next().unwrap().1.laser_id();
     let mut cg = ClauseGenerator::new(&world, 10);
-    cg.generate(3, SolveMode::Standard, false);
+    cg.generate(3, SolveMode::Standard, false).unwrap();
 
     // Non-owner (agent 1) must never have a variable at the first beam tile (1,0).
     for t in 0..=3 {
@@ -857,7 +862,7 @@ fn test_crossing_lasers_keep_independent_variables() {
     )
     .expect("Failed to parse world");
     let mut cg = ClauseGenerator::new(&world, 20);
-    let (clauses, _) = cg.generate(10, SolveMode::Standard, false);
+    let (clauses, _) = cg.generate(10, SolveMode::Standard, false).unwrap();
     assert!(!clauses.is_empty());
 
     // At each crossing position there must be at least two distinct laser variables
@@ -909,7 +914,7 @@ X X . @ .
     let mut cg = ClauseGenerator::new(&world, t_max);
     // Drive the incremental solve exactly like the Python solver: generate at every horizon.
     for t in cg.solution_lower_bound()..=t_max {
-        cg.generate(t, SolveMode::Standard, false);
+        cg.generate(t, SolveMode::Standard, false).unwrap();
     }
     for agent in 0..2 {
         for t in 0..=t_max {
@@ -947,7 +952,9 @@ fn help_clauses_include_beneficiary_to_help_implications() {
     )
     .expect("failed to parse world");
     let mut cg = ClauseGenerator::new(&world, 10);
-    let (clauses, _) = cg.generate(10, SolveMode::NoAsymmetricCooperation, false);
+    let (clauses, _) = cg
+        .generate(10, SolveMode::NoAsymmetricCooperation, false)
+        .unwrap();
     let mut produced_any = false;
 
     for clause in clauses {
@@ -991,7 +998,9 @@ fn asymmetric_world_generates_forbid_clauses_and_assumptions() {
     .expect("failed to parse world");
     let t_max = 10;
     let mut cg = ClauseGenerator::new(&world, t_max);
-    let (clauses, assumptions) = cg.generate(10, SolveMode::NoAsymmetricCooperation, false);
+    let (clauses, assumptions) = cg
+        .generate(10, SolveMode::NoAsymmetricCooperation, false)
+        .unwrap();
 
     assert!(
         !clauses.is_empty(),
@@ -1043,7 +1052,9 @@ fn no_convergence_mode_generates_pairwise_blocking_clauses() {
     let horizon = 6;
     let mut generator = ClauseGenerator::new(&world, horizon);
 
-    generator.generate(horizon, SolveMode::Standard, false);
+    generator
+        .generate(horizon, SolveMode::Standard, false)
+        .unwrap();
     for helper in 0..world.n_agents() {
         for beneficiary in 0..world.n_agents() {
             assert!(!generator.exists(&VarKey::PairwiseHelp {
@@ -1054,8 +1065,13 @@ fn no_convergence_mode_generates_pairwise_blocking_clauses() {
         }
     }
 
-    let (clauses, assumptions) =
-        generator.generate(horizon, SolveMode::NoConvergentCooperation(2), false);
+    let (clauses, assumptions) = generator
+        .generate(
+            horizon,
+            SolveMode::no_convergent_cooperation(2).unwrap(),
+            false,
+        )
+        .unwrap();
     assert!(assumptions.is_empty());
 
     let blockers = clauses
@@ -1114,7 +1130,9 @@ fn no_convergence_generator_reuse_does_not_leak_horizons_or_thresholds() {
     .expect("failed to parse convergence world");
     let mut generator = ClauseGenerator::new(&world, 6);
 
-    generator.generate(6, SolveMode::NoConvergentCooperation(2), false);
+    generator
+        .generate(6, SolveMode::no_convergent_cooperation(2).unwrap(), false)
+        .unwrap();
     let large_pairwise = (0..world.n_agents())
         .flat_map(|helper| {
             (0..world.n_agents()).filter_map(move |beneficiary| {
@@ -1129,7 +1147,9 @@ fn no_convergence_generator_reuse_does_not_leak_horizons_or_thresholds() {
         .collect::<Vec<_>>();
     assert!(!large_pairwise.is_empty());
 
-    let (small_clauses, _) = generator.generate(4, SolveMode::NoConvergentCooperation(2), false);
+    let (small_clauses, _) = generator
+        .generate(4, SolveMode::no_convergent_cooperation(2).unwrap(), false)
+        .unwrap();
     assert!(large_pairwise.iter().all(|large| {
         !small_clauses
             .iter()
@@ -1147,7 +1167,9 @@ fn no_convergence_generator_reuse_does_not_leak_horizons_or_thresholds() {
     }));
 
     let variables_after_two = generator.n_vars();
-    let (threshold_three, _) = generator.generate(4, SolveMode::NoConvergentCooperation(3), false);
+    let (threshold_three, _) = generator
+        .generate(4, SolveMode::no_convergent_cooperation(3).unwrap(), false)
+        .unwrap();
     assert_eq!(generator.n_vars(), variables_after_two);
     assert!(!threshold_three.iter().any(|clause| {
         clause.len() == 3
@@ -1197,7 +1219,9 @@ fn no_divergence_mode_generates_outgoing_blocking_clauses() {
     let horizon = 4;
     let mut generator = ClauseGenerator::new(&world, horizon);
 
-    generator.generate(horizon, SolveMode::Standard, false);
+    generator
+        .generate(horizon, SolveMode::Standard, false)
+        .unwrap();
     for helper in 0..world.n_agents() {
         for beneficiary in 0..world.n_agents() {
             assert!(!generator.exists(&VarKey::PairwiseHelp {
@@ -1208,8 +1232,13 @@ fn no_divergence_mode_generates_outgoing_blocking_clauses() {
         }
     }
 
-    let (clauses, assumptions) =
-        generator.generate(horizon, SolveMode::NoDivergentCooperation(2), false);
+    let (clauses, assumptions) = generator
+        .generate(
+            horizon,
+            SolveMode::no_divergent_cooperation(2).unwrap(),
+            false,
+        )
+        .unwrap();
     assert!(assumptions.is_empty());
 
     let blockers = clauses
@@ -1248,7 +1277,13 @@ fn no_divergence_mode_prunes_impossible_help_pairs() {
     let world = divergent_world();
     let horizon = 4;
     let mut generator = ClauseGenerator::new(&world, horizon);
-    generator.generate(horizon, SolveMode::NoDivergentCooperation(2), false);
+    generator
+        .generate(
+            horizon,
+            SolveMode::no_divergent_cooperation(2).unwrap(),
+            false,
+        )
+        .unwrap();
 
     for helper in 1..world.n_agents() {
         for beneficiary in 0..world.n_agents() {
@@ -1280,9 +1315,20 @@ fn interleaved_convergence_and_divergence_keep_their_orientation() {
     let horizon = 4;
     let mut generator = ClauseGenerator::new(&world, horizon);
 
-    let (divergence, _) = generator.generate(horizon, SolveMode::NoDivergentCooperation(2), false);
-    let (convergence, _) =
-        generator.generate(horizon, SolveMode::NoConvergentCooperation(2), false);
+    let (divergence, _) = generator
+        .generate(
+            horizon,
+            SolveMode::no_divergent_cooperation(2).unwrap(),
+            false,
+        )
+        .unwrap();
+    let (convergence, _) = generator
+        .generate(
+            horizon,
+            SolveMode::no_convergent_cooperation(2).unwrap(),
+            false,
+        )
+        .unwrap();
 
     let shared_helpers = |clauses: &[Clause]| {
         clauses
@@ -1313,7 +1359,9 @@ fn no_divergence_generator_reuse_does_not_leak_horizons() {
     let world = divergent_world();
     let mut generator = ClauseGenerator::new(&world, 6);
 
-    generator.generate(6, SolveMode::NoDivergentCooperation(2), false);
+    generator
+        .generate(6, SolveMode::no_divergent_cooperation(2).unwrap(), false)
+        .unwrap();
     let large_pairwise = (0..world.n_agents())
         .filter_map(|beneficiary| {
             generator.literal(&VarKey::PairwiseHelp {
@@ -1325,7 +1373,9 @@ fn no_divergence_generator_reuse_does_not_leak_horizons() {
         .collect::<Vec<_>>();
     assert!(!large_pairwise.is_empty());
 
-    let (small_clauses, _) = generator.generate(4, SolveMode::NoDivergentCooperation(2), false);
+    let (small_clauses, _) = generator
+        .generate(4, SolveMode::no_divergent_cooperation(2).unwrap(), false)
+        .unwrap();
     assert!(large_pairwise.iter().all(|large| {
         !small_clauses
             .iter()
@@ -1333,9 +1383,13 @@ fn no_divergence_generator_reuse_does_not_leak_horizons() {
             .any(|literal| literal.unsigned_abs() == *large as u32)
     }));
 
-    let (large_again, _) = generator.generate(6, SolveMode::NoDivergentCooperation(2), false);
+    let (large_again, _) = generator
+        .generate(6, SolveMode::no_divergent_cooperation(2).unwrap(), false)
+        .unwrap();
     let mut fresh_generator = ClauseGenerator::new(&world, 6);
-    let (fresh, _) = fresh_generator.generate(6, SolveMode::NoDivergentCooperation(2), false);
+    let (fresh, _) = fresh_generator
+        .generate(6, SolveMode::no_divergent_cooperation(2).unwrap(), false)
+        .unwrap();
     assert_eq!(
         semantic_clauses(&generator, &large_again),
         semantic_clauses(&fresh_generator, &fresh)
@@ -1371,24 +1425,521 @@ fn semantic_clauses(
         .collect()
 }
 
-/// A directly constructed threshold below two fails before any clause is produced.
+/// Reject `mode` on `world` and return the rendered error message.
+///
+/// Also checks that the rejection happens before any variable is allocated, so that a bad query
+/// leaves the generator usable.
 ///
 /// @ai-generated
-#[test]
-#[should_panic(expected = "requires a threshold >= 2")]
-fn raw_divergence_threshold_below_two_panics() {
-    let world = divergent_world();
-    let mut generator = ClauseGenerator::new(&world, 4);
-    generator.generate(4, SolveMode::NoDivergentCooperation(1), false);
+
+// ─── solve-mode feasibility shortcuts ────────────────────────────────────────
+
+/// Every non-standard mode, with the smallest valid parameter and one longer variant.
+#[template]
+#[rstest]
+fn non_standard_modes(
+    #[values(
+        SolveMode::NoCooperation,
+        SolveMode::NoAsymmetricCooperation,
+        SolveMode::no_sequential_cooperation(2).unwrap(),
+        SolveMode::no_sequential_cooperation(3).unwrap(),
+        SolveMode::no_interdependence(2).unwrap(),
+        SolveMode::no_interdependence(3).unwrap(),
+        SolveMode::no_convergent_cooperation(2).unwrap(),
+        SolveMode::no_convergent_cooperation(3).unwrap(),
+        SolveMode::no_divergent_cooperation(2).unwrap(),
+        SolveMode::no_divergent_cooperation(3).unwrap(),
+        SolveMode::NoFullyCoupledCooperation
+    )]
+    mode: SolveMode,
+) {
 }
 
-/// The same guard protects the convergence variant against direct construction.
+/// A single-agent world that still owns a laser: no help event can ever occur.
+///
+/// @ai-generated
+fn single_agent_world() -> World {
+    World::try_from(
+        "
+        S0  .  X
+        L0E .  .
+        ",
+    )
+    .expect("failed to parse single-agent world")
+}
+
+/// A two-agent world without any laser source, hence without any blockable beam.
+///
+/// @ai-generated
+fn laserless_world() -> World {
+    World::try_from(
+        "
+        S0 S1 .
+        .  G  .
+        X  X  .
+        ",
+    )
+    .expect("failed to parse laserless world")
+}
+
+/// A two-agent world where each agent owns a beam covering the other agent's route.
+///
+/// @ai-generated
+fn mutual_world() -> World {
+    World::try_from(
+        "
+         S0  .  .  S1
+        L0E  .  .  .
+         .   .  .  L1W
+         X   .  .  X",
+    )
+    .expect("failed to parse mutual world")
+}
+
+/// A three-agent world with two laser colours, both covering the routes of the other agents.
+///
+/// @ai-generated
+fn convergent_world() -> World {
+    World::try_from(
+        "
+         @  S0  S1  S2
+        L0E  .   .   .
+        L1E  .   .   .
+         @   X   X   X
+        ",
+    )
+    .expect("failed to parse convergence world")
+}
+
+/// Every variable key allocated so far, in allocation order.
+///
+/// Variable ids are contiguous and start at 1, so the pool can be enumerated through them.
+///
+/// @ai-generated
+fn allocated_keys(generator: &ClauseGenerator) -> Vec<VarKey> {
+    (1..=generator.n_vars() as Literal)
+        .filter_map(|id| generator.engine.pool.key(id))
+        .collect()
+}
+
+/// Whether `key` exists only to encode a cooperation profile.
+///
+/// @ai-generated
+fn is_cooperation_key(key: &VarKey) -> bool {
+    matches!(
+        key,
+        VarKey::Help { .. }
+            | VarKey::PairwiseHelp { .. }
+            | VarKey::IsHelped { .. }
+            | VarKey::ProvidesHelp { .. }
+            | VarKey::Asymmetric { .. }
+            | VarKey::SequenceProgress { .. }
+            | VarKey::InterdependenceProgress { .. }
+    )
+}
+
+/// Assert that no cooperation-specific variable was allocated.
+///
+/// Explicit key checks are used rather than a variable count, because standard movement and laser
+/// allocation legitimately varies from one world to another.
+///
+/// @ai-generated
+fn assert_no_cooperation_variables(generator: &ClauseGenerator) {
+    let cooperation_keys = allocated_keys(generator)
+        .into_iter()
+        .filter(is_cooperation_key)
+        .collect::<Vec<_>>();
+    assert!(
+        cooperation_keys.is_empty(),
+        "no cooperation variable should be allocated, found {cooperation_keys:?}"
+    );
+}
+
+/// Assert that `mode` is structurally impossible on `world` and thus behaves exactly like
+/// [`SolveMode::Standard`].
+///
+/// The comparison uses a *fresh* standard generator so that buffers filled by an earlier
+/// non-standard query cannot hide a missing shortcut.
+///
+/// @ai-generated
+fn assert_mode_is_shortcut(world: &World, horizon: usize, mode: SolveMode, collect_gems: bool) {
+    let mut shortcut = ClauseGenerator::new(world, horizon);
+    let (clauses, assumptions) = shortcut.generate(horizon, mode, collect_gems).unwrap();
+
+    let mut reference = ClauseGenerator::new(world, horizon);
+    let (expected, expected_assumptions) = reference
+        .generate(horizon, SolveMode::Standard, collect_gems)
+        .unwrap();
+
+    assert!(
+        assumptions.is_empty(),
+        "{mode:?} is tautological here and must not return any assumption"
+    );
+    assert!(expected_assumptions.is_empty());
+    assert_eq!(
+        semantic_clauses(&shortcut, &clauses),
+        semantic_clauses(&reference, &expected),
+        "{mode:?} must produce the standard formula"
+    );
+    assert_no_cooperation_variables(&shortcut);
+}
+
+/// Assert that at least one pairwise-help summary was allocated at `horizon`.
+///
+/// @ai-generated
+fn assert_has_pairwise_summary(generator: &ClauseGenerator, n_agents: usize, horizon: usize) {
+    assert!(
+        (0..n_agents).any(|helper| {
+            (0..n_agents).any(|beneficiary| {
+                generator.exists(&VarKey::PairwiseHelp {
+                    helper,
+                    beneficiary,
+                    horizon,
+                })
+            })
+        }),
+        "a feasible mode must materialize its pairwise-help summaries"
+    );
+}
+
+/// A single agent can never be helped, so every non-standard mode reduces to the standard one.
+///
+/// @ai-generated
+#[apply(non_standard_modes)]
+fn single_agent_world_shortcuts_every_mode(mode: SolveMode) {
+    assert_mode_is_shortcut(&single_agent_world(), 4, mode, false);
+}
+
+/// Without a laser source there is no beam to block, hence no possible help event.
+///
+/// @ai-generated
+#[apply(non_standard_modes)]
+fn laserless_world_shortcuts_every_mode(mode: SolveMode) {
+    assert_mode_is_shortcut(&laserless_world(), 6, mode, false);
+}
+
+/// Normalizing an impossible mode must not drop the gem objectives.
 ///
 /// @ai-generated
 #[test]
-#[should_panic(expected = "requires a threshold >= 2")]
-fn raw_convergence_threshold_of_zero_panics() {
+fn shortcut_preserves_gem_objectives() {
+    let world = laserless_world();
+    let horizon = 6;
+    assert_mode_is_shortcut(&world, horizon, SolveMode::NoFullyCoupledCooperation, true);
+
+    let mut generator = ClauseGenerator::new(&world, horizon);
+    let (with_gems, _) = generator
+        .generate(horizon, SolveMode::NoFullyCoupledCooperation, true)
+        .unwrap();
+    let (without_gems, _) = generator
+        .generate(horizon, SolveMode::NoFullyCoupledCooperation, false)
+        .unwrap();
+    assert!(
+        with_gems.len() > without_gems.len(),
+        "the gem clauses must still be appended to a shortcut query"
+    );
+}
+
+/// Both degree modes need `k + 1` agents, so two agents cannot exhibit a degree of two.
+///
+/// @ai-generated
+#[rstest]
+#[case(SolveMode::no_convergent_cooperation(2).unwrap())]
+#[case(SolveMode::no_divergent_cooperation(2).unwrap())]
+fn degree_modes_shortcut_below_the_agent_bound(#[case] mode: SolveMode) {
+    let world = mutual_world();
+    assert_eq!(world.n_agents(), 2);
+    assert_eq!(world.n_laser_colours(), 2);
+    assert_mode_is_shortcut(&world, 6, mode, false);
+}
+
+/// Two distinct helpers require two laser colours, which a single-colour world cannot provide.
+///
+/// @ai-generated
+#[test]
+fn convergence_shortcuts_below_the_colour_bound() {
     let world = divergent_world();
-    let mut generator = ClauseGenerator::new(&world, 4);
-    generator.generate(4, SolveMode::NoConvergentCooperation(0), false);
+    assert_eq!(world.n_agents(), 3);
+    assert_eq!(world.n_laser_colours(), 1);
+    assert_mode_is_shortcut(
+        &world,
+        4,
+        SolveMode::no_convergent_cooperation(2).unwrap(),
+        false,
+    );
+}
+
+/// One helper may assist two beneficiaries of any colour, so divergence survives a single colour.
+///
+/// @ai-generated
+#[test]
+fn divergence_does_not_shortcut_with_a_single_colour() {
+    let world = divergent_world();
+    let horizon = 4;
+    let mut generator = ClauseGenerator::new(&world, horizon);
+    let (clauses, _) = generator
+        .generate(
+            horizon,
+            SolveMode::no_divergent_cooperation(2).unwrap(),
+            false,
+        )
+        .unwrap();
+
+    assert_has_pairwise_summary(&generator, world.n_agents(), horizon);
+    assert!(
+        clauses
+            .iter()
+            .any(|clause| pairwise_blocker_keys(&generator, clause).is_some()),
+        "outgoing pairwise blockers must still be generated"
+    );
+}
+
+/// A closed trail of order three needs three agents.
+///
+/// @ai-generated
+#[test]
+fn interdependence_shortcuts_below_the_agent_bound() {
+    let world = mutual_world();
+    assert_eq!(world.n_agents(), 2);
+    assert_eq!(world.n_laser_colours(), 2);
+    assert_mode_is_shortcut(&world, 6, SolveMode::no_interdependence(3).unwrap(), false);
+}
+
+/// A closed trail of order three also needs three laser-owning helpers.
+///
+/// @ai-generated
+#[test]
+fn interdependence_shortcuts_below_the_colour_bound() {
+    let world = convergent_world();
+    assert_eq!(world.n_agents(), 3);
+    assert_eq!(world.n_laser_colours(), 2);
+    assert_mode_is_shortcut(&world, 6, SolveMode::no_interdependence(3).unwrap(), false);
+}
+
+/// A sequence of help edges needs two laser-owning helpers, whatever the requested length.
+///
+/// @ai-generated
+#[rstest]
+#[case(2)]
+#[case(4)]
+fn sequential_cooperation_shortcuts_with_a_single_colour(#[case] length: usize) {
+    let world = divergent_world();
+    assert_eq!(world.n_laser_colours(), 1);
+    assert_mode_is_shortcut(
+        &world,
+        4,
+        SolveMode::no_sequential_cooperation(length).unwrap(),
+        false,
+    );
+}
+
+/// Fully coupled cooperation makes every agent a helper, so every agent must own a laser.
+///
+/// @ai-generated
+#[test]
+fn fully_coupled_shortcuts_when_an_agent_owns_no_laser() {
+    let world = divergent_world();
+    assert!(world.n_laser_colours() < world.n_agents());
+    assert_mode_is_shortcut(&world, 4, SolveMode::NoFullyCoupledCooperation, false);
+}
+
+/// Two agents owning one beam each meet the sequence prerequisites, so sequence states are allocated.
+///
+/// @ai-generated
+#[test]
+fn sequential_cooperation_generates_progress_variables_with_two_colours() {
+    let world = mutual_world();
+    let horizon = 8;
+    let mut generator = ClauseGenerator::new(&world, horizon);
+    generator
+        .generate(
+            horizon,
+            SolveMode::no_sequential_cooperation(2).unwrap(),
+            false,
+        )
+        .unwrap();
+
+    let keys = allocated_keys(&generator);
+    assert!(
+        keys.iter().any(|key| matches!(key, VarKey::Help { .. })),
+        "help variables must be materialized for a feasible sequence query"
+    );
+    assert!(
+        keys.iter()
+            .any(|key| matches!(key, VarKey::SequenceProgress { length: 2, .. })),
+        "sequence progress variables must be materialized for a feasible sequence query"
+    );
+}
+
+/// Mutual help between two laser owners meets the order-two interdependence prerequisites.
+///
+/// @ai-generated
+#[test]
+fn interdependence_generates_progress_variables_at_the_boundary() {
+    let world = mutual_world();
+    let horizon = 8;
+    let mut generator = ClauseGenerator::new(&world, horizon);
+    generator
+        .generate(horizon, SolveMode::no_interdependence(2).unwrap(), false)
+        .unwrap();
+
+    assert!(
+        allocated_keys(&generator)
+            .iter()
+            .any(|key| matches!(key, VarKey::InterdependenceProgress { order: 2, .. })),
+        "interdependence progress variables must be materialized at the boundary"
+    );
+}
+
+/// When every agent owns a laser, the fully-coupled blocker is generated.
+///
+/// @ai-generated
+#[test]
+fn fully_coupled_generates_its_blocking_clause_when_every_agent_owns_a_laser() {
+    let world = mutual_world();
+    let horizon = 8;
+    let mut generator = ClauseGenerator::new(&world, horizon);
+    let (clauses, assumptions) = generator
+        .generate(horizon, SolveMode::NoFullyCoupledCooperation, false)
+        .unwrap();
+    assert!(assumptions.is_empty());
+
+    for helper in 0..world.n_agents() {
+        for beneficiary in 0..world.n_agents() {
+            if helper == beneficiary {
+                continue;
+            }
+            assert!(
+                generator.exists(&VarKey::PairwiseHelp {
+                    helper,
+                    beneficiary,
+                    horizon,
+                }),
+                "pair {helper} -> {beneficiary} must have a summary"
+            );
+        }
+    }
+
+    let blocker = clauses
+        .iter()
+        .filter_map(|clause| pairwise_blocker_keys(&generator, clause))
+        .find(|keys| keys.len() == world.n_agents() * (world.n_agents() - 1))
+        .expect("the fully-coupled blocking clause must be generated");
+    for helper in 0..world.n_agents() {
+        for beneficiary in 0..world.n_agents() {
+            if helper == beneficiary {
+                continue;
+            }
+            assert!(blocker.contains(&VarKey::PairwiseHelp {
+                helper,
+                beneficiary,
+                horizon,
+            }));
+        }
+    }
+}
+
+/// The common prerequisites are met by two agents and one laser, so `NoCooperation` still applies.
+///
+/// @ai-generated
+#[test]
+fn no_cooperation_still_assumes_when_a_beam_is_relevant() {
+    let world = World::try_from(
+        "
+         .  S0  S1
+        L0E  .   .
+         .   .   .
+         .   X   X
+        ",
+    )
+    .expect("failed to parse world");
+    let horizon = 5;
+    let mut generator = ClauseGenerator::new(&world, horizon);
+    let (_, assumptions) = generator
+        .generate(horizon, SolveMode::NoCooperation, false)
+        .unwrap();
+    assert!(
+        !assumptions.is_empty(),
+        "a feasible no-cooperation query must forbid the foreign beam tiles"
+    );
+}
+
+/// A shortcut query must not pre-fill the cooperation buffers of a later feasible query.
+///
+/// @ai-generated
+#[test]
+fn shortcut_query_does_not_prefill_cooperation_buffers() {
+    let world = divergent_world();
+    let horizon = 4;
+    let mut generator = ClauseGenerator::new(&world, horizon);
+
+    let (impossible, assumptions) = generator
+        .generate(
+            horizon,
+            SolveMode::no_convergent_cooperation(2).unwrap(),
+            false,
+        )
+        .unwrap();
+    assert!(assumptions.is_empty());
+    assert_no_cooperation_variables(&generator);
+
+    let mut reference = ClauseGenerator::new(&world, horizon);
+    let (standard, _) = reference
+        .generate(horizon, SolveMode::Standard, false)
+        .unwrap();
+    assert_eq!(
+        semantic_clauses(&generator, &impossible),
+        semantic_clauses(&reference, &standard)
+    );
+
+    let (feasible, _) = generator
+        .generate(
+            horizon,
+            SolveMode::no_divergent_cooperation(2).unwrap(),
+            false,
+        )
+        .unwrap();
+    assert_has_pairwise_summary(&generator, world.n_agents(), horizon);
+    assert!(
+        feasible
+            .iter()
+            .any(|clause| pairwise_blocker_keys(&generator, clause).is_some()),
+        "the feasible query must still emit its blockers"
+    );
+}
+
+/// Cooperation clauses cached by a feasible query must not leak into a later shortcut query.
+///
+/// @ai-generated
+#[test]
+fn feasible_query_does_not_leak_into_a_later_shortcut() {
+    let world = divergent_world();
+    let horizon = 4;
+    let mut generator = ClauseGenerator::new(&world, horizon);
+
+    generator
+        .generate(
+            horizon,
+            SolveMode::no_divergent_cooperation(2).unwrap(),
+            false,
+        )
+        .unwrap();
+    let (shortcut, assumptions) = generator
+        .generate(
+            horizon,
+            SolveMode::no_convergent_cooperation(2).unwrap(),
+            false,
+        )
+        .unwrap();
+    assert!(assumptions.is_empty());
+
+    let mut reference = ClauseGenerator::new(&world, horizon);
+    let (standard, _) = reference
+        .generate(horizon, SolveMode::Standard, false)
+        .unwrap();
+    assert_eq!(
+        semantic_clauses(&generator, &shortcut),
+        semantic_clauses(&reference, &standard),
+        "a shortcut query must not return the cooperation clauses of an earlier mode"
+    );
 }
