@@ -2,7 +2,6 @@ import lle
 import pytest
 from lle import World
 
-from ..pending import call_or_xfail_unimplemented
 from ..world_layouts import LEVEL_1, LEVEL_2, LEVEL_3, LEVEL_4, LEVEL_5, LEVEL_6, Layout
 
 
@@ -20,20 +19,10 @@ def test_time_dependent_threshold():
     for t_max in range(threshold):
         if lle.solve(world, t_max) is None:
             continue
-        plan = call_or_xfail_unimplemented(
-            lle.solve,
-            world,
-            t_max,
-            mode="no-mutual",
-        )
+        plan = lle.solve(world, t_max, mode="no-mutual")
         assert plan is None, f"expected mutual help at t={t_max}"
 
-    plan = call_or_xfail_unimplemented(
-        lle.solve,
-        world,
-        threshold,
-        mode="no-mutual",
-    )
+    plan = lle.solve(world, threshold, mode="no-mutual")
     assert plan is not None
 
     world.reset()
@@ -55,10 +44,5 @@ def test_time_dependent_threshold():
 )
 def test_solve_standard_levels_without_mutual_cooperation(layout: Layout, t_max: int, plan_expected: bool):
     """Built-in levels retain their declared mutual-free solvability."""
-    plan = call_or_xfail_unimplemented(
-        lle.solve,
-        layout.world(),
-        t_max,
-        mode="no-mutual",
-    )
+    plan = lle.solve(layout.world(), t_max, mode="no-mutual")
     assert (plan is not None) is plan_expected
