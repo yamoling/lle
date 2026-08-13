@@ -133,8 +133,6 @@ impl SolveMode {
     /// Construct a mode that rejects temporal closed trails of exactly `order` agents.
     ///
     /// Returns [`SolverError::InvalidModeParameter`] when `order` is below `2`.
-    ///
-    /// @ai-generated
     pub fn no_interdependence(order: usize) -> Result<Self, SolverError> {
         Self::parameterized(
             order,
@@ -149,8 +147,6 @@ impl SolveMode {
     /// Construct a mode that rejects convergence from at least `k` distinct helpers.
     ///
     /// Returns [`SolverError::InvalidModeParameter`] when `k` is below `2`.
-    ///
-    /// @ai-generated
     pub fn no_convergent_cooperation(k: usize) -> Result<Self, SolverError> {
         Self::parameterized(
             k,
@@ -166,8 +162,6 @@ impl SolveMode {
     /// Construct a mode that rejects divergence to at least `k` distinct beneficiaries.
     ///
     /// Returns [`SolverError::InvalidModeParameter`] when `k` is below `2`.
-    ///
-    /// @ai-generated
     pub fn no_divergent_cooperation(k: usize) -> Result<Self, SolverError> {
         Self::parameterized(
             k,
@@ -307,8 +301,6 @@ mod tests {
     }
 
     /// The bare and explicit-two divergence forms denote the same mode and canonical string.
-    ///
-    /// @ai-generated
     #[test]
     fn divergence_parses_and_canonicalizes() {
         assert_eq!(
@@ -334,8 +326,6 @@ mod tests {
     }
 
     /// Each parameterized constructor accepts meaningful values and exposes the validated value.
-    ///
-    /// @ai-generated
     #[test]
     fn constructors_accept_meaningful_parameters() {
         for (mode, expected) in [
@@ -356,8 +346,6 @@ mod tests {
     }
 
     /// A parameter below two is rejected at construction with its variant-specific reason.
-    ///
-    /// @ai-generated
     #[test]
     fn constructors_reject_parameters_below_two() {
         let errors = [
@@ -383,8 +371,6 @@ mod tests {
     }
 
     /// Invalid divergence thresholds and malformed suffixes are rejected.
-    ///
-    /// @ai-generated
     #[test]
     fn divergence_rejects_invalid_thresholds() {
         for s in [

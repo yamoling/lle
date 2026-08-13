@@ -169,8 +169,6 @@ fn draw_rectangle(
 
 impl Renderer {
     /// Draw whichever tile sits at this cell, dispatching on its variant.
-    ///
-    /// @ai-generated
     fn draw_tile(&self, tile: &Tile, data: &mut VisitorData) {
         match tile {
             Tile::Gem(gem) => self.draw_gem(gem, data),

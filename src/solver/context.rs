@@ -303,8 +303,6 @@ impl ConstraintContext {
     /// reachable by exactly one agent at a timestep, and that agent is not the sole candidate for
     /// any other exit, then the agent is forced to use that exit and cannot have previously stopped
     /// on another exit.
-    ///
-    /// @ai-generated
     fn update_forced_exit_relevance(&mut self, t: usize) {
         if self.exits.size() != self.n_agents {
             return;

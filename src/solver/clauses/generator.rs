@@ -116,7 +116,10 @@ impl ClauseGenerator {
             movements: StepBuffer::new(ClauseEngine::generate_movement_clauses, capacity),
             lasers: StepBuffer::new(ClauseEngine::generate_laser_clauses, capacity),
             help: StepBuffer::new(ClauseEngine::generate_help_clauses, capacity),
-            sequences: ParameterizedStepBuffer::new(ClauseEngine::generate_sequence_clauses, capacity),
+            sequences: ParameterizedStepBuffer::new(
+                ClauseEngine::generate_sequence_clauses,
+                capacity,
+            ),
             interdependence: ParameterizedStepBuffer::new(
                 ClauseEngine::generate_interdependence_clauses,
                 capacity,
@@ -132,8 +135,6 @@ impl ClauseGenerator {
     ///
     /// Parameterized modes are valid by construction, so this method only applies the layout-level
     /// feasibility shortcut.
-    ///
-    /// @ai-generated
     fn effective_mode(&self, mode: SolveMode) -> SolveMode {
         if self.layout.positive_profile_is_possible(mode) {
             mode
@@ -181,7 +182,10 @@ impl ClauseGenerator {
             SolveMode::NoSequentialCooperation(length) => {
                 clauses.extend(self.lasers.gather_until(&mut self.engine, t));
                 clauses.extend(self.help.gather_until(&mut self.engine, t));
-                clauses.extend(self.sequences.gather_until(&mut self.engine, t, length.get()));
+                clauses.extend(
+                    self.sequences
+                        .gather_until(&mut self.engine, t, length.get()),
+                );
             }
             SolveMode::NoInterdependence(order) => {
                 clauses.extend(self.lasers.gather_until(&mut self.engine, t));

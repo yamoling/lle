@@ -211,8 +211,6 @@ impl VarPool {
     }
 
     /// Allocate or retrieve the reachability literal for one interdependence pattern prefix.
-    ///
-    /// @ai-generated
     pub fn interdependence_progress(
         &mut self,
         order: usize,
