@@ -14,7 +14,7 @@ def test_profile_empty_graph():
     assert profile.is_independent
     assert not profile.is_cooperative
     assert not profile.is_interdependent()
-    assert not profile.is_chained()
+    assert not profile.is_sequential()
     assert not profile.is_asymmetric
 
 
@@ -25,7 +25,7 @@ def test_profile_single_edge():
     assert not profile.is_independent
     assert profile.is_cooperative
     assert not profile.is_interdependent()
-    assert not profile.is_chained()
+    assert not profile.is_sequential()
     assert profile.is_asymmetric
 
 
@@ -39,9 +39,9 @@ def test_profile_joining_edges():
         ]
     )
     profile = graph.profile()
-    assert profile.is_chained()
-    assert profile.is_chained(3)
-    assert not profile.is_chained(4)
+    assert profile.is_sequential()
+    assert profile.is_sequential(3)
+    assert not profile.is_sequential(4)
 
 
 def test_profile_separating_edges():
@@ -68,8 +68,8 @@ def test_profile_separating_edges():
     assert profile.is_cooperative
     assert profile.is_asymmetric
     for i in [2, 3, 4]:
-        assert profile.is_chained(i)
-    assert not profile.is_chained(5)
+        assert profile.is_sequential(i)
+    assert not profile.is_sequential(5)
     assert not profile.is_interdependent(2)
     assert not profile.is_mutual
 
@@ -86,14 +86,14 @@ def test_profile_two_mutual():
     assert not profile.is_independent
     assert profile.is_interdependent(2)
     assert not profile.is_interdependent(3)
-    assert profile.is_chained(2)
-    assert not profile.is_chained(3)
+    assert profile.is_sequential(2)
+    assert not profile.is_sequential(3)
     assert profile.is_mutual
 
 
-def test_profile_length5_chain():
+def test_profile_length5_sequence():
     # 0->1, 1->15, 15->19, 19->17, 17->8
-    linear_chain_graph = TemporalCooperationGraph(
+    linear_sequence_graph = TemporalCooperationGraph(
         [  # Shuffled
             DependencyEdge(19, 17, 125),
             DependencyEdge(0, 1, 0),
@@ -102,17 +102,17 @@ def test_profile_length5_chain():
             DependencyEdge(1, 15, 14),
         ]
     )
-    profile = linear_chain_graph.profile()
+    profile = linear_sequence_graph.profile()
     assert not profile.is_mutual
     assert profile.is_cooperative
     assert not profile.is_independent
     for i in range(2, 6):
-        assert profile.is_chained(i)
+        assert profile.is_sequential(i)
         assert not profile.is_interdependent(i)
-    assert not profile.is_chained(6)
+    assert not profile.is_sequential(6)
 
 
-def test_simultaneous_mutual_help_is_bounded_chain():
+def test_simultaneous_mutual_help_is_bounded_sequence():
     """Same-time reciprocal help forms a trail of length 2, not an infinite walk."""
     edges = [
         DependencyEdge(helper=0, beneficiary=1, t=1),
@@ -120,7 +120,7 @@ def test_simultaneous_mutual_help_is_bounded_chain():
     ]
     graph = TemporalCooperationGraph(edges)
     profile = graph.profile()
-    assert profile.is_chained()
+    assert profile.is_sequential()
     assert profile.is_cooperative
     assert not profile.is_independent
     assert profile.is_interdependent()
@@ -156,7 +156,7 @@ def test_not_interdependent():
     assert plan is not None
     profile = profile_plan(world, plan)
     assert profile.is_cooperative
-    assert profile.is_chained
+    assert profile.is_sequential
     assert not profile.is_independent
     assert profile.is_interdependent(2)
     assert not profile.is_interdependent(3)
@@ -206,7 +206,7 @@ L0E .  .  . . .
     assert profile.is_asymmetric
     assert profile.is_cooperative
     assert not profile.is_independent
-    assert not profile.is_chained(2)
+    assert not profile.is_sequential(2)
     assert not profile.is_interdependent(2)
     assert not profile.is_interdependent(3)
 
@@ -278,9 +278,9 @@ def test_convergence_ignores_duplicate_and_unrelated_edges():
 
 
 @pytest.mark.parametrize("length", [-1, 0, 1])
-def test_plan_profile_rejects_chain_length_below_two(length: int):
+def test_plan_profile_rejects_sequence_length_below_two(length: int):
     with pytest.raises(ValueError):
-        TemporalCooperationGraph.empty().profile().is_chained(length)
+        TemporalCooperationGraph.empty().profile().is_sequential(length)
 
 
 @pytest.mark.parametrize("k", [-1, 0, 1])

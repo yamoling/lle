@@ -7,7 +7,7 @@ delegates to its `WorldCharacterizer` counterpart.
 
 from __future__ import annotations
 
-from lle.characterization import is_asymmetric, is_chained, is_mutual
+from lle.characterization import is_asymmetric, is_sequential, is_mutual
 
 from ..world_layouts import LEVEL_1, LEVEL_5, LEVEL_6
 
@@ -24,7 +24,7 @@ def test_is_mutual_wrapper_matches_characterizer():
     assert is_mutual(LEVEL_1.world(), t_max=10) is False
 
 
-def test_is_chained_wrapper_matches_characterizer():
-    """The module-level `is_chained` delegates to `WorldCharacterizer.is_chained`."""
-    assert is_chained(LEVEL_6.world(), t_max=21, length=2) is True
-    assert is_chained(LEVEL_6.world(), t_max=21, length=3) is False
+def test_is_sequential_wrapper_matches_characterizer():
+    """The module-level `is_sequential` delegates to `WorldCharacterizer.is_sequential`."""
+    assert is_sequential(LEVEL_6.world(), t_max=21, length=2) is True
+    assert is_sequential(LEVEL_6.world(), t_max=21, length=3) is False

@@ -156,17 +156,17 @@ class Asymmetric(Predicate):
 
 
 @dataclass(frozen=True)
-class Chained(Predicate):
-    """Matches worlds that require a dependency chain of at least ``length`` help edges."""
+class Sequential(Predicate):
+    """Matches worlds that require a sequential dependency of at least ``length`` help edges."""
 
     length: int = 2
 
     def __post_init__(self) -> None:
         if self.length < 2:
-            raise ValueError(f"Chain length must be >= 2, got {self.length}.")
+            raise ValueError(f"Sequence length must be >= 2, got {self.length}.")
 
     def holds(self, c: WorldCharacterizer) -> bool:
-        return c.is_chained(self.length)
+        return c.is_sequential(self.length)
 
     @property
     def requirements(self) -> WorldRequirements:

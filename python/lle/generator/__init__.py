@@ -10,10 +10,10 @@ world = lle.generate(width=4, height=4, n_agents=2).lanes().cooperative().cap(12
 worlds = list(lle.generate(width=5, height=5, n_agents=2).walls(2, style="shapes").take(3))
 ```
 
-Predicate atoms (`Solvable`, `Independent`, `Cooperative`, `Chained`,
+Predicate atoms (`Solvable`, `Independent`, `Cooperative`, `Sequential`,
 `Convergent`, `Divergent`, `Interdependent`, …) describe behavioural constraints
 and are accepted by `GeneratorBuilder.require(...)`; the named methods
-(`cooperative()`, `chained()`, `convergent()`, `divergent()`, `mutual()`, …)
+(`cooperative()`, `sequential()`, `convergent()`, `divergent()`, `mutual()`, …)
 cover the common cases without constructing predicates by hand.
 
 `CustomGenerator` remains available for advanced or direct use, but
@@ -29,7 +29,7 @@ from .generator import WorldGenerator
 from .world_filter import (
     And,
     Asymmetric,
-    Chained,
+    Sequential,
     Constraint,
     Convergent,
     Cooperative,
@@ -60,7 +60,7 @@ __all__ = [
     "Independent",
     "Cooperative",
     "Asymmetric",
-    "Chained",
+    "Sequential",
     "Interdependent",
     "WorldGenerator",
 ]
@@ -77,7 +77,7 @@ def generate(width: int = 10, height: int = 10, n_agents: int = 3, t_max: int | 
       `starts(...)` / `exits(...)`.
     - Lasers and walls: `lasers(...)`, `walls(...)`.
     - Behaviour: `solvable()` (default), `independent()`, `cooperative(...)`,
-      `chained(...)`, `convergent(...)`, `divergent(...)`, `mutual(...)`, or
+      `sequential(...)`, `convergent(...)`, `divergent(...)`, `mutual(...)`, or
       `require(filter)`.
     - Terminals: `build(...)` for a single `World`, `take(n, ...)` for an
       iterator of worlds.

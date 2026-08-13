@@ -10,8 +10,8 @@ from lle.characterization.plan import profile_plan
 from ...pending import call_or_xfail_unimplemented
 from ...world_layouts import (
     BLOCKED_UNSOLVABLE,
-    CHAIN_3_WITHOUT_CYCLE,
-    CHAIN_4_WITH_MUTUAL,
+    SEQUENCE_3_WITHOUT_CYCLE,
+    SEQUENCE_4_WITH_MUTUAL,
     LEVEL_1,
     TWO_AGENT_MUTUAL_REVERSED,
     TWO_AGENT_MUTUAL_WITH_DETOURS,
@@ -112,9 +112,9 @@ def test_is_interdependent_is_cached():
 @pytest.mark.parametrize(
     ("layout", "order", "path_expected"),
     [
-        pytest.param(CHAIN_4_WITH_MUTUAL, 2, False, id="chain-4-with-mutual-order-2"),
-        pytest.param(CHAIN_4_WITH_MUTUAL, 3, True, id="chain-4-with-mutual-order-3"),
-        pytest.param(CHAIN_3_WITHOUT_CYCLE, 2, True, id="chain-3-without-cycle-order-2"),
+        pytest.param(SEQUENCE_4_WITH_MUTUAL, 2, False, id="sequence-4-with-mutual-order-2"),
+        pytest.param(SEQUENCE_4_WITH_MUTUAL, 3, True, id="sequence-4-with-mutual-order-3"),
+        pytest.param(SEQUENCE_3_WITHOUT_CYCLE, 2, True, id="sequence-3-without-cycle-order-2"),
     ],
 )
 def test_compute_shortest_non_interdependent_path(layout: Layout, order: int, path_expected: bool):

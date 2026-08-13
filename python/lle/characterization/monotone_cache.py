@@ -13,8 +13,8 @@ class MonotoneCache:
     once cache[t]=False, we know that cache[t']=False for all t' >= t.
 
     For instance:
-      - if we know that there is a chain of length 5, there is also a chain of length 4, 3, 2 and 1.
-      - if there is no chain of length 5, we know that there is no chain of length >= 5
+      - if we know that there is a sequence of length 5, there is also a sequence of length 4, 3, 2 and 1.
+      - if there is no sequence of length 5, we know that there is no sequence of length >= 5
     """
 
     values: dict[int, bool] = field(default_factory=dict)

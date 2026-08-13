@@ -101,7 +101,7 @@ two_worlds = list(lle.generate(width=4, height=4, n_agents=2).lasers(1).cooperat
 
 **Builder options** — layout: `random()`, `lanes()`, `clustered()`, `starts(...)` / `exits(...)`.
 Obstacles: `lasers(n, placement=..., span=...)`, `walls(n, style=...)`.
-Behaviour: `solvable()` (default), `independent()`, `cooperative()`, `chained(n)`, `interdependent(n)`, or `require(...)`.
+Behaviour: `solvable()` (default), `independent()`, `cooperative()`, `sequential(n)`, `interdependent(n)`, or `require(...)`.
 
 See `lle.generator` for the full method reference.
 
@@ -198,7 +198,7 @@ from .observations import ObservationType
 from .solver import solve
 from .types import AgentId, LaserId, Position
 from .world import Action, EventType, World, WorldEvent, WorldState
-from .characterization import is_cooperative, characterize, is_asymmetric, is_chained, is_convergent, is_divergent
+from .characterization import is_cooperative, characterize, is_asymmetric, is_sequential, is_convergent, is_divergent
 from . import tiles, exceptions, world, agent, env, generator, characterization, solver, observations
 
 
@@ -236,7 +236,7 @@ __all__ = [
     "solve",
     "is_cooperative",
     "is_asymmetric",
-    "is_chained",
+    "is_sequential",
     "is_convergent",
     "is_divergent",
     "generate",

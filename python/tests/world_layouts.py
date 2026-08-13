@@ -23,7 +23,7 @@ class ExpectedProperties:
     fully_coupled: bool | None = None
     convergent: dict[int, bool] = field(default_factory=dict)
     divergent: dict[int, bool] = field(default_factory=dict)
-    chained: dict[int, bool] = field(default_factory=dict)
+    sequential: dict[int, bool] = field(default_factory=dict)
     interdependent: dict[int, bool] = field(default_factory=dict)
 
 
@@ -60,7 +60,7 @@ class ScalarPropertyCase:
 
 
 @dataclass(frozen=True)
-class ChainedCase:
+class SequentialCase:
     layout: Layout
     t_max: int
     expected: bool
@@ -117,7 +117,7 @@ def expect(
     fully_coupled: bool | None = None,
     convergent: dict[int, bool] | None = None,
     divergent: dict[int, bool] | None = None,
-    chained: dict[int, bool] | None = None,
+    sequential: dict[int, bool] | None = None,
     interdependent: dict[int, bool] | None = None,
 ) -> Expectation:
     """Declare the properties expected from one layout at one horizon."""
@@ -137,7 +137,7 @@ def expect(
             fully_coupled=fully_coupled,
             convergent={} if convergent is None else convergent,
             divergent={} if divergent is None else divergent,
-            chained={} if chained is None else chained,
+            sequential={} if sequential is None else sequential,
             interdependent={} if interdependent is None else interdependent,
         ),
     )
@@ -153,7 +153,7 @@ def expect_for(
     fully_coupled: bool | None = None,
     convergent: dict[int, bool] | None = None,
     divergent: dict[int, bool] | None = None,
-    chained: dict[int, bool] | None = None,
+    sequential: dict[int, bool] | None = None,
     interdependent: dict[int, bool] | None = None,
 ) -> tuple[Expectation, ...]:
     """Declare the same property matrix for several horizons."""
@@ -167,7 +167,7 @@ def expect_for(
             fully_coupled=fully_coupled,
             convergent=convergent,
             divergent=divergent,
-            chained=chained,
+            sequential=sequential,
             interdependent=interdependent,
         )
         for t_max in horizons
@@ -222,7 +222,7 @@ LEVEL_6 = Layout(
             solvable=True,
             cooperative=True,
             independent=False,
-            chained={
+            sequential={
                 2: True,
                 3: False,
             },
@@ -297,7 +297,7 @@ L0E .  .  . @ .
             cooperative=True,
             independent=False,
             asymmetric=True,
-            chained={2: False, 3: False},
+            sequential={2: False, 3: False},
             interdependent={2: False, 3: False},
         ),
         *expect_for(
@@ -306,7 +306,7 @@ L0E .  .  . @ .
             cooperative=False,
             independent=True,
             asymmetric=False,
-            chained={2: False, 3: False},
+            sequential={2: False, 3: False},
             interdependent={2: False, 3: False},
         ),
     ),
@@ -328,7 +328,7 @@ L0E .  .
             asymmetric=True,
             convergent={2: False},
             divergent={2: False},
-            chained={2: False},
+            sequential={2: False},
             interdependent={2: False},
         ),
     ),
@@ -402,8 +402,8 @@ L0E  .   .   .  @   .
     "route around the wall, so required divergence disappears at t_max=6.",
 )
 
-CHAIN_4_WITH_MUTUAL = Layout(
-    "chain-4-with-mutual",
+SEQUENCE_4_WITH_MUTUAL = Layout(
+    "sequence-4-with-mutual",
     """
  @  S0 S1  @
 L0E X  .   @
@@ -417,14 +417,14 @@ L2E .  .   @
         expect(
             6,
             solvable=True,
-            chained={2: True, 3: True, 4: True, 5: False},
+            sequential={2: True, 3: True, 4: True, 5: False},
             interdependent={2: True, 3: False, 4: False},
         ),
     ),
 )
 
-CHAIN_3_WITHOUT_CYCLE = Layout(
-    "chain-3-without-cycle",
+SEQUENCE_3_WITHOUT_CYCLE = Layout(
+    "sequence-3-without-cycle",
     """
  @  S0 S1  @
 L0E X  .   @
@@ -438,14 +438,14 @@ L2E X  .   @
         expect(
             6,
             solvable=True,
-            chained={2: True, 3: True, 4: False},
+            sequential={2: True, 3: True, 4: False},
             interdependent={2: False, 3: False, 4: False},
         ),
     ),
 )
 
-PAPER_CHAIN_2 = Layout(
-    "paper-chain-2",
+PAPER_SEQUENCE_2 = Layout(
+    "paper-sequence-2",
     """
  @  S0 @ S1 @
 L0E .  . .  @
@@ -457,15 +457,15 @@ L0E .  . .  @
         expect(
             10,
             solvable=True,
-            chained={2: True, 3: False},
+            sequential={2: True, 3: False},
             convergent={2: False},
             interdependent={2: False},
         ),
     ),
 )
 
-PAPER_CHAIN_2_NOT_INTERDEPENDENT_3 = Layout(
-    "paper-chain-2-not-interdependent-3",
+PAPER_SEQUENCE_2_NOT_INTERDEPENDENT_3 = Layout(
+    "paper-sequence-2-not-interdependent-3",
     """
  @  S0 @  @  L1S S1
 L0E .  .  .   .  .
@@ -478,7 +478,7 @@ L0E .  @  .   .  .
         expect(
             10,
             solvable=True,
-            chained={2: True, 3: False},
+            sequential={2: True, 3: False},
             convergent={2: False},
             interdependent={2: False, 3: False},
         ),
@@ -500,7 +500,7 @@ L0E  .   .  .   @
             solvable=True,
             convergent={2: True, 3: False},
             divergent={2: False},
-            chained={2: False},
+            sequential={2: False},
             interdependent={2: False},
             asymmetric=True,
         ),
@@ -606,7 +606,7 @@ L0E . .  .  .  @  @ @ .
             solvable=True,
             cooperative=True,
             independent=False,
-            chained={2: True, 3: False},
+            sequential={2: True, 3: False},
             interdependent={2: True, 3: False},
         ),
         expect(
@@ -661,7 +661,7 @@ L0E .   .  @  .   .  L2W
             20,
             cooperative=True,
             asymmetric=False,
-            chained={2: True, 3: False},
+            sequential={2: True, 3: False},
             interdependent={2: True, 3: False},
         ),
     ),
@@ -693,7 +693,7 @@ L0E .   .  @  .   .  L2W
     What is checked here:
         - interdependent-2 is True (0 <-> 1, 2 <-> 3, 0 <-> 3)
         - interdependent-3 is False, because there exists no temporal cycle of 3 agents
-        - there exists a chain of length 2 but no larger chain exists
+        - there exists a sequence of length 2 but no larger sequence exists
         - there is no asymmetric help
     """,
 )
@@ -710,7 +710,7 @@ S2  .   .   .  X
         expect(
             15,
             solvable=True,
-            chained={2: True, 3: True, 4: False},
+            sequential={2: True, 3: True, 4: False},
             interdependent={2: True, 3: True, 4: False},
         ),
     ),
@@ -730,7 +730,7 @@ L2E .   .  .  . .
         expect(
             16,
             solvable=True,
-            chained={2: True, 3: False},
+            sequential={2: True, 3: False},
             interdependent={2: True, 3: False},
         ),
     ),
@@ -750,7 +750,7 @@ L0E  .    .   .   .  @
         expect(
             10,
             solvable=True,
-            chained={2: True, 3: True},
+            sequential={2: True, 3: True},
             convergent={2: False},
             interdependent={2: False, 3: True, 4: False},
         ),
@@ -758,8 +758,8 @@ L0E  .    .   .   .  @
     description="This layout is presented in the paper as a canonical example of interdependent-3",
 )
 
-FOUR_AGENT_INTERDEPENDENT_4_CHAIN_6 = Layout(
-    "four-agent-interdependent-4-chain-6",
+FOUR_AGENT_INTERDEPENDENT_4_SEQUENCE_6 = Layout(
+    "four-agent-interdependent-4-sequence-6",
     """
 @   S0  S1 @   @
 @   .   .  L1W @
@@ -776,7 +776,7 @@ S3  .   .  .   @
         expect(
             14,
             solvable=True,
-            chained={2: True, 3: True, 4: True, 5: True, 6: True, 7: False},
+            sequential={2: True, 3: True, 4: True, 5: True, 6: True, 7: False},
             interdependent={2: True, 3: True, 4: True, 5: False},
             convergent={2: True, 3: False},
             divergent={2: True, 3: True, 4: False},
@@ -841,10 +841,10 @@ ALL_LAYOUTS = [
     CONVERGENT_2_TIGHT,
     DIVERGENT_2_TIGHT,
     DIVERGENT_2_WITH_DETOUR,
-    CHAIN_4_WITH_MUTUAL,
-    CHAIN_3_WITHOUT_CYCLE,
-    PAPER_CHAIN_2,
-    PAPER_CHAIN_2_NOT_INTERDEPENDENT_3,
+    SEQUENCE_4_WITH_MUTUAL,
+    SEQUENCE_3_WITHOUT_CYCLE,
+    PAPER_SEQUENCE_2,
+    PAPER_SEQUENCE_2_NOT_INTERDEPENDENT_3,
     PAPER_CONVERGENT_2,
     PAPER_FULLY_COUPLED,
     PAPER_FULLY_COUPLED_LEGACY,
@@ -855,7 +855,7 @@ ALL_LAYOUTS = [
     THREE_AGENT_TEMPORAL_CYCLE,
     THREE_AGENT_WITH_TWO_AGENT_CYCLE,
     PAPER_INTERDEPENDENT_3,
-    FOUR_AGENT_INTERDEPENDENT_4_CHAIN_6,
+    FOUR_AGENT_INTERDEPENDENT_4_SEQUENCE_6,
     EIGHT_AGENT_INTERDEPENDENT_8,
     EIGHT_AGENT_INTERDEPENDENT_8_PERIMETER,
 ]
@@ -873,13 +873,13 @@ def scalar_cases_for(name: ScalarPropertyName):
     ]
 
 
-def chained_cases():
-    """Return every explicit chain-length expectation."""
+def sequential_cases():
+    """Return every explicit sequence-length expectation."""
     return [
-        ChainedCase(layout, expectation.t_max, expected, length)
+        SequentialCase(layout, expectation.t_max, expected, length)
         for layout in ALL_LAYOUTS
         for expectation in layout.expectations
-        for length, expected in expectation.properties.chained.items()
+        for length, expected in expectation.properties.sequential.items()
     ]
 
 

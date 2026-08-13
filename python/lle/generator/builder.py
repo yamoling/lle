@@ -38,7 +38,7 @@ from ..world import World
 from .generator import WorldGenerator
 from .world_filter import (
     Asymmetric,
-    Chained,
+    Sequential,
     Constraint,
     Convergent,
     Cooperative,
@@ -160,7 +160,7 @@ class GeneratorBuilder:
         - `n`: number of sources.`"auto"` picks a random count between 0 and
           the number of agents when no cooperation is required, or a sensible
           minimum when cooperation is required (at least 1, at least 2 for
-          chained/mutual/interdependent).
+          sequential/mutual/interdependent
         - `placement`:`"free"` (anywhere valid),`"cross-agent"` (each beam
           crosses all agent lanes; needs `lanes`/`starts("edge")`),
          `"cross-cluster"` (corridor between clusters; needs
@@ -245,9 +245,9 @@ class GeneratorBuilder:
         """Require worlds that need cooperation within the configured solver horizon."""
         return self.require(Cooperative())
 
-    def chained(self, length: int) -> GeneratorBuilder:
-        """Require chained cooperation of at least `length` help edges."""
-        return self.require(Chained(length))
+    def sequential(self, length: int) -> GeneratorBuilder:
+        """Require sequential cooperation of at least `length` help edges."""
+        return self.require(Sequential(length))
 
     def mutual(self) -> GeneratorBuilder:
         """Require mutual cooperation: every agent both helps and is helped."""

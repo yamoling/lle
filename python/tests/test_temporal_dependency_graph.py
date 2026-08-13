@@ -12,8 +12,8 @@ def single_edge_graph():
 
 
 @pytest.fixture
-def linear_chain_graph():
-    """A linear chain: 0 -> 1 -> 2 -> 3 across time steps."""
+def linear_sequence_graph():
+    """A linear sequence: 0 -> 1 -> 2 -> 3 across time steps."""
     edges = [
         DependencyEdge(helper=0, beneficiary=1, t=1),
         DependencyEdge(helper=1, beneficiary=2, t=2),
@@ -188,10 +188,10 @@ class TestAccessors:
 
 
 class TestLongestTrail:
-    """Test longest_chain method for temporal dependency chains."""
+    """Test longest_sequence method for temporal dependency sequences."""
 
-    def test_temporal_chain_strictly_increasing_times(self):
-        """Chain with strictly increasing times: a -> b -> c -> d."""
+    def test_temporal_sequence_strictly_increasing_times(self):
+        """Sequence with strictly increasing times: a -> b -> c -> d."""
         edges = [
             DependencyEdge(helper=0, beneficiary=1, t=1),
             DependencyEdge(helper=1, beneficiary=2, t=2),
@@ -200,8 +200,8 @@ class TestLongestTrail:
         graph = TemporalCooperationGraph(edges)
         assert len(graph.longest_trail()) == 3
 
-    def test_temporal_chain_same_time_two_edges(self):
-        """Edges at the same time can form a non-decreasing-time chain."""
+    def test_temporal_sequence_same_time_two_edges(self):
+        """Edges at the same time can form a non-decreasing-time sequence."""
         edges = [
             DependencyEdge(helper=0, beneficiary=1, t=1),
             DependencyEdge(helper=1, beneficiary=2, t=1),
@@ -209,8 +209,8 @@ class TestLongestTrail:
         graph = TemporalCooperationGraph(edges)
         assert len(graph.longest_trail()) == 2
 
-    def test_temporal_chain_same_time(self):
-        """Longer simultaneous paths also chain under non-decreasing-time semantics."""
+    def test_temporal_sequence_same_time(self):
+        """Longer simultaneous paths also sequence under non-decreasing-time semantics."""
         edges = [
             DependencyEdge(helper=0, beneficiary=1, t=1),
             DependencyEdge(helper=1, beneficiary=2, t=1),
@@ -219,18 +219,18 @@ class TestLongestTrail:
         graph = TemporalCooperationGraph(edges)
         assert len(graph.longest_trail()) == 3
 
-    def test_temporal_chain_decreasing_times(self):
-        """Chain with decreasing times cannot form a chain (time must be non-decreasing)."""
+    def test_temporal_sequence_decreasing_times(self):
+        """Sequence with decreasing times cannot form a sequence (time must be non-decreasing)."""
         edges = [
             DependencyEdge(helper=0, beneficiary=1, t=3),
             DependencyEdge(helper=1, beneficiary=2, t=2),
             DependencyEdge(helper=2, beneficiary=3, t=1),
         ]
         graph = TemporalCooperationGraph(edges)
-        # Each edge is at a lower time than the previous, so no valid temporal chain of length >= 2
+        # Each edge is at a lower time than the previous, so no valid temporal sequence of length >= 2
         assert len(graph.longest_trail()) == 1
 
-    def test_temporal_chain_non_monotonic_times(self):
+    def test_temporal_sequence_non_monotonic_times(self):
         """The example from prompt: a->b at t0, b->c at t2, c->d at t1."""
         edges = [
             DependencyEdge(helper=0, beneficiary=1, t=0),
@@ -238,16 +238,16 @@ class TestLongestTrail:
             DependencyEdge(helper=2, beneficiary=3, t=1),
         ]
         graph = TemporalCooperationGraph(edges)
-        # 0 -> 1 (t=0), 1 -> 2 (t=2): chain of length 2
-        # 2 -> 3 (t=1) happens before 1 -> 2 (t=2), so cannot extend chain
+        # 0 -> 1 (t=0), 1 -> 2 (t=2): sequence of length 2
+        # 2 -> 3 (t=1) happens before 1 -> 2 (t=2), so cannot extend sequence
         trail = graph.longest_trail()
         assert len(trail) == 2
         assert edges[0] in trail
         assert edges[1] in trail
         assert edges[2] not in trail
 
-    def test_temporal_chain_with_equal_times(self):
-        """Equal timestamps extend a chain when they form an acyclic same-time path."""
+    def test_temporal_sequence_with_equal_times(self):
+        """Equal timestamps extend a sequence when they form an acyclic same-time path."""
         edges = [
             DependencyEdge(helper=0, beneficiary=1, t=1),
             DependencyEdge(helper=1, beneficiary=2, t=1),
@@ -259,7 +259,7 @@ class TestLongestTrail:
         for e in edges:
             assert e in trail
 
-    def test_temporal_chain_mixed_times(self):
+    def test_temporal_sequence_mixed_times(self):
         """Complex case with multiple paths at different times."""
         edges = [
             DependencyEdge(helper=0, beneficiary=1, t=1),
@@ -268,18 +268,18 @@ class TestLongestTrail:
             DependencyEdge(helper=3, beneficiary=4, t=3),
         ]
         graph = TemporalCooperationGraph(edges)
-        # Longest chain: 0 -> 1 -> 2 (length 2) or 0 -> 3 -> 4 (length 2)
+        # Longest sequence: 0 -> 1 -> 2 (length 2) or 0 -> 3 -> 4 (length 2)
         trail = graph.longest_trail()
         assert len(trail) == 2
 
-    def test_temporal_chain_hamiltonian_cycle(self, hamiltonian_cycle_graph: TemporalCooperationGraph):
+    def test_temporal_sequence_hamiltonian_cycle(self, hamiltonian_cycle_graph: TemporalCooperationGraph):
         """A Hamiltonian cycle with strictly increasing times."""
         # 0 -> 1 (t=1), 1 -> 2 (t=2), 2 -> 3 (t=3), 3 -> 0 (t=4)
-        # Longest temporal chain: 0 -> 1 -> 2 -> 3 -> 0 (length 4)
+        # Longest temporal sequence: 0 -> 1 -> 2 -> 3 -> 0 (length 4)
         # Include 3 -> 0 even though it re-visits 0.
         assert len(hamiltonian_cycle_graph.longest_trail()) == 4
 
-    def test_temporal_chain_may_revisit_agents(self):
+    def test_temporal_sequence_may_revisit_agents(self):
         """Agent revisit: 0 -> 1 -> 0 -> 1 is a length-3 strict temporal walk."""
         edges = [
             DependencyEdge(helper=0, beneficiary=1, t=1),
@@ -289,7 +289,7 @@ class TestLongestTrail:
         graph = TemporalCooperationGraph(edges)
         assert len(graph.longest_trail()) == 3
 
-    def test_temporal_chain_may_not_revisit_same_edge(self):
+    def test_temporal_sequence_may_not_revisit_same_edge(self):
         """There is a loop in the help graph, but the temporal graph should not re-visit the same edge twice."""
         edges = [
             DependencyEdge(helper=0, beneficiary=1, t=1),
@@ -352,7 +352,7 @@ class TestLongestTrail:
         graph = TemporalCooperationGraph(edges)
         assert len(graph.longest_trail()) == 1
 
-    def test_mutual_help_is_chain(self):
+    def test_mutual_help_is_sequence(self):
         """Doc example: a -> b -> a returns 2 when the reverse edge is later."""
         edges = [
             DependencyEdge(helper=0, beneficiary=1, t=1),
@@ -361,7 +361,7 @@ class TestLongestTrail:
         graph = TemporalCooperationGraph(edges)
         assert len(graph.longest_trail()) == 2
 
-    def test_simultaneous_mutual_help_is_bounded_chain(self):
+    def test_simultaneous_mutual_help_is_bounded_sequence(self):
         """Same-time reciprocal help forms a trail of length 2, not an infinite walk."""
         edges = [
             DependencyEdge(helper=0, beneficiary=1, t=1),
@@ -447,7 +447,7 @@ class TestEdgeCases:
 class TestRealWorldPatterns:
     """Test patterns that might arise from actual trajectories."""
 
-    def test_sequential_help_chain(self):
+    def test_sequential_help_sequence(self):
         """A common pattern: sequential help where agents take turns."""
         # Agent 0 helps 1, then 1 helps 2, then 2 helps 3 sequentially
         edges = [

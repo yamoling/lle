@@ -251,8 +251,6 @@ class TemporalCooperationGraph:
     def _max_closed_trail_length(order: int) -> int:
         """
         Return the irreducible closed-trail edge bound for an exact support order.
-
-        @ai-generated
         """
         half_order = order // 2
         if order % 2 == 0:
@@ -266,8 +264,6 @@ class TemporalCooperationGraph:
         Agents and static help arcs may recur. A static arc may recur only at a
         later timestamp, so the search tracks arcs used in the current time
         layer and resets that set whenever time advances.
-
-        @ai-generated
         """
         if order < 2 or order > len(self.vertices):
             return []
@@ -343,8 +339,6 @@ class TemporalCooperationGraph:
         Unlike exact-order recognition, this diagnostic method is bounded by
         the finite temporal-edge set rather than the irreducible witness bound,
         so it preserves redundant edges in a concrete trajectory.
-
-        @ai-generated
         """
         best: tuple[DependencyEdge, ...] = ()
         if not self._edges:
@@ -358,11 +352,6 @@ class TemporalCooperationGraph:
             current_time_arcs: frozenset[tuple[AgentId, AgentId]],
             path: tuple[DependencyEdge, ...],
         ) -> None:
-            """
-            Explore all finite temporal closed trails rooted at one agent.
-
-            @ai-generated
-            """
             nonlocal best
             if len(path) == len(self._edges):
                 return

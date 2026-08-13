@@ -76,7 +76,7 @@ The `no-cooperation` solve mode forbids any non-owner agent from occupying a las
 
 ![Cooperative world requiring at least one help edge](cooperation-cooperative.png)
 
-This built-in level illustrates the broad cooperative category: some help is required, before asking whether the help is asymmetric, mutual, chained, or cyclic.
+This built-in level illustrates the broad cooperative category: some help is required, before asking whether the help is asymmetric, mutual, sequential, or cyclic.
 
 ### Trajectory-level
 
@@ -101,7 +101,7 @@ WorldCharacterizer.is_cooperative == (shortest_independent_path is None)
 
 after checking that `shortest_path` exists.
 
-This means “some cooperation is forced”, not necessarily a specific cooperation structure such as mutual, chained, or asymmetric help.
+This means “some cooperation is forced”, not necessarily a specific cooperation structure such as mutual, sequential, or asymmetric help.
 
 ## Asymmetric cooperation
 
@@ -190,15 +190,15 @@ has_helped_by_time(a, b, t) AND has_helped_by_time(b, a, t)
 
 For a fixed-horizon solve, this is equivalent to checking the two indicators at the final horizon. The per-step variables are used to define the prefix relation incrementally and are also shared by the interdependence encoding.
 
-## Chained cooperation
+## Sequential cooperation
 
-![Chained cooperation world](cooperation-chained.png)
+![Sequential cooperation world](cooperation-sequential.png)
 
-This example illustrates an open chain of dependencies: one help event enables a later help event by another agent.
+This example illustrates an open sequence of dependencies: one help event enables a later help event by another agent.
 
 ### Trajectory-level
 
-A chain is a temporal directed **trail** of help edges whose timestamps never decrease. A trail is
+A sequence is a temporal directed **trail** of help edges whose timestamps never decrease. A trail is
 a walk where no directed edge `(helper, beneficiary)` is traversed twice at the same time step `t`.
 Formally, each temporal triple `(helper, beneficiary, t)` may appear at most once.
 
@@ -206,16 +206,16 @@ Formally, each temporal triple `(helper, beneficiary, t)` may appear at most onc
 a -> b -> c -> ...
 ```
 
-The chain length is the number of help edges, not the number of agents. A single help edge is not considered a chain; the minimum meaningful length is `2`.
+The sequence length is the number of help edges, not the number of agents. A single help edge is not considered a sequence; the minimum meaningful length is `2`.
 
-`TrajectoryProfile.is_chained(length=2)` is true when `graph.longest_chain() >= length`.
+`TrajectoryProfile.is_sequential(length=2)` is true when `graph.longest_sequence() >= length`.
 
 The graph implementation allows:
 
-- open chains, such as `a -> b -> c`;
+- open sequences, such as `a -> b -> c`;
 - cycles, such as `a -> b -> a` or `a -> b -> c -> a`;
 - lassos, such as `a -> b -> c -> d -> b`;
-- simultaneous chains: `a -> b` and `b -> c` at the same time step count as a length-2 chain; and
+- simultaneous sequences: `a -> b` and `b -> c` at the same time step count as a length-2 sequence; and
 - vertex revisits: the same agent may appear multiple times, provided no temporal edge
   `(helper, beneficiary, t)` is reused.
 
@@ -225,18 +225,18 @@ is finite.
 
 ### World-level
 
-A world requires chained cooperation of length at least `N` when:
+A world requires sequential cooperation of length at least `N` when:
 
 1. it is solvable;
 2. it has no independent solution;
-3. the shortest standard solution contains a chain of length `>= N`; and
-4. no solution exists under `mode=f"no-chain-{N}"`.
+3. the shortest standard solution contains a sequence of length `>= N`; and
+4. no solution exists under `mode=f"no-sequence-{N}"`.
 
-`N` must be at least `2`. The bare mode string `"no-chain"` is canonical shorthand for `"no-chain-2"`.
+`N` must be at least `2`. The bare mode string `"no-sequence"` is canonical shorthand for `"no-sequence-2"`.
 
 The solver enumerates all directed trails of exactly length `N`; a trail may revisit agents but
 cannot reuse a temporal edge `(helper, beneficiary, t)`. It emits one blocking SAT clause for each
-candidate trail. Forbidding each length-`N` trail also forbids all longer chains, because every
+candidate trail. Forbidding each length-`N` trail also forbids all longer sequences, because every
 trail of length `> N` contains a sub-trail of length exactly `N`.
 
 ## Interdependence / cyclic help
@@ -267,7 +267,7 @@ A world requires interdependence of order exactly `N` when:
 
 `N` must be at least `2`. The bare mode string `"no-interdependence"` is canonical shorthand for `"no-interdependence-2"`.
 
-The solver mode blocks every candidate temporal closed trail with exactly `N` distinct agents. Trails of other exact orders remain allowed, and no monotone inference is valid across orders. An order-`N` closed trail is a chain, but it can contain more than `N` edges because agents may repeat.
+The solver mode blocks every candidate temporal closed trail with exactly `N` distinct agents. Trails of other exact orders remain allowed, and no monotone inference is valid across orders. An order-`N` closed trail is a sequence, but it can contain more than `N` edges because agents may repeat.
 
 ## Shortcuts and equivalences
 
@@ -277,7 +277,7 @@ All world-level characterizations are relative to `t_max`. A world may require c
 
 ### Independent solutions shortcut stronger properties
 
-If a known independent solution exists, then the world cannot require asymmetric, chained, or interdependent cooperation, because the independent solution avoids all help edges.
+If a known independent solution exists, then the world cannot require asymmetric, sequential, or interdependent cooperation, because the independent solution avoids all help edges.
 
 The implementation reuses `shortest_independent_path` when it has already been computed.
 
@@ -286,14 +286,14 @@ The implementation reuses `shortest_independent_path` when it has already been c
 If no laser source exists, no help edge can exist. Therefore:
 
 - the world cannot require asymmetric cooperation;
-- no chain is possible;
+- no sequence is possible;
 - no cycle/interdependence is possible.
 
 For asymmetric characterization, `shortest_non_asymmetric_path` returns the standard shortest path immediately when `n_laser_colours == 0`, avoiding a `no-asymmetric` SAT call.
 
-### Chain and interdependence upper bounds
+### Sequence and interdependence upper bounds
 
-Under trail semantics (no repeated directed pair at the same time step), chained cooperation has a
+Under trail semantics (no repeated directed pair at the same time step), sequential cooperation has a
 finite structural upper bound. At a single time step `t`, the help graph is a simple directed graph
 over at most `n_agents` nodes, which has at most `n_agents × (n_agents − 1)` directed edges. Any
 trail within that graph therefore has length at most `n_agents × (n_agents − 1)`. Across multiple
@@ -307,11 +307,11 @@ Interdependence has a separate structural bound: only agents that own at least o
 
 ### Cache shortcuts
 
-Chain queries use monotonicity: avoiding shorter chains is stricter than avoiding longer ones. Exact interdependence orders are different: each order is cached and proved independently because an order-`N + 1` closed trail need not contain any order-`N` closed trail.
+Sequence queries use monotonicity: avoiding shorter sequences is stricter than avoiding longer ones. Exact interdependence orders are different: each order is cached and proved independently because an order-`N + 1` closed trail need not contain any order-`N` closed trail.
 
-### Mutual help, chains, and cycles
+### Mutual help, sequences, and cycles
 
-Mutual help between two agents, `a -> b` and `b -> a`, is a chain of length `2` when the two help events can be ordered with non-decreasing times, including simultaneous help:
+Mutual help between two agents, `a -> b` and `b -> a`, is a sequence of length `2` when the two help events can be ordered with non-decreasing times, including simultaneous help:
 
 ```text
 a -> b -> a
@@ -322,23 +322,23 @@ It is also a temporal closed trail of exact order `2` when the two edges can be 
 Important distinctions:
 
 - `is_mutual` is computed on flattened edges and does not itself require a time ordering.
-- `is_chained(2)` requires a temporal walk of two edges with non-decreasing timestamps.
+- `is_sequential(2)` requires a temporal walk of two edges with non-decreasing timestamps.
 - `is_interdependent_exactly(2)` requires a temporal closed trail of exact order `2` under non-decreasing timestamps.
 
-### Chained cooperation and interdependence are separate
+### Sequential cooperation and interdependence are separate
 
-A temporal closed trail of exact order `N` is also a chain, but it may have more than `N` edges because interdependence permits repeated agents and static arcs at later times. Chained cooperation also includes open walks and lassos. The implementation keeps the encodings separate because the two properties ask for different structures.
+A temporal closed trail of exact order `N` is also a sequence, but it may have more than `N` edges because interdependence permits repeated agents and static arcs at later times. Sequential cooperation also includes open walks and lassos. The implementation keeps the encodings separate because the two properties ask for different structures.
 
-An open chain can be required without any cycle. For example, `a -> b -> c` is chained but not interdependent.
+An open sequence can be required without any cycle. For example, `a -> b -> c` is sequential but not interdependent.
 
-### Chained cooperation includes mutual help, but is broader
+### Sequential cooperation includes mutual help, but is broader
 
-Mutual help is one way to obtain a chain of length `2`, but it is not the only way:
+Mutual help is one way to obtain a sequence of length `2`, but it is not the only way:
 
 - mutual help, including simultaneous mutual help: `a -> b -> a`;
-- open chain: `a -> b -> c`.
+- open sequence: `a -> b -> c`.
 
-Therefore `is_chained(2)` can be true while `is_mutual` is false.
+Therefore `is_sequential(2)` can be true while `is_mutual` is false.
 
 ### Asymmetric cooperation versus no cooperation
 
