@@ -22,7 +22,7 @@ __all__ = [
     "is_cooperative",
     "is_asymmetric",
     "is_mutual",
-    "is_chained",
+    "is_sequential",
     "is_convergent",
     "is_divergent",
     "WorldCharacterizer",
@@ -72,14 +72,14 @@ def is_mutual(world: World, t_max: int | Literal["auto"] = "auto"):
     return w.is_interdependent(2)
 
 
-def is_chained(world: World, t_max: int | Literal["auto"] = "auto", length: int = 2):
+def is_sequential(world: World, t_max: int | Literal["auto"] = "auto", length: int = 2):
     """
-    Return `True` if the provided world requires chained cooperation of at least `length`
+    Return `True` if the provided world requires sequential cooperation of at least `length`
     help edges to be solved in `t_max` steps, i.e. when every solution within `t_max`
-    exhibits a chain of length >= `length`.
+    exhibits a sequence of length >= `length`.
     """
     w = characterize(world, t_max)
-    return w.is_chained(length)
+    return w.is_sequential(length)
 
 
 def is_convergent(world: World, t_max: int | Literal["auto"] = "auto", k: int = 2):

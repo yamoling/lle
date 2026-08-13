@@ -179,3 +179,57 @@ fn fixed_endpoint_selects_the_grouping_orientation() {
     assert_eq!(outgoing, vec![vec![-to_one, -to_two]]);
     assert!(incoming.is_empty());
 }
+
+/// Full coupling is negated by one clause containing every directed pair summary.
+///
+/// @ai-generated
+#[test]
+fn no_fully_coupled_clause_requires_a_missing_directed_pair() {
+    let mut engine = pairwise_engine(3);
+    for helper in 0..3 {
+        for beneficiary in 0..3 {
+            if helper != beneficiary {
+                engine.pool.help(helper, beneficiary, 1);
+            }
+        }
+    }
+    engine.generate_pairwise_help_clauses(2);
+
+    let mut expected = Vec::new();
+    for helper in 0..3 {
+        for beneficiary in 0..3 {
+            if helper != beneficiary {
+                expected.push(
+                    -engine
+                        .literal(&summary_key(helper, beneficiary, 2))
+                        .expect("directed pair summary"),
+                );
+            }
+        }
+    }
+
+    assert_eq!(engine.generate_no_fully_coupled_clauses(2), vec![expected]);
+}
+
+/// A geometrically impossible pair already witnesses failure of full coupling.
+///
+/// @ai-generated
+#[test]
+fn no_fully_coupled_adds_no_clause_when_a_pair_summary_is_missing() {
+    let mut engine = pairwise_engine(3);
+    engine.pool.help(0, 1, 1);
+    engine.generate_pairwise_help_clauses(2);
+
+    assert!(engine.generate_no_fully_coupled_clauses(2).is_empty());
+}
+
+/// The explicit non-empty-pair requirement makes a one-agent trajectory not fully coupled.
+///
+/// @ai-generated
+#[test]
+fn no_fully_coupled_adds_no_clause_for_one_agent() {
+    let world = World::try_from("S0 X").expect("failed to parse one-agent world");
+    let engine = ClauseEngine::new(&world, 2);
+
+    assert!(engine.generate_no_fully_coupled_clauses(2).is_empty());
+}

@@ -3,11 +3,11 @@ use crate::solver::{Clause, VarKey, clauses::ClauseEngine};
 impl ClauseEngine {
     /// Generate a sparse Horn encoding that forbids temporal help trails of exactly `length`.
     ///
-    /// A progress state means that one static chain-pattern prefix is temporally realizable by `t`.
+    /// A progress state means that one static sequence-pattern prefix is temporally realizable by `t`.
     /// Distinct arcs may occur simultaneously, while a repeated static arc additionally requires its
     /// previous occurrence by `t - 1`, preventing reuse of the same temporal help edge. States and
     /// transitions are materialized only when their help literals and predecessor prefixes exist.
-    pub fn generate_chain_clauses(&mut self, t: usize, length: usize) -> Vec<Clause> {
+    pub fn generate_sequence_clauses(&mut self, t: usize, length: usize) -> Vec<Clause> {
         self.ctx.update(t);
         let n_helpers = self
             .ctx
@@ -23,7 +23,7 @@ impl ClauseEngine {
             return Vec::new();
         }
 
-        let patterns = self.chain_patterns(length);
+        let patterns = self.sequence_patterns(length);
         let mut clauses = Vec::new();
 
         for (pattern_index, pattern) in patterns.iter().enumerate() {
@@ -31,7 +31,7 @@ impl ClauseEngine {
                 let prefix_len = arc_index + 1;
                 let is_complete = prefix_len == length;
                 let previous_progress = if prefix_len > 1 {
-                    self.pool.get(&VarKey::ChainProgress {
+                    self.pool.get(&VarKey::SequenceProgress {
                         length,
                         pattern: pattern_index,
                         prefix_len: prefix_len - 1,
@@ -50,7 +50,7 @@ impl ClauseEngine {
                     if t == 0 {
                         continue;
                     }
-                    self.pool.get(&VarKey::ChainProgress {
+                    self.pool.get(&VarKey::SequenceProgress {
                         length,
                         pattern: pattern_index,
                         prefix_len: previous_prefix_len,
@@ -71,7 +71,7 @@ impl ClauseEngine {
                     t,
                 });
                 let previous_time = (t > 0).then(|| {
-                    self.pool.get(&VarKey::ChainProgress {
+                    self.pool.get(&VarKey::SequenceProgress {
                         length,
                         pattern: pattern_index,
                         prefix_len,
@@ -85,7 +85,7 @@ impl ClauseEngine {
                 if !is_complete {
                     let progress = self
                         .pool
-                        .chain_progress(length, pattern_index, prefix_len, t);
+                        .sequence_progress(length, pattern_index, prefix_len, t);
                     if let Some(previous_time) = previous_time.flatten() {
                         clauses.push(vec![-previous_time, progress]);
                     }
@@ -117,5 +117,5 @@ impl ClauseEngine {
 }
 
 #[cfg(test)]
-#[path = "../../../unit_tests/engine/test_chains.rs"]
+#[path = "../../../unit_tests/engine/test_sequences.rs"]
 mod tests;

@@ -2,7 +2,7 @@
 
 `lle.generate(...)` returns a fluent builder that controls every placement
 decision — start/exit geometry, lasers, walls, and the behavioural constraint —
-through chained methods. Run this file to see a quick demo:
+through sequential methods. Run this file to see a quick demo:
 
     python examples/custom_generator.py
 """

@@ -1,5 +1,5 @@
 mod assumptions;
-mod chains;
+mod sequences;
 mod clause_engine;
 mod convergence;
 mod cooperation;

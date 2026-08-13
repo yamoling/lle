@@ -67,3 +67,9 @@ To characterize a world, the solver must not only find _a_ solution but also pro
 1. **Existence proof** — solve in `Standard` mode to find a trajectory that exhibits property _P_ (e.g. the shortest plan involves cooperation). If the shortest plan does not exhibit _P_, the world trivially does not require it.
 
 2. **Universality proof** — solve again with a `No*` mode (e.g. `NoCooperation`) that encodes _P_ as extra clauses and assumes _¬P_. If the SAT solver returns UNSAT, every trajectory of length ≤ `t_max` must exhibit _P_, proving the world requires it.
+
+#### Feasibility shortcuts
+
+Before dispatching on the mode, `ClauseGenerator::generate` checks whether _P_ can occur at all in the world layout. The check is deliberately cheap and horizon-independent: it only counts agents, laser sources and distinct laser colours (which are agent IDs, so they also count the agents able to act as helpers). For instance, a sequence of help edges needs two laser-owning helpers, and fully coupled cooperation needs every agent to own a laser.
+
+When those necessary conditions fail, _P_ is impossible, the `No*` restriction is tautologically satisfied, and the mode is normalized to `Standard`: the query returns the usual movement, laser, objective and gem clauses without filling the cooperation buffers or allocating cooperation variables. These are only *necessary* conditions — finer impossibility that depends on beam reachability or on `t_max` is left to the geometric pruning of the `ClauseEngine`, which never materializes a `Help` variable for an unrealizable help event.

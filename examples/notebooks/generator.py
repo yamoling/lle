@@ -124,17 +124,17 @@ def _(display, lle):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    ### Chained cooperation
-    Chained cooperation is a chain of at least two temporally sequential (or simultaneous) help events, i.e. help(a, b, t) and help(b, c, t+n) (with n $\geq$ 0).
+    ### Sequential cooperation
+    Sequential cooperation is a sequence of at least two temporally sequential (or simultaneous) help events, i.e. help(a, b, t) and help(b, c, t+n) (with n $\geq$ 0).
     """)
     return
 
 
 @app.cell
 def _(display, lle):
-    chained2 = lle.generate().lasers(2).chained().take(4)
-    chained3 = lle.generate().lasers(3).chained().take(4)
-    display([*chained2, *chained3])
+    sequential2 = lle.generate().lasers(2).sequential().take(4)
+    sequential3 = lle.generate().lasers(3).sequential().take(4)
+    display([*sequential2, *sequential3])
     return
 
 

@@ -25,6 +25,14 @@ pub enum SolverError {
         agent: AgentId,
         t: usize,
     },
+    /// A parameterized [`SolveMode`](crate::solver::SolveMode) carries a value that has no meaning
+    /// for that variant. `variant` is the Rust variant name and `reason` explains what the value
+    /// would encode, if anything.
+    InvalidModeParameter {
+        variant: &'static str,
+        value: usize,
+        reason: String,
+    },
 }
 
 impl Display for SolverError {
@@ -50,6 +58,14 @@ impl Display for SolverError {
             SolverError::MissingPosition { agent, t } => write!(
                 f,
                 "Incomplete model: agent {agent} has no decoded position at time step {t}."
+            ),
+            SolverError::InvalidModeParameter {
+                variant,
+                value,
+                reason,
+            } => write!(
+                f,
+                "Invalid parameter {value} for SolveMode::{variant}: {reason}"
             ),
         }
     }

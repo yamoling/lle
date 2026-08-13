@@ -44,7 +44,7 @@ def test_characterization_helpers_are_exported_from_both_paths():
     import lle
     import lle.characterization as characterization
 
-    for name in ("is_cooperative", "is_asymmetric", "is_chained", "is_convergent", "is_divergent"):
+    for name in ("is_cooperative", "is_asymmetric", "is_sequential", "is_convergent", "is_divergent"):
         assert getattr(lle, name) is getattr(characterization, name)
         assert name in lle.__all__
         assert name in characterization.__all__

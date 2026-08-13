@@ -54,16 +54,21 @@ class ClauseGenerator:
         r"""
         Build a clause generator for the given `world`, considering plans of length up to `t_max`.
         """
-    def generate(self, t: builtins.int, mode: typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-mutual', 'no-chain', 'no-interdependence', 'no-convergence', 'no-divergence'] | builtins.str | SolveMode | None = None, collect_gems: builtins.bool = False) -> tuple[builtins.list[builtins.list[builtins.int]], builtins.list[builtins.int]]:
+    def generate(self, t: builtins.int, mode: typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-mutual', 'no-fully-coupled', 'no-sequence', 'no-interdependence', 'no-convergence', 'no-divergence'] | builtins.str | SolveMode | None = None, collect_gems: builtins.bool = False) -> tuple[builtins.list[builtins.list[builtins.int]], builtins.list[builtins.int]]:
         r"""
         Generate all clauses and assumptions required to solve the problem at horizon `t`.
         
         `mode` accepts either a `SolveMode` instance or its canonical string (`"standard"`,
-        `"no-cooperation"`, `"no-asymmetric"`, `"no-mutual"`, `"no-chain[-N]"`,
-        `"no-interdependence[-N]"`, `"no-convergence[-N]"`, `"no-divergence[-N]"`). `collect_gems` adds gem-collection
+        `"no-cooperation"`, `"no-asymmetric"`, `"no-mutual"`, `"no-fully-coupled"`,
+        `"no-sequence[-N]"`, `"no-interdependence[-N]"`, `"no-convergence[-N]"`,
+        `"no-divergence[-N]"`). `collect_gems` adds gem-collection
         clauses to the objective.
         
         Returns `(clauses, assumptions)` ready to be fed to `solve_model`.
+        
+        Raises:
+            `ValueError`: if `mode` is not a valid solve mode, or if it carries a parameter that is
+            meaningless for that mode (e.g. a sequence length below 2).
         """
     def objective(self, t: builtins.int, collect_gems: builtins.bool = False) -> tuple[builtins.list[builtins.list[builtins.int]], builtins.list[builtins.int]]:
         r"""
@@ -86,8 +91,8 @@ class SolveMode:
     r"""
     The solving mode used by `ClauseGenerator`.
     
-    Build one with the factory methods (`SolveMode.standard()`, `SolveMode.no_chain(length=3)`,
-    …) or parse one from its canonical string with `SolveMode.from_str("no-chain-3")`. The
+    Build one with the factory methods (`SolveMode.standard()`, `SolveMode.no_sequence(length=3)`,
+    …) or parse one from its canonical string with `SolveMode.from_str("no-sequence-3")`. The
     available modes control which extra clauses and assumptions are emitted by `generate(t)`:
     
     - `standard()` — world rules only; agents may cooperate freely.
@@ -95,8 +100,9 @@ class SolveMode:
       treating every beam as permanently active.
     - `no_asymmetric()` — rules out plans where an agent helps someone without ever being helped.
     - `no_mutual()` — rules out plans where two agents each help the other.
-    - `no_chain(length=2)` — rules out plans containing a non-decreasing-time temporal chain of
-      `length` help edges or more (`a → b → c` is a chain of length 2).
+    - `no_fully_coupled()` — requires at least one ordered pair of agents to lack help.
+    - `no_sequence(length=2)` — rules out plans containing a non-decreasing-time temporal sequence of
+      `length` help edges or more (`a → b → c` is a sequence of length 2).
     - `no_interdependence(order=2)` — rules out plans whose dependency graph contains a temporal
       closed trail with exactly `order` distinct agents. Timestamps are non-decreasing; agents and
       static arcs may repeat at later times, but temporal edges may not repeat. Other exact orders
@@ -112,15 +118,15 @@ class SolveMode:
     
     gen = ClauseGenerator(World.level(6), t_max=21)
     for t in range(gen.solution_lower_bound, gen.t_max + 1):
-        clauses, assumptions = gen.generate(t, mode=SolveMode.no_chain(2))
+        clauses, assumptions = gen.generate(t, mode=SolveMode.no_sequence(2))
         ...
     ```
     """
     @property
     def value(self) -> builtins.str:
         r"""
-        The canonical string representation, inverse of `from_str` (e.g. `"no-chain-3"`).
-        Default parameters are rendered without a suffix (`"no-chain"`, `"no-interdependence"`,
+        The canonical string representation, inverse of `from_str` (e.g. `"no-sequence-3"`).
+        Default parameters are rendered without a suffix (`"no-sequence"`, `"no-interdependence"`,
         `"no-convergence"`, `"no-divergence"`).
         """
     def __eq__(self, other: builtins.object, /) -> builtins.bool: ...
@@ -145,12 +151,17 @@ class SolveMode:
         r"""
         Forbid plans where two agents each help the other.
         
-        Equivalent to [`SolveMode::NoInterdependence(2)`].
+        Equivalent to `SolveMode::no_interdependence(2)`.
         """
     @staticmethod
-    def no_chain(length: builtins.int = 2) -> SolveMode:
+    def no_fully_coupled() -> SolveMode:
         r"""
-        Forbid any non-decreasing-time temporal chain of `length` help edges or more. `length` must be `>= 2`.
+        Require at least one ordered pair of distinct agents to lack a help event.
+        """
+    @staticmethod
+    def no_sequence(length: builtins.int = 2) -> SolveMode:
+        r"""
+        Forbid any non-decreasing-time temporal sequence of `length` help edges or more. `length` must be `>= 2`.
         """
     @staticmethod
     def no_interdependence(order: builtins.int = 2) -> SolveMode:
@@ -166,19 +177,15 @@ class SolveMode:
     def no_divergence(k: builtins.int = 2) -> SolveMode:
         r"""
         Forbid any helper from helping at least `k` distinct beneficiaries. `k` must be `>= 2`.
-        
-        @ai-generated
         """
     @staticmethod
-    def from_str(value: typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-mutual', 'no-chain', 'no-interdependence', 'no-convergence', 'no-divergence'] | builtins.str) -> SolveMode:
+    def from_str(value: typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-mutual', 'no-fully-coupled', 'no-sequence', 'no-interdependence', 'no-convergence', 'no-divergence'] | builtins.str) -> SolveMode:
         r"""
-        Parse a canonical string (e.g. `"standard"`, `"no-chain-3"`, `"no-divergence-3"`).
+        Parse a canonical string (e.g. `"standard"`, `"no-sequence-3"`, `"no-divergence-3"`).
         
-        `"no-chain"`, `"no-interdependence"`, `"no-convergence"`, and `"no-divergence"` accept a
+        `"no-sequence"`, `"no-interdependence"`, `"no-convergence"`, and `"no-divergence"` accept a
         `"-n"` suffix for their parameter. Their bare forms are aliases for the corresponding
         `"-2"` forms.
-        
-        @ai-generated
         """
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...

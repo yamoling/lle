@@ -63,8 +63,6 @@ pub struct ClosedTrailPattern {
 /// Return the largest edge count needed by an irreducible exact-order closed trail.
 /// This bound is only defined for `k` >= 2.
 ///
-/// @ai-generated
-///
 /// Bound computation:
 /// $$
 /// B(k)=\left\lfloor\frac{(k+1)^2}{4}\right\rfloor
@@ -144,8 +142,6 @@ struct SearchGraph {
 
 impl SearchGraph {
     /// Index normalized agents and arcs while preserving deterministic adjacency order.
-    ///
-    /// @ai-generated
     fn new(potential_arcs: &[StaticHelpArc]) -> Self {
         let mut agents = potential_arcs
             .iter()
@@ -189,8 +185,6 @@ impl SearchGraph {
     }
 
     /// Return every agent reachable from `start` in the forward or reverse graph.
-    ///
-    /// @ai-generated
     fn reachable_agents(&self, start: AgentId, reverse: bool) -> HashSet<AgentId> {
         let mut reachable = HashSet::from([start]);
         let mut pending = vec![start];
@@ -236,8 +230,6 @@ impl TrailState {
     }
 
     /// Append one indexed arc and update all dense counters.
-    ///
-    /// @ai-generated
     fn push(&mut self, indexed: IndexedHelpArc) {
         if self.agent_occurrences[indexed.beneficiary_index] == 0 {
             self.support_size += 1;
@@ -249,8 +241,6 @@ impl TrailState {
     }
 
     /// Remove the most recently appended indexed arc and restore all counters.
-    ///
-    /// @ai-generated
     fn pop(&mut self, indexed: IndexedHelpArc) {
         debug_assert_eq!(self.arcs.last(), Some(&indexed.arc));
         self.arcs.pop();
@@ -274,8 +264,6 @@ struct TrailSearch<'a> {
 
 impl TrailSearch<'_> {
     /// Extend one rooted static trail word while enforcing the irreducible-witness bounds.
-    ///
-    /// @ai-generated
     fn enumerate_from(&self, state: &mut TrailState, patterns: &mut Vec<ClosedTrailPattern>) {
         if state.arcs.len() == self.max_len {
             return;
@@ -328,8 +316,6 @@ impl TrailSearch<'_> {
 }
 
 /// Test whether `arcs` is the lexicographically least cyclic rotation of its class.
-///
-/// @ai-generated
 fn is_canonical_rotation(arcs: &[StaticHelpArc]) -> bool {
     (1..arcs.len()).all(|cut| {
         arcs.iter().cmp(arcs[cut..].iter().chain(&arcs[..cut])) != std::cmp::Ordering::Greater

@@ -44,9 +44,9 @@ def main() -> None:
     report("level 3 (asymmetric coop)", World.level(3), 12)
     report("level 6 (interdependent-2)", World.level(6), 21)
 
-    # `None` proves every plan within this horizon contains a temporal help chain of length 2.
-    chain_free = lle.solve(World.level(6), 21, mode=SolveMode.no_chain(2))
-    print(f"\\nlevel 6 has a chain-free plan: {chain_free is not None}")
+    # `None` proves every plan within this horizon contains a temporal help sequence of length 2.
+    sequence_free = lle.solve(World.level(6), 21, mode=SolveMode.no_sequence(2))
+    print(f"\\nlevel 6 has a sequence-free plan: {sequence_free is not None}")
 
     report("always-interdependent corridor", World(ALWAYS_INTERDEPENDENT), 10)
     report("time-dependent", World(TIME_DEPENDENT), 16)

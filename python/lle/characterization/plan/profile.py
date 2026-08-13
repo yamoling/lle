@@ -23,20 +23,20 @@ class PlanProfile:
         """Whether the trajectory exhibits exact-order-two mutual help."""
         return self.is_interdependent(2)
 
-    def is_chained(self, length: int = 2):
-        """Whether the trajectory exhibits a cooperation chain of at least `length` help edges.
+    def is_sequential(self, length: int = 2):
+        """Whether the trajectory exhibits a cooperation sequence of at least `length` help edges.
 
-        A chain is a directed temporal trail of help edges whose timestamps never decrease.
+        A sequence is a directed temporal trail of help edges whose timestamps never decrease.
         Vertices (agents) may be revisited freely; temporal edges — uniquely identified by
         (helper, beneficiary, t) — may each be used at most once.  Because the help graph at any
         single time step is a finite simple directed graph, and edges at different time steps are
         always distinct triples, every trail is finite.
 
-        A chain encodes two ideas:
+        A sequence encodes two ideas:
            1) transitivity of the cooperation: if a helps b and b helps c, then a also helps c indirectly.
            2) depth of cooperation: i.e. how many subsequent (or simultaneous) cooperative events occur.
 
-        A chain must have at least 2 edges; a single help edge is cooperative but not chained.
+        A sequence must have at least 2 edges; a single help edge is cooperative but not sequential.
 
         # Returns
         Returns `False` when the longest trail has fewer edges than `length`.
@@ -52,7 +52,7 @@ class PlanProfile:
            - an independent graph returns `False`.
         """
         if length < 2:
-            raise ValueError("A chain must have at least 2 edges")
+            raise ValueError("A sequence must have at least 2 edges")
         return self.graph.longest_trail_length() >= length
 
     def is_convergent(self, k: int = 2) -> bool:

@@ -25,7 +25,7 @@ class WorldCharacterizer:
         self.world = world
         self.t_max = t_max
         self._solver = solver.Solver(self.world, self.t_max)
-        self._is_chained_cache = MonotoneCache()
+        self._is_sequential_cache = MonotoneCache()
         self._is_convergent_cache = MonotoneCache()
         # Convergence and divergence are independent predicates over opposite endpoints of the
         # same directed relation, so they must not share a cache.
@@ -70,33 +70,39 @@ class WorldCharacterizer:
         return self.shortest_non_asymmetric_path is None
 
     def is_fully_coupled(self):
-        """Every agent helps every other agent at some point."""
-        raise NotImplementedError()
+        """Whether every solution makes each agent help every other agent.
 
-    def is_chained(self, length: int = 2) -> bool:
+        The profile is false for unsolvable worlds and for worlds with fewer than two agents. For a
+        solvable world, the no-fully-coupled query proves universality when it is unsatisfiable.
         """
-        Whether the world requires chained cooperation of at least `length` help edges:
-        - The world is solvable
-        - and the optimal trajectory exhibits a chain of length >= `length`
-          (e.g. `length=2`: a helped b, then b helped c)
-        - and no trajectory within `t_max` avoids every chain of length >= `length`.
+        if self.shortest_path is None:
+            return False
+        return self.shortest_non_fully_coupled_path is None
 
-        A mutual cycle `a → b → a` is a chain of length 2 even when the two help events occur
-        simultaneously, because chained cooperation uses non-decreasing timestamps.
+    def is_sequential(self, length: int = 2) -> bool:
+        """
+        Whether the world requires sequential cooperation of at least `length` help edges:
+        - The world is solvable
+        - and the optimal trajectory exhibits a sequence of length >= `length`
+          (e.g. `length=2`: a helped b, then b helped c)
+        - and no trajectory within `t_max` avoids every sequence of length >= `length`.
+
+        A mutual cycle `a → b → a` is a sequence of length 2 even when the two help events occur
+        simultaneously, because sequential cooperation uses non-decreasing timestamps.
         """
         if length < 2:
-            raise ValueError(f"Chain length must be >= 2, got {length}.")
-        cached = self._is_chained_cache.get(length)
+            raise ValueError(f"Sequence length must be >= 2, got {length}.")
+        cached = self._is_sequential_cache.get(length)
         if cached is not None:
             return cached
         if self.shortest_path is None:
             return False
         profile = profile_plan(self.world, self.shortest_path)
-        if not profile.is_chained(length):
+        if not profile.is_sequential(length):
             res = False
         else:
-            res = self.compute_shortest_path_without_chain(length) is None
-        self._is_chained_cache[length] = res
+            res = self.compute_shortest_path_without_sequence(length) is None
+        self._is_sequential_cache[length] = res
         return res
 
     def is_convergent(self, k: int = 2) -> bool:
@@ -191,13 +197,13 @@ class WorldCharacterizer:
         return self._solver.find_shortest(SolveMode.no_asymmetric())
 
     @cached_property
-    def shortest_non_mutual_path(self):
-        return self._solver.find_shortest(SolveMode.no_mutual())
+    def shortest_non_fully_coupled_path(self):
+        return self._solver.find_shortest(SolveMode.no_fully_coupled())
 
-    def compute_shortest_path_without_chain(self, length: int):
+    def compute_shortest_path_without_sequence(self, length: int):
         if length < 2:
-            raise ValueError(f"Chain length must be >= 2, got {length}.")
-        return self._solver.find_shortest(SolveMode.no_chain(length))
+            raise ValueError(f"Sequence length must be >= 2, got {length}.")
+        return self._solver.find_shortest(SolveMode.no_sequence(length))
 
     def compute_shortest_path_without_convergence(self, k: int):
         """Return the shortest plan that avoids k-convergence, or `None` if none exists."""

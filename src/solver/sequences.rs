@@ -2,23 +2,23 @@ use crate::AgentId;
 
 use super::interdependence::StaticHelpArc;
 
-/// A static directed chain pattern and the earlier prefixes needed to separate repeated arcs.
+/// A static directed sequence pattern and the earlier prefixes needed to separate repeated arcs.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ChainPattern {
+pub struct SequencePattern {
     pub arcs: Vec<StaticHelpArc>,
     pub previous_same_prefix_len: Vec<Option<usize>>,
 }
 
-/// Enumerate every static directed chain pattern of exactly `length` arcs.
+/// Enumerate every static directed sequence pattern of exactly `length` arcs.
 ///
 /// Only laser-owning agents can occur as helpers. The final beneficiary may be any agent because it
 /// does not need to provide a subsequent help event. Pattern order is deterministic because indices
 /// are embedded in SAT progress-variable keys.
-pub fn enumerate_chain_patterns(
+pub fn enumerate_sequence_patterns(
     mut helper_ids: Vec<AgentId>,
     n_agents: usize,
     length: usize,
-) -> Vec<ChainPattern> {
+) -> Vec<SequencePattern> {
     if length == 0 {
         return Vec::new();
     }
@@ -40,14 +40,14 @@ pub fn enumerate_chain_patterns(
     patterns
 }
 
-/// Extend one static chain prefix until it contains exactly `length` arcs.
+/// Extend one static sequence prefix until it contains exactly `length` arcs.
 fn enumerate_from(
     helper_ids: &[AgentId],
     n_agents: usize,
     length: usize,
     current: AgentId,
     arcs: &mut Vec<StaticHelpArc>,
-    patterns: &mut Vec<ChainPattern>,
+    patterns: &mut Vec<SequencePattern>,
 ) {
     let completes_pattern = arcs.len() + 1 == length;
     for beneficiary in 0..n_agents {
@@ -62,7 +62,7 @@ fn enumerate_from(
             beneficiary,
         });
         if completes_pattern {
-            patterns.push(ChainPattern {
+            patterns.push(SequencePattern {
                 previous_same_prefix_len: previous_same_prefix_lens(arcs),
                 arcs: arcs.clone(),
             });

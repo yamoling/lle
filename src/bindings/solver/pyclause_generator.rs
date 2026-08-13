@@ -77,18 +77,23 @@ impl PyClauseGenerator {
     /// Generate all clauses and assumptions required to solve the problem at horizon `t`.
     ///
     /// `mode` accepts either a `SolveMode` instance or its canonical string (`"standard"`,
-    /// `"no-cooperation"`, `"no-asymmetric"`, `"no-mutual"`, `"no-chain[-N]"`,
-    /// `"no-interdependence[-N]"`, `"no-convergence[-N]"`, `"no-divergence[-N]"`). `collect_gems` adds gem-collection
+    /// `"no-cooperation"`, `"no-asymmetric"`, `"no-mutual"`, `"no-fully-coupled"`,
+    /// `"no-sequence[-N]"`, `"no-interdependence[-N]"`, `"no-convergence[-N]"`,
+    /// `"no-divergence[-N]"`). `collect_gems` adds gem-collection
     /// clauses to the objective.
     ///
     /// Returns `(clauses, assumptions)` ready to be fed to `solve_model`.
+    ///
+    /// Raises:
+    ///     `ValueError`: if `mode` is not a valid solve mode, or if it carries a parameter that is
+    ///     meaningless for that mode (e.g. a sequence length below 2).
     #[pyo3(signature = (t, mode=None, collect_gems=false))]
     fn generate(
         &mut self,
         py: Python,
         t: usize,
         #[gen_stub(override_type(
-            type_repr = "typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-mutual', 'no-chain', 'no-interdependence', 'no-convergence', 'no-divergence'] | builtins.str | SolveMode | None",
+            type_repr = "typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-mutual', 'no-fully-coupled', 'no-sequence', 'no-interdependence', 'no-convergence', 'no-divergence'] | builtins.str | SolveMode | None",
             imports = ("typing",)
         ))]
         mode: Option<Py<PyAny>>,
@@ -98,7 +103,9 @@ impl PyClauseGenerator {
             Some(mode) => extract_solve_mode(py, mode)?,
             None => SolveMode::Standard,
         };
-        Ok(self.inner.generate(t, mode, collect_gems))
+        self.inner
+            .generate(t, mode, collect_gems)
+            .map_err(solver_error_to_exception)
     }
 
     /// Generate only the objective clauses for horizon `t`.
