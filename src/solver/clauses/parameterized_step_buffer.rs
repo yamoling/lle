@@ -4,7 +4,7 @@ use super::ClauseEngine;
 
 /// A self-filling per-time-step cache with an independent prefix for each `usize` parameter.
 ///
-/// This supports clause families such as chains and interdependence cycles, where generation is
+/// This supports clause families such as sequences and interdependence cycles, where generation is
 /// parameterized by a trail length or cycle order in addition to the time step.
 pub struct ParameterizedStepBuffer<T: Clone> {
     generate: fn(&mut ClauseEngine, usize, usize) -> Vec<T>,

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::solver::chains::{ChainPattern, enumerate_chain_patterns};
+use crate::solver::sequences::{SequencePattern, enumerate_sequence_patterns};
 use crate::solver::clauses::VarPool;
 use crate::solver::context::ConstraintContext;
 use crate::solver::errors::SolverError;
@@ -26,7 +26,7 @@ pub struct ClauseEngine {
     pub pool: VarPool,
     pub exits: PositionSet,
     pub gems: PositionSet,
-    chain_patterns: HashMap<usize, Vec<ChainPattern>>,
+    sequence_patterns: HashMap<usize, Vec<SequencePattern>>,
     interdependence_patterns: HashMap<usize, Vec<ClosedTrailPattern>>,
 }
 
@@ -46,22 +46,22 @@ impl ClauseEngine {
             ),
             ctx,
             pool: VarPool::new(),
-            chain_patterns: HashMap::new(),
+            sequence_patterns: HashMap::new(),
             interdependence_patterns: HashMap::new(),
         }
     }
 
-    /// Return the deterministic static pattern basis for an exact chain length.
-    pub fn chain_patterns(&mut self, length: usize) -> Vec<ChainPattern> {
+    /// Return the deterministic static pattern basis for an exact sequence length.
+    pub fn sequence_patterns(&mut self, length: usize) -> Vec<SequencePattern> {
         let helper_ids = self
             .ctx
             .laser_sources
             .iter()
             .map(|source| source.agent_id)
             .collect::<Vec<_>>();
-        self.chain_patterns
+        self.sequence_patterns
             .entry(length)
-            .or_insert_with(|| enumerate_chain_patterns(helper_ids, self.ctx.n_agents, length))
+            .or_insert_with(|| enumerate_sequence_patterns(helper_ids, self.ctx.n_agents, length))
             .clone()
     }
 

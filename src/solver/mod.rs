@@ -1,4 +1,4 @@
-mod chains;
+mod sequences;
 mod clauses;
 mod context;
 pub mod errors;
