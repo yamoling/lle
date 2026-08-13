@@ -126,20 +126,6 @@ class TemporalCooperationGraph:
         """Whether the trajectory contains no edge at all."""
         return len(self._edges) == 0
 
-    def active_times(self):
-        """
-        Return all time steps that contain at least one dependency edge.
-        """
-        return tuple(self._by_time.keys())
-
-    def layers_for(self, helper: AgentId):
-        """Return the sorted temporal layers for `helper`."""
-        return self.vertices[helper].layers
-
-    def beneficiaries_at(self, helper: AgentId, t: int):
-        """Return the beneficiaries helped by `helper` exactly at time `t`."""
-        return self._by_time.get(t, {}).get(helper, ())
-
     def flattened_edges(self):
         """Return the set of `(helper, beneficiary)` pairs across all time steps."""
         return {(edge.helper, edge.beneficiary) for edge in self._edges}
@@ -176,16 +162,6 @@ class TemporalCooperationGraph:
         edge_times = self._edge_times_by_helper.get(helper, ())
         start = bisect_right(edge_times, t) if strict else bisect_left(edge_times, t)
         return edge_ids[start:]
-
-    def outgoing_after(self, helper: AgentId, t: int, *, strict: bool = False):
-        """
-        Yield outgoing temporal edges for `helper` in ascending timestamp order.
-
-        With the default `strict=False`, edges at the same timestamp are yielded.
-        With `strict=True`, the next edge must occur later than `t`.
-        """
-        for edge_id in self._edge_ids_after(helper, t, strict=strict):
-            yield self._edges[edge_id]
 
     def longest_trail(self) -> list[DependencyEdge]:
         """
@@ -324,58 +300,6 @@ class TemporalCooperationGraph:
 
     def has_closed_trail_of_order(self, order: int) -> bool:
         return bool(self.closed_trail_of_order(order))
-
-    def closed_trail_orders(self) -> frozenset[int]:
-        return frozenset(order for order in range(2, len(self.vertices) + 1) if self.has_closed_trail_of_order(order))
-
-    def interdependence_order(self) -> int:
-        """Return the largest exact closed-trail support order, or `0` when absent."""
-        return max(self.closed_trail_orders(), default=0)
-
-    def longest_closed_trail(self) -> list[DependencyEdge]:
-        """
-        Return a longest non-decreasing temporal closed trail.
-
-        Unlike exact-order recognition, this diagnostic method is bounded by
-        the finite temporal-edge set rather than the irreducible witness bound,
-        so it preserves redundant edges in a concrete trajectory.
-        """
-        best: tuple[DependencyEdge, ...] = ()
-        if not self._edges:
-            return []
-        first_time = self._edges[0].t
-
-        def dfs(
-            anchor: AgentId,
-            current: AgentId,
-            min_t: int | None,
-            current_time_arcs: frozenset[tuple[AgentId, AgentId]],
-            path: tuple[DependencyEdge, ...],
-        ) -> None:
-            nonlocal best
-            if len(path) == len(self._edges):
-                return
-
-            for edge_id in self._edge_ids_after(current, min_t if min_t is not None else first_time):
-                candidate = self._edges[edge_id]
-                if candidate.helper == candidate.beneficiary:
-                    continue
-                static_arc = (candidate.helper, candidate.beneficiary)
-                if candidate.t == min_t:
-                    if static_arc in current_time_arcs:
-                        continue
-                    next_time_arcs = current_time_arcs | {static_arc}
-                else:
-                    next_time_arcs = frozenset({static_arc})
-
-                next_path = (*path, candidate)
-                if candidate.beneficiary == anchor and len(next_path) > len(best):
-                    best = next_path
-                dfs(anchor, candidate.beneficiary, candidate.t, next_time_arcs, next_path)
-
-        for anchor in self.vertices:
-            dfs(anchor, anchor, None, frozenset(), ())
-        return list(best)
 
     def profile(self):
         """Summarise the graph into a `TrajectoryProfile`."""

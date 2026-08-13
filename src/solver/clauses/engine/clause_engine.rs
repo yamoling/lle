@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use crate::solver::sequences::{SequencePattern, enumerate_sequence_patterns};
+use crate::solver::Clause;
+#[cfg(test)]
+use crate::solver::VarKey;
 use crate::solver::clauses::VarPool;
 use crate::solver::context::ConstraintContext;
 use crate::solver::errors::SolverError;
@@ -8,7 +10,7 @@ use crate::solver::interdependence::{
     ClosedTrailPattern, StaticHelpArc, enumerate_closed_trail_patterns,
 };
 use crate::solver::position_set::PositionSet;
-use crate::solver::{Clause, VarKey};
+use crate::solver::sequences::{SequencePattern, enumerate_sequence_patterns};
 use crate::{Action, World};
 
 /// Mutable substrate shared by every clause-producing routine.
@@ -162,21 +164,25 @@ impl ClauseEngine {
     }
 
     #[inline]
-    pub fn t_max(&self) -> usize {
-        self.ctx.t_max
-    }
-
-    #[inline]
     pub fn solution_lower_bound(&self) -> usize {
         self.ctx.solution_lower_bound
     }
 
-    pub fn exists(&self, key: &VarKey) -> bool {
-        self.pool.exists(key)
-    }
-
     pub fn n_vars(&self) -> usize {
         self.pool.n_vars()
+    }
+}
+
+/// Test-only inspection helpers for the SAT variable pool.
+#[cfg(test)]
+impl ClauseEngine {
+    #[inline]
+    pub fn t_max(&self) -> usize {
+        self.ctx.t_max
+    }
+
+    pub fn exists(&self, key: &VarKey) -> bool {
+        self.pool.exists(key)
     }
 
     /// Return the SAT literal assigned to `key`, or `None` if it was never created.

@@ -290,10 +290,6 @@ class FlattenedLayered(ObservationGenerator):
         return super().set_world(new_world)
 
 
-def distance(agent_pos: tuple[int, int], other_pos: tuple[int, int]) -> int:
-    return abs(agent_pos[0] - other_pos[0]) + abs(agent_pos[1] - other_pos[1])
-
-
 class PartialGenerator(ObservationGenerator):
     def __init__(self, world: World, square_size: int):
         super().__init__(world)

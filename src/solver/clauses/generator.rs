@@ -2,6 +2,7 @@ use crate::solver::SolveMode;
 use crate::solver::errors::SolverError;
 use crate::{Action, World};
 
+#[cfg(test)]
 use super::VarKey;
 use super::engine::ClauseEngine;
 use super::{Clause, Literal, ParameterizedStepBuffer, StepBuffer};
@@ -234,25 +235,28 @@ impl ClauseGenerator {
     }
 
     #[inline]
-    pub fn t_max(&self) -> usize {
-        self.engine.t_max()
-    }
-
-    #[inline]
     pub fn solution_lower_bound(&self) -> usize {
         self.engine.solution_lower_bound()
+    }
+
+    pub fn n_vars(&self) -> usize {
+        self.engine.n_vars()
+    }
+}
+
+/// Test-only inspection helpers for generated SAT variables.
+#[cfg(test)]
+impl ClauseGenerator {
+    #[inline]
+    pub fn t_max(&self) -> usize {
+        self.engine.t_max()
     }
 
     pub fn exists(&self, key: &VarKey) -> bool {
         self.engine.exists(key)
     }
 
-    pub fn n_vars(&self) -> usize {
-        self.engine.n_vars()
-    }
-
     /// Return the SAT literal assigned to `key`, or `None` if it was never created.
-    /// Useful in tests to inspect clause literals without accessing the pool directly.
     pub fn literal(&self, key: &VarKey) -> Option<i32> {
         self.engine.literal(key)
     }

@@ -137,55 +137,6 @@ class TestAccessors:
         assert (0, 2) in flattened
         assert (0, 3) in flattened
 
-    def test_active_times_returns_every_timestamp_with_an_edge(self):
-        """active_times lists each distinct time step that has at least one edge."""
-        graph = TemporalCooperationGraph(
-            [
-                DependencyEdge(helper=0, beneficiary=1, t=1),
-                DependencyEdge(helper=1, beneficiary=2, t=1),
-                DependencyEdge(helper=2, beneficiary=3, t=5),
-            ]
-        )
-        assert graph.active_times() == (1, 5)
-
-    def test_active_times_of_empty_graph_is_empty(self):
-        assert TemporalCooperationGraph.empty().active_times() == ()
-
-    def test_layers_for_returns_sorted_temporal_layers(self, branching_graph: TemporalCooperationGraph):
-        """layers_for groups one helper's beneficiaries per time step."""
-        layers = branching_graph.layers_for(0)
-        assert len(layers) == 1
-        assert layers[0].t == 1
-        assert layers[0].helper == 0
-        assert layers[0].beneficiaries == (1, 2, 3)
-
-    def test_layers_for_unknown_helper_raises_key_error(self, branching_graph: TemporalCooperationGraph):
-        with pytest.raises(KeyError):
-            branching_graph.layers_for(99)
-
-    def test_time_layer_edges_yields_one_edge_per_beneficiary(self, branching_graph: TemporalCooperationGraph):
-        """TimeLayer.edges() expands a layer back into concrete DependencyEdges."""
-        layer = branching_graph.layers_for(0)[0]
-        edges = list(layer.edges())
-        assert edges == [
-            DependencyEdge(0, 1, 1),
-            DependencyEdge(0, 2, 1),
-            DependencyEdge(0, 3, 1),
-        ]
-
-    def test_beneficiaries_at_returns_beneficiaries_for_that_timestamp(self):
-        """beneficiaries_at only returns beneficiaries helped at the exact requested time."""
-        graph = TemporalCooperationGraph(
-            [
-                DependencyEdge(helper=0, beneficiary=1, t=1),
-                DependencyEdge(helper=0, beneficiary=2, t=5),
-            ]
-        )
-        assert graph.beneficiaries_at(0, 1) == (1,)
-        assert graph.beneficiaries_at(0, 5) == (2,)
-        assert graph.beneficiaries_at(0, 2) == ()
-        assert graph.beneficiaries_at(99, 1) == ()
-
 
 class TestLongestTrail:
     """Test longest_sequence method for temporal dependency sequences."""
@@ -375,9 +326,6 @@ class TestLongestTrail:
         graph = TemporalCooperationGraph(edges=[])
         assert len(graph.longest_trail()) == 0
 
-    def test_longest_closed_trail_of_empty_graph_is_empty(self):
-        assert TemporalCooperationGraph.empty().longest_closed_trail() == []
-
 
 class TestTemporalCycleDetection:
     """Test has_cycle method."""
@@ -503,27 +451,6 @@ def test_asymmetric_edges():
     assert graph.asymmetric_edges() == {(0, 1)}
 
 
-def test_cooperation_cycle():
-    """
-    A repeated-agent closed trail retains all seven edges and has support four.
-    """
-    tcg = TemporalCooperationGraph(
-        [
-            DependencyEdge(0, 1, 1),
-            DependencyEdge(1, 0, 2),
-            DependencyEdge(0, 2, 3),
-            DependencyEdge(2, 1, 4),
-            DependencyEdge(1, 0, 5),
-            DependencyEdge(0, 3, 6),
-            DependencyEdge(3, 0, 7),
-        ]
-    )
-
-    assert len(tcg.longest_closed_trail()) == 7
-    assert tcg.interdependence_order() == 4
-    assert tcg.closed_trail_orders() == frozenset({2, 3, 4})
-
-
 def test_closed_trail_exact_support_accepts_bowtie_and_double_petal():
     """Repeated-agent closed trails are recognized at their exact support order."""
     bowtie = TemporalCooperationGraph(
@@ -564,7 +491,6 @@ def test_closed_trail_orders_do_not_infer_missing_exact_order_from_larger_ring()
         ]
     )
 
-    assert graph.closed_trail_orders() == frozenset({4})
     assert graph.has_closed_trail_of_order(4)
     assert not graph.has_closed_trail_of_order(3)
 

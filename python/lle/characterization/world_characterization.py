@@ -197,10 +197,6 @@ class WorldCharacterizer:
         return self._solver.find_shortest(SolveMode.no_asymmetric())
 
     @cached_property
-    def shortest_non_mutual_path(self):
-        return self._solver.find_shortest(SolveMode.no_mutual())
-
-    @cached_property
     def shortest_non_fully_coupled_path(self):
         return self._solver.find_shortest(SolveMode.no_fully_coupled())
 

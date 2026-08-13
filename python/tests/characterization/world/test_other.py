@@ -19,4 +19,4 @@ def test_eq_and_hash():
 def test_shortest_non_mutual_path_solves_with_no_mutual_mode():
     """The lazily-computed non-mutual path is `None` when every solution is mutual."""
     wc = WorldCharacterizer(LEVEL_6.world(), t_max=21)
-    assert wc.shortest_non_mutual_path is None
+    assert wc.compute_shortest_non_interdependent_path(2) is None
