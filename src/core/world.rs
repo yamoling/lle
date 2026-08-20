@@ -421,7 +421,9 @@ impl World {
         self.available_actions = self.compute_available_actions();
     }
 
-    /// Perform one step in the environment and return the corresponding reward.
+    /// Perform one step in the environment and return the corresponding events.
+    ///
+    /// @ai-generated
     pub fn step(&mut self, actions: &[Action]) -> Result<Vec<WorldEvent>, RuntimeWorldError> {
         if self.n_agents() != actions.len() {
             return Err(RuntimeWorldError::InvalidNumberOfActions {
@@ -452,12 +454,12 @@ impl World {
         // If a new_pos occurs more than once, then set it back to its original position
         World::solve_vertex_conflicts(&mut new_positions, &self.agents_positions);
         let (mut events, mut agent_died) = self.move_agents(&new_positions)?;
-        self.agents_positions = new_positions.clone();
+        self.agents_positions.clone_from(&new_positions);
         // At this stage, all agents are on their new positions.
         // However, some events (death) could still happen if an agent has died.
         while agent_died {
             let (additional_events, died2) = self.move_agents(&new_positions)?;
-            events = [events, additional_events].concat();
+            events.extend(additional_events);
             agent_died = died2;
         }
         self.available_actions = self.compute_available_actions();
