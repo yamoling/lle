@@ -89,6 +89,23 @@ def test_world_move():
     world.step([Action.NORTH])
 
 
+def test_world_step_tuple_and_invalid_sequence_action():
+    """Preserves tuple sequence input and generic errors for invalid sequence members.
+
+    @ai-generated
+    """
+    world = World(
+        """S0 X . .
+.  . . .
+.  . . ."""
+    )
+    world.reset()
+    world.step((Action.SOUTH,))
+    assert world.agents_positions == [(1, 0)]
+    with pytest.raises(TypeError, match="Action must be of type Action or list\\[Action\\]"):
+        world.step((23,))  # type: ignore[arg-type]
+
+
 def test_world_agents():
     world = World(
         """
