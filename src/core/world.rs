@@ -422,8 +422,6 @@ impl World {
     }
 
     /// Perform one step in the environment and return the corresponding events.
-    ///
-    /// @ai-generated
     pub fn step(&mut self, actions: &[Action]) -> Result<Vec<WorldEvent>, RuntimeWorldError> {
         if self.n_agents() != actions.len() {
             return Err(RuntimeWorldError::InvalidNumberOfActions {

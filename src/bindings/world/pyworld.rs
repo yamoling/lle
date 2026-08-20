@@ -120,8 +120,6 @@ impl PyWorld {
     }
 
     /// Convert a scalar action or iterable of actions into core actions in one pass.
-    ///
-    /// @ai-generated
     fn extract_actions(py: Python<'_>, action: &Py<PyAny>) -> PyResult<Vec<Action>> {
         let action_type_error =
             || PyTypeError::new_err("Action must be of type Action or list[Action]");
