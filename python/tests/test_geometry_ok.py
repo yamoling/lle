@@ -11,7 +11,7 @@ _EXITS = [(4, 4)]
 
 
 def _layout(lasers, *, walls=(), agents=_AGENTS, exits=_EXITS):
-    return CandidateLayout(5, 5, agents=list(agents), exits=list(exits), walls=list(walls), lasers=list(lasers))
+    return CandidateLayout(5, 5, agents=list(agents), exits=list(exits), gems=[], walls=list(walls), lasers=list(lasers))
 
 
 # ---------------------------------------------------------------------------

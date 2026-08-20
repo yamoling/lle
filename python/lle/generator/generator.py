@@ -18,6 +18,7 @@ from .placements import (
     PlacementCtx,
     place_agents,
     place_exits,
+    place_gems,
     place_lasers,
     place_room_walls,
     place_walls,
@@ -70,6 +71,8 @@ class WorldGenerator:
         mirrors the agent edge/cluster to the far side of the grid.
     n_lasers:
         Number of laser sources (0 = no lasers).
+    n_gems:
+        Number of gems placed on distinct free cells (0 = no gems).
     laser_placement:
        `"free"` — valid position anywhere outside reserved cells.
        `"cross-agent"` — structural laser perpendicular to agent lanes,
@@ -100,6 +103,7 @@ class WorldGenerator:
         starts: Literal["random", "edge", "clustered"] = "random",
         exits: Literal["random", "edge", "cluster", "opposite"] = "random",
         n_lasers: int = 0,
+        n_gems: int = 0,
         laser_placement: Literal["free", "cross-agent", "cross-cluster"] = "free",
         laser_span: int | Literal["any", "across"] = "any",
         n_walls: int | Literal["auto"] = "auto",
@@ -137,6 +141,13 @@ class WorldGenerator:
             raise ValueError(f"lasers must be <= agents (one laser source per colour). Got lasers={n_lasers}, agents={n_agents}.")
         self.n_lasers = n_lasers
 
+        max_gems = area - 2 * n_agents
+        if n_gems < 0:
+            raise ValueError(f"gems must be >= 0. Got {n_gems}")
+        if n_gems > max_gems:
+            raise ValueError(f"gems must be <= grid cells minus start and exit cells ({max_gems}). Got gems={n_gems}.")
+        self.n_gems = n_gems
+
         # Verify that minimal requirements are met
         if constraint is not None:
             requirements = constraint.requirements
@@ -157,7 +168,7 @@ class WorldGenerator:
                 raise ValueError(f"num_walls must be >= 0. Got {self.n_walls}")
             if self.n_walls >= (area / 2):
                 raise ValueError(f"num_walls must be < size/2. Got num_walls={self.n_walls}, size={area}")
-            total_needed = (2 * self.agents) + self.n_walls + self.n_lasers
+            total_needed = (2 * self.agents) + self.n_walls + self.n_lasers + self.n_gems
             if total_needed > area:
                 raise ValueError(f"layout requires {total_needed} unique cells, but grid has only {area}")
             self._rooms_cfg = None
@@ -210,7 +221,8 @@ class WorldGenerator:
             if room_walls is not None
             else place_walls(self._wall_cfg.n, self._wall_cfg.style, reserved, self.height, self.width, self._rng)
         )
-        layout = CandidateLayout(self.height, self.width, agents=agents, exits=exits, walls=walls, lasers=lasers)
+        gems, _ = place_gems(self.n_gems, reserved | set(walls), self.height, self.width, self._rng)
+        layout = CandidateLayout(self.height, self.width, agents=agents, exits=exits, gems=gems, walls=walls, lasers=lasers)
         if not layout.is_geometry_valid():
             raise LayoutRetry()
         return layout
@@ -221,6 +233,8 @@ class WorldGenerator:
             b.add_agent(agent_id, pos)
         for pos in layout.exits:
             b.add_exit(pos)
+        for pos in layout.gems:
+            b.add_gem(pos)
         for pos in layout.walls:
             b.add_wall(pos)
         for owner, pos, direction in layout.lasers:

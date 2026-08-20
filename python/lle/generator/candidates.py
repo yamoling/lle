@@ -20,6 +20,7 @@ class CandidateLayout:
     width: int
     agents: list[tuple[int, int]]
     exits: list[tuple[int, int]]
+    gems: list[tuple[int, int]]
     walls: list[tuple[int, int]]
     lasers: list[tuple[int, tuple[int, int], Direction]]  # (owner, pos, dir)
 

@@ -29,7 +29,6 @@ from .generator import WorldGenerator
 from .world_filter import (
     And,
     Asymmetric,
-    Sequential,
     Constraint,
     Convergent,
     Cooperative,
@@ -39,6 +38,7 @@ from .world_filter import (
     Not,
     Or,
     Predicate,
+    Sequential,
     Solvable,
     WorldFilter,
     WorldRequirements,
@@ -75,7 +75,7 @@ def generate(width: int = 10, height: int = 10, n_agents: int = 3, t_max: int | 
 
     - Layout: `random()`, `lanes()`, `clustered()`, or fine-grained
       `starts(...)` / `exits(...)`.
-    - Lasers and walls: `lasers(...)`, `walls(...)`.
+    - Gems, lasers, and walls: `gems(...)`, `lasers(...)`, `walls(...)`.
     - Behaviour: `solvable()` (default), `independent()`, `cooperative(...)`,
       `sequential(...)`, `convergent(...)`, `divergent(...)`, `mutual(...)`, or
       `require(filter)`.
@@ -85,7 +85,7 @@ def generate(width: int = 10, height: int = 10, n_agents: int = 3, t_max: int | 
     # Examples
     ```python
     world1 = lle.generate(width=5, height=5, n_agents=2).build(seed=0)
-    world2 = lle.generate(width=5, height=5, n_agents=2).lasers(1).cooperative().cap(10).build()
+    world2 = lle.generate(width=5, height=5, n_agents=2).gems(3).lasers(1).cooperative().cap(10).build()
     world3 = lle.generate(width=5, height=5, n_agents=2).clustered().lasers(2).mutual().cap(10).build()
     worlds = lle.generate(width=4, height=4, n_agents=2).starts("edge").exits("opposite").lasers(1).cooperative().cap(10).take(2)
     ```
