@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import pytest
+from lle.generator import generate
 from lle.generator.generator import WorldGenerator
-from lle.generator.world_filter import Sequential, Constraint, Cooperative, Interdependent
+from lle.generator.world_filter import Constraint, Cooperative, Interdependent, Sequential
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -36,6 +37,21 @@ def test_single_agent():
     gen = WorldGenerator(width=5, height=5, n_agents=1)
     world = _build(gen)
     assert world.n_agents == 1
+
+
+def test_builder_places_requested_gems_on_free_cells():
+    """The fluent gem configuration places each requested gem without overlap."""
+    world = generate(width=8, height=8, n_agents=2).gems(5).lasers(1).walls(4).build(seed=0)
+
+    gem_positions = {gem.pos for gem in world.gems}
+    occupied_positions = (
+        {start[0] for start in world.random_start_pos}
+        | set(world.exit_pos)
+        | set(world.wall_pos)
+        | {source.pos for source in world.laser_sources}
+    )
+    assert len(gem_positions) == 5
+    assert not gem_positions & occupied_positions
 
 
 # ---------------------------------------------------------------------------
@@ -278,6 +294,12 @@ def test_error_cross_cluster_requires_cluster_exits():
 def test_error_laser_span_too_small():
     with pytest.raises(ValueError, match="laser_span"):
         WorldGenerator(width=5, height=5, n_agents=2, n_lasers=1, laser_span=1)
+
+
+def test_error_gems_exceed_cells_after_starts_and_exits():
+    """The gem count cannot consume cells reserved for starts and exits."""
+    with pytest.raises(ValueError, match=r"gems must be <= grid cells minus start and exit cells \(14\)"):
+        generate(width=4, height=4, n_agents=1).gems(15).build(max_attempts=1)
 
 
 # ---------------------------------------------------------------------------

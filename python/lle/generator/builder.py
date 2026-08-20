@@ -38,7 +38,6 @@ from ..world import World
 from .generator import WorldGenerator
 from .world_filter import (
     Asymmetric,
-    Sequential,
     Constraint,
     Convergent,
     Cooperative,
@@ -46,6 +45,7 @@ from .world_filter import (
     Independent,
     Interdependent,
     Predicate,
+    Sequential,
     Solvable,
 )
 
@@ -77,6 +77,9 @@ class GeneratorBuilder:
         self._starts: StartsMode = "random"
         self._exits: ExitsMode = "random"
         self._layout_explicit = False
+
+        # Gems
+        self._n_gems = 0
 
         # Lasers
         self._n_lasers: int | Literal["auto"] = "auto"
@@ -146,8 +149,13 @@ class GeneratorBuilder:
         return self
 
     # ------------------------------------------------------------------
-    # Lasers and walls
+    # Gems, lasers, and walls
     # ------------------------------------------------------------------
+    def gems(self, n: int) -> GeneratorBuilder:
+        """Place exactly `n` gems on distinct free cells."""
+        self._n_gems = n
+        return self
+
     def lasers(
         self,
         n: int | Literal["auto"] = "auto",
@@ -377,6 +385,7 @@ class GeneratorBuilder:
             starts=starts,
             exits=exits,
             n_lasers=n_lasers,
+            n_gems=self._n_gems,
             laser_placement=placement,
             laser_span=self._laser_span,
             n_walls=self._n_walls,

@@ -118,6 +118,27 @@ impl PyWorld {
         let world = self.world.lock().unwrap();
         f(&world)
     }
+
+    /// Convert a scalar action or iterable of actions into core actions in one pass.
+    fn extract_actions(py: Python<'_>, action: &Py<PyAny>) -> PyResult<Vec<Action>> {
+        let action_type_error =
+            || PyTypeError::new_err("Action must be of type Action or list[Action]");
+        if let Ok(items) = action.bind(py).try_iter() {
+            let mut actions = Vec::new();
+            for item in items {
+                let item = item.map_err(|_| action_type_error())?;
+                let action = item
+                    .extract::<PyAction>()
+                    .map_err(|_| action_type_error())?;
+                actions.push(action.into());
+            }
+            Ok(actions)
+        } else if let Ok(action) = action.extract::<PyAction>(py) {
+            Ok(vec![action.into()])
+        } else {
+            Err(action_type_error())
+        }
+    }
 }
 
 #[gen_stub_pymethods]
@@ -414,18 +435,7 @@ impl PyWorld {
             PyAny,
         >,
     ) -> PyResult<Vec<PyWorldEvent>> {
-        // Check if action is a list or a single action
-        let actions: Vec<PyAction> = if let Ok(actions) = action.extract::<Vec<PyAction>>(py) {
-            actions
-        } else if let Ok(action) = action.extract::<PyAction>(py) {
-            vec![action]
-        } else {
-            return Err(PyTypeError::new_err(
-                "Action must be of type Action or list[Action]",
-            ));
-        };
-
-        let actions: Vec<Action> = actions.into_iter().map(|a| a.into()).collect();
+        let actions = Self::extract_actions(py, &action)?;
         match self.world.lock().unwrap().step(&actions) {
             Ok(events) => {
                 let events: Vec<PyWorldEvent> = events.iter().map(PyWorldEvent::from).collect();
