@@ -332,10 +332,17 @@ impl World {
             )
     }
 
-    fn compute_available_actions(&self) -> Vec<Vec<Action>> {
-        let mut available_actions = vec![];
-        for (agent, agent_pos) in izip!(&self.agents, &self.agents_positions) {
-            let mut agent_actions = vec![Action::Stay];
+    /// Recomputes `self.available_actions` in place, reusing the previous call's `Vec<Action>`
+    /// allocations (each agent has at most 5 available actions) instead of dropping and
+    /// reallocating a fresh `Vec<Vec<Action>>` every time.
+    fn compute_available_actions(&mut self) {
+        let mut buffer = std::mem::take(&mut self.available_actions);
+        buffer.resize_with(self.agents.len(), Vec::new);
+        for (agent_actions, (agent, agent_pos)) in
+            izip!(&mut buffer, izip!(&self.agents, &self.agents_positions))
+        {
+            agent_actions.clear();
+            agent_actions.push(Action::Stay);
             if agent.is_alive() && !agent.has_arrived() {
                 for action in [Action::North, Action::East, Action::South, Action::West] {
                     if let Ok(pos) = &action + agent_pos
@@ -347,9 +354,8 @@ impl World {
                     }
                 }
             }
-            available_actions.push(agent_actions);
         }
-        available_actions
+        self.available_actions = buffer;
     }
 
     fn solve_vertex_conflicts(new_pos: &mut [Position], old_pos: &[Position]) {
@@ -418,7 +424,7 @@ impl World {
         for (pos, agent) in izip!(&self.agents_positions, &mut self.agents) {
             self.grid[pos.i][pos.j].enter(agent);
         }
-        self.available_actions = self.compute_available_actions();
+        self.compute_available_actions();
     }
 
     /// Perform one step in the environment and return the corresponding events.
@@ -460,7 +466,7 @@ impl World {
             events.extend(additional_events);
             agent_died = died2;
         }
-        self.available_actions = self.compute_available_actions();
+        self.compute_available_actions();
         Ok(events)
     }
 
@@ -582,7 +588,7 @@ impl World {
                 state: state.clone(),
             });
         }
-        self.available_actions = self.compute_available_actions();
+        self.compute_available_actions();
         Ok(events)
     }
 
