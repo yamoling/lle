@@ -145,16 +145,20 @@ class LLE(DiscreteMARLEnv):
 
     def available_actions(self):
         available_actions = np.full((self.world.n_agents, self.n_actions), False, dtype=bool)
+        if self.walkable_lasers:
+            for agent, actions in enumerate(self.world.available_actions()):
+                for action in actions:
+                    available_actions[agent, action.value] = True
+            return available_actions
         lasers = self.world.lasers
         agents_pos = self.world.agents_positions
         for agent, actions in enumerate(self.world.available_actions()):
             for action in actions:
-                if not self.walkable_lasers:
-                    agent_pos = agents_pos[agent]
-                    new_pos = (agent_pos[0] + action.delta[0], agent_pos[1] + action.delta[1])
-                    # ignore action if new position is an active laser of another color
-                    if any(laser.pos == new_pos and laser.agent_id != agent and laser.is_on for laser in lasers):
-                        continue
+                agent_pos = agents_pos[agent]
+                new_pos = (agent_pos[0] + action.delta[0], agent_pos[1] + action.delta[1])
+                # ignore action if new position is an active laser of another color
+                if any(laser.pos == new_pos and laser.agent_id != agent and laser.is_on for laser in lasers):
+                    continue
                 available_actions[agent, action.value] = True
         return available_actions
 
@@ -167,14 +171,10 @@ class LLE(DiscreteMARLEnv):
         # Beware to compute the reward before checking if the episode is done !
         reward = self.reward_strategy.compute_reward(events)
         self.done = self.compute_done()
-        metrics = {
-            key: value
-            for i, agent in enumerate(self.world.agents)
-            for key, value in {
-                f"has-arrived-{i}": agent.has_arrived,
-                f"is-alive-{i}": agent.is_alive,
-            }.items()
-        }
+        metrics = {}
+        for i, agent in enumerate(self.world.agents):
+            metrics[f"has-arrived-{i}"] = agent.has_arrived
+            metrics[f"is-alive-{i}"] = agent.is_alive
         return Step(
             actions,
             self.get_observation(),
