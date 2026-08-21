@@ -4,6 +4,7 @@ import tempfile
 import numpy as np
 from lle import LLE, Action, WorldState
 from lle.env.reward_strategy import REWARD_DEATH, REWARD_DONE, REWARD_EXIT, REWARD_GEM, MultiObjective
+from lle.observations import LayeredPadded
 
 
 def test_void_reward():
@@ -397,3 +398,28 @@ def test_randomized_lasers():
         if all(all(ce) for ce in colour_encountered):
             return
     assert False, "The two colours were never encountered for some lasers"
+
+
+def test_randomized_lasers_updates_static_observation_layer():
+    """The layered observation's static buffer caches laser-source colour markers across
+    steps but must be refreshed on every reset(), since randomize_lasers() changes colours
+    per episode, not per step.
+
+    @ai-generated
+    """
+    env = (
+        LLE.from_str("""
+                       S0 S1 L0S
+                       .   . L1W
+                       .   . L0W
+                       X   X  .""")
+        .randomize_lasers()
+        .build()
+    )
+    generator = env._observation_generator
+    assert isinstance(generator, LayeredPadded)
+    for _ in range(50):
+        env.reset()
+        for source in env.world.laser_sources:
+            i, j = source.pos
+            assert generator.static_obs[generator.LASER_0 + source.agent_id, i, j] == -1.0

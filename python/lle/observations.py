@@ -132,6 +132,15 @@ class ObservationGenerator(ABC):
         """Point the generator at another world."""
         self._world = new_world
 
+    def reset(self) -> None:
+        """Refresh any state cached across calls to `observe()` (e.g. static layers derived
+        from world topology). Generators that cache such data must be told when it may have
+        changed: `LLE.reset()` calls this after every episode reset (covering e.g.
+        `randomize_lasers`), and any code that mutates world topology directly (e.g.
+        `world.exit_pos = ...`) outside of `LLE` must call it explicitly afterwards. The
+        default implementation is a no-op; generators with no such cache need not override it.
+        """
+
 
 class StateGenerator(ObservationGenerator):
     def __init__(self, world: World, normalize: bool):
@@ -205,7 +214,12 @@ class LayeredPadded(ObservationGenerator):
         self.static_obs = self._setup()
 
     def _setup(self):
-        """Initialise static layers such as walls, voids, gems, and exits."""
+        """Compute the layers that are constant for an episode: walls and voids never change;
+        exit positions and laser source positions/colours only change (if at all) via
+        `world.reset()`-adjacent events (e.g. `randomize_lasers`) or explicit topology edits
+        (e.g. `world.exit_pos = ...`), both of which call `reset()` on this generator — see
+        `ObservationGenerator.reset`. Recomputed there instead of on every `observe()` call.
+        """
         obs = np.zeros(self._shape, dtype=np.float32)
         for i, j in self._world.wall_pos:
             obs[self.WALL, i, j] = 1.0
@@ -213,7 +227,17 @@ class LayeredPadded(ObservationGenerator):
         for i, j in self._world.void_pos:
             obs[self.VOID, i, j] = 1.0
 
+        for i, j in self._world.exit_pos:
+            obs[self.EXIT, i, j] = 1.0
+
+        for source in self._world.laser_sources:
+            i, j = source.pos
+            obs[self.LASER_0 + source.agent_id, i, j] = -1.0
+
         return obs
+
+    def reset(self) -> None:
+        self.static_obs = self._setup()
 
     def to_world_state(self, data: npt.NDArray[np.float32]) -> WorldState:
         """Reconstruct a world state from a layered observation.
@@ -229,11 +253,6 @@ class LayeredPadded(ObservationGenerator):
 
     def observe(self):
         obs = np.copy(self.static_obs)
-        for i, j in self._world.exit_pos:
-            obs[self.EXIT, i, j] = 1.0
-        for source in self._world.laser_sources:
-            i, j = source.pos
-            obs[self.LASER_0 + source.agent_id, i, j] = -1.0
         for laser in self._world.lasers:
             i, j = laser.pos
             if laser.is_on:

@@ -82,6 +82,10 @@ def test_observe_layered_change_exits():
 
     world.exit_pos = [(0, 2), (0, 3)]
     world.reset()
+    # Exit positions are cached in the generator's static layer and only refreshed on
+    # `reset()` (see ObservationGenerator.reset); code that edits world topology directly,
+    # outside of LLE.reset(), must call it explicitly afterwards.
+    observer.reset()
     obs = observer.observe()
 
     assert np.all(obs[:, observer.EXIT, 0, 2] == 1)

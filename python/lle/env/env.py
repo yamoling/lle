@@ -198,6 +198,8 @@ class LLE(DiscreteMARLEnv):
         if self.randomize_lasers:
             for source in self.world.laser_sources:
                 source.set_colour(random.randint(0, self.n_agents - 1))
+        self._observation_generator.reset()
+        self._state_generator.reset()
         return self.get_observation(), self.get_state()
 
     def get_state(self):
