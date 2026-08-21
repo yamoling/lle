@@ -209,5 +209,10 @@ pub fn solver_error_to_exception(error: crate::solver::errors::SolverError) -> P
         } => PyValueError::new_err(format!(
             "Invalid parameter {value} for SolveMode::{variant}: {reason}"
         )),
+        crate::solver::errors::SolverError::InvalidDeltaTransition { reason } => {
+            PyValueError::new_err(format!(
+                "Incompatible only_delta generation request: {reason}"
+            ))
+        }
     }
 }

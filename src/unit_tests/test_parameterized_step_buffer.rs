@@ -34,3 +34,23 @@ fn parameters_cache_independent_prefixes() {
     assert_eq!(extended.len(), 3);
     assert_eq!(engine.n_vars(), 4);
 }
+
+/// Parameterized range gathering returns the selected parameter's cached suffix only.
+///
+/// @ai-generated
+#[test]
+fn parameterized_range_reads_cached_suffix_without_crossing_parameters() {
+    let mut engine = tiny_engine();
+    let mut buffer = ParameterizedStepBuffer::new(generate_marker, 4);
+    let full = buffer.gather_until(&mut engine, 2, 2).collect::<Vec<_>>();
+    let suffix = buffer
+        .gather_range(&mut engine, 1, 2, 2)
+        .collect::<Vec<_>>();
+    let other = buffer
+        .gather_range(&mut engine, 1, 2, 3)
+        .collect::<Vec<_>>();
+
+    assert_eq!(suffix, full[1..]);
+    assert_eq!(other.len(), 2);
+    assert!(suffix.iter().all(|literal| !other.contains(literal)));
+}

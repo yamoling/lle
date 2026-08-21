@@ -32,6 +32,21 @@ impl<T: Clone> ParameterizedStepBuffer<T> {
         t: usize,
         parameter: usize,
     ) -> impl Iterator<Item = T> {
+        self.gather_range(engine, 0, t, parameter)
+    }
+
+    /// Gather items from the inclusive step range `start..=t` for one parameter.
+    ///
+    /// An empty iterator is returned when `start > t`; other parameter caches are unaffected.
+    ///
+    /// @ai-generated
+    pub fn gather_range(
+        &mut self,
+        engine: &mut ClauseEngine,
+        start: usize,
+        t: usize,
+        parameter: usize,
+    ) -> impl Iterator<Item = T> {
         let generate = self.generate;
         let items = self
             .items_by_parameter
@@ -43,7 +58,11 @@ impl<T: Clone> ParameterizedStepBuffer<T> {
             items.push(generate(engine, next, parameter));
         }
 
-        items[..=t].iter().flatten().cloned()
+        let end = if start > t { start } else { t + 1 };
+        items[start.min(items.len())..end.min(items.len())]
+            .iter()
+            .flatten()
+            .cloned()
     }
 }
 

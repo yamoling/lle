@@ -82,12 +82,35 @@ impl PyClauseGenerator {
     /// `"no-divergence[-N]"`). `collect_gems` adds gem-collection
     /// clauses to the objective.
     ///
-    /// Returns `(clauses, assumptions)` ready to be fed to `solve_model`.
+    /// With the default `only_delta=False`, returns the complete formula prefix exactly as before.
+    /// With `only_delta=True`, the first call starts an incremental stream and returns its complete
+    /// permanent prefix. Later calls return only clauses for newly requested time steps. The stream's
+    /// effective mode (including any parameter) and `collect_gems` value are fixed; horizons may be
+    /// repeated or increased, but not decreased. Incompatible requests raise `ValueError` and require
+    /// a new `ClauseGenerator`. Non-delta calls neither advance nor reset the delta stream.
+    ///
+    /// Delta objectives are activation-gated: append every returned clause permanently, but pass only
+    /// the assumptions returned by the current call to `solver.solve`. A repeated horizon therefore
+    /// returns no clauses and repeats the current objective/restriction assumptions.
+    ///
+    /// ```python
+    /// with Minisat22() as solver:
+    ///     for t in range(gen.solution_lower_bound, gen.t_max + 1):
+    ///         clauses, assumptions = gen.generate(t, only_delta=True)
+    ///         solver.append_formula(clauses)
+    ///         if solver.solve(assumptions=assumptions):
+    ///             plan = gen.decode_plan(solver.get_model(), t)
+    ///             break
+    /// ```
+    ///
+    /// Returns `(clauses, assumptions)` ready to be fed to a SAT solver.
     ///
     /// Raises:
-    ///     `ValueError`: if `mode` is not a valid solve mode, or if it carries a parameter that is
-    ///     meaningless for that mode (e.g. a sequence length below 2).
-    #[pyo3(signature = (t, mode=None, collect_gems=false))]
+    ///     `ValueError`: if `mode` is invalid, its parameter is meaningless, or an `only_delta`
+    ///     request changes stream settings or decreases its horizon.
+    ///
+    /// @ai-generated
+    #[pyo3(signature = (t, mode=None, collect_gems=false, only_delta=false))]
     fn generate(
         &mut self,
         py: Python,
@@ -98,14 +121,18 @@ impl PyClauseGenerator {
         ))]
         mode: Option<Py<PyAny>>,
         collect_gems: bool,
+        only_delta: bool,
     ) -> PyResult<(Vec<Clause>, Vec<Literal>)> {
         let mode = match mode {
             Some(mode) => extract_solve_mode(py, mode)?,
             None => SolveMode::Standard,
         };
-        self.inner
-            .generate(t, mode, collect_gems)
-            .map_err(solver_error_to_exception)
+        let generated = if only_delta {
+            self.inner.generate_delta(t, mode, collect_gems)
+        } else {
+            self.inner.generate(t, mode, collect_gems)
+        };
+        generated.map_err(solver_error_to_exception)
     }
 
     /// Generate only the objective clauses for horizon `t`.

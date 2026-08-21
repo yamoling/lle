@@ -19,6 +19,89 @@ fn build(map: &str, t_max: usize) -> ClauseGenerator {
     ClauseGenerator::new(&world, t_max)
 }
 
+/// Delta generation emits a permanent suffix and repeats only current activation assumptions.
+///
+/// @ai-generated
+#[test]
+fn delta_generation_supports_repeated_and_increasing_horizons() {
+    let mut generator = build("S0 . . X", 4);
+    let (first, first_assumptions) = generator
+        .generate_delta(2, SolveMode::Standard, false)
+        .unwrap();
+    assert!(!first.is_empty());
+    assert_eq!(first_assumptions.len(), 1);
+
+    let (repeated, repeated_assumptions) = generator
+        .generate_delta(2, SolveMode::Standard, false)
+        .unwrap();
+    assert!(repeated.is_empty());
+    assert_eq!(repeated_assumptions, first_assumptions);
+
+    let (suffix, later_assumptions) = generator
+        .generate_delta(4, SolveMode::Standard, false)
+        .unwrap();
+    assert!(!suffix.is_empty());
+    assert_eq!(later_assumptions.len(), 1);
+    assert_ne!(later_assumptions, first_assumptions);
+}
+
+/// A delta stream rejects transitions that cannot safely share one accumulated SAT formula.
+///
+/// @ai-generated
+#[test]
+fn delta_generation_rejects_incompatible_transitions() {
+    let mut generator = build("L0E .  G X\nS0  S1 . X", 4);
+    generator
+        .generate_delta(2, SolveMode::Standard, false)
+        .unwrap();
+
+    for result in [
+        generator.generate_delta(1, SolveMode::Standard, false),
+        generator.generate_delta(3, SolveMode::NoCooperation, false),
+        generator.generate_delta(3, SolveMode::Standard, true),
+    ] {
+        assert!(
+            matches!(
+                result,
+                Err(crate::solver::errors::SolverError::InvalidDeltaTransition { .. })
+            ),
+            "incompatible transition should be rejected, got {result:?}"
+        );
+    }
+}
+
+/// Parameterized mode values are part of the delta stream compatibility key.
+///
+/// @ai-generated
+#[test]
+fn delta_generation_rejects_parameter_changes() {
+    let world = World::try_from("L0E .  .  X\nL1E .  .  X\nS0  S1 S2 X").unwrap();
+    let mut generator = ClauseGenerator::new(&world, 4);
+    generator
+        .generate_delta(2, SolveMode::no_sequential_cooperation(2).unwrap(), false)
+        .unwrap();
+    let result =
+        generator.generate_delta(3, SolveMode::no_sequential_cooperation(3).unwrap(), false);
+    assert!(matches!(
+        result,
+        Err(crate::solver::errors::SolverError::InvalidDeltaTransition { .. })
+    ));
+}
+
+/// Full-prefix calls neither alter their legacy output nor advance the independent delta cursor.
+///
+/// @ai-generated
+#[test]
+fn full_generation_is_unchanged_and_independent_from_delta_generation() {
+    let mut mixed = build("S0 . . X", 4);
+    let full_before_delta = mixed.generate(2, SolveMode::Standard, false).unwrap();
+    let delta_after_full = mixed.generate_delta(2, SolveMode::Standard, false).unwrap();
+
+    let repeated_full = mixed.generate(2, SolveMode::Standard, false).unwrap();
+    assert_eq!(full_before_delta, repeated_full);
+    assert!(!delta_after_full.0.is_empty());
+}
+
 fn check_n_possible_positions(cg: &ClauseGenerator, agent: usize, t: usize, expected: usize) {
     let all_positions = (0..=2)
         .flat_map(|i| (0..=1).map(move |j| pos(i, j)))

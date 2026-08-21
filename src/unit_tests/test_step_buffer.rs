@@ -53,3 +53,21 @@ fn gather_until_reuses_cached_steps() {
         "extending the horizon should mint variables for the new steps only"
     );
 }
+
+/// `gather_range` returns only the requested cached step suffix, even after a wider prefix was filled.
+///
+/// @ai-generated
+#[test]
+fn gather_range_reads_only_the_requested_cached_suffix() {
+    let mut engine = tiny_engine();
+    let mut buffer = StepBuffer::new(ClauseEngine::generate_movement_clauses, 5);
+    let full = buffer.gather_until(&mut engine, 3).collect::<Vec<_>>();
+    let prefix = buffer.gather_until(&mut engine, 1).collect::<Vec<_>>();
+    let suffix = buffer.gather_range(&mut engine, 2, 3).collect::<Vec<_>>();
+
+    assert_eq!([prefix, suffix].concat(), full);
+    assert!(
+        buffer.gather_range(&mut engine, 4, 3).next().is_none(),
+        "a reversed range must be empty"
+    );
+}

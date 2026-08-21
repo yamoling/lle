@@ -82,6 +82,15 @@ impl LayoutFacts {
     }
 }
 
+/// Compatibility key and cursor for one permanent-clause delta stream.
+#[derive(Clone, Copy)]
+struct DeltaState {
+    mode: SolveMode,
+    collect_gems: bool,
+    horizon: usize,
+    objective_assumption: Literal,
+}
+
 /// Generates the SAT clauses for a bounded planning horizon.
 ///
 /// The generator is a thin façade over a [`ClauseEngine`] (which knows how to produce the clauses
@@ -106,6 +115,8 @@ pub struct ClauseGenerator {
     /// Closed-trail interdependence clauses cached independently for every exact order.
     interdependence: ParameterizedClauseBuffer,
     no_cooperation_assumptions: LiteralBuffer,
+    /// Cursor and compatibility key for the Python-facing permanent-clause delta stream.
+    delta_state: Option<DeltaState>,
 }
 
 impl ClauseGenerator {
@@ -129,6 +140,7 @@ impl ClauseGenerator {
                 ClauseEngine::assume_no_cooperation_at,
                 capacity,
             ),
+            delta_state: None,
         }
     }
 
@@ -218,6 +230,148 @@ impl ClauseGenerator {
 
         clauses.extend(self.engine.objective(t, collect_gems));
         Ok((clauses, assumptions))
+    }
+
+    /// Generate clauses newly required by a compatible incremental SAT stream.
+    ///
+    /// The first call returns the complete permanent formula through `t`. Later calls must use the
+    /// same effective mode and `collect_gems` value and may repeat or increase the horizon. Repeating
+    /// a horizon returns no clauses and the same current assumptions; decreasing the horizon or
+    /// changing the stream key returns [`SolverError::InvalidDeltaTransition`]. Calls to
+    /// [`Self::generate`] do not advance this cursor.
+    ///
+    /// Every horizon objective is guarded by a fresh activation literal. Its positive literal is
+    /// returned as an assumption together with any mode assumptions, so all returned clauses can be
+    /// retained permanently while only the current objective is active.
+    ///
+    /// @ai-generated
+    pub fn generate_delta(
+        &mut self,
+        t: usize,
+        mode: SolveMode,
+        collect_gems: bool,
+    ) -> Result<(Vec<Clause>, Vec<Literal>), SolverError> {
+        let mode = self.effective_mode(mode);
+        if let Some(state) = self.delta_state {
+            if state.mode != mode || state.collect_gems != collect_gems {
+                return Err(SolverError::InvalidDeltaTransition {
+                    reason: format!(
+                        "the active stream uses mode {:?} with collect_gems={}, but the request uses mode {:?} with collect_gems={}; create a new ClauseGenerator",
+                        state.mode, state.collect_gems, mode, collect_gems
+                    ),
+                });
+            }
+            if t < state.horizon {
+                return Err(SolverError::InvalidDeltaTransition {
+                    reason: format!(
+                        "horizon {t} is below the active stream horizon {}; create a new ClauseGenerator",
+                        state.horizon
+                    ),
+                });
+            }
+            if t == state.horizon {
+                let mut assumptions = self.delta_mode_assumptions(t, mode);
+                assumptions.push(state.objective_assumption);
+                return Ok((vec![], assumptions));
+            }
+        }
+
+        let start = self.delta_state.map_or(0, |state| state.horizon + 1);
+        let mut clauses: Vec<_> = self
+            .movements
+            .gather_range(&mut self.engine, start, t)
+            .collect();
+        let mut assumptions = vec![];
+        match mode {
+            SolveMode::Standard => {
+                clauses.extend(self.lasers.gather_range(&mut self.engine, start, t));
+            }
+            SolveMode::NoCooperation => {
+                assumptions.extend(
+                    self.no_cooperation_assumptions
+                        .gather_until(&mut self.engine, t),
+                );
+            }
+            SolveMode::NoAsymmetricCooperation => {
+                clauses.extend(self.lasers.gather_range(&mut self.engine, start, t));
+                clauses.extend(self.help.gather_range(&mut self.engine, start, t));
+                clauses.extend(self.engine.generate_is_helped(t));
+                clauses.extend(self.engine.generate_provides_help(t));
+                clauses.extend(self.engine.encode_asymmetry(t));
+                assumptions.extend(self.engine.assume_no_asymmetry(t));
+            }
+            SolveMode::NoSequentialCooperation(length) => {
+                clauses.extend(self.lasers.gather_range(&mut self.engine, start, t));
+                clauses.extend(self.help.gather_range(&mut self.engine, start, t));
+                clauses.extend(self.sequences.gather_range(
+                    &mut self.engine,
+                    start,
+                    t,
+                    length.get(),
+                ));
+            }
+            SolveMode::NoInterdependence(order) => {
+                clauses.extend(self.lasers.gather_range(&mut self.engine, start, t));
+                clauses.extend(self.help.gather_range(&mut self.engine, start, t));
+                clauses.extend(self.interdependence.gather_range(
+                    &mut self.engine,
+                    start,
+                    t,
+                    order.get(),
+                ));
+            }
+            SolveMode::NoConvergentCooperation(k) => {
+                clauses.extend(self.lasers.gather_range(&mut self.engine, start, t));
+                clauses.extend(self.help.gather_range(&mut self.engine, start, t));
+                clauses.extend(self.engine.generate_pairwise_help_clauses(t));
+                clauses.extend(self.engine.generate_no_convergence_clauses(t, k.get()));
+            }
+            SolveMode::NoDivergentCooperation(k) => {
+                clauses.extend(self.lasers.gather_range(&mut self.engine, start, t));
+                clauses.extend(self.help.gather_range(&mut self.engine, start, t));
+                clauses.extend(self.engine.generate_pairwise_help_clauses(t));
+                clauses.extend(self.engine.generate_no_divergence_clauses(t, k.get()));
+            }
+            SolveMode::NoFullyCoupledCooperation => {
+                clauses.extend(self.lasers.gather_range(&mut self.engine, start, t));
+                clauses.extend(self.help.gather_range(&mut self.engine, start, t));
+                clauses.extend(self.engine.generate_pairwise_help_clauses(t));
+                clauses.extend(self.engine.generate_no_fully_coupled_clauses(t));
+            }
+        }
+
+        let objective_assumption = self.engine.pool.aux();
+        clauses.extend(
+            self.engine
+                .objective(t, collect_gems)
+                .into_iter()
+                .map(|mut clause| {
+                    clause.push(-objective_assumption);
+                    clause
+                }),
+        );
+        assumptions.push(objective_assumption);
+        self.delta_state = Some(DeltaState {
+            mode,
+            collect_gems,
+            horizon: t,
+            objective_assumption,
+        });
+        Ok((clauses, assumptions))
+    }
+
+    /// Return non-objective assumptions for the active delta stream at `t`.
+    ///
+    /// @ai-generated
+    fn delta_mode_assumptions(&mut self, t: usize, mode: SolveMode) -> Vec<Literal> {
+        match mode {
+            SolveMode::NoCooperation => self
+                .no_cooperation_assumptions
+                .gather_until(&mut self.engine, t)
+                .collect(),
+            SolveMode::NoAsymmetricCooperation => self.engine.assume_no_asymmetry(t),
+            _ => vec![],
+        }
     }
 
     /// Objective clauses for horizon `t`. Not cached.
