@@ -54,8 +54,6 @@ impl<'a> IntoIterator for &'a NeighbourList {
 }
 
 /// Return walkable cardinal neighbours, excluding the position itself.
-///
-/// @ai-generated
 fn neighbours_of(
     pos: Position,
     exits: &PositionSet,
@@ -134,8 +132,6 @@ pub struct ConstraintContext {
 
 impl ConstraintContext {
     /// Build the static geometry and time-indexed context caches for a world.
-    ///
-    /// @ai-generated
     pub fn new(world: &World, t_max: usize) -> Self {
         let height = world.height();
         let width = world.width();
@@ -259,8 +255,6 @@ impl ConstraintContext {
     ///
     /// Later steps shrink the previous set by removing positions whose shortest exit
     /// distance no longer fits in the remaining time budget.
-    ///
-    /// @ai-generated
     fn update_exit_reachable(&mut self, t: usize) {
         if t == 0 {
             let mut result = PositionSet::empty(self.height, self.width);
@@ -282,8 +276,6 @@ impl ConstraintContext {
     /// A position is relevant to a given agent at time step t if:
     ///     - the agent can reach it at time step t
     ///     - the agent can still access the exit within `t_max - t` steps
-    ///
-    /// @ai-generated
     fn update_relevant_positions(&mut self, t: usize) {
         for agent in 0..self.n_agents {
             let mut result = if t == 0 {
@@ -320,8 +312,6 @@ impl ConstraintContext {
     /// an upstream owner block, then computes the relevant laser paths from the pruned position
     /// sets. Keeping all pruning before all path computation avoids order-dependent results when
     /// laser paths overlap or cross.
-    ///
-    /// @ai-generated
     fn update_laser_relevance(&mut self, t: usize) {
         for source in &self.laser_sources {
             // We use `split_at_mut` to avoid cloning the owner positions while respecting ownership rules.
