@@ -1,23 +1,10 @@
 use std::collections::HashMap;
 
-use crate::{
-    Position,
-    solver::{Clause, VarKey, clauses::ClauseEngine},
-};
+use crate::solver::{Clause, VarKey, clauses::ClauseEngine};
 
 use super::utils::{equals, implies};
 
 impl ClauseEngine {
-    /// Owned `(agent_id, laser_id, path)` copy of every laser source. Cloning detaches the data
-    /// from the `&self.ctx` borrow so the loops below can take `&mut self.pool`.
-    fn laser_source_snapshot(&self) -> Vec<(usize, usize, Vec<Position>)> {
-        self.ctx
-            .laser_sources
-            .iter()
-            .map(|s| (s.agent_id, s.laser_id, s.path.clone()))
-            .collect()
-    }
-
     /// Defines, for each beam tile, the literal denoting "this beam tile is active at time `t`",
     /// folding away tiles that no same-colour agent can ever reach (constant-active tiles).
     /// Returns both the clauses and a map from `(laser_id, x, y)` to the literal representing
@@ -31,14 +18,18 @@ impl ClauseEngine {
     pub(super) fn beam_activation(&mut self, t: usize) -> (Vec<Clause>, HashMap<VarKey, i32>) {
         let mut clauses = Vec::new();
         let mut active_lit = HashMap::new();
-        let sources = self.laser_source_snapshot();
-        for (agent_id, laser_id, path) in sources {
-            let blockable = self.ctx.relevant_positions_for_agent(agent_id, t);
+        // Split the borrow so the loop can read `ctx.laser_sources` (including each source's beam
+        // path) while mutating `pool`, without cloning every source's path just to detach it from
+        // `&self.ctx`.
+        let ctx = &self.ctx;
+        let pool = &mut self.pool;
+        for source in &ctx.laser_sources {
+            let blockable = ctx.relevant_positions_for_agent(source.agent_id, t);
             let mut prev_active: Option<i32> = None;
-            for pos in path {
+            for &pos in &source.path {
                 if blockable.contains(&pos) {
-                    let agent_var = self.pool.agent(agent_id, pos, t);
-                    let active = self.pool.laser(laser_id, pos, t);
+                    let agent_var = pool.agent(source.agent_id, pos, t);
+                    let active = pool.laser(source.laser_id, pos, t);
                     match prev_active {
                         None => clauses.extend(equals(active, -agent_var)),
                         Some(prev) => {
@@ -48,9 +39,9 @@ impl ClauseEngine {
                         }
                     }
                     prev_active = Some(active);
-                    active_lit.insert(VarKey::laser(laser_id, pos, t), active);
+                    active_lit.insert(VarKey::laser(source.laser_id, pos, t), active);
                 } else if let Some(prev) = prev_active {
-                    active_lit.insert(VarKey::laser(laser_id, pos, t), prev);
+                    active_lit.insert(VarKey::laser(source.laser_id, pos, t), prev);
                 }
                 // else: constant-active tile, no variable, no clause.
             }
@@ -75,19 +66,20 @@ impl ClauseEngine {
         active_lit: &HashMap<VarKey, i32>,
     ) -> Vec<Clause> {
         let mut clauses = Vec::new();
-        let sources = self.laser_source_snapshot();
-        for agent in 0..self.ctx.n_agents {
-            let reachable = self.ctx.relevant_positions(t, &[agent]);
-            for &(source_agent_id, laser_id, ref path) in &sources {
-                if source_agent_id == agent {
+        let ctx = &self.ctx;
+        let pool = &mut self.pool;
+        for agent in 0..ctx.n_agents {
+            let reachable = ctx.relevant_positions(t, &[agent]);
+            for source in &ctx.laser_sources {
+                if source.agent_id == agent {
                     continue;
                 }
-                for &pos in path {
+                for &pos in &source.path {
                     if !reachable.contains(&pos) {
                         continue;
                     }
-                    let agent_var = self.pool.agent(agent, pos, t);
-                    match active_lit.get(&VarKey::laser(laser_id, pos, t)) {
+                    let agent_var = pool.agent(agent, pos, t);
+                    match active_lit.get(&VarKey::laser(source.laser_id, pos, t)) {
                         Some(&lit) => clauses.push(vec![-agent_var, -lit]),
                         None => clauses.push(vec![-agent_var]), // constant-active beam tile
                     }
