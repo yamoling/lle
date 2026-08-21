@@ -157,10 +157,14 @@ fn agent_with_unique_exit_cannot_reach_other_exits() {
     assert!(!agent_2_reachable.contains(&pos(4, 3)));
 }
 
+/// Accessing laser relevance after an explicit update exposes the requested time columns.
+///
+/// @ai-generated
 #[test]
 fn test_laser_path_accessibility() {
     let world = World::try_from("S0 L0E X").expect("Failed to parse world");
-    let ctx = ConstraintContext::new(&world, 5);
+    let mut ctx = ConstraintContext::new(&world, 5);
+    ctx.update(1);
 
     let sources = world.sources().collect::<Vec<_>>();
     assert_eq!(sources.len(), 1);
@@ -202,6 +206,41 @@ fn test_t_max_and_cache_size() {
     let ctx = ConstraintContext::new(&world, t_max);
 
     assert_eq!(ctx.t_max, t_max);
+}
+
+/// Time-indexed caches allocate only requested columns and ignore earlier repeated requests.
+///
+/// @ai-generated
+#[test]
+fn time_caches_grow_lazily_and_monotonically() {
+    let world = World::try_from("S0 L0S .\n. . .\n. . X").expect("Failed to parse world");
+    let mut ctx = ConstraintContext::new(&world, 10);
+
+    assert!(ctx.exit_reachable.is_empty());
+    assert!(ctx.relevant_positions.iter().all(Vec::is_empty));
+    assert!(ctx.relevant_laser_paths.iter().all(Vec::is_empty));
+
+    ctx.update(2);
+    assert_eq!(ctx.exit_reachable.len(), 3);
+    assert!(ctx.relevant_positions.iter().all(|cache| cache.len() == 3));
+    assert!(
+        ctx.relevant_laser_paths
+            .iter()
+            .all(|cache| cache.len() == 3)
+    );
+
+    ctx.update(1);
+    ctx.update(2);
+    assert_eq!(ctx.exit_reachable.len(), 3);
+
+    ctx.update(5);
+    assert_eq!(ctx.exit_reachable.len(), 6);
+    assert!(ctx.relevant_positions.iter().all(|cache| cache.len() == 6));
+    assert!(
+        ctx.relevant_laser_paths
+            .iter()
+            .all(|cache| cache.len() == 6)
+    );
 }
 
 #[test]
@@ -608,6 +647,9 @@ fn reachable_laser_paths_unblockable() {
     }
 }
 
+/// Laser relevance remains correct through the explicitly requested final horizon.
+///
+/// @ai-generated
 #[test]
 fn reachable_laser_paths_two_agents() {
     let world = World::try_from(
@@ -646,6 +688,8 @@ fn reachable_laser_paths_two_agents() {
     assert_eq!(path_last.size(), 1);
     assert!(!path_last.contains(&pos(1, 1)));
     assert!(path_last.contains(&pos(2, 1)));
+
+    ctx.update(T_MAX);
     assert_eq!(ctx.relevant_laser_tiles(0, T_MAX).size(), 0);
 }
 

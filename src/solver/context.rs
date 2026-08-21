@@ -238,10 +238,13 @@ impl ConstraintContext {
             }
         }
 
-        let exit_reachable: Vec<PositionSet> = vec![PositionSet::empty(height, width); t_max + 1];
-        let relevant_positions = vec![vec![PositionSet::empty(height, width); t_max + 1]; n_agents];
-        let relevant_laser_paths =
-            vec![vec![PositionSet::empty(height, width); t_max + 1]; laser_sources.len()];
+        let exit_reachable = Vec::with_capacity(t_max + 1);
+        let relevant_positions = (0..n_agents)
+            .map(|_| Vec::with_capacity(t_max + 1))
+            .collect();
+        let relevant_laser_paths = (0..laser_sources.len())
+            .map(|_| Vec::with_capacity(t_max + 1))
+            .collect();
 
         Self {
             t_max,
@@ -270,20 +273,22 @@ impl ConstraintContext {
     ///
     /// Later steps shrink the previous set by removing positions whose shortest exit
     /// distance no longer fits in the remaining time budget.
+    ///
+    /// @ai-generated
     fn update_exit_reachable(&mut self, t: usize) {
         if t == 0 {
             let mut result = PositionSet::empty(self.height, self.width);
             for bucket in &self.distance_buckets {
                 result.union_with(bucket);
             }
-            self.exit_reachable[0] = result;
+            self.exit_reachable.push(result);
             return;
         }
 
         let mut prev_exit_reachable = self.exit_reachable[t - 1].clone();
         let excluded_distance = self.t_max - t + 1;
         prev_exit_reachable.subtract_with(&self.distance_buckets[excluded_distance]);
-        self.exit_reachable[t] = prev_exit_reachable;
+        self.exit_reachable.push(prev_exit_reachable);
     }
 
     /// Update the relevant positions for each agent at time step t.
@@ -291,6 +296,8 @@ impl ConstraintContext {
     /// A position is relevant to a given agent at time step t if:
     ///     - the agent can reach it at time step t
     ///     - the agent can still access the exit within `t_max - t` steps
+    ///
+    /// @ai-generated
     fn update_relevant_positions(&mut self, t: usize) {
         for agent in 0..self.n_agents {
             let mut result = if t == 0 {
@@ -317,7 +324,7 @@ impl ConstraintContext {
             }
             // Non-owner agents can never stand on the first tile of another agent's beam.
             result.subtract_with(&self.forbidden_first_beam_tiles[agent]);
-            self.relevant_positions[agent][t] = result;
+            self.relevant_positions[agent].push(result);
         }
     }
 
@@ -327,6 +334,8 @@ impl ConstraintContext {
     /// an upstream owner block, then computes the relevant laser paths from the pruned position
     /// sets. Keeping all pruning before all path computation avoids order-dependent results when
     /// laser paths overlap or cross.
+    ///
+    /// @ai-generated
     fn update_laser_relevance(&mut self, t: usize) {
         for source in &self.laser_sources {
             // We use `split_at_mut` to avoid cloning the owner positions while respecting ownership rules.
@@ -351,7 +360,7 @@ impl ConstraintContext {
         }
 
         for laser_idx in 0..self.laser_sources.len() {
-            self.relevant_laser_paths[laser_idx][t] = compute_relevant_laser_path(
+            let relevant_path = compute_relevant_laser_path(
                 &self.laser_sources[laser_idx].path,
                 &self.relevant_positions,
                 t,
@@ -359,6 +368,7 @@ impl ConstraintContext {
                 self.height,
                 self.width,
             );
+            self.relevant_laser_paths[laser_idx].push(relevant_path);
         }
     }
 
@@ -561,3 +571,7 @@ mod tests;
 #[cfg(test)]
 #[path = "../../.agents/experiments/context-compact-adjacency/benchmark.rs"]
 mod compact_adjacency_benchmark;
+
+#[cfg(test)]
+#[path = "../../.agents/experiments/context-lazy-time-caches/benchmark.rs"]
+mod lazy_time_caches_benchmark;
