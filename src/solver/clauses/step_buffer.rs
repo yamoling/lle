@@ -31,8 +31,6 @@ impl<T: Clone> StepBuffer<T> {
     /// An empty iterator is returned when `start > t`. Cached items are cloned exactly as in
     /// [`Self::gather_until`], allowing an external incremental cursor to retrieve clauses even if
     /// another API call populated the buffer first.
-    ///
-    /// @ai-generated
     pub fn gather_range(
         &mut self,
         engine: &mut ClauseEngine,

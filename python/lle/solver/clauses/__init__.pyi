@@ -54,26 +54,21 @@ class ClauseGenerator:
         r"""
         Build a clause generator for the given `world`, considering plans of length up to `t_max`.
         """
-    def generate(self, t: builtins.int, mode: typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-mutual', 'no-fully-coupled', 'no-sequence', 'no-interdependence', 'no-convergence', 'no-divergence'] | builtins.str | SolveMode | None = None, collect_gems: builtins.bool = False, only_delta: builtins.bool = False) -> tuple[builtins.list[builtins.list[builtins.int]], builtins.list[builtins.int]]:
+    def generate(self, t: builtins.int, mode: typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-mutual', 'no-fully-coupled', 'no-sequence', 'no-interdependence', 'no-convergence', 'no-divergence'] | builtins.str | SolveMode | None = None, collect_gems: builtins.bool = True, only_delta: builtins.bool = False) -> tuple[builtins.list[builtins.list[builtins.int]], builtins.list[builtins.int]]:
         r"""
         Generate all clauses and assumptions required to solve the problem at horizon `t`.
         
-        `mode` accepts either a `SolveMode` instance or its canonical string (`"standard"`,
-        `"no-cooperation"`, `"no-asymmetric"`, `"no-mutual"`, `"no-fully-coupled"`,
-        `"no-sequence[-N]"`, `"no-interdependence[-N]"`, `"no-convergence[-N]"`,
-        `"no-divergence[-N]"`). `collect_gems` adds gem-collection
-        clauses to the objective.
-        
-        With the default `only_delta=False`, returns the complete formula prefix exactly as before.
-        With `only_delta=True`, the first call starts an incremental stream and returns its complete
-        permanent prefix. Later calls return only clauses for newly requested time steps. The stream's
+        # Parameters
+        - `mode` accepts either a `SolveMode` instance or its canonical string (`"standard"`,
+        `"no-cooperation"`, `"no-asymmetric"`, `"no-mutual"`, `"no-fully-coupled"`, `"no-sequence[-N]"`,
+        `"no-interdependence[-N]"`, `"no-convergence[-N]"`, `"no-divergence[-N]"`)
+        - `collect_gems` adds gem-collection clauses to the objective.
+        - `only_delta` controls whether the complete formula should be returned or only the delta from the
+        previous call. With `only_delta=True`, the first call starts an incremental stream and returns its
+        complete permanent prefix. Later calls return only clauses for newly requested time steps. The stream's
         effective mode (including any parameter) and `collect_gems` value are fixed; horizons may be
         repeated or increased, but not decreased. Incompatible requests raise `ValueError` and require
         a new `ClauseGenerator`. Non-delta calls neither advance nor reset the delta stream.
-        
-        Delta objectives are activation-gated: append every returned clause permanently, but pass only
-        the assumptions returned by the current call to `solver.solve`. A repeated horizon therefore
-        returns no clauses and repeats the current objective/restriction assumptions.
         
         ```python
         with Minisat22() as solver:
@@ -90,8 +85,6 @@ class ClauseGenerator:
         Raises:
             `ValueError`: if `mode` is invalid, its parameter is meaningless, or an `only_delta`
             request changes stream settings or decreases its horizon.
-        
-        @ai-generated
         """
     def objective(self, t: builtins.int, collect_gems: builtins.bool = False) -> tuple[builtins.list[builtins.list[builtins.int]], builtins.list[builtins.int]]:
         r"""

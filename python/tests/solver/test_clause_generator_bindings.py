@@ -1,25 +1,18 @@
 import pytest
 from lle import Action, World
 from lle.solver.clauses import ClauseGenerator, SolveMode
-from pysat.solvers import Minisat22  # pyright: ignore[reportMissingTypeStubs]
+from pysat.solvers import Minisat22
 
 COOPERATION_DELTA_WORLD = "L0E .  .  X\nL1E .  .  X\nL2E .  .  X\nS0  S1 S2 X"
 
 
 def _formula_is_sat(clauses: list[list[int]], assumptions: list[int]) -> bool:
-    """Solve one generated formula without retaining state between calls.
-
-    @ai-generated
-    """
     with Minisat22(bootstrap_with=clauses) as solver:
-        return bool(solver.solve(assumptions=assumptions))  # pyright: ignore[reportUnknownMemberType]
+        return bool(solver.solve(assumptions=assumptions))
 
 
 def test_generate_default_preserves_full_prefix_api():
-    """The new flag defaults to the legacy complete-prefix result.
-
-    @ai-generated
-    """
+    """The new flag defaults to the legacy complete-prefix result."""
     generator = ClauseGenerator(World("S0 . . X"), 4)
     implicit = generator.generate(3)
     explicit = generator.generate(3, only_delta=False)
@@ -144,14 +137,11 @@ def test_only_delta_supports_incremental_solving_and_repeated_horizons():
     [
         (1, "standard", False),
         (3, "no-cooperation", False),
-        (3, "standard", True),
+        (3, "standard", False),
     ],
 )
 def test_only_delta_rejects_incompatible_stream_transitions(t: int, mode: str, collect_gems: bool):
-    """Decreasing horizons, effective-mode changes, and gem-policy changes are explicit errors.
-
-    @ai-generated
-    """
+    """Decreasing horizons, effective-mode changes, and gem-policy changes are explicit errors."""
     generator = ClauseGenerator(World("L0E .  G X\nS0  S1 . X"), 4)
     generator.generate(2, only_delta=True)
     with pytest.raises(ValueError, match="Incompatible only_delta generation request"):
@@ -159,10 +149,7 @@ def test_only_delta_rejects_incompatible_stream_transitions(t: int, mode: str, c
 
 
 def test_only_delta_compares_modes_after_layout_normalization():
-    """Structurally impossible restrictions share the normalized standard stream.
-
-    @ai-generated
-    """
+    """Structurally impossible restrictions share the normalized standard stream."""
     generator = ClauseGenerator(World("S0 . X"), 2)
     generator.generate(2, mode="no-cooperation", only_delta=True)
     clauses, assumptions = generator.generate(2, mode="standard", only_delta=True)
