@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::solver::Clause;
 #[cfg(test)]
@@ -28,8 +29,8 @@ pub struct ClauseEngine {
     pub pool: VarPool,
     pub exits: PositionSet,
     pub gems: PositionSet,
-    sequence_patterns: HashMap<usize, Vec<SequencePattern>>,
-    interdependence_patterns: HashMap<usize, Vec<ClosedTrailPattern>>,
+    sequence_patterns: HashMap<usize, Arc<[SequencePattern]>>,
+    interdependence_patterns: HashMap<usize, Arc<[ClosedTrailPattern]>>,
 }
 
 impl ClauseEngine {
@@ -54,17 +55,23 @@ impl ClauseEngine {
     }
 
     /// Return the deterministic static pattern basis for an exact sequence length.
-    pub fn sequence_patterns(&mut self, length: usize) -> Vec<SequencePattern> {
+    ///
+    /// The returned handle is a cheap `Arc` clone; the underlying pattern slice is computed once per
+    /// `length` and reused afterwards.
+    pub fn sequence_patterns(&mut self, length: usize) -> Arc<[SequencePattern]> {
+        if let Some(patterns) = self.sequence_patterns.get(&length) {
+            return Arc::clone(patterns);
+        }
         let helper_ids = self
             .ctx
             .laser_sources
             .iter()
             .map(|source| source.agent_id)
             .collect::<Vec<_>>();
-        self.sequence_patterns
-            .entry(length)
-            .or_insert_with(|| enumerate_sequence_patterns(helper_ids, self.ctx.n_agents, length))
-            .clone()
+        let patterns: Arc<[SequencePattern]> =
+            enumerate_sequence_patterns(helper_ids, self.ctx.n_agents, length).into();
+        self.sequence_patterns.insert(length, Arc::clone(&patterns));
+        patterns
     }
 
     /// Return every directed help relationship that can physically occur within `t_max`.
@@ -101,13 +108,19 @@ impl ClauseEngine {
     }
 
     /// Return the deterministic feasible pattern basis for an exact interdependence order.
-    pub fn interdependence_patterns(&mut self, order: usize) -> Vec<ClosedTrailPattern> {
-        if !self.interdependence_patterns.contains_key(&order) {
-            let potential_arcs = self.potential_help_arcs();
-            let patterns = enumerate_closed_trail_patterns(potential_arcs, order);
-            self.interdependence_patterns.insert(order, patterns);
+    ///
+    /// The returned handle is a cheap `Arc` clone; the underlying pattern slice is computed once per
+    /// `order` and reused afterwards.
+    pub fn interdependence_patterns(&mut self, order: usize) -> Arc<[ClosedTrailPattern]> {
+        if let Some(patterns) = self.interdependence_patterns.get(&order) {
+            return Arc::clone(patterns);
         }
-        self.interdependence_patterns[&order].clone()
+        let potential_arcs = self.potential_help_arcs();
+        let patterns: Arc<[ClosedTrailPattern]> =
+            enumerate_closed_trail_patterns(potential_arcs, order).into();
+        self.interdependence_patterns
+            .insert(order, Arc::clone(&patterns));
+        patterns
     }
 
     /// Movement-only world-enforcing clauses for a single step `t`.
