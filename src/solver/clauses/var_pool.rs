@@ -87,6 +87,10 @@ impl VarKey {
 pub struct VarPool {
     ids: HashMap<VarKey, Literal>,
     keys: Vec<VarKey>,
+    /// Help literals indexed by directed `(helper, beneficiary)` pair, populated only when a new
+    /// `Help` variable is allocated. Lets horizon-bounded pair/helper/beneficiary queries filter a
+    /// short per-pair or per-helper list instead of scanning every SAT variable in `ids`.
+    help_by_pair: HashMap<AgentId, HashMap<AgentId, Vec<(usize, Literal)>>>,
 }
 
 impl VarPool {
@@ -101,6 +105,19 @@ impl VarPool {
         let id = self.next_id();
         self.ids.insert(key, id);
         self.keys.push(key);
+        if let VarKey::Help {
+            helper,
+            beneficiary,
+            t,
+        } = key
+        {
+            self.help_by_pair
+                .entry(helper)
+                .or_default()
+                .entry(beneficiary)
+                .or_default()
+                .push((t, id));
+        }
         id
     }
 
@@ -152,41 +169,46 @@ impl VarPool {
         horizon: usize,
     ) -> Vec<Literal> {
         let mut variables = self
-            .ids
-            .iter()
-            .filter_map(|(key, lit)| match key {
-                VarKey::Help {
-                    helper: h,
-                    beneficiary: b,
-                    t,
-                } if *h == helper && *b == beneficiary && *t <= horizon => Some(*lit),
-                _ => None,
+            .help_by_pair
+            .get(&helper)
+            .and_then(|row| row.get(&beneficiary))
+            .map(|entries| {
+                entries
+                    .iter()
+                    .filter(|&&(t, _)| t <= horizon)
+                    .map(|&(_, lit)| lit)
+                    .collect::<Vec<_>>()
             })
-            .collect::<Vec<_>>();
+            .unwrap_or_default();
         variables.sort_unstable();
         variables
     }
 
     /// Returns all the help variables where `beneficiary` is the beneficiary of the help event up to `t` included.
     pub fn beneficiary_variables(&self, beneficiary: AgentId, horizon: usize) -> Vec<Literal> {
-        self.ids
-            .iter()
-            .filter_map(|(key, lit)| match key {
-                VarKey::Help {
-                    beneficiary: b, t, ..
-                } if (*b == beneficiary && *t <= horizon) => Some(*lit),
-                _ => None,
+        self.help_by_pair
+            .values()
+            .filter_map(|row| row.get(&beneficiary))
+            .flat_map(|entries| {
+                entries
+                    .iter()
+                    .filter(|&&(t, _)| t <= horizon)
+                    .map(|&(_, lit)| lit)
             })
             .collect()
     }
 
     /// Return all the help variables where `helper` is the helper up to `t` included.
     pub fn helper_variables(&self, helper: AgentId, horizon: usize) -> Vec<Literal> {
-        self.ids
-            .iter()
-            .filter_map(|(key, lit)| match key {
-                VarKey::Help { helper: h, t, .. } if (*h == helper && *t <= horizon) => Some(*lit),
-                _ => None,
+        self.help_by_pair
+            .get(&helper)
+            .into_iter()
+            .flat_map(|row| row.values())
+            .flat_map(|entries| {
+                entries
+                    .iter()
+                    .filter(|&&(t, _)| t <= horizon)
+                    .map(|&(_, lit)| lit)
             })
             .collect()
     }
