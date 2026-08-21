@@ -91,21 +91,32 @@ class Solver:
         Candidate lengths are checked in ascending order, one step at a
         time, so the first plan found is the shortest at or above the requested
         lower bound.
+
+        The whole search retains one SAT solver instance and one incremental clause stream fixed
+        to `mode` and `collect_gems`, so later, larger horizons only add the clauses newly needed
+        instead of resending everything checked so far. This solver's other methods (`solve`, and
+        any later call to `find_shortest` with a different mode) are unaffected: each call to
+        `find_shortest` starts its own stream from scratch.
         """
         if t_min is None or t_min < self.solution_lower_bound:
             t_min = self.solution_lower_bound
         elif t_min > self.t_max:
             raise ValueError(f"t_min={t_min} exceeds this solver's t_max={self.t_max}.")
 
-        for path_length in range(t_min, self.t_max + 1):
-            plan = self.solve(
-                path_length=path_length,
-                mode=mode,
-                collect_gems=collect_gems,
-                shuffle=shuffle,
-            )
-            if plan is not None:
-                return plan
+        parsed_mode = _parse_mode(mode)
+        self.generator.start_delta_stream(mode=parsed_mode, collect_gems=collect_gems)
+        with Minisat22() as sat_solver:
+            for path_length in range(t_min, self.t_max + 1):
+                clauses, assumptions = self.generator.advance_delta_stream(path_length)
+                if shuffle:
+                    random.shuffle(clauses)
+                    random.shuffle(assumptions)
+                sat_solver.append_formula(clauses)
+                if not sat_solver.solve(assumptions=assumptions):  # pyright: ignore[reportUnknownMemberType]
+                    continue
+                model: list[int] | None = sat_solver.get_model()  # pyright: ignore[reportUnknownVariableType]
+                assert model is not None
+                return _to_plan(self.generator.decode_plan(model, path_length))
         return None
 
 

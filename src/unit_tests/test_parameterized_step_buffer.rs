@@ -19,18 +19,26 @@ fn parameters_cache_independent_prefixes() {
     let mut engine = tiny_engine();
     let mut buffer = ParameterizedStepBuffer::new(generate_marker, 4);
 
-    let first = buffer.gather_until(&mut engine, 1, 2).collect::<Vec<_>>();
+    let first = buffer
+        .gather_range(&mut engine, 0, 1, 2)
+        .collect::<Vec<_>>();
     assert_eq!(engine.n_vars(), 2);
 
-    let repeated = buffer.gather_until(&mut engine, 1, 2).collect::<Vec<_>>();
+    let repeated = buffer
+        .gather_range(&mut engine, 0, 1, 2)
+        .collect::<Vec<_>>();
     assert_eq!(repeated, first);
     assert_eq!(engine.n_vars(), 2);
 
-    let other_parameter = buffer.gather_until(&mut engine, 0, 3).collect::<Vec<_>>();
+    let other_parameter = buffer
+        .gather_range(&mut engine, 0, 0, 3)
+        .collect::<Vec<_>>();
     assert_eq!(other_parameter.len(), 1);
     assert_eq!(engine.n_vars(), 3);
 
-    let extended = buffer.gather_until(&mut engine, 2, 2).collect::<Vec<_>>();
+    let extended = buffer
+        .gather_range(&mut engine, 0, 2, 2)
+        .collect::<Vec<_>>();
     assert_eq!(extended.len(), 3);
     assert_eq!(engine.n_vars(), 4);
 }
@@ -42,7 +50,9 @@ fn parameters_cache_independent_prefixes() {
 fn parameterized_range_reads_cached_suffix_without_crossing_parameters() {
     let mut engine = tiny_engine();
     let mut buffer = ParameterizedStepBuffer::new(generate_marker, 4);
-    let full = buffer.gather_until(&mut engine, 2, 2).collect::<Vec<_>>();
+    let full = buffer
+        .gather_range(&mut engine, 0, 2, 2)
+        .collect::<Vec<_>>();
     let suffix = buffer
         .gather_range(&mut engine, 1, 2, 2)
         .collect::<Vec<_>>();

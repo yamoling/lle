@@ -33,10 +33,6 @@ pub enum SolverError {
         value: usize,
         reason: String,
     },
-    /// An `only_delta` request is incompatible with the generator's active incremental stream.
-    InvalidDeltaTransition {
-        reason: String,
-    },
 }
 
 impl Display for SolverError {
@@ -71,9 +67,6 @@ impl Display for SolverError {
                 f,
                 "Invalid parameter {value} for SolveMode::{variant}: {reason}"
             ),
-            SolverError::InvalidDeltaTransition { reason } => {
-                write!(f, "Incompatible only_delta generation request: {reason}")
-            }
         }
     }
 }

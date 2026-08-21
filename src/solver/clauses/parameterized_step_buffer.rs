@@ -22,19 +22,6 @@ impl<T: Clone> ParameterizedStepBuffer<T> {
         }
     }
 
-    /// Gather every item from step `0` through `t` for `parameter`, generating missing steps.
-    ///
-    /// Each parameter owns an independent incremental cache, so extending one parameter does not
-    /// populate or invalidate any other parameter's prefix.
-    pub fn gather_until(
-        &mut self,
-        engine: &mut ClauseEngine,
-        t: usize,
-        parameter: usize,
-    ) -> impl Iterator<Item = T> {
-        self.gather_range(engine, 0, t, parameter)
-    }
-
     /// Gather items from the inclusive step range `start..=t` for one parameter.
     ///
     /// An empty iterator is returned when `start > t`; other parameter caches are unaffected.

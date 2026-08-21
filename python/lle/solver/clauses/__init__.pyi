@@ -54,43 +54,83 @@ class ClauseGenerator:
         r"""
         Build a clause generator for the given `world`, considering plans of length up to `t_max`.
         """
-    def generate(self, t: builtins.int, mode: typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-mutual', 'no-fully-coupled', 'no-sequence', 'no-interdependence', 'no-convergence', 'no-divergence'] | builtins.str | SolveMode | None = None, collect_gems: builtins.bool = True, only_delta: builtins.bool = False) -> tuple[builtins.list[builtins.list[builtins.int]], builtins.list[builtins.int]]:
+    def generate(self, t: builtins.int, mode: typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-mutual', 'no-fully-coupled', 'no-sequence', 'no-interdependence', 'no-convergence', 'no-divergence'] | builtins.str | SolveMode | None = None, collect_gems: builtins.bool = True) -> tuple[builtins.list[builtins.list[builtins.int]], builtins.list[builtins.int]]:
         r"""
-        Generate all clauses and assumptions required to solve the problem at horizon `t`.
+        Generate the complete formula for horizon `t`: every clause and assumption needed to solve
+        the problem, from step 0.
         
         # Parameters
         - `mode` accepts either a `SolveMode` instance or its canonical string (`"standard"`,
         `"no-cooperation"`, `"no-asymmetric"`, `"no-mutual"`, `"no-fully-coupled"`, `"no-sequence[-N]"`,
         `"no-interdependence[-N]"`, `"no-convergence[-N]"`, `"no-divergence[-N]"`)
         - `collect_gems` adds gem-collection clauses to the objective.
-        - `only_delta` controls whether the complete formula should be returned or only the delta from the
-        previous call. With `only_delta=True`, the first call starts an incremental stream and returns its
-        complete permanent prefix. Later calls return only clauses for newly requested time steps. The stream's
-        effective mode (including any parameter) and `collect_gems` value are fixed; horizons may be
-        repeated or increased, but not decreased. Incompatible requests raise `ValueError` and require
-        a new `ClauseGenerator`. Non-delta calls neither advance nor reset the delta stream.
+        
+        The result depends only on the arguments: it does not read or affect any stream started
+        with [`Self::start_delta_stream`]. Its output must not be mixed into a solver that is also
+        fed by such a stream, since both assert an unconditional objective for `t`.
+        
+        For incremental SAT solving across an ascending sequence of horizons, use
+        [`Self::start_delta_stream`] and [`Self::advance_delta_stream`] instead: they avoid
+        re-transferring clauses the solver already has.
+        
+        # Returns
+        - `(clauses, assumptions)` ready to be fed to a SAT solver.
+        
+        # Raises:
+        - `ValueError`: if `mode` is invalid or its parameter is meaningless.
+        """
+    def start_delta_stream(self, mode: typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-mutual', 'no-fully-coupled', 'no-sequence', 'no-interdependence', 'no-convergence', 'no-divergence'] | builtins.str | SolveMode | None = None, collect_gems: builtins.bool = True) -> None:
+        r"""
+        Start a new incremental stream fixed to `mode` and `collect_gems`, replacing any stream
+        started previously.
+        
+        Call this once per retained SAT solver instance, before the first
+        [`Self::advance_delta_stream`] call for that solver. Starting a new stream (even with the
+        same mode) always resets the incremental cursor, so pair one call to this method with one
+        solver instance: reusing a solver across two streams, or a stream across two solvers, mixes
+        up which clauses each solver has actually seen.
+        
+        # Parameters
+        - `mode`, `collect_gems`: see [`Self::generate`]. Unlike `generate`, these are fixed for the
+        whole stream: to change either, start a new stream (and, in practice, a new solver).
+        
+        # Raises:
+          - `ValueError`: if `mode` is invalid or its parameter is meaningless.
+        """
+    def advance_delta_stream(self, t: builtins.int) -> tuple[builtins.list[builtins.list[builtins.int]], builtins.list[builtins.int]]:
+        r"""
+        Generate the clauses the active stream has not sent yet, through horizon `t`.
+        
+        Every returned clause can be kept permanently in the caller's solver. The returned
+        assumptions select what is active right now: the horizon objective is conditional on a
+        fresh literal, so a later call can switch to a different horizon's objective by assuming a
+        different literal instead of retracting anything. Repeating the previous horizon returns no
+        clause and the same assumptions.
         
         ```python
+        gen.start_delta_stream(mode="standard")
         with Minisat22() as solver:
             for t in range(gen.solution_lower_bound, gen.t_max + 1):
-                clauses, assumptions = gen.generate(t, only_delta=True)
+                clauses, assumptions = gen.advance_delta_stream(t)
                 solver.append_formula(clauses)
                 if solver.solve(assumptions=assumptions):
                     plan = gen.decode_plan(solver.get_model(), t)
                     break
         ```
         
-        Returns `(clauses, assumptions)` ready to be fed to a SAT solver.
+        # Returns
+        - `(clauses, assumptions)` ready to be fed to a SAT solver.
         
-        Raises:
-            `ValueError`: if `mode` is invalid, its parameter is meaningless, or an `only_delta`
-            request changes stream settings or decreases its horizon.
+        # Raises:
+        - `ValueError`: if no stream is active, or `t` is smaller than the horizon of the
+            previous call.
         """
     def objective(self, t: builtins.int, collect_gems: builtins.bool = False) -> tuple[builtins.list[builtins.list[builtins.int]], builtins.list[builtins.int]]:
         r"""
         Generate only the objective clauses for horizon `t`.
         
-        Returns `(clauses, [])`. Useful for callers that manage the SAT solver directly and want to
+        # Returns
+        `(clauses, [])`. Useful for callers that manage the SAT solver directly and want to
         append the objective separately.
         """
     def decode_plan(self, model: typing.Sequence[builtins.int], t_end: builtins.int) -> builtins.list[builtins.list[world.Action]]:
@@ -98,8 +138,8 @@ class ClauseGenerator:
         Decode a SAT model (as returned by `solver.get_model()`) into a joint-action plan
         of length `t_end`, i.e. a list of `t_end` joint actions (one action per agent).
         
-        Raises:
-            `ValueError`: if the model does not encode a coherent sequence of moves.
+        # Raises:
+        - `ValueError`: if the model does not encode a coherent sequence of moves.
         """
 
 @typing.final

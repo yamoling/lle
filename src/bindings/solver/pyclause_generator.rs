@@ -4,7 +4,7 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use super::pysolvemode::PySolveMode;
 use crate::{
     bindings::{PyAction, PyWorld, pyexceptions::solver_error_to_exception},
-    solver::{Clause, ClauseGenerator, Literal, SolveMode},
+    solver::{Clause, ClauseGenerator, DeltaStream, Literal, SolveMode},
 };
 
 fn extract_solve_mode(py: Python, mode: Py<PyAny>) -> PyResult<SolveMode> {
@@ -51,6 +51,8 @@ pub struct PyClauseGenerator {
     /// regardless of lasers.
     #[pyo3(get)]
     solution_lower_bound: usize,
+    /// The incremental stream started by [`Self::start_delta_stream`], if any.
+    active_stream: Option<DeltaStream>,
 }
 
 #[gen_stub_pymethods]
@@ -65,6 +67,7 @@ impl PyClauseGenerator {
             inner,
             t_max,
             solution_lower_bound,
+            active_stream: None,
         })
     }
 
@@ -74,36 +77,29 @@ impl PyClauseGenerator {
         self.inner.n_vars()
     }
 
-    /// Generate all clauses and assumptions required to solve the problem at horizon `t`.
+    /// Generate the complete formula for horizon `t`: every clause and assumption needed to solve
+    /// the problem, from step 0.
     ///
     /// # Parameters
     /// - `mode` accepts either a `SolveMode` instance or its canonical string (`"standard"`,
     /// `"no-cooperation"`, `"no-asymmetric"`, `"no-mutual"`, `"no-fully-coupled"`, `"no-sequence[-N]"`,
     /// `"no-interdependence[-N]"`, `"no-convergence[-N]"`, `"no-divergence[-N]"`)
     /// - `collect_gems` adds gem-collection clauses to the objective.
-    /// - `only_delta` controls whether the complete formula should be returned or only the delta from the
-    /// previous call. With `only_delta=True`, the first call starts an incremental stream and returns its
-    /// complete permanent prefix. Later calls return only clauses for newly requested time steps. The stream's
-    /// effective mode (including any parameter) and `collect_gems` value are fixed; horizons may be
-    /// repeated or increased, but not decreased. Incompatible requests raise `ValueError` and require
-    /// a new `ClauseGenerator`. Non-delta calls neither advance nor reset the delta stream.
     ///
-    /// ```python
-    /// with Minisat22() as solver:
-    ///     for t in range(gen.solution_lower_bound, gen.t_max + 1):
-    ///         clauses, assumptions = gen.generate(t, only_delta=True)
-    ///         solver.append_formula(clauses)
-    ///         if solver.solve(assumptions=assumptions):
-    ///             plan = gen.decode_plan(solver.get_model(), t)
-    ///             break
-    /// ```
+    /// The result depends only on the arguments: it does not read or affect any stream started
+    /// with [`Self::start_delta_stream`]. Its output must not be mixed into a solver that is also
+    /// fed by such a stream, since both assert an unconditional objective for `t`.
     ///
-    /// Returns `(clauses, assumptions)` ready to be fed to a SAT solver.
+    /// For incremental SAT solving across an ascending sequence of horizons, use
+    /// [`Self::start_delta_stream`] and [`Self::advance_delta_stream`] instead: they avoid
+    /// re-transferring clauses the solver already has.
     ///
-    /// Raises:
-    ///     `ValueError`: if `mode` is invalid, its parameter is meaningless, or an `only_delta`
-    ///     request changes stream settings or decreases its horizon.
-    #[pyo3(signature = (t, mode=None, collect_gems=true, only_delta=false))]
+    /// # Returns
+    /// - `(clauses, assumptions)` ready to be fed to a SAT solver.
+    ///
+    /// # Raises:
+    /// - `ValueError`: if `mode` is invalid or its parameter is meaningless.
+    #[pyo3(signature = (t, mode=None, collect_gems=true))]
     fn generate(
         &mut self,
         py: Python,
@@ -114,23 +110,91 @@ impl PyClauseGenerator {
         ))]
         mode: Option<Py<PyAny>>,
         collect_gems: bool,
-        only_delta: bool,
     ) -> PyResult<(Vec<Clause>, Vec<Literal>)> {
         let mode = match mode {
             Some(mode) => extract_solve_mode(py, mode)?,
             None => SolveMode::Standard,
         };
-        let generated = if only_delta {
-            self.inner.generate_delta(t, mode, collect_gems)
-        } else {
-            self.inner.generate(t, mode, collect_gems)
+        Ok(self.inner.generate(t, mode, collect_gems))
+    }
+
+    /// Start a new incremental stream fixed to `mode` and `collect_gems`, replacing any stream
+    /// started previously.
+    ///
+    /// Call this once per retained SAT solver instance, before the first
+    /// [`Self::advance_delta_stream`] call for that solver. Starting a new stream (even with the
+    /// same mode) always resets the incremental cursor, so pair one call to this method with one
+    /// solver instance: reusing a solver across two streams, or a stream across two solvers, mixes
+    /// up which clauses each solver has actually seen.
+    ///
+    /// # Parameters
+    /// - `mode`, `collect_gems`: see [`Self::generate`]. Unlike `generate`, these are fixed for the
+    /// whole stream: to change either, start a new stream (and, in practice, a new solver).
+    ///
+    /// # Raises:
+    ///   - `ValueError`: if `mode` is invalid or its parameter is meaningless.
+    #[pyo3(signature = (mode=None, collect_gems=true))]
+    fn start_delta_stream(
+        &mut self,
+        py: Python,
+        #[gen_stub(override_type(
+            type_repr = "typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-mutual', 'no-fully-coupled', 'no-sequence', 'no-interdependence', 'no-convergence', 'no-divergence'] | builtins.str | SolveMode | None",
+            imports = ("typing",)
+        ))]
+        mode: Option<Py<PyAny>>,
+        collect_gems: bool,
+    ) -> PyResult<()> {
+        let mode = match mode {
+            Some(mode) => extract_solve_mode(py, mode)?,
+            None => SolveMode::Standard,
         };
-        generated.map_err(solver_error_to_exception)
+        self.active_stream = Some(self.inner.start_delta_stream(mode, collect_gems));
+        Ok(())
+    }
+
+    /// Generate the clauses the active stream has not sent yet, through horizon `t`.
+    ///
+    /// Every returned clause can be kept permanently in the caller's solver. The returned
+    /// assumptions select what is active right now: the horizon objective is conditional on a
+    /// fresh literal, so a later call can switch to a different horizon's objective by assuming a
+    /// different literal instead of retracting anything. Repeating the previous horizon returns no
+    /// clause and the same assumptions.
+    ///
+    /// ```python
+    /// gen.start_delta_stream(mode="standard")
+    /// with Minisat22() as solver:
+    ///     for t in range(gen.solution_lower_bound, gen.t_max + 1):
+    ///         clauses, assumptions = gen.advance_delta_stream(t)
+    ///         solver.append_formula(clauses)
+    ///         if solver.solve(assumptions=assumptions):
+    ///             plan = gen.decode_plan(solver.get_model(), t)
+    ///             break
+    /// ```
+    ///
+    /// # Returns
+    /// - `(clauses, assumptions)` ready to be fed to a SAT solver.
+    ///
+    /// # Raises:
+    /// - `ValueError`: if no stream is active, or `t` is smaller than the horizon of the
+    ///     previous call.
+    fn advance_delta_stream(&mut self, t: usize) -> PyResult<(Vec<Clause>, Vec<Literal>)> {
+        let stream = self.active_stream.as_mut().ok_or_else(|| {
+            PyValueError::new_err("no delta stream is active; call start_delta_stream(...) first")
+        })?;
+        if let Some(last) = stream.last_horizon()
+            && t < last
+        {
+            return Err(PyValueError::new_err(format!(
+                "horizon {t} is below the active stream's horizon {last}; streams cannot go backwards, start a new one instead"
+            )));
+        }
+        Ok(stream.advance_to(&mut self.inner, t))
     }
 
     /// Generate only the objective clauses for horizon `t`.
     ///
-    /// Returns `(clauses, [])`. Useful for callers that manage the SAT solver directly and want to
+    /// # Returns
+    /// `(clauses, [])`. Useful for callers that manage the SAT solver directly and want to
     /// append the objective separately.
     #[pyo3(signature = (t, collect_gems=false))]
     fn objective(&mut self, t: usize, collect_gems: bool) -> (Vec<Clause>, Vec<Literal>) {
@@ -140,8 +204,8 @@ impl PyClauseGenerator {
     /// Decode a SAT model (as returned by `solver.get_model()`) into a joint-action plan
     /// of length `t_end`, i.e. a list of `t_end` joint actions (one action per agent).
     ///
-    /// Raises:
-    ///     `ValueError`: if the model does not encode a coherent sequence of moves.
+    /// # Raises:
+    /// - `ValueError`: if the model does not encode a coherent sequence of moves.
     fn decode_plan(&self, model: Vec<i32>, t_end: usize) -> PyResult<Vec<Vec<PyAction>>> {
         match self.inner.decode_plan(&model, t_end) {
             Ok(plan) => Ok(plan
