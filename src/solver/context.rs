@@ -42,13 +42,6 @@ impl NeighbourList {
     pub fn iter(&self) -> impl Iterator<Item = Position> + '_ {
         self.positions[..self.len as usize].iter().copied()
     }
-
-    /// Sort positions by their dense row-major grid index.
-    ///
-    /// @ai-generated
-    fn sort_row_major(&mut self, width: usize) {
-        self.positions[..self.len as usize].sort_unstable_by_key(|pos| pos.i * width + pos.j);
-    }
 }
 
 impl<'a> IntoIterator for &'a NeighbourList {
@@ -174,7 +167,6 @@ impl ConstraintContext {
                     neighbours[pos.i][pos.j].push(n);
                 }
             }
-            neighbours[pos.i][pos.j].sort_row_major(width);
         }
 
         // Reverse adjacency: predecessors[i][j] = positions from which an agent can move into (i, j).
@@ -184,12 +176,6 @@ impl ConstraintContext {
                 predecessors[succ.i][succ.j].push(pos);
             }
         }
-        for row in &mut predecessors {
-            for predecessor_list in row {
-                predecessor_list.sort_row_major(width);
-            }
-        }
-
         let exit_distance = compute_exit_distance(&exits, &predecessors);
         let solution_lower_bound = start_pos
             .iter()
@@ -461,8 +447,6 @@ impl ConstraintContext {
 
     /// Positions the agent could have occupied at time `t - 1` to reach `(i, j)` at `t`.
     /// Assumes `update` has already been called for this `t`.
-    ///
-    /// @ai-generated
     pub fn prev_neighbours(
         &self,
         agent: usize,
@@ -567,11 +551,3 @@ fn compute_exit_distance(
 #[cfg(test)]
 #[path = "../unit_tests/test_context.rs"]
 mod tests;
-
-#[cfg(test)]
-#[path = "../../.agents/experiments/context-compact-adjacency/benchmark.rs"]
-mod compact_adjacency_benchmark;
-
-#[cfg(test)]
-#[path = "../../.agents/experiments/context-lazy-time-caches/benchmark.rs"]
-mod lazy_time_caches_benchmark;
