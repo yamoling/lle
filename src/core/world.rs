@@ -13,7 +13,7 @@ use crate::{
         parsing::{WorldConfig, parse},
     },
     tiles::{Gem, Laser, LaserId, LaserSource, Tile},
-    utils::{find_duplicates, sample_different},
+    utils::{find_duplicates, find_duplicates_into, sample_different},
 };
 
 type JointAction = Vec<Action>;
@@ -37,6 +37,9 @@ pub struct World {
     available_actions: Vec<Vec<Action>>,
     /// The actual start position of the agents since the last `reset`.
     start_positions: Vec<Position>,
+    /// Scratch buffer reused by `solve_vertex_conflicts` across steps to avoid a fresh
+    /// allocation on every call.
+    conflict_scratch: Vec<bool>,
     rng: rand::rngs::StdRng,
 }
 
@@ -52,24 +55,26 @@ impl World {
         source_positions: Vec<Position>,
         lasers_positions: Vec<Position>,
     ) -> Self {
-        let agents = random_start_positions
+        let agents: Vec<Agent> = random_start_positions
             .iter()
             .enumerate()
             .map(|(id, _)| Agent::new(id as AgentId))
             .collect();
+        let n_agents = agents.len();
         let mut w = Self {
             width: grid[0].len(),
             height: grid.len(),
             gems_positions: gem_positions,
-            agents_positions: vec![],
+            agents_positions: Vec::with_capacity(n_agents),
             random_start_positions,
             wall_positions: walls_positions,
             void_positions,
             agents,
             exits: exit_positions,
             grid,
-            start_positions: vec![],
-            available_actions: vec![],
+            start_positions: Vec::with_capacity(n_agents),
+            available_actions: vec![Vec::with_capacity(5); n_agents], // There are 5 actions
+            conflict_scratch: Vec::with_capacity(n_agents),
             laser_source_positions: source_positions,
             lasers_positions,
             rng: rand::SeedableRng::seed_from_u64(0u64),
@@ -337,7 +342,6 @@ impl World {
     /// reallocating a fresh `Vec<Vec<Action>>` every time.
     fn compute_available_actions(&mut self) {
         let mut buffer = std::mem::take(&mut self.available_actions);
-        buffer.resize_with(self.agents.len(), Vec::new);
         for (agent_actions, (agent, agent_pos)) in
             izip!(&mut buffer, izip!(&self.agents, &self.agents_positions))
         {
@@ -358,16 +362,16 @@ impl World {
         self.available_actions = buffer;
     }
 
-    fn solve_vertex_conflicts(new_pos: &mut [Position], old_pos: &[Position]) {
+    fn solve_vertex_conflicts(&mut self, new_pos: &mut [Position]) {
         let mut conflict = true;
 
         while conflict {
             conflict = false;
-            let duplicates = find_duplicates(new_pos);
-            for (i, is_duplicate) in duplicates.iter().enumerate() {
+            find_duplicates_into(new_pos, &mut self.conflict_scratch);
+            for (i, is_duplicate) in self.conflict_scratch.iter().enumerate() {
                 if *is_duplicate {
                     conflict = true;
-                    new_pos[i] = old_pos[i];
+                    new_pos[i] = self.agents_positions[i];
                 }
             }
         }
@@ -456,7 +460,7 @@ impl World {
 
         // Check for vertex conflicts
         // If a new_pos occurs more than once, then set it back to its original position
-        World::solve_vertex_conflicts(&mut new_positions, &self.agents_positions);
+        self.solve_vertex_conflicts(&mut new_positions);
         let (mut events, mut agent_died) = self.move_agents(&new_positions)?;
         self.agents_positions.clone_from(&new_positions);
         // At this stage, all agents are on their new positions.

@@ -8,7 +8,19 @@ pub fn find_duplicates<T>(input: &[T]) -> Vec<bool>
 where
     T: PartialEq,
 {
-    let mut result = vec![false; input.len()]; // Initialize the result vector with false values
+    let mut result = vec![false; input.len()];
+    find_duplicates_into(input, &mut result);
+    result
+}
+
+/// Same as `find_duplicates`, but writes into a caller-provided buffer instead of allocating a
+/// fresh one, so a hot-path caller can reuse the same buffer across repeated calls.
+pub fn find_duplicates_into<T>(input: &[T], result: &mut Vec<bool>)
+where
+    T: PartialEq,
+{
+    result.clear();
+    result.resize(input.len(), false);
 
     for i in 0..input.len() {
         if !result[i] {
@@ -21,8 +33,6 @@ where
             }
         }
     }
-
-    result
 }
 
 /// Get a random position for each agent such that no two agents start at the same position.
