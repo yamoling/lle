@@ -6,14 +6,71 @@ use super::position_set::PositionSet;
 use crate::Position;
 use crate::{World, tiles::Direction};
 
+const MAX_NEIGHBOURS: usize = 5;
+
+/// A fixed-capacity, row-major list of positions adjacent in the movement graph.
+#[derive(Clone, Copy, Debug)]
+pub struct NeighbourList {
+    positions: [Position; MAX_NEIGHBOURS],
+    len: u8,
+}
+
+impl NeighbourList {
+    const EMPTY_POSITION: Position = Position { i: 0, j: 0 };
+
+    pub const fn empty() -> Self {
+        Self {
+            positions: [Self::EMPTY_POSITION; MAX_NEIGHBOURS],
+            len: 0,
+        }
+    }
+
+    pub fn push(&mut self, pos: Position) {
+        debug_assert!((self.len as usize) < MAX_NEIGHBOURS);
+        self.positions[self.len as usize] = pos;
+        self.len += 1;
+    }
+
+    pub fn contains(&self, pos: &Position) -> bool {
+        self.iter().any(|candidate| candidate == *pos)
+    }
+
+    pub const fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = Position> + '_ {
+        self.positions[..self.len as usize].iter().copied()
+    }
+
+    /// Sort positions by their dense row-major grid index.
+    ///
+    /// @ai-generated
+    fn sort_row_major(&mut self, width: usize) {
+        self.positions[..self.len as usize].sort_unstable_by_key(|pos| pos.i * width + pos.j);
+    }
+}
+
+impl<'a> IntoIterator for &'a NeighbourList {
+    type Item = Position;
+    type IntoIter = std::iter::Copied<std::slice::Iter<'a, Position>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.positions[..self.len as usize].iter().copied()
+    }
+}
+
+/// Return walkable cardinal neighbours, excluding the position itself.
+///
+/// @ai-generated
 fn neighbours_of(
     pos: Position,
     exits: &PositionSet,
     height: usize,
     width: usize,
     walls: &PositionSet,
-) -> PositionSet {
-    let mut result = PositionSet::empty(height, width);
+) -> NeighbourList {
+    let mut result = NeighbourList::empty();
     if exits.contains(&pos) {
         // Once an agent reaches an exit, it can no longer move.
         return result;
@@ -24,7 +81,7 @@ fn neighbours_of(
             && n.j < width
             && !walls.contains(&n)
         {
-            result.insert(n);
+            result.push(n);
         }
     }
     result
@@ -45,7 +102,7 @@ pub struct ConstraintContext {
     pub n_agents: usize,
     pub start_pos: Vec<Position>,
     /// `predecessors[i][j]` = positions from which an agent can move into `(i, j)`.
-    pub predecessors: Vec<Vec<PositionSet>>,
+    pub predecessors: Vec<Vec<NeighbourList>>,
     pub solution_lower_bound: usize,
     pub laser_sources: Vec<LaserSourceInfo>,
     exits: PositionSet,
@@ -54,7 +111,7 @@ pub struct ConstraintContext {
     updated_until: Option<usize>,
 
     /// `neighbours[i][j]` = `[(i, j), ...reachable single-step neighbours]`.
-    pub(crate) neighbours: Vec<Vec<PositionSet>>,
+    pub(crate) neighbours: Vec<Vec<NeighbourList>>,
 
     /// `distance_buckets[d]` = positions whose distance to the nearest exit is exactly `d`
     /// (only for `d <= t_max`, the only distances that ever matter). Used to incrementally
@@ -83,6 +140,9 @@ pub struct ConstraintContext {
 }
 
 impl ConstraintContext {
+    /// Build the static geometry and time-indexed context caches for a world.
+    ///
+    /// @ai-generated
     pub fn new(world: &World, t_max: usize) -> Self {
         let height = world.height();
         let width = world.width();
@@ -105,22 +165,28 @@ impl ConstraintContext {
 
         // neighbours[i][j] = [(i, j), ...reachable single-step neighbours].
         // Invalid tiles stay empty; valid tiles get their self-neighbour from `neighbours_of`.
-        let mut neighbours = vec![vec![PositionSet::empty(height, width); width]; height];
+        let mut neighbours = vec![vec![NeighbourList::empty(); width]; height];
 
         for &pos in &valid_positions {
-            neighbours[pos.i][pos.j].insert(pos);
-            for n in neighbours_of(pos, &exits, height, width, &walls) {
+            neighbours[pos.i][pos.j].push(pos);
+            for n in neighbours_of(pos, &exits, height, width, &walls).iter() {
                 if valid_positions.contains(&n) {
-                    neighbours[pos.i][pos.j].insert(n);
+                    neighbours[pos.i][pos.j].push(n);
                 }
             }
+            neighbours[pos.i][pos.j].sort_row_major(width);
         }
 
         // Reverse adjacency: predecessors[i][j] = positions from which an agent can move into (i, j).
-        let mut predecessors = vec![vec![PositionSet::empty(height, width); width]; height];
+        let mut predecessors = vec![vec![NeighbourList::empty(); width]; height];
         for &pos in &valid_positions {
             for succ in &neighbours[pos.i][pos.j] {
-                predecessors[succ.i][succ.j].insert(pos);
+                predecessors[succ.i][succ.j].push(pos);
+            }
+        }
+        for row in &mut predecessors {
+            for predecessor_list in row {
+                predecessor_list.sort_row_major(width);
             }
         }
 
@@ -385,14 +451,19 @@ impl ConstraintContext {
 
     /// Positions the agent could have occupied at time `t - 1` to reach `(i, j)` at `t`.
     /// Assumes `update` has already been called for this `t`.
-    pub fn prev_neighbours(&self, agent: usize, pos: &Position, t: usize) -> PositionSet {
-        if t == 0 {
-            return PositionSet::empty(self.height, self.width);
-        }
-        let mut pred = self.predecessors[pos.i][pos.j].clone();
-        let reachable = &self.relevant_positions[agent][t - 1];
-        pred.intersect_with(reachable);
-        pred
+    ///
+    /// @ai-generated
+    pub fn prev_neighbours(
+        &self,
+        agent: usize,
+        pos: &Position,
+        t: usize,
+    ) -> impl Iterator<Item = Position> + '_ {
+        self.predecessors[pos.i][pos.j]
+            .iter()
+            .filter(move |predecessor| {
+                t > 0 && self.relevant_positions[agent][t - 1].contains(predecessor)
+            })
     }
 
     /// The reachable laser tiles positions for a given laser source at time `t`: the beam tiles
@@ -467,7 +538,7 @@ fn compute_relevant_laser_path(
 
 fn compute_exit_distance(
     exits: &PositionSet,
-    predecessors: &[Vec<PositionSet>],
+    predecessors: &[Vec<NeighbourList>],
 ) -> HashMap<Position, usize> {
     let mut dist: HashMap<Position, usize> = exits.iter().map(|p| (p, 0)).collect();
     let mut frontier: VecDeque<Position> = exits.iter().collect();
@@ -486,3 +557,7 @@ fn compute_exit_distance(
 #[cfg(test)]
 #[path = "../unit_tests/test_context.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "../../.agents/experiments/context-compact-adjacency/benchmark.rs"]
+mod compact_adjacency_benchmark;

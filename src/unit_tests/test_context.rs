@@ -450,26 +450,26 @@ fn neighbours_exclude_boundaries_walls_and_voids() {
 
 /// `prev_neighbours` should return only predecessors that were relevant to the agent one step
 /// earlier, not every geometrically possible predecessor.
+///
+/// @ai-generated
 #[test]
 fn prev_neighbours_filters_by_previous_relevant_positions() {
     let world = World::try_from("S0 . X").expect("Failed to parse world");
     let mut ctx = ConstraintContext::new(&world, 5);
     ctx.update(1);
 
-    assert!(ctx.prev_neighbours(0, &pos(0, 1), 0).is_empty());
+    assert!(ctx.prev_neighbours(0, &pos(0, 1), 0).next().is_none());
     assert_eq!(
         ctx.prev_neighbours(0, &pos(0, 1), 1)
-            .iter()
             .collect::<HashSet<_>>(),
         HashSet::from([pos(0, 0)])
     );
     assert_eq!(
         ctx.prev_neighbours(0, &pos(0, 0), 1)
-            .iter()
             .collect::<HashSet<_>>(),
         HashSet::from([pos(0, 0)])
     );
-    assert!(ctx.prev_neighbours(0, &pos(0, 2), 1).is_empty());
+    assert!(ctx.prev_neighbours(0, &pos(0, 2), 1).next().is_none());
 }
 
 /// Laser source tiles are not walkable: they should not be successors of adjacent walkable tiles,
