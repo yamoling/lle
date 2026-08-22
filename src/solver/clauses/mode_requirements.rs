@@ -62,8 +62,6 @@ pub(super) struct ModeRequirements {
 
 impl ModeRequirements {
     /// Describe the clause families and assumptions `mode` is made of.
-    ///
-    /// @ai-generated
     pub(super) fn of(mode: SolveMode) -> Self {
         let cooperation_support = Self {
             lasers: true,

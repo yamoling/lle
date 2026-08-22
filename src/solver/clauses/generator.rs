@@ -143,8 +143,6 @@ impl ClauseGenerator {
     /// horizon. Calling this twice for the same `(family, t)` allocates duplicate auxiliary
     /// variables, so callers that may repeat a horizon (like a delta stream) must not call it twice
     /// for the same `t`.
-    ///
-    /// @ai-generated
     pub(super) fn horizon_clauses(
         &mut self,
         requirements: &ModeRequirements,
@@ -171,8 +169,6 @@ impl ClauseGenerator {
     }
 
     /// Assumptions `requirements` needs on top of its clauses, for horizon `t`.
-    ///
-    /// @ai-generated
     pub(super) fn mode_assumptions(
         &mut self,
         requirements: &ModeRequirements,

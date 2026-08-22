@@ -25,8 +25,6 @@ impl<T: Clone> ParameterizedStepBuffer<T> {
     /// Gather items from the inclusive step range `start..=t` for one parameter.
     ///
     /// An empty iterator is returned when `start > t`; other parameter caches are unaffected.
-    ///
-    /// @ai-generated
     pub fn gather_range(
         &mut self,
         engine: &mut ClauseEngine,
