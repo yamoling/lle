@@ -124,10 +124,15 @@ impl ClauseEngine {
         for agent in 0..self.ctx.n_agents {
             let prev_relevant_pos = self.ctx.relevant_positions_for_agent(agent, t - 1);
             let curr_relevant_pos = self.ctx.relevant_positions_for_agent(agent, t);
-            let mut exits = self.exits.clone();
-            exits.intersect_with(prev_relevant_pos);
-            exits.intersect_with(curr_relevant_pos);
-            for pos in exits {
+            // Intersect the sparse `exits` set first, then filter by `curr_relevant_pos`: the two
+            // relevant-position sets are typically much larger than `exits`, so anchoring the
+            // lazy intersection on `exits` keeps the number of `contains` checks bounded by the
+            // (small) exit count instead of by the (larger) reachable-position overlap.
+            for pos in self
+                .exits
+                .intersection(prev_relevant_pos)
+                .filter(|pos| curr_relevant_pos.contains(pos))
+            {
                 let prev = self.pool.agent(agent, pos, t - 1);
                 let cur = self.pool.agent(agent, pos, t);
                 clauses.push(implies(prev, cur));

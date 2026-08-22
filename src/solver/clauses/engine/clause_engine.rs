@@ -155,11 +155,9 @@ impl ClauseEngine {
         };
         for agent in 0..self.ctx.n_agents {
             let reachable = self.ctx.relevant_positions_for_agent(agent, t);
-            let mut positions = self.exits.clone();
-            positions.intersect_with(reachable);
             clauses.push(
-                positions
-                    .iter()
+                self.exits
+                    .intersection(reachable)
                     .map(|p| self.pool.agent(agent, p, t))
                     .collect(),
             );
