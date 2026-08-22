@@ -115,8 +115,7 @@ impl PyClauseGenerator {
             Some(mode) => extract_solve_mode(py, mode)?,
             None => SolveMode::Standard,
         };
-        let inner = &mut self.inner;
-        Ok(py.detach(|| inner.generate(t, mode, collect_gems)))
+        Ok(self.inner.generate(t, mode, collect_gems))
     }
 
     /// Start a new incremental stream fixed to `mode` and `collect_gems`, replacing any stream
@@ -198,9 +197,8 @@ impl PyClauseGenerator {
     /// `(clauses, [])`. Useful for callers that manage the SAT solver directly and want to
     /// append the objective separately.
     #[pyo3(signature = (t, collect_gems=false))]
-    fn objective(&mut self, py: Python, t: usize, collect_gems: bool) -> (Vec<Clause>, Vec<Literal>) {
-        let inner = &mut self.inner;
-        (py.detach(|| inner.objective(t, collect_gems)), vec![])
+    fn objective(&mut self, t: usize, collect_gems: bool) -> (Vec<Clause>, Vec<Literal>) {
+        (self.inner.objective(t, collect_gems), vec![])
     }
 
     /// Decode a SAT model (as returned by `solver.get_model()`) into a joint-action plan
@@ -208,10 +206,8 @@ impl PyClauseGenerator {
     ///
     /// # Raises:
     /// - `ValueError`: if the model does not encode a coherent sequence of moves.
-    fn decode_plan(&self, py: Python, model: Vec<i32>, t_end: usize) -> PyResult<Vec<Vec<PyAction>>> {
-        let inner = &self.inner;
-        let decoded = py.detach(|| inner.decode_plan(&model, t_end));
-        match decoded {
+    fn decode_plan(&self, model: Vec<i32>, t_end: usize) -> PyResult<Vec<Vec<PyAction>>> {
+        match self.inner.decode_plan(&model, t_end) {
             Ok(plan) => Ok(plan
                 .into_iter()
                 .map(|joint| joint.iter().map(PyAction::from).collect())
