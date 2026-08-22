@@ -37,6 +37,13 @@ class WorldCharacterizer:
         """Number of distinct agent colours that own a laser source."""
         return len({source.agent_id for source in self.world.laser_sources})
 
+    @cached_property
+    def _shortest_path_profile(self):
+        """Cooperation profile of `shortest_path`, or `None` for an unsolvable world."""
+        if self.shortest_path is None:
+            return None
+        return profile_plan(self.world, self.shortest_path)
+
     def is_cooperative(self):
         if not self.is_solvable():
             return False
@@ -62,7 +69,8 @@ class WorldCharacterizer:
             return False
         if self.n_laser_colours == 0:
             return False
-        profile = profile_plan(self.world, path)
+        profile = self._shortest_path_profile
+        assert profile is not None
         if not profile.is_asymmetric:
             return False
         if self.shortest_independent_path is not None:
@@ -97,7 +105,8 @@ class WorldCharacterizer:
             return cached
         if self.shortest_path is None:
             return False
-        profile = profile_plan(self.world, self.shortest_path)
+        profile = self._shortest_path_profile
+        assert profile is not None
         if not profile.is_sequential(length):
             res = False
         else:
@@ -122,7 +131,9 @@ class WorldCharacterizer:
         path = self.shortest_path
         if path is None:
             return False
-        if not profile_plan(self.world, path).is_convergent(k):
+        profile = self._shortest_path_profile
+        assert profile is not None
+        if not profile.is_convergent(k):
             res = False
         else:
             res = self.compute_shortest_path_without_convergence(k) is None
@@ -149,7 +160,9 @@ class WorldCharacterizer:
         path = self.shortest_path
         if path is None:
             return False
-        if not profile_plan(self.world, path).is_divergent(k):
+        profile = self._shortest_path_profile
+        assert profile is not None
+        if not profile.is_divergent(k):
             res = False
         else:
             res = self.compute_shortest_path_without_divergence(k) is None
@@ -175,7 +188,8 @@ class WorldCharacterizer:
             return cached
         if self.shortest_path is None:
             return False
-        profile = profile_plan(self.world, self.shortest_path)
+        profile = self._shortest_path_profile
+        assert profile is not None
         if not profile.is_interdependent(n_agents):
             res = False
         else:
