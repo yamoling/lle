@@ -38,22 +38,30 @@ class PlacementCtx:
     lane_ids: list[int] | None = None
     agent_anchor: tuple[int, int] | None = None
     exit_anchor: tuple[int, int] | None = None
+    agent_cluster_shape: tuple[int, int] | None = None
+    """The `(rows, cols)` shape of the agent cluster, drawn once per attempt by `place_agents`.
+
+    Later stages that reason about the cluster's extent — mirrored exits and corridor lasers —
+    must read the shape from here instead of drawing their own, otherwise they compute a different
+    rectangle than the one the agents actually occupy.
+    """
 
 
-def cluster_shape(n_agents: int) -> tuple[int, int]:
+def cluster_shape(n_agents: int, rng: random.Random) -> tuple[int, int]:
     """Pick a rectangular (rows, cols) shape holding exactly `n_agents` cells.
 
-    Supports 1 to 4 agents; the orientation (e.g. 1x2 vs 2x1) is chosen at random.
+    Supports 1 to 4 agents; the orientation (e.g. 1x2 vs 2x1) is drawn from `rng`, so a seeded
+    generator stays reproducible.
     """
     match n_agents:
         case 1:
             return (1, 1)
         case 2:
-            return random.choice([(1, 2), (2, 1)])
+            return rng.choice([(1, 2), (2, 1)])
         case 3:
-            return random.choice([(1, 3), (3, 1)])
+            return rng.choice([(1, 3), (3, 1)])
         case 4:
-            return random.choice([(2, 2), (1, 4), (4, 1)])
+            return rng.choice([(2, 2), (1, 4), (4, 1)])
         case _:
             raise NotImplementedError()
 
@@ -106,7 +114,8 @@ def place_agents(
             agents = [(row, c) for c in lane_ids]
 
     elif mode == "clustered":
-        cluster_h, cluster_w = cluster_shape(n_agents)
+        cluster_h, cluster_w = cluster_shape(n_agents, rng)
+        ctx.agent_cluster_shape = (cluster_h, cluster_w)
         if cluster_h > height or cluster_w > width:
             raise LayoutRetry()
         anchor_r = rng.randint(0, height - cluster_h)
@@ -212,7 +221,7 @@ def _exits_as_cluster(
     reserved: set[Position],
     ctx: PlacementCtx,
 ) -> list[Position]:
-    cluster_h, cluster_w = cluster_shape(n_agents)
+    cluster_h, cluster_w = cluster_shape(n_agents, rng)
     if cluster_h > height or cluster_w > width:
         raise LayoutRetry()
     for _ in range(64):
@@ -233,8 +242,10 @@ def _exits_as_opposite_cluster(
     reserved: set[Position],
     ctx: PlacementCtx,
 ) -> list[Position]:
-    cluster_h, cluster_w = cluster_shape(n_agents)
-    agent_r, agent_c = ctx.agent_anchor  # type: ignore[misc]
+    if ctx.agent_cluster_shape is None or ctx.agent_anchor is None:
+        raise LayoutRetry()
+    cluster_h, cluster_w = ctx.agent_cluster_shape
+    agent_r, agent_c = ctx.agent_anchor
     anchor_r = max(0, min(height - cluster_h - agent_r, height - cluster_h))
     anchor_c = max(0, min(width - cluster_w - agent_c, width - cluster_w))
     ctx.exit_anchor = (anchor_r, anchor_c)
@@ -454,11 +465,11 @@ def _place_lasers_cross_cluster(
     ctx: PlacementCtx,
 ) -> tuple[list[tuple[int, Position, Direction]], set[Position]]:
     """Corridor lasers alternating from opposite sides between the two clusters."""
-    cluster_h, cluster_w = cluster_shape(n_agents)
     agent_anchor = ctx.agent_anchor
     exit_anchor = ctx.exit_anchor
-    if agent_anchor is None or exit_anchor is None:
+    if agent_anchor is None or exit_anchor is None or ctx.agent_cluster_shape is None:
         raise LayoutRetry()
+    cluster_h, cluster_w = ctx.agent_cluster_shape
 
     agent_bottom = agent_anchor[0] + cluster_h - 1
     agent_right = agent_anchor[1] + cluster_w - 1

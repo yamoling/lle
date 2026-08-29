@@ -25,9 +25,14 @@ class CandidateLayout:
     lasers: list[tuple[int, tuple[int, int], Direction]]  # (owner, pos, dir)
 
     def is_geometry_valid(self):
+        """Whether the sampled positions form a layout that can be turned into a `World`.
+
+        A beam may cover neither an exit nor an agent start: the world string writes one token per
+        cell, so a beam tile drawn over `S<id>` or `X` erases it and the world fails to parse.
+        """
         wall_set = set(self.walls)
         laser_set = {pos for _, pos, _ in self.lasers}
-        exit_set = set(self.exits)
+        blocked = set(self.exits) | set(self.agents)
         all_beam: set[Position] = set()
         for _owner, src, direction in self.lasers:
             if points_out_immediately(src, direction, self.height, self.width):
@@ -36,6 +41,6 @@ class CandidateLayout:
             if len(tiles) < 2:
                 return False
             all_beam.update(tiles)
-        if exit_set & all_beam:
+        if blocked & all_beam:
             return False
         return True

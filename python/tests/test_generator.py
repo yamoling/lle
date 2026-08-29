@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+import random
+
 import pytest
+from lle.exceptions import ParsingError
 from lle.generator import generate
 from lle.generator.generator import WorldGenerator
+from lle.generator.geometry import beam_tiles
+from lle.generator.placements import LayoutRetry
 from lle.generator.world_filter import Constraint, Cooperative, Interdependent, Sequential
+from lle.tiles import Direction
+from lle.types import Position
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -350,3 +357,89 @@ def test_error_interdependent_order_3_requires_three_agents():
 def test_error_interdependent_order_3_requires_three_lasers():
     with pytest.raises(ValueError, match="laser"):
         WorldGenerator(width=5, height=5, n_agents=3, n_lasers=2, constraint=Constraint(20, Interdependent(3)))
+
+
+def test_cross_cluster_lasers_do_not_cover_start_tiles():
+    """A geometrically valid candidate layout must never aim a beam at an agent start tile.
+
+    `CandidateLayout.is_geometry_valid` rejects beams that cover an exit but not beams that cover a
+    start, so `cross-cluster` placement can emit a layout whose beam overwrites `S<id>`. The world
+    string then has no start tile for that agent and `World(...)` refuses to parse it.
+    """
+    gen = WorldGenerator(
+        width=9,
+        height=9,
+        n_agents=3,
+        n_lasers=3,
+        starts="clustered",
+        exits="opposite",
+        laser_placement="cross-cluster",
+    )
+    gen._rng.seed(1)
+    offenders: list[tuple[Position, tuple[int, Position, Direction]]] = []
+    for _ in range(400):
+        try:
+            layout = gen._make_candidate_layout()
+        except LayoutRetry:
+            continue
+        wall_set = set(layout.walls)
+        laser_set = {pos for _, pos, _ in layout.lasers}
+        for laser in layout.lasers:
+            _owner, src, direction = laser
+            tiles = beam_tiles(src, direction, wall_set, laser_set, layout.height, layout.width)
+            for start in layout.agents:
+                if start in tiles:
+                    offenders.append((start, laser))
+    assert offenders == [], f"{len(offenders)} beams cover an agent start tile, e.g. {offenders[0]}"
+
+
+def test_cross_cluster_generation_resamples_instead_of_raising():
+    """`generate` must resample an unbuildable candidate rather than propagate the parsing error.
+
+    `_try_generate` only catches `LayoutRetry`, so a candidate that `WorldBuilder.build` rejects
+    aborts the whole run. The offending candidate appears for roughly one seed in five, hence the
+    sweep: `place_cluster_shape` draws from the global `random` module instead of the injected
+    generator, so no single seed reproduces it reliably.
+    """
+    failures: list[tuple[int, str]] = []
+    for seed in range(30):
+        gen = WorldGenerator(
+            width=9,
+            height=9,
+            n_agents=3,
+            n_lasers=3,
+            starts="clustered",
+            exits="opposite",
+            laser_placement="cross-cluster",
+        )
+        try:
+            world = gen.generate(seed=seed, max_attempts=200)
+        except ParsingError as e:
+            failures.append((seed, str(e)))
+            continue
+        assert world is not None
+        assert world.n_agents == 3
+    assert failures == [], f"generate() raised for {len(failures)} of 30 seeds, e.g. {failures[0]}"
+
+
+def test_clustered_starts_are_reproducible_from_a_seed():
+    """Two generators given the same seed must produce the same world.
+
+    `place_cluster_shape` picks the cluster orientation with `random.choice` on the global module
+    rather than on the `rng` passed down from the generator, so `starts="clustered"` ignores the
+    seed for that decision.
+    """
+
+    def build(seed: int, global_seed: int):
+        random.seed(global_seed)
+        gen = WorldGenerator(width=9, height=9, n_agents=3, starts="clustered", exits="opposite")
+        return gen.generate(seed=seed, max_attempts=200)
+
+    divergent = []
+    for seed in range(12):
+        first = build(seed, 1)
+        second = build(seed, 999)
+        assert first is not None and second is not None
+        if first.start_pos != second.start_pos:
+            divergent.append((seed, first.start_pos, second.start_pos))
+    assert divergent == [], f"the global RNG state changed the layout for seeds {[d[0] for d in divergent]}"
