@@ -230,6 +230,11 @@ impl ClauseGenerator {
     pub fn literal(&self, key: &VarKey) -> Option<i32> {
         self.engine.literal(key)
     }
+
+    /// Return the semantic key of a SAT variable, or `None` if it was never allocated.
+    pub fn key(&self, literal: i32) -> Option<VarKey> {
+        self.engine.key(literal)
+    }
 }
 
 #[cfg(test)]

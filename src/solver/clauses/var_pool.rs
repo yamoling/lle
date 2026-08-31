@@ -20,6 +20,15 @@ pub enum VarKey {
         pos: Position,
         t: usize,
     },
+    /// Whether the specified agent stands on an exit at time step `t`.
+    ///
+    /// Only the `agent(a, exit, t) -> arrived(a, t)` direction is ever asserted, so the variable
+    /// may be true without the agent being on an exit. That is sound for its only consumer, the
+    /// early-termination blocker, which is a clause of negated `Arrived` literals.
+    Arrived {
+        agent_id: AgentId,
+        t: usize,
+    },
     /// Whether `helper` is helping `beneficiary` at time step `t`.
     Help {
         helper: AgentId,
@@ -132,6 +141,10 @@ impl VarPool {
 
     pub fn agent(&mut self, agent_id: AgentId, pos: Position, t: usize) -> Literal {
         self.id(VarKey::Agent { agent_id, pos, t })
+    }
+
+    pub fn arrived(&mut self, agent_id: AgentId, t: usize) -> Literal {
+        self.id(VarKey::Arrived { agent_id, t })
     }
 
     pub fn laser(&mut self, laser_id: usize, pos: Position, t: usize) -> Literal {

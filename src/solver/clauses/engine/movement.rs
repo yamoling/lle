@@ -107,6 +107,51 @@ impl ClauseEngine {
         clauses
     }
 
+    /// Forbid the state where *every* agent stands on an exit at `t - 1`.
+    ///
+    /// Exit tiles are absorbing (see [`Self::stays_on_exit`]), so once all the agents have
+    /// arrived they can only idle where they are: such a trajectory is a shorter plan padded
+    /// with `Stay`s, not a plan of the requested length. Reaching the objective must therefore be
+    /// the last thing a trajectory does.
+    ///
+    /// Attaching the blocker for `t - 1` to *step* `t` is what makes the rule compatible with an
+    /// ascending horizon search: the formula for horizon `t` contains the steps `0..=t`, hence
+    /// the blockers for the steps `0..=t - 1` only, never the one that would contradict its own
+    /// objective. Growing the horizon only ever adds blockers, so a [`DeltaStream`] may keep
+    /// every one it has already sent.
+    ///
+    /// The blocker is a clause of negated `arrived(a, t - 1)` literals, each of them implied by
+    /// the agent standing on one of its relevant exits. Only that direction is needed: a spurious
+    /// `arrived` literal can never satisfy the blocker, so the solver is free to falsify the ones
+    /// no position forces.
+    ///
+    /// [`DeltaStream`]: crate::solver::DeltaStream
+    pub(super) fn no_early_termination(&mut self, t: usize) -> Vec<Clause> {
+        if t == 0 {
+            return Vec::new();
+        }
+        let previous = t - 1;
+        let mut clauses = Vec::new();
+        let mut blocker = Vec::with_capacity(self.ctx.n_agents);
+        for agent in 0..self.ctx.n_agents {
+            let relevant = self.ctx.relevant_positions_for_agent(agent, previous);
+            let reachable_exits: Vec<_> = self.exits.intersection(relevant).collect();
+            if reachable_exits.is_empty() {
+                // This agent cannot be on an exit at `previous`, so the forbidden state is
+                // already unreachable and neither the blocker nor its definitions are needed.
+                return Vec::new();
+            }
+            let arrived = self.pool.arrived(agent, previous);
+            for pos in reachable_exits {
+                let at_exit = self.pool.agent(agent, pos, previous);
+                clauses.push(implies(at_exit, arrived));
+            }
+            blocker.push(-arrived);
+        }
+        clauses.push(blocker);
+        clauses
+    }
+
     /// If an agent was on an exit at `t - 1`, it must remain on an exit at `t`.
     ///
     /// The clause is only emitted for exits that remain in the agent's relevant set at `t`.

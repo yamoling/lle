@@ -133,6 +133,7 @@ impl ClauseEngine {
         clauses.extend(self.no_overlap(t));
         clauses.extend(self.no_following_conflict(t));
         clauses.extend(self.stays_on_exit(t));
+        clauses.extend(self.no_early_termination(t));
         clauses
     }
 
@@ -146,6 +147,11 @@ impl ClauseEngine {
     }
 
     /// Objective clauses for horizon `t`: every agent must be on an exit. Not cached.
+    ///
+    /// The objective may only be reached at `t`: the movement clauses of every step forbid the
+    /// all-agents-on-an-exit state at the step before (see
+    /// [`Self::no_early_termination`](super::ClauseEngine::no_early_termination)), so a plan of
+    /// length `t` is never a shorter plan padded with `Stay`s.
     pub fn objective(&mut self, t: usize, collect_gems: bool) -> Vec<Clause> {
         self.ctx.update(t);
         let mut clauses = if collect_gems {
@@ -199,5 +205,10 @@ impl ClauseEngine {
     /// Return the SAT literal assigned to `key`, or `None` if it was never created.
     pub fn literal(&self, key: &VarKey) -> Option<i32> {
         self.pool.get(key)
+    }
+
+    /// Return the semantic key of a SAT variable, or `None` if it was never allocated.
+    pub fn key(&self, literal: i32) -> Option<VarKey> {
+        self.pool.key(literal)
     }
 }

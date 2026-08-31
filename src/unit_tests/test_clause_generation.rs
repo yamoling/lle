@@ -1991,3 +1991,133 @@ fn feasible_query_does_not_leak_into_a_later_shortcut() {
         "a shortcut query must not return the cooperation clauses of an earlier mode"
     );
 }
+
+// ─── no idle termination ────────────────────────────────────────────────────
+//
+// A plan must not reach its objective before its last step: an assignment where every agent
+// already stands on an exit at some `t < horizon` (and therefore idles there until the horizon,
+// since exit tiles are absorbing) is a padded plan, not a plan of that length.
+
+/// Return whether a formula over a handful of free variables is satisfiable.
+///
+/// A naive DPLL: branch on the first literal left, drop the clauses it satisfies and the
+/// occurrences it falsifies. The residual formulas it is called on carry only the auxiliary
+/// variables of one tiny world, so the search never gets deep.
+fn satisfiable(clauses: &[Clause]) -> bool {
+    let Some(&first) = clauses.iter().flatten().next() else {
+        return true;
+    };
+    let variable = first.abs();
+    [variable, -variable].into_iter().any(|assumed| {
+        let mut residual = Vec::new();
+        for clause in clauses {
+            if clause.contains(&assumed) {
+                continue;
+            }
+            let reduced: Clause = clause.iter().copied().filter(|&l| l != -assumed).collect();
+            if reduced.is_empty() {
+                return false;
+            }
+            residual.push(reduced);
+        }
+        satisfiable(&residual)
+    })
+}
+
+/// Collect the `agent(a, pos, t)` literals of one complete trajectory.
+///
+/// `trajectory[agent][t]` is the position of `agent` at time `t`. Returns `None` as soon as one
+/// of those variables was never allocated: such a trajectory is unrepresentable in the formula,
+/// which is just as strong a rejection as an unsatisfied clause.
+fn trajectory_literals(
+    generator: &ClauseGenerator,
+    trajectory: &[Vec<Position>],
+) -> Option<Vec<Literal>> {
+    let mut literals = Vec::new();
+    for (agent, positions) in trajectory.iter().enumerate() {
+        for (t, &position) in positions.iter().enumerate() {
+            literals.push(generator.literal(&VarKey::agent(agent, position, t))?);
+        }
+    }
+    Some(literals)
+}
+
+/// Return whether the formula admits `trajectory`: every one of its position variables must
+/// exist, and the formula must stay satisfiable once every `agent(a, pos, t)` variable is fixed
+/// to what the trajectory says (true on the trajectory, false everywhere else).
+///
+/// The variables of the other families are left free, so this stays agnostic to how a constraint
+/// is encoded: an auxiliary variable is only ever a means for the clauses to talk about
+/// positions.
+fn admits(generator: &ClauseGenerator, clauses: &[Clause], trajectory: &[Vec<Position>]) -> bool {
+    let Some(positions) = trajectory_literals(generator, trajectory) else {
+        return false;
+    };
+    let mut residual = Vec::new();
+    'clause: for clause in clauses {
+        let mut free = Clause::new();
+        for &literal in clause {
+            match generator.key(literal.abs()) {
+                Some(VarKey::Agent { .. }) => {
+                    if (literal > 0) == positions.contains(&literal.abs()) {
+                        continue 'clause;
+                    }
+                }
+                _ => free.push(literal),
+            }
+        }
+        if free.is_empty() {
+            return false;
+        }
+        residual.push(free);
+    }
+    satisfiable(&residual)
+}
+
+/// The lone agent of `S0 . X` may not reach its exit at `t = 2` and idle there until the
+/// horizon: the formula for horizon 4 must reject the padded trajectory.
+#[test]
+fn formula_rejects_a_trajectory_that_reaches_the_exit_before_the_horizon() {
+    let mut generator = build("S0 . X", 4);
+    let (clauses, assumptions) = generator.generate(4, SolveMode::Standard, false);
+    assert!(assumptions.is_empty(), "standard mode assumes nothing");
+
+    let padded = vec![vec![pos(0, 0), pos(0, 1), pos(0, 2), pos(0, 2), pos(0, 2)]];
+    assert!(
+        !admits(&generator, &clauses, &padded),
+        "a trajectory whose only agent idles on its exit from t=2 must be rejected"
+    );
+}
+
+/// Rejecting padded plans must not reject the plans of that same length that dawdle *before*
+/// arriving: the agent may wait anywhere but on an exit.
+#[test]
+fn formula_still_admits_a_trajectory_that_arrives_exactly_at_the_horizon() {
+    let mut generator = build("S0 . X", 4);
+    let (clauses, _) = generator.generate(4, SolveMode::Standard, false);
+
+    let dawdling = vec![vec![pos(0, 0), pos(0, 1), pos(0, 0), pos(0, 1), pos(0, 2)]];
+    assert!(
+        admits(&generator, &clauses, &dawdling),
+        "waiting off the exit before arriving at the horizon is a legitimate plan"
+    );
+}
+
+/// The rejected state is *every* agent being on an exit, not any agent: one agent may arrive
+/// early and idle on its exit while another is still travelling.
+#[test]
+fn formula_still_admits_one_agent_idling_on_its_exit_while_another_travels() {
+    let mut generator = build("S0 X .\nS1 . X", 3);
+    let (clauses, _) = generator.generate(3, SolveMode::Standard, false);
+
+    let staggered = vec![
+        // Agent 0 arrives at t=1 and stays on (0,1) for the rest of the plan.
+        vec![pos(0, 0), pos(0, 1), pos(0, 1), pos(0, 1)],
+        // Agent 1 only reaches (1,2) at the horizon.
+        vec![pos(1, 0), pos(1, 0), pos(1, 1), pos(1, 2)],
+    ];
+    assert!(
+        admits(&generator, &clauses, &staggered),
+        "only the all-agents-arrived state is early termination"
+    );
+}

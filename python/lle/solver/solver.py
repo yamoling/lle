@@ -53,6 +53,10 @@ class Solver:
         `path_length` is the exact number of joint actions in the returned plan.
         When it is `"auto"` (the default), this solver's construction-time
         `t_max` is used. A requested length cannot exceed `t_max`.
+
+        The returned plan completes exactly at its last step: agents never all stand on an exit
+        earlier, so a plan of length `n` is never a shorter plan padded with `Stay`s. A world may
+        therefore be solvable at one length and not at a longer one.
         """
         if path_length == "auto":
             path_length = self.t_max
