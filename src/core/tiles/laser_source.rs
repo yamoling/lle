@@ -1,6 +1,9 @@
 use std::rc::Rc;
 
-use crate::{agent::AgentId, tiles::Direction};
+use crate::{
+    agent::{AgentId, Colour},
+    tiles::Direction,
+};
 
 use super::LaserBeam;
 
@@ -20,15 +23,14 @@ impl LaserSource {
         self.beam.is_enabled()
     }
 
+    /// Deprecated alias for [`Self::colour`], kept for one release.
     pub fn agent_id(&self) -> AgentId {
-        self.beam.agent_id()
+        self.colour()
     }
 
     /// The beam's colour. Every agent of this colour may block and cross the beam.
-    ///
-    /// **Not implemented yet** — see `.agents/plans/agent-colour-id.md` §3.1.
-    pub fn colour(&self) -> AgentId {
-        todo!("LaserSource::colour: see .agents/plans/agent-colour-id.md §3.1")
+    pub fn colour(&self) -> Colour {
+        self.beam.colour()
     }
 
     pub fn direction(&self) -> Direction {
@@ -47,8 +49,13 @@ impl LaserSource {
         self.beam.disable()
     }
 
+    pub fn set_colour(&self, colour: Colour) {
+        self.beam.set_colour(colour)
+    }
+
+    /// Deprecated alias for [`Self::set_colour`], kept for one release.
     pub fn set_agent_id(&self, agent_id: AgentId) {
-        self.beam.set_agent_id(agent_id)
+        self.set_colour(agent_id)
     }
 
     pub fn beam(&self) -> Rc<LaserBeam> {

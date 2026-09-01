@@ -126,6 +126,19 @@ class World:
         The list of agents in the world.
         """
     @property
+    def n_colours(self) -> builtins.int:
+        r"""
+        The size of the colour space: `1 + max(colour)` over agent and laser colours.
+        
+        Observation layers are indexed by colour, so this covers the largest colour value even
+        when the colour space is sparse (agents of colours `{0, 2}` give `3`).
+        """
+    @property
+    def agent_colours(self) -> builtins.list[builtins.int]:
+        r"""
+        The colour of each agent, indexed by agent id.
+        """
+    @property
     def n_laser_colours(self) -> builtins.int:
         r"""
         The number of different laser colours in the world.

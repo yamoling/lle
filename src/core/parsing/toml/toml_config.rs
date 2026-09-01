@@ -64,6 +64,11 @@ impl TomlConfig {
             }
             let positions = starts.iter().map(PositionsConfig::from);
             self.agents[agent_num].starts.extend(positions);
+            // The `S<c>` token supplies the agent's colour, unless `[[agents]] colour`
+            // states one explicitly — the explicit declaration always wins.
+            if self.agents[agent_num].colour.is_none() {
+                self.agents[agent_num].colour = Some(config.colours()[agent_num]);
+            }
         }
         if let Some(n) = self.n_agents
             && n < self.agents.len()
@@ -162,6 +167,13 @@ impl TryInto<WorldConfig> for TomlConfig {
             })
             .collect::<Result<Vec<_>, _>>()?;
         let source_configs = self.lasers.iter().map(|l| (l.position, l.into())).collect();
+        // An agent without a declared colour keeps the historical default: colour = agent id.
+        let colours = self
+            .agents
+            .iter()
+            .enumerate()
+            .map(|(agent_id, agent)| agent.colour.unwrap_or(agent_id))
+            .collect();
         Ok(WorldConfig::new(
             width,
             height,
@@ -171,6 +183,7 @@ impl TryInto<WorldConfig> for TomlConfig {
             exit_positions,
             walls_positions,
             source_configs,
+            colours,
         ))
     }
 }
@@ -180,9 +193,10 @@ impl From<&WorldConfig> for TomlConfig {
         let width = value.width();
         let height = value.height();
         let mut agents = vec![];
-        for starts in value.random_starts() {
+        for (agent_id, starts) in value.random_starts().iter().enumerate() {
             agents.push(AgentConfig {
                 starts: starts.iter().map(PositionsConfig::from).collect(),
+                colour: value.colours().get(agent_id).copied(),
             })
         }
         let exits = value.exits().iter().map(PositionsConfig::from).collect();

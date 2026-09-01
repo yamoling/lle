@@ -6,6 +6,14 @@ use super::clauses::VarKey;
 
 #[derive(Debug)]
 pub enum SolverError {
+    /// Two agents share a laser colour. The SAT encoding reasons about exactly one owning agent
+    /// per beam (`ConstraintContext::update_laser_relevance`, `ClauseEngine::beam_activation`),
+    /// and the cooperation taxonomy identifies colours with helper agents, so a colour-sharing
+    /// world would be encoded unsoundly. See `.agents/plans/agent-colour-id.md` §2.
+    SharedColour {
+        colour: usize,
+        agents: Vec<AgentId>,
+    },
     VariableNotCreated {
         var: VarKey,
     },
@@ -38,6 +46,10 @@ pub enum SolverError {
 impl Display for SolverError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            SolverError::SharedColour { colour, agents } => write!(
+                f,
+                "Agents {agents:?} share the colour {colour}. The solver requires every colour to belong to exactly one agent."
+            ),
             SolverError::VariableNotCreated { var } => write!(f, "Variable not created: {var:?}"),
             SolverError::InvalidAssumption { var, reason } => {
                 write!(f, "Invalid assumption for {var:?}: {reason}")

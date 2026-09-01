@@ -16,6 +16,12 @@ helper -> beneficiary at time t
 
 exists when, at state index `t`:
 
+> **Precondition.** Since v2.12, an agent's colour is independent of its id and several agents may
+> share a colour. The definitions below identify a beam's colour with its single owning agent, so
+> they only hold when every colour belongs to exactly one agent. `ClauseGenerator::new` enforces
+> this and returns `SolverError::SharedColour` otherwise; generalizing the taxonomy to colour
+> groups is deliberately out of scope.
+
 1. a laser beam of colour `helper` is enabled;
 2. agent `helper` stands on one of its own beam tiles, blocking that beam; and
 3. another agent, `beneficiary`, stands on a tile of that same beam without dying.

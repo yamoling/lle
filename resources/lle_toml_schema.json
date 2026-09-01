@@ -101,6 +101,16 @@
             "$ref": "#/definitions/PositionsConfig"
           },
           "default": []
+        },
+        "colour": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "The agent's laser colour: it can block and cross beams of that colour. Defaults to the agent's id. Several agents may share a colour. Example: colour = 0"
+        },
+        "color": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Alias of `colour`."
         }
       },
       "additionalProperties": false
@@ -160,7 +170,7 @@
     },
     "PositionColumn": {
       "type": "object",
-      "description": "All positions in a given column. Example: { col = 1 } — selects every cell in column 1.",
+      "description": "All positions in a given column. Example: { col = 1 } \u2014 selects every cell in column 1.",
       "properties": {
         "col": {
           "type": "integer",
@@ -175,7 +185,7 @@
     },
     "PositionRect": {
       "type": "object",
-      "description": "A rectangular region of positions defined by optional min/max bounds on rows and columns. Bounds default to 0 for minimums and to the world boundary for maximums when omitted. Example: { i_min = 1, i_max = 3, j_min = 0, j_max = 2 } — selects a 3x3 block.",
+      "description": "A rectangular region of positions defined by optional min/max bounds on rows and columns. Bounds default to 0 for minimums and to the world boundary for maximums when omitted. Example: { i_min = 1, i_max = 3, j_min = 0, j_max = 2 } \u2014 selects a 3x3 block.",
       "properties": {
         "i_min": {
           "type": "integer",

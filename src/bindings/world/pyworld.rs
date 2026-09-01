@@ -506,6 +506,21 @@ impl PyWorld {
             .collect()
     }
 
+    /// The size of the colour space: `1 + max(colour)` over agent and laser colours.
+    ///
+    /// Observation layers are indexed by colour, so this covers the largest colour value even
+    /// when the colour space is sparse (agents of colours `{0, 2}` give `3`).
+    #[getter]
+    pub fn n_colours(&self) -> usize {
+        self.world.lock().unwrap().n_colours()
+    }
+
+    /// The colour of each agent, indexed by agent id.
+    #[getter]
+    pub fn agent_colours(&self) -> Vec<usize> {
+        self.world.lock().unwrap().agent_colours()
+    }
+
     /// The number of different laser colours in the world.
     #[getter]
     pub fn n_laser_colours(&self) -> usize {

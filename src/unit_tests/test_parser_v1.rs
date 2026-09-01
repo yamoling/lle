@@ -6,8 +6,11 @@ use super::parse;
 fn test_multi_digit_start_agent_id() {
     let config = parse("S10 X").unwrap();
 
-    assert_eq!(config.n_agents(), 11);
-    assert_eq!(config.random_starts()[10], vec![Position { i: 0, j: 0 }]);
+    // `S10` declares a single agent of colour 10 (see agent-colour-id.md §3.4b): a gap in the
+    // token numbering is a sparse colour space, not ten missing agents.
+    assert_eq!(config.n_agents(), 1);
+    assert_eq!(config.colours(), &vec![10]);
+    assert_eq!(config.random_starts()[0], vec![Position { i: 0, j: 0 }]);
 }
 
 #[test]

@@ -1,6 +1,6 @@
 use std::{error::Error, fmt::Display};
 
-use crate::{Position, agent::AgentId};
+use crate::agent::AgentId;
 
 #[derive(Debug)]
 pub enum ParseError {
@@ -26,11 +26,6 @@ pub enum ParseError {
     NotEnoughStartTiles {
         n_starts: usize,
         n_agents: usize,
-    },
-    DuplicateStartTile {
-        agent_id: AgentId,
-        start1: Position,
-        start2: Position,
     },
     InconsistentDimensions {
         row_str: String,

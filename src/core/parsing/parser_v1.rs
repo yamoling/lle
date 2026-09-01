@@ -1,4 +1,6 @@
-use crate::{AgentId, Position};
+use std::collections::BTreeMap;
+
+use crate::{Position, agent::Colour};
 
 use super::{ParseError, laser_config::LaserConfig, world_config::WorldConfig};
 
@@ -7,7 +9,11 @@ pub struct ParsingData {
     pub width: Option<usize>,
     pub height: usize,
     pub gem_positions: Vec<Position>,
-    pub start_positions: Vec<Vec<Position>>,
+    /// Start positions grouped by colour, in reading order. `k` occurrences of `S<c>` declare `k`
+    /// agents of colour `c`. Ordered by colour so that flattening yields colour-major agent ids
+    /// (see `.agents/plans/agent-colour-id.md` §3.4a): with unique tokens this reproduces the
+    /// historical "agent id = token number" assignment exactly.
+    pub start_positions: BTreeMap<Colour, Vec<Position>>,
     pub void_positions: Vec<Position>,
     pub exit_positions: Vec<Position>,
     pub walls_positions: Vec<Position>,
@@ -24,23 +30,18 @@ impl ParsingData {
         self.walls_positions.push(pos);
     }
 
-    pub fn add_start_position(
-        &mut self,
-        agent_id: AgentId,
-        pos: Position,
-    ) -> Result<(), ParseError> {
-        while self.start_positions.len() <= agent_id {
-            self.start_positions.push(Vec::new());
-        }
-        if !self.start_positions[agent_id].is_empty() {
-            return Err(ParseError::DuplicateStartTile {
-                agent_id,
-                start1: self.start_positions[agent_id][0],
-                start2: pos,
-            });
-        }
-        self.start_positions[agent_id].push(pos);
-        Ok(())
+    /// Declare one agent of colour `colour` starting at `pos`. Repeating a token declares
+    /// several agents of that colour.
+    pub fn add_start_position(&mut self, colour: Colour, pos: Position) {
+        self.start_positions.entry(colour).or_default().push(pos);
+    }
+
+    /// The colour of each agent, in colour-major agent-id order.
+    pub fn agent_colours(&self) -> Vec<Colour> {
+        self.start_positions
+            .iter()
+            .flat_map(|(&colour, starts)| std::iter::repeat_n(colour, starts.len()))
+            .collect()
     }
 
     pub fn add_gem(&mut self, pos: Position) {
@@ -84,27 +85,51 @@ impl TryInto<WorldConfig> for ParsingData {
             return Err(ParseError::EmptyWorld);
         }
         let width = self.width.ok_or(ParseError::MissingWidth)?;
+        let colours = self.agent_colours();
+        // One agent per start tile, ordered by (colour, reading order).
+        let starts = self
+            .start_positions
+            .into_values()
+            .flatten()
+            .map(|pos| vec![pos])
+            .collect();
         Ok(WorldConfig::new(
             width,
             self.height,
             self.gem_positions,
-            self.start_positions,
+            starts,
             self.void_positions,
             self.exit_positions,
             self.walls_positions,
             self.laser_configs,
+            colours,
         ))
     }
 }
 
+/// Render a config as a v1 ASCII world string, or `Err(())` when v1 cannot express it.
+///
+/// v1 cannot express several possible start positions for one agent, and it re-derives agent ids
+/// by `(colour, reading order)` on reparse — so a world whose same-colour agents are not already
+/// in reading order would come back with those agents swapped. Both cases return `Err(())`, and
+/// `WorldConfig::Display` falls back to TOML (see `.agents/plans/agent-colour-id.md` §3.4d).
 pub fn to_v1_string(config: &WorldConfig) -> Result<String, ()> {
     let mut res = vec![vec![String::from(" . "); config.width()]; config.height()];
+    let mut previous_of_colour: std::collections::HashMap<usize, Position> =
+        std::collections::HashMap::new();
     for (agent_num, pos) in config.random_starts().iter().enumerate() {
         if pos.len() > 1 {
             return Err(());
         }
         let pos = pos[0];
-        res[pos.i][pos.j] = format!("S{agent_num} ");
+        let colour = *config.colours().get(agent_num).ok_or(())?;
+        // Agents of one colour must already be in reading order, or the emission is lossy.
+        if let Some(previous) = previous_of_colour.insert(colour, pos)
+            && (previous.i, previous.j) > (pos.i, pos.j)
+        {
+            return Err(());
+        }
+        res[pos.i][pos.j] = format!("S{colour} ");
     }
 
     for pos in config.gems() {
@@ -151,10 +176,10 @@ pub fn parse(world_str: &str) -> Result<WorldConfig, ParseError> {
                 'X' => data.add_exit(pos),
                 'V' => data.add_void(pos),
                 'S' => {
-                    let agent_id = token[1..].parse().map_err(|_| ParseError::InvalidAgentId {
+                    let colour = token[1..].parse().map_err(|_| ParseError::InvalidAgentId {
                         given_agent_id: token[1..].into(),
                     })?;
-                    data.add_start_position(agent_id, pos)?;
+                    data.add_start_position(colour, pos);
                 }
                 'L' => {
                     let source_config = LaserConfig::from_str(token, data.n_lasers())?;

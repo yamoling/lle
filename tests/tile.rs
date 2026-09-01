@@ -13,7 +13,7 @@ fn make_laser(agent_id: AgentId, length: usize) -> Laser {
 
 #[test]
 fn test_gem() {
-    let mut agent = Agent::new(3);
+    let mut agent = Agent::new(3, 3);
     let mut tile = Tile::Gem(Gem::default());
     tile.reset();
     assert_eq!(tile.agent(), None);
@@ -64,7 +64,7 @@ fn test_laser_basic() {
 
 #[test]
 fn test_laser_agent_survives() {
-    let mut agent = Agent::new(0);
+    let mut agent = Agent::new(0, 0);
     let laser = make_laser(0, 3);
     assert!(laser.is_on());
     let mut tile = Tile::Laser(laser);
@@ -85,7 +85,7 @@ fn test_laser_agent_survives() {
 
 #[test]
 fn test_laser_agent_dies() {
-    let mut agent = Agent::new(0);
+    let mut agent = Agent::new(0, 0);
     let mut laser = make_laser(2, 3);
     laser.pre_enter(&agent).unwrap();
     assert!(laser.is_on());
@@ -97,7 +97,7 @@ fn test_laser_agent_dies() {
 
 #[test]
 fn test_void_agent_dies() {
-    let mut agent = Agent::new(0);
+    let mut agent = Agent::new(0, 0);
     let mut void = Void::default();
     assert!(agent.is_alive());
     void.enter(&mut agent);

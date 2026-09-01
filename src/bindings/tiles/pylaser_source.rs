@@ -9,7 +9,7 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use crate::{
     Position, Tile, World,
-    agent::AgentId,
+    agent::Colour,
     bindings::{PyPosition, tiles::PyDirection},
     tiles::{LaserId, LaserSource},
 };
@@ -18,9 +18,8 @@ use crate::{
 #[pyclass(name = "LaserSource", module = "lle.tiles", from_py_object)]
 #[derive(Clone)]
 pub struct PyLaserSource {
-    /// The id (colour) of the agent that can block the laser.
-    #[pyo3(get)]
-    agent_id: AgentId,
+    /// The colour of the laser: every agent of this colour can block and cross it.
+    colour: Colour,
     /// The direction of the laser beam.
     /// The direction can currently not be changed after creation of the `World`.
     #[pyo3(get)]
@@ -43,7 +42,7 @@ unsafe impl Sync for PyLaserSource {}
 impl PyLaserSource {
     pub fn new(world: Arc<Mutex<World>>, pos: (usize, usize), source: &LaserSource) -> Self {
         Self {
-            agent_id: source.agent_id(),
+            colour: source.colour(),
             direction: PyDirection::from(source.direction()),
             is_enabled: source.is_enabled(),
             laser_id: source.laser_id(),
@@ -103,16 +102,39 @@ impl PyLaserSource {
         self.set_status(true)
     }
 
-    #[setter]
-    pub fn set_agent_id(&mut self, new_agent_id: usize) -> PyResult<()> {
+    /// The colour of the laser: every agent of this colour can block and cross it.
+    #[getter]
+    pub fn colour(&self) -> Colour {
+        self.colour
+    }
+
+    /// Deprecated alias for `colour`, kept for one release.
+    #[getter]
+    pub fn agent_id(&self) -> Colour {
+        self.colour
+    }
+
+    /// Setter form of [`Self::set_colour`], so that `source.colour = c` works too.
+    #[setter(colour)]
+    pub fn colour_setter(&mut self, new_colour: usize) -> PyResult<()> {
+        self.set_colour(new_colour)
+    }
+
+    /// Deprecated setter alias, so that `source.agent_id = c` still works.
+    #[setter(agent_id)]
+    pub fn agent_id_setter(&mut self, new_colour: usize) -> PyResult<()> {
+        self.set_colour(new_colour)
+    }
+
+    /// Change the laser's colour. Every agent of the new colour can then block and cross it.
+    ///
+    /// A colour need not correspond to an agent, so there is no upper bound on it: what is
+    /// checked is that the beam would not cross the start position of an agent of *another*
+    /// colour, which would kill that agent on reset.
+    pub fn set_colour(&mut self, new_colour: usize) -> PyResult<()> {
         let world = self.world.lock().unwrap();
-        if new_agent_id >= world.n_agents() {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                "Agent ID is greater than the number of agents",
-            ));
-        }
         if let Some(Tile::LaserSource(laser_source)) = world.at(&self.pos.into()) {
-            laser_source.set_agent_id(new_agent_id as AgentId);
+            laser_source.set_colour(new_colour as Colour);
         } else {
             return Err(pyo3::exceptions::PyValueError::new_err(
                 "Tile is not a LaserSource",
@@ -126,32 +148,32 @@ impl PyLaserSource {
             .filter(|(_, l)| l.laser_id() == self.laser_id)
             .map(|(pos, _)| pos)
             .collect();
+        let agent_colours = world.agent_colours();
         for (start_agent_id, pos) in enumerate(world.possible_starts()) {
-            if start_agent_id != new_agent_id {
+            if agent_colours.get(start_agent_id) != Some(&new_colour) {
                 let starts_set = HashSet::from_iter(pos);
                 let intersection: Vec<_> = lasers_positions.intersection(&starts_set).collect();
                 if !intersection.is_empty() {
                     return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                        "Laser source cannot be changed to agent ID {new_agent_id} since it would cross the start position of agent {start_agent_id} at {intersection:?}",
+                        "Laser source cannot be changed to colour {new_colour} since it would cross the start position of agent {start_agent_id} at {intersection:?}",
                     )));
                 }
             }
         }
-        self.agent_id = new_agent_id as AgentId;
+        self.colour = new_colour as Colour;
         Ok(())
     }
 
-    /// Change the colour of the laser to the one of the given agent ID.
-    /// Alias to `source.agent_id = new_agent_id`.
-    fn set_colour(&mut self, colour: usize) -> PyResult<()> {
-        self.set_agent_id(colour)
+    /// Deprecated alias for `set_colour`, kept for one release.
+    pub fn set_agent_id(&mut self, new_agent_id: usize) -> PyResult<()> {
+        self.set_colour(new_agent_id)
     }
 
     /// Equality is based on the agent ID, direction, laser ID, and position.
     /// Whether a laser source is enabled is not considered.
     pub fn __eq__(&self, py: Python, other: Py<PyAny>) -> bool {
         if let Ok(source) = other.extract::<PyLaserSource>(py) {
-            return self.agent_id == source.agent_id
+            return self.colour == source.colour
                 && self.direction == source.direction
                 && self.laser_id == source.laser_id
                 && self.pos == source.pos;
@@ -166,11 +188,11 @@ impl PyLaserSource {
 
     pub fn __str__(&self) -> String {
         format!(
-            "LaserSource(laser_id={}, is_enabled={}, direction={}, agent_id={})",
+            "LaserSource(laser_id={}, is_enabled={}, direction={}, colour={})",
             self.laser_id,
             self.is_enabled,
             self.direction.name(),
-            self.agent_id
+            self.colour
         )
     }
 

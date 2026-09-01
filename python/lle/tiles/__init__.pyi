@@ -40,9 +40,9 @@ class Laser:
         The ID of the laser (unique per laser source)
         """
     @property
-    def agent_id(self) -> builtins.int:
+    def colour(self) -> builtins.int:
         r"""
-        The id of the agent that can block the laser.
+        The colour of the laser: every agent of this colour can block and cross it.
         """
     @property
     def direction(self) -> Direction:
@@ -75,6 +75,11 @@ class Laser:
         Whether the laser is disabled.
         """
     @property
+    def agent_id(self) -> builtins.int:
+        r"""
+        Deprecated alias for `colour`, kept for one release.
+        """
+    @property
     def agent(self) -> typing.Optional[builtins.int]:
         r"""
         The id of the agent currently standing on the tile, if any.
@@ -84,13 +89,6 @@ class Laser:
 
 @typing.final
 class LaserSource:
-    @property
-    def agent_id(self) -> builtins.int:
-        r"""
-        The id (colour) of the agent that can block the laser.
-        """
-    @agent_id.setter
-    def agent_id(self, value: builtins.int) -> None: ...
     @property
     def direction(self) -> Direction:
         r"""
@@ -121,6 +119,26 @@ class LaserSource:
         """
     @is_disabled.setter
     def is_disabled(self, value: builtins.bool) -> None: ...
+    @property
+    def colour(self) -> builtins.int:
+        r"""
+        The colour of the laser: every agent of this colour can block and cross it.
+        """
+    @colour.setter
+    def colour(self, value: builtins.int) -> None:
+        r"""
+        Setter form of [`Self::set_colour`], so that `source.colour = c` works too.
+        """
+    @property
+    def agent_id(self) -> builtins.int:
+        r"""
+        Deprecated alias for `colour`, kept for one release.
+        """
+    @agent_id.setter
+    def agent_id(self, value: builtins.int) -> None:
+        r"""
+        Deprecated setter alias, so that `source.agent_id = c` still works.
+        """
     def disable(self) -> None:
         r"""
         Disable the laser source and its corresponding laser tiles.
@@ -129,10 +147,17 @@ class LaserSource:
         r"""
         Enable the laser source and its corresponding laser tiles.
         """
-    def set_colour(self, colour: builtins.int) -> None:
+    def set_colour(self, new_colour: builtins.int) -> None:
         r"""
-        Change the colour of the laser to the one of the given agent ID.
-        Alias to `source.agent_id = new_agent_id`.
+        Change the laser's colour. Every agent of the new colour can then block and cross it.
+        
+        A colour need not correspond to an agent, so there is no upper bound on it: what is
+        checked is that the beam would not cross the start position of an agent of *another*
+        colour, which would kill that agent on reset.
+        """
+    def set_agent_id(self, new_agent_id: builtins.int) -> None:
+        r"""
+        Deprecated alias for `set_colour`, kept for one release.
         """
     def __eq__(self, other: typing.Any) -> builtins.bool:
         r"""

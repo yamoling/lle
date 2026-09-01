@@ -2,6 +2,7 @@ use std::{collections::HashSet, fmt::Display, vec};
 
 use crate::{
     Position, World,
+    agent::Colour,
     tiles::{Gem, Laser, Tile, Void},
 };
 
@@ -19,6 +20,8 @@ pub struct WorldConfig {
     exits: Vec<Position>,
     walls: Vec<Position>,
     lasers: Vec<(Position, LaserConfig)>,
+    /// The colour of each agent, indexed by agent id. Defaults to the agent id.
+    colours: Vec<Colour>,
 }
 
 impl WorldConfig {
@@ -32,6 +35,7 @@ impl WorldConfig {
         exit_positions: Vec<Position>,
         walls_positions: Vec<Position>,
         source_configs: Vec<(Position, LaserConfig)>,
+        colours: Vec<Colour>,
     ) -> Self {
         Self {
             width,
@@ -42,6 +46,7 @@ impl WorldConfig {
             exits: exit_positions,
             walls: walls_positions,
             lasers: source_configs,
+            colours,
         }
     }
 
@@ -75,6 +80,18 @@ impl WorldConfig {
 
     pub fn sources(&self) -> &Vec<(Position, LaserConfig)> {
         &self.lasers
+    }
+
+    /// The colour of each agent, indexed by agent id.
+    pub fn colours(&self) -> &Vec<Colour> {
+        &self.colours
+    }
+
+    /// Whether two agents share a colour, which the solver forbids and the non-perspective
+    /// observations refuse to represent.
+    pub fn has_shared_colours(&self) -> bool {
+        let mut seen = HashSet::new();
+        !self.colours.iter().all(|c| seen.insert(c))
     }
 
     pub fn add_random_starts(&mut self, starts: Vec<Vec<Position>>) {
@@ -118,6 +135,7 @@ impl WorldConfig {
             self.walls,
             source_positions,
             lasers_positions,
+            self.colours,
         ))
     }
 
@@ -224,18 +242,22 @@ impl WorldConfig {
             let source = source.build(beam_positions.len());
             let mut is_blocked = false;
             for (i, pos) in beam_positions.into_iter().enumerate() {
-                if let Some(agent_starts) = self.random_starts.get(source.agent_id())
-                    && agent_starts.len() == 1
-                    && agent_starts.contains(&pos)
-                {
-                    is_blocked = true;
+                // Any agent of the source's colour blocks the beam where it spawns.
+                for (agent_id, agent_starts) in self.random_starts.iter().enumerate() {
+                    if self.colours.get(agent_id) == Some(&source.colour())
+                        && agent_starts.len() == 1
+                        && agent_starts.contains(&pos)
+                    {
+                        is_blocked = true;
+                    }
                 }
                 let wrapped = grid[pos.i].remove(pos.j);
                 let laser = Tile::Laser(Laser::new(wrapped, source.beam(), i));
                 if !is_blocked {
-                    // Remove the random starts on this location for agents of a different ID if the agent would die on reset
+                    // Remove the random starts on this location for agents of another colour,
+                    // which would die there on reset.
                     for (start_agent_id, starts) in self.random_starts.iter_mut().enumerate() {
-                        if start_agent_id == source.agent_id() {
+                        if self.colours.get(start_agent_id) == Some(&source.colour()) {
                             continue;
                         }
                         starts.retain(|start| *start != pos);

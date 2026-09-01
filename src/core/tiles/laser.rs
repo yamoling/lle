@@ -5,7 +5,7 @@ use std::rc::Rc;
 use crate::RuntimeWorldError;
 use crate::{
     WorldEvent,
-    agent::{Agent, AgentId},
+    agent::{Agent, AgentId, Colour},
     tiles::{Direction, LaserId, Tile},
 };
 
@@ -15,24 +15,25 @@ use super::Gem;
 pub struct LaserBeam {
     beam: RefCell<Vec<bool>>,
     is_enabled: Cell<bool>,
-    agent_id: Cell<AgentId>,
+    colour: Cell<Colour>,
     direction: Direction,
     laser_id: LaserId,
 }
 
 impl LaserBeam {
-    pub fn new(size: usize, agent_id: AgentId, direction: Direction, laser_id: LaserId) -> Self {
+    pub fn new(size: usize, colour: Colour, direction: Direction, laser_id: LaserId) -> Self {
         Self {
             beam: RefCell::new(vec![true; size]),
             is_enabled: Cell::new(true),
-            agent_id: Cell::new(agent_id),
+            colour: Cell::new(colour),
             direction,
             laser_id,
         }
     }
 
-    pub fn agent_id(&self) -> AgentId {
-        self.agent_id.get()
+    /// The beam's colour: every agent of this colour may block and cross it.
+    pub fn colour(&self) -> Colour {
+        self.colour.get()
     }
 
     pub fn direction(&self) -> Direction {
@@ -80,8 +81,8 @@ impl LaserBeam {
         self.laser_id
     }
 
-    pub fn set_agent_id(&self, agent_id: AgentId) {
-        self.agent_id.set(agent_id);
+    pub fn set_colour(&self, colour: Colour) {
+        self.colour.set(colour);
     }
 }
 
@@ -130,8 +131,13 @@ impl Laser {
         self.beam.laser_id()
     }
 
-    pub fn agent_id(&self) -> AgentId {
-        self.beam.agent_id()
+    pub fn colour(&self) -> Colour {
+        self.beam.colour()
+    }
+
+    /// Deprecated alias for [`Self::colour`], kept for one release.
+    pub fn agent_id(&self) -> Colour {
+        self.colour()
     }
 
     pub fn is_on(&self) -> bool {
@@ -175,7 +181,7 @@ impl Laser {
         if self.is_disabled() {
             return res;
         }
-        if agent.is_alive() && agent.id() == self.agent_id() {
+        if agent.is_alive() && agent.colour() == self.colour() {
             self.turn_off();
         }
         res
@@ -183,7 +189,7 @@ impl Laser {
 
     pub fn enter(&mut self, agent: &mut Agent) -> Option<WorldEvent> {
         // Note: turning off the beam happens in `pre_enter`
-        if self.is_on() && agent.id() != self.agent_id() {
+        if self.is_on() && agent.colour() != self.colour() {
             if agent.is_alive() {
                 agent.die();
                 self.turn_on();

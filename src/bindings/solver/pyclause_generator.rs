@@ -61,7 +61,9 @@ impl PyClauseGenerator {
     /// Build a clause generator for the given `world`, considering plans of length up to `t_max`.
     #[new]
     fn new(world: &PyWorld, t_max: usize) -> PyResult<Self> {
-        let inner = world.with_world(|world| ClauseGenerator::new(world, t_max));
+        let inner = world
+            .with_world(|world| ClauseGenerator::new(world, t_max))
+            .map_err(crate::bindings::pyexceptions::solver_error_to_exception)?;
         let solution_lower_bound = inner.solution_lower_bound();
         Ok(Self {
             inner,

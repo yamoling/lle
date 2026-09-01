@@ -172,10 +172,13 @@ X . . . S1 . . . . .
 """
 
 [[agents]]
-start_positions = [{ i_min = 0, i_max = 0 }]
+# Deduced from the string map: the `S1` token declares agent 0, of colour 1, at (0, 4).
+# The token number is the agent's *colour*, not an index into this list (agent-colour-id.md
+# §3.4): agents are created from the world string in `(colour, reading order)` order, then
+# aligned with these blocks positionally.
 
 [[agents]]
-# Deduced from the string map that agent 1 has a start position at (0, 5).
+start_positions = [{ i_min = 0, i_max = 0 }]
 
 [[agents]]
 start_positions = [{ i = 0, j = 5 }, { i = 3, j = 5 }]
@@ -190,6 +193,10 @@ start_positions = [
     let w = World::try_from(toml_content).unwrap();
     assert_eq!(w.exits_positions().len(), 6);
     assert_eq!(w.gems_positions().len(), 1);
+    assert_eq!(w.n_agents(), 4);
+    // Agent 0 gets its only start from the world string, and its colour from the token.
+    assert_eq!(w.possible_starts()[0], vec![Position { i: 0, j: 4 }]);
+    assert_eq!(w.agent_colours(), vec![1, 1, 2, 3]);
 }
 
 #[test]

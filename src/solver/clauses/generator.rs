@@ -41,9 +41,23 @@ pub struct ClauseGenerator {
 }
 
 impl ClauseGenerator {
-    pub fn new(world: &World, t_max: usize) -> Self {
+    /// Build a generator for `world`, or fail if two agents share a colour.
+    ///
+    /// The encoding treats a laser colour as its single owning agent, so colour sharing is a
+    /// checked precondition rather than a supported case (`.agents/plans/agent-colour-id.md` §2).
+    pub fn new(world: &World, t_max: usize) -> Result<Self, SolverError> {
+        let mut agents_by_colour: std::collections::BTreeMap<usize, Vec<usize>> = Default::default();
+        for (agent_id, colour) in world.agent_colours().into_iter().enumerate() {
+            agents_by_colour.entry(colour).or_default().push(agent_id);
+        }
+        if let Some((&colour, agents)) = agents_by_colour.iter().find(|(_, a)| a.len() > 1) {
+            return Err(SolverError::SharedColour {
+                colour,
+                agents: agents.clone(),
+            });
+        }
         let capacity = t_max + 1;
-        Self {
+        Ok(Self {
             layout: LayoutFacts::new(world),
             engine: ClauseEngine::new(world, t_max),
             movements: StepBuffer::new(ClauseEngine::generate_movement_clauses, capacity),
@@ -61,7 +75,7 @@ impl ClauseGenerator {
                 ClauseEngine::assume_no_cooperation_at,
                 capacity,
             ),
-        }
+        })
     }
 
     /// Reduce a mode whose forbidden profile is structurally impossible to the standard mode.

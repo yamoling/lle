@@ -6,7 +6,7 @@
 //! `World::try_from` signature — repeated `S<c>` tokens, colour-major ids, colour-based blocking —
 //! lives in `test_world.rs` instead.
 
-use crate::{Action, Position, World, WorldEvent, tiles::Laser};
+use crate::{Action, Position, World, tiles::Laser};
 
 fn pos(i: usize, j: usize) -> Position {
     Position { i, j }

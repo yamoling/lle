@@ -90,10 +90,10 @@ impl Renderer {
             };
             self.draw_gem(gem, &mut data);
         }
-        for (id, pos) in world.agents_positions().iter().enumerate() {
+        for (agent, pos) in izip!(world.agents(), world.agents_positions()) {
             let x = pos.x() as u32 * TILE_SIZE;
             let y = pos.y() as u32 * TILE_SIZE;
-            add_transparent_image(&mut frame, sprites::agent(id), x, y);
+            add_transparent_image(&mut frame, sprites::agent(agent.colour()), x, y);
         }
         for (pos, source) in world.sources() {
             let mut data = VisitorData {
@@ -186,10 +186,10 @@ impl Renderer {
 
     fn draw_laser(&self, laser: &Laser, data: &mut VisitorData) {
         if laser.is_on() {
-            let agent_id = laser.agent_id();
+            let colour = laser.colour();
             let laser_sprite = match laser.direction() {
-                Direction::North | Direction::South => sprites::vertical_laser(agent_id),
-                Direction::East | Direction::West => sprites::horizontal_laser(agent_id),
+                Direction::North | Direction::South => sprites::vertical_laser(colour),
+                Direction::East | Direction::West => sprites::horizontal_laser(colour),
             };
             add_transparent_image(data.frame, laser_sprite, data.x, data.y);
         }
@@ -198,12 +198,12 @@ impl Renderer {
     }
 
     fn draw_laser_source(&self, source: &LaserSource, data: &mut VisitorData) {
-        let agent_id = source.agent_id();
+        let colour = source.colour();
         let source_sprite = match source.direction() {
-            Direction::North => sprites::laser_source_north(agent_id),
-            Direction::East => sprites::laser_source_east(agent_id),
-            Direction::South => sprites::laser_source_south(agent_id),
-            Direction::West => sprites::laser_source_west(agent_id),
+            Direction::North => sprites::laser_source_north(colour),
+            Direction::East => sprites::laser_source_east(colour),
+            Direction::South => sprites::laser_source_south(colour),
+            Direction::West => sprites::laser_source_west(colour),
         };
         data.frame.copy_from(source_sprite, data.x, data.y).unwrap();
     }

@@ -3,7 +3,7 @@ use std::{cmp::Ordering, collections::HashSet};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use crate::{ParseError, Position};
+use crate::{ParseError, Position, agent::Colour};
 
 use super::PositionsConfig;
 
@@ -12,6 +12,10 @@ use super::PositionsConfig;
 pub struct AgentConfig {
     #[serde(default, alias = "start_positions")]
     pub starts: Vec<PositionsConfig>,
+    /// The agent's laser colour. Defaults to the agent's id, which is the historical behaviour
+    /// (id and colour were the same integer). Several agents may declare the same colour.
+    #[serde(default, alias = "color")]
+    pub colour: Option<Colour>,
 }
 
 impl AgentConfig {

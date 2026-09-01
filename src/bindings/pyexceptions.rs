@@ -53,11 +53,6 @@ pub fn parse_error_to_exception(error: ParseError) -> PyErr {
         ));
     }
     let msg = match error {
-        ParseError::DuplicateStartTile {
-            agent_id,
-            start1,
-            start2,
-        } => format!("Agent {agent_id} has two start tiles: {start1:?} and {start2:?}"),
         ParseError::InconsistentDimensions {
             row_str,
             expected_n_cols,
@@ -201,6 +196,13 @@ pub fn solver_error_to_exception(error: crate::solver::errors::SolverError) -> P
         crate::solver::errors::SolverError::MissingPosition { agent, t } => SolverError::new_err(
             format!("Incomplete model: agent {agent} has no decoded position at time step {t}."),
         ),
+        // Handing the solver a colour-sharing world is a caller mistake, like an invalid mode
+        // parameter, rather than an illegal solver state.
+        crate::solver::errors::SolverError::SharedColour { colour, agents } => {
+            PyValueError::new_err(format!(
+                "Agents {agents:?} share the colour {colour}. The solver requires every colour to belong to exactly one agent."
+            ))
+        }
         // An invalid mode parameter is a caller mistake rather than an illegal solver state.
         crate::solver::errors::SolverError::InvalidModeParameter {
             variant,

@@ -1,6 +1,6 @@
 [package]
 name = "lle"
-version = "2.11.4"
+version = "2.12.0"
 edition = "2024"
 description = "Cooperative MARL environment based on laser-blocking."
 readme = "readme.md"

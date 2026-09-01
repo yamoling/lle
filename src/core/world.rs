@@ -6,8 +6,8 @@ use std::{
 };
 
 use crate::{
-    Action, AgentId, ParseError, Position, RuntimeWorldError, WorldEvent, WorldState,
-    agent::Agent,
+    Action, ParseError, Position, RuntimeWorldError, WorldEvent, WorldState,
+    agent::{Agent, Colour},
     core::{
         levels,
         parsing::{WorldConfig, parse},
@@ -54,11 +54,12 @@ impl World {
         walls_positions: Vec<Position>,
         source_positions: Vec<Position>,
         lasers_positions: Vec<Position>,
+        agent_colours: Vec<Colour>,
     ) -> Self {
         let agents: Vec<Agent> = random_start_positions
             .iter()
             .enumerate()
-            .map(|(id, _)| Agent::new(id as AgentId))
+            .map(|(id, _)| Agent::new(id, agent_colours[id]))
             .collect();
         let n_agents = agents.len();
         let mut w = Self {
@@ -89,15 +90,24 @@ impl World {
 
     /// The size of the colour space: `1 + max(colour)` over agent and laser-source colours.
     /// Observation bands are indexed by colour, so this covers the largest colour value even
-    /// when the colour space is sparse.
-    ///
-    /// **Not implemented yet** — see `.agents/plans/agent-colour-id.md` §3.2.
+    /// when the colour space is sparse (e.g. agents of colours `{0, 2}` give `3`).
     pub fn n_colours(&self) -> usize {
-        todo!("World::n_colours: see .agents/plans/agent-colour-id.md §3.2")
+        let max_agent_colour = self.agents.iter().map(|a| a.colour()).max();
+        let max_laser_colour = self.sources().map(|(_, s)| s.colour()).max();
+        match max_agent_colour.into_iter().chain(max_laser_colour).max() {
+            Some(max) => max + 1,
+            None => 0,
+        }
     }
 
+    /// The colour of each agent, indexed by agent id.
+    pub fn agent_colours(&self) -> Vec<Colour> {
+        self.agents.iter().map(|a| a.colour()).collect()
+    }
+
+    /// The number of *distinct* laser colours in the world.
     pub fn n_laser_colours(&self) -> usize {
-        self.sources().map(|(_, s)| s.agent_id()).unique().count()
+        self.sources().map(|(_, s)| s.colour()).unique().count()
     }
 
     pub fn seed(&mut self, seed: u64) {
@@ -115,6 +125,7 @@ impl World {
             self.exits.clone(),
             self.wall_positions.clone(),
             source_configs,
+            self.agent_colours(),
         )
     }
 

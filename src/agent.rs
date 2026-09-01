@@ -8,14 +8,16 @@ pub type Colour = usize;
 #[derive(Debug, Clone)]
 pub struct Agent {
     id: AgentId,
+    colour: Colour,
     dead: bool,
     arrived: bool,
 }
 
 impl Agent {
-    pub fn new(id: AgentId) -> Self {
+    pub fn new(id: AgentId, colour: Colour) -> Self {
         Self {
             id,
+            colour,
             dead: false,
             arrived: false,
         }
@@ -51,12 +53,9 @@ impl Agent {
     }
 
     /// The agent's colour, which decides which laser beams it may block and cross.
-    ///
-    /// **Not implemented yet** — see `.agents/plans/agent-colour-id.md` §3.1. Declared ahead of
-    /// its implementation so that `src/unit_tests/test_agent_colour.rs` compiles and fails at
-    /// runtime, instead of taking down the whole test binary.
+    /// Several agents may share a colour.
     pub fn colour(&self) -> Colour {
-        todo!("Agent::colour: see .agents/plans/agent-colour-id.md §3.1")
+        self.colour
     }
 }
 
