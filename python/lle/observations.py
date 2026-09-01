@@ -369,6 +369,45 @@ class PartialGenerator(ObservationGenerator):
         return laser_positions
 
 
+class PerspectiveLayered(ObservationGenerator):
+    """Full-observability layered observation, centred on the observing agent.
+
+    **Not implemented yet** — see `.agents/plans/agent-colour-id.md` §5.1, and the tests in
+    `python/tests/test_observations.py`. The intended semantics:
+
+    - a `(2·height − 1, 2·width − 1)` canvas with the observing agent at the exact centre, so its
+      identity is unambiguous however many agents share its colour;
+    - cells outside the map are marked in the `WALL` layer;
+    - one agent layer and one laser layer per colour, every agent stamped into its colour's layer;
+    - the observing agent's colour transposed with 0, so an agent always sees itself as colour 0.
+
+    This class is declared ahead of its implementation so that `test_observations.py` imports
+    cleanly: a module-level import of a missing name aborts collection of the whole test session
+    instead of failing the tests that need it.
+    """
+
+    A0: int
+    LASER_0: int
+    WALL: int
+    VOID: int
+    GEM: int
+    EXIT: int
+
+    def __init__(self, world: World):
+        raise NotImplementedError("PerspectiveLayered: see .agents/plans/agent-colour-id.md §5.1")
+
+    def observe(self) -> npt.NDArray[np.float32]:
+        raise NotImplementedError
+
+    @property
+    def obs_type(self) -> ObservationType:
+        raise NotImplementedError
+
+    @property
+    def shape(self) -> tuple[int, ...]:
+        raise NotImplementedError
+
+
 class AgentZeroPerspective(Layered):
     def __init__(self, world: World):
         super().__init__(world)

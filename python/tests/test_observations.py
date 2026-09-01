@@ -1,8 +1,9 @@
 from typing import get_args
 
 import numpy as np
+import pytest
 from lle import LLE, Action, ObservationType, World
-from lle.observations import AgentZeroPerspective, Layered, ObservationTypeLiteral, PartialGenerator
+from lle.observations import Layered, ObservationTypeLiteral, PartialGenerator, PerspectiveLayered
 
 
 def test_typing_observation_type_literal():
@@ -191,12 +192,12 @@ def test_observe_flattened():
     observer = ObservationType.FLATTENED.get_observation_generator(world)
     #  4 layers: walls, gems, exits, voids
     # +2 layer per agent: location, lasers
-    assert observer.shape == (world.width * world.height * (world.n_agents * 2 + 4),)
+    assert observer.shape == (world.width * world.height * (world.n_colours * 2 + 4),)
     world.reset()
     obs = observer.observe()
     assert obs.shape == (
         1,
-        (world.n_agents * 2 + 4) * world.width * world.height,
+        (world.n_colours * 2 + 4) * world.width * world.height,
     )
 
 
@@ -306,7 +307,7 @@ S0 S1 S2 S3 X X X X
     # Others
     assert np.all(observations[:, observer.WALL] == 0)
     assert np.all(observations[:, observer.GEM] == 0)
-    assert np.all(observations[:, observer.LASER_0 : observer.LASER_0 + world.n_agents] == 0)
+    assert np.all(observations[:, observer.LASER_0 : observer.LASER_0 + world.n_colours] == 0)
 
 
 def test_partial_3x3_lasers():
@@ -344,35 +345,82 @@ def test_padded_layered():
     assert obs.shape[1:] == baseline.shape[1:]
 
 
-def test_perspective():
+def test_perspective_is_centred_on_the_observing_agent():
     world = World("""
                   S0  S1 S2 X
                   L0E .  X  .
                    .  .  X L1W
                   """)
     world.reset()
-    generator = AgentZeroPerspective(world)
-    A0 = generator.A0
-    L0 = generator.LASER_0
+    generator = PerspectiveLayered(world)
     obs = generator.observe()
 
-    assert obs.shape == (3, *generator.shape)
-    obs0 = obs[0]
-    obs1 = obs[1]
-    obs2 = obs[2]
+    # Full observability on a canvas large enough to centre the agent wherever it stands.
+    assert generator.shape == (world.n_colours * 2 + 4, 2 * world.height - 1, 2 * world.width - 1)
+    assert obs.shape == (world.n_agents, *generator.shape)
 
-    assert obs0[A0, 0, 0] == 1
-    assert obs1[A0, 0, 1] == 1
-    assert obs2[A0, 0, 2] == 1
-
-    assert obs0[L0, 1, 0] == -1
-    assert np.all(obs0[L0, 1, 1:] == 1)
-
-    assert obs1[L0, 2, 3] == -1
-    assert np.all(obs1[L0, 2, :3] == 1)
+    centre = (world.height - 1, world.width - 1)
+    for num in range(world.n_agents):
+        # Each agent sees itself at the centre, in the canonical colour-0 layer.
+        assert obs[num][generator.A0][centre] == 1.0, f"Agent {num} is not at the centre"
 
 
-def test_perspective2():
+def test_perspective_canonicalises_the_observing_agents_colour_to_zero():
+    world = World("""
+                  S0  S1 S2 X
+                  L0E .  X  .
+                   .  .  X L1W
+                  """)
+    world.reset()
+    generator = PerspectiveLayered(world)
+    obs = generator.observe()
+
+    def shift(agent_num: int):
+        i, j = world.agents_positions[agent_num]
+        return world.height - 1 - i, world.width - 1 - j
+
+    # Agent 0 has colour 0: the permutation is the identity.
+    di, dj = shift(0)
+    assert obs[0][generator.LASER_0, 1 + di, 0 + dj] == -1.0
+    assert obs[0][generator.LASER_0 + 1, 2 + di, 3 + dj] == -1.0
+    # Agent 1 has colour 1: its own colour maps to 0, and colour 0 takes slot 1.
+    di, dj = shift(1)
+    assert obs[1][generator.LASER_0, 2 + di, 3 + dj] == -1.0
+    assert obs[1][generator.LASER_0 + 1, 1 + di, 0 + dj] == -1.0
+
+
+def test_perspective_same_colour_agents_share_their_layer():
+    """The point of the whole change: agents of one colour stamp one layer, like lasers do.
+    Identity is preserved by the centring, not by the layer index."""
+    world = World("S0 S0 X X")
+    world.reset()
+    generator = PerspectiveLayered(world)
+    obs = generator.observe()
+
+    assert world.n_agents == 2
+    centre = (world.height - 1, world.width - 1)
+    for num in range(world.n_agents):
+        agent_layer = obs[num][generator.A0]
+        assert agent_layer.sum() == 2.0, "Both colour-0 agents appear in the colour-0 layer"
+        assert agent_layer[centre] == 1.0, "The observing agent is the one at the centre"
+
+
+def test_perspective_off_map_cells_are_walls():
+    world = World("S0 X .\n.  . G")
+    world.reset()
+    generator = PerspectiveLayered(world)
+    obs = generator.observe()[0]
+    # Agent 0 sits at (0, 0), so everything north and west of the centre is outside the map.
+    centre_i, centre_j = world.height - 1, world.width - 1
+    assert obs[generator.WALL, centre_i - 1, centre_j] == 1.0
+    assert obs[generator.WALL, centre_i, centre_j - 1] == 1.0
+    assert obs[generator.WALL, centre_i, centre_j] == 0.0
+
+
+def test_perspective_matches_layered_modulo_translation_and_colour_swap():
+    """Replaces the old `test_perspective2`, which pinned the layer-swap definition: the view is
+    now the layered view translated so the agent lands at the centre, with its colour swapped
+    into slot 0."""
     world = World("""
                   S0  S1 S2
                    .   .  .
@@ -382,7 +430,7 @@ def test_perspective2():
                   """)
     world.reset()
     baseline = Layered(world)
-    generator = AgentZeroPerspective(world)
+    generator = PerspectiveLayered(world)
 
     for actions in (None, [Action.SOUTH, Action.SOUTH, Action.SOUTH]):
         if actions is not None:
@@ -390,21 +438,65 @@ def test_perspective2():
 
         layered_obs = baseline.observe()
         perspective_obs = generator.observe()
-        assert perspective_obs.shape == (world.n_agents, *generator.shape)
 
-        for observer, position in enumerate(world.agents_positions):
+        for observer, (i, j) in enumerate(world.agents_positions):
+            colour = world.agents[observer].colour
             expected = np.copy(layered_obs[observer])
-            expected[[generator.A0, generator.A0 + observer]] = expected[[generator.A0 + observer, generator.A0]]
-            expected[[generator.LASER_0, generator.LASER_0 + observer]] = expected[[generator.LASER_0 + observer, generator.LASER_0]]
-
-            np.testing.assert_array_equal(perspective_obs[observer], expected)
-            assert perspective_obs[observer, generator.A0, position[0], position[1]] == 1.0
+            expected[[generator.A0, generator.A0 + colour]] = expected[[generator.A0 + colour, generator.A0]]
+            expected[[generator.LASER_0, generator.LASER_0 + colour]] = expected[
+                [generator.LASER_0 + colour, generator.LASER_0]
+            ]
+            di, dj = world.height - 1 - i, world.width - 1 - j
+            window = perspective_obs[observer][:, di : di + world.height, dj : dj + world.width]
+            np.testing.assert_array_equal(window, expected)
 
 
 def test_perspective_generator_reports_its_observation_type():
-    generator = AgentZeroPerspective(World("S0 X"))
+    generator = PerspectiveLayered(World("S0 X"))
 
-    assert generator.obs_type is ObservationType.AGENT0_PERSPECTIVE_LAYERED
+    assert generator.obs_type is ObservationType.PERSPECTIVE
+
+
+def test_perspective_cannot_reconstruct_a_world_state():
+    world = World("S0 S0 X X")
+    world.reset()
+    generator = PerspectiveLayered(world)
+    with pytest.raises(NotImplementedError):
+        generator.to_world_state(generator.observe()[0])
+
+
+def test_layered_agent_layers_are_keyed_by_colour():
+    """Colours may be sparse without being shared: the agent band is sized by the colour space."""
+    world = World("S0 S2 X X")
+    world.reset()
+    generator = Layered(world)
+    assert world.n_colours == 3
+    assert generator.shape == (world.n_colours * 2 + 4, world.height, world.width)
+
+    obs = generator.observe()[0]
+    (i0, j0), (i1, j1) = world.agents_positions
+    assert obs[generator.A0, i0, j0] == 1.0
+    assert obs[generator.A0 + 2, i1, j1] == 1.0, "The colour-2 agent belongs in the colour-2 layer"
+    assert np.all(obs[generator.A0 + 1] == 0.0), "No agent has colour 1"
+
+
+def test_partial_layers_are_keyed_by_colour():
+    world = World("S0 S2 X X")
+    world.reset()
+    generator = PartialGenerator(world, 3)
+    assert generator.shape == (world.n_colours * 2 + 3, 3, 3)
+
+
+@pytest.mark.parametrize(
+    "obs_type",
+    ["layered", "flattened", "partial3x3", "layered-padded-2"],
+)
+def test_non_perspective_generators_refuse_shared_colours(obs_type: str):
+    """Once two agents share a colour, a non-centred observation cannot say which of them it is
+    addressed to, so these generators refuse to be built (plan §5.2)."""
+    world = World("S0 S0 X X")
+    with pytest.raises(ValueError, match="perspective"):
+        ObservationType.from_str(obs_type).get_observation_generator(world)
 
 
 def _perform_tests_extras_one_agent(env: LLE):
@@ -497,13 +589,20 @@ def test_extras_subgoals_extras_two_lasers_two_agents():
     _perform_tests_two_agents(env)
 
 
-def test_layered_observation_laser_source_agent_id_above_n_agents():
-    world = World("S0 L1E X")
+def test_laser_colour_above_n_agents_does_not_alias_into_the_wall_layer():
+    """A laser colour beyond `n_agents` used to alias into the WALL band, because the LASER band
+    was `n_agents` wide. Both bands are now sized by the colour space (plan §3.2, §5.4)."""
+    world = World("S0 L1E X\n@  .   .")
     generator = Layered(world)
+    assert world.n_colours == 2
+    assert generator.shape == (world.n_colours * 2 + 4, world.height, world.width)
     data = generator.observe()
     laser_1_layer = data[0, generator.LASER_0 + 1]
     assert laser_1_layer[0, 1] == -1
     assert laser_1_layer[0, 2] == 1
+    # The wall is in the WALL layer, and nowhere near the laser band.
+    assert data[0, generator.WALL, 1, 0] == 1
+    assert laser_1_layer[1, 0] == 0
 
 
 def test_all_shapes():

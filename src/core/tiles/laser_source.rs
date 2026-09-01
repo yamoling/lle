@@ -24,6 +24,13 @@ impl LaserSource {
         self.beam.agent_id()
     }
 
+    /// The beam's colour. Every agent of this colour may block and cross the beam.
+    ///
+    /// **Not implemented yet** — see `.agents/plans/agent-colour-id.md` §3.1.
+    pub fn colour(&self) -> AgentId {
+        todo!("LaserSource::colour: see .agents/plans/agent-colour-id.md §3.1")
+    }
+
     pub fn direction(&self) -> Direction {
         self.beam.direction()
     }

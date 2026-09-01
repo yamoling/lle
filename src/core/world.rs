@@ -87,6 +87,15 @@ impl World {
         self.agents.len()
     }
 
+    /// The size of the colour space: `1 + max(colour)` over agent and laser-source colours.
+    /// Observation bands are indexed by colour, so this covers the largest colour value even
+    /// when the colour space is sparse.
+    ///
+    /// **Not implemented yet** — see `.agents/plans/agent-colour-id.md` §3.2.
+    pub fn n_colours(&self) -> usize {
+        todo!("World::n_colours: see .agents/plans/agent-colour-id.md §3.2")
+    }
+
     pub fn n_laser_colours(&self) -> usize {
         self.sources().map(|(_, s)| s.agent_id()).unique().count()
     }
@@ -654,3 +663,7 @@ impl Clone for World {
 #[cfg(test)]
 #[path = "../unit_tests/test_world.rs"]
 mod test;
+
+#[cfg(test)]
+#[path = "../unit_tests/test_agent_colour.rs"]
+mod test_agent_colour;

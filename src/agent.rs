@@ -2,6 +2,9 @@ use std::fmt::Display;
 
 pub type AgentId = usize;
 
+/// A laser colour. Several agents may share one — see `.agents/plans/agent-colour-id.md`.
+pub type Colour = usize;
+
 #[derive(Debug, Clone)]
 pub struct Agent {
     id: AgentId,
@@ -45,6 +48,15 @@ impl Agent {
 
     pub fn id(&self) -> AgentId {
         self.id
+    }
+
+    /// The agent's colour, which decides which laser beams it may block and cross.
+    ///
+    /// **Not implemented yet** — see `.agents/plans/agent-colour-id.md` §3.1. Declared ahead of
+    /// its implementation so that `src/unit_tests/test_agent_colour.rs` compiles and fails at
+    /// runtime, instead of taking down the whole test binary.
+    pub fn colour(&self) -> Colour {
+        todo!("Agent::colour: see .agents/plans/agent-colour-id.md §3.1")
     }
 }
 

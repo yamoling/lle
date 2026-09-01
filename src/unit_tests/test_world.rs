@@ -60,18 +60,137 @@ fn test_tile_type() {
     assert!(world.wall_positions.contains(&Position { i: 1, j: 0 }));
 }
 
+/// See `.agents/plans/agent-colour-id.md` §3.4: a repeated `S<c>` token no longer is a
+/// `DuplicateStartTile` error, it declares several agents that share the colour `c`.
 #[test]
-fn test_duplicate_start_pos() {
-    match World::try_from("S0 S0 X X") {
-        Ok(..) => panic!("Should not be able to build a world with duplicate start positions"),
-        Err(err) => match err {
-            ParseError::DuplicateStartTile { start1, start2, .. } => {
-                assert_eq!(start1, Position { i: 0, j: 0 });
-                assert_eq!(start2, Position { i: 0, j: 1 });
-            }
-            other => panic!("Expected DuplicateStartTile error, got {other:?}"),
-        },
-    }
+fn test_repeated_start_token_declares_several_agents() {
+    let world = World::try_from("S0 S0 X X").unwrap();
+    assert_eq!(world.n_agents(), 2);
+    assert_eq!(world.possible_starts()[0], vec![pos(0, 0)]);
+    assert_eq!(world.possible_starts()[1], vec![pos(0, 1)]);
+    // (That both agents have colour 0 is asserted in `test_agent_colour.rs`, which needs the
+    // `Agent::colour` API.)
+}
+
+/// Agents are ordered by `(colour, reading order)`, never by reading order alone: the lone
+/// colour-0 agent is id 0 even though it is written last. See §3.4a — a plain reading-order rule
+/// would silently permute the agents of every level whose tokens are not in numeric order (cf.
+/// `test_start_pos_order` below).
+#[test]
+fn test_agent_ids_are_colour_major() {
+    let world = World::try_from("S1 S1 S0 X X X").unwrap();
+    assert_eq!(world.n_agents(), 3);
+    assert_eq!(world.possible_starts()[0], vec![pos(0, 2)]);
+    assert_eq!(world.possible_starts()[1], vec![pos(0, 0)]);
+    assert_eq!(world.possible_starts()[2], vec![pos(0, 1)]);
+}
+
+/// Gaps in the token numbering used to be a `ParseError::AgentWithoutStart`. Now that colour is
+/// independent of agent count, they describe a sparse colour space (§3.4b).
+#[test]
+fn test_sparse_colour_tokens_are_legal() {
+    let world = World::try_from("S0 S2 X X").unwrap();
+    assert_eq!(world.n_agents(), 2);
+}
+
+/// The v1 format can express a shared-colour world, so `world_string()` must round-trip it
+/// without falling back to TOML (§3.4d).
+#[test]
+fn test_repeated_tokens_round_trip_through_v1() {
+    let world = World::try_from("S0 S0 X X").unwrap();
+    let string = world.world_string();
+    assert!(
+        !string.contains("colour"),
+        "Expected a v1 string, got:\n{string}"
+    );
+    let round_tripped = World::try_from(string).unwrap();
+    assert_eq!(round_tripped.n_agents(), 2);
+    assert_eq!(round_tripped.possible_starts(), world.possible_starts());
+}
+
+/// Two agents written as `S1` share colour 1, so neither dies on a colour-1 beam and either of
+/// them switches it off. This is the core rule change (§3.1).
+#[test]
+fn test_same_colour_agents_are_immune_to_their_beam() {
+    let mut world = World::try_from(
+        "
+    S1  .  .  X
+    L1E .  .  .
+    .   S1 .  X
+    ",
+    )
+    .unwrap();
+    world.reset();
+    assert_eq!(world.n_agents(), 2);
+    assert!(get_laser(&world, pos(1, 1)).is_on());
+
+    // Agent 1 steps from (2, 1) onto the beam at (1, 1).
+    let events = world.step(&[Action::Stay, Action::North]).unwrap();
+    assert!(
+        events.is_empty(),
+        "An agent of the beam's colour must survive it, got {events:?}"
+    );
+    assert!(world.agents()[1].is_alive());
+    assert!(
+        get_laser(&world, pos(1, 1)).is_off(),
+        "An agent of the beam's colour must switch the beam off"
+    );
+    assert!(get_laser(&world, pos(1, 2)).is_off());
+}
+
+/// Both same-colour agents stand on the same beam; when the upstream one leaves, the downstream
+/// one keeps blocking on its own behalf.
+#[test]
+fn test_two_same_colour_agents_on_one_beam() {
+    let mut world = World::try_from(
+        "
+    S1  .  .  X
+    L1E .  .  .
+    .   S1 .  X
+    ",
+    )
+    .unwrap();
+    world.reset();
+    // Bring agent 0 to (0, 1) and agent 1 to (2, 2), then both onto the beam at once.
+    world.step(&[Action::East, Action::East]).unwrap();
+    let events = world.step(&[Action::South, Action::North]).unwrap();
+    assert!(events.is_empty(), "Both agents share the colour: {events:?}");
+    assert_eq!(world.agents_positions(), &vec![pos(1, 1), pos(1, 2)]);
+
+    let events = world.step(&[Action::North, Action::Stay]).unwrap();
+    assert!(
+        events.is_empty(),
+        "The downstream agent blocks the beam itself: {events:?}"
+    );
+    assert!(world.agents()[1].is_alive());
+    assert!(
+        get_laser(&world, pos(1, 1)).is_on(),
+        "The tile the blocker left must light up again"
+    );
+    assert!(get_laser(&world, pos(1, 2)).is_off());
+    assert!(get_laser(&world, pos(1, 3)).is_off());
+}
+
+/// An agent whose colour differs from the beam's still dies. Control test: today's behaviour,
+/// which must not change.
+#[test]
+fn test_different_colour_agent_still_dies_on_beam() {
+    let mut world = World::try_from(
+        "
+    S0  .  .  X
+    L0E .  .  .
+    .   S1 .  X
+    ",
+    )
+    .unwrap();
+    world.reset();
+    let events = world.step(&[Action::Stay, Action::North]).unwrap();
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, WorldEvent::AgentDied { agent_id: 1 })),
+        "An agent of a different colour must die on an active beam, got {events:?}"
+    );
 }
 
 #[test]
