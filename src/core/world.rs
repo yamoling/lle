@@ -532,6 +532,7 @@ impl World {
         }
     }
 
+    /// Restore the world's agents and gems to an explicitly supplied state.
     pub fn set_state(&mut self, state: &WorldState) -> Result<Vec<WorldEvent>, RuntimeWorldError> {
         if state.gems_collected.len() != self.n_gems() {
             return Err(RuntimeWorldError::InvalidNumberOfGems {
@@ -568,8 +569,15 @@ impl World {
         }
         // Collect the necessary gems BEFORE entering the tiles with the agents
         for (pos, &collect) in izip!(&self.gems_positions, &state.gems_collected) {
-            if collect && let Tile::Gem(gem) = &mut self.grid[pos.i][pos.j] {
-                gem.collect();
+            if collect {
+                match &mut self.grid[pos.i][pos.j] {
+                    Tile::Gem(gem) => gem.collect(),
+                    Tile::Laser(laser) => laser
+                        .gem_mut()
+                        .expect("Every gem position should contain a gem")
+                        .collect(),
+                    _ => unreachable!("Every gem position should contain a gem"),
+                }
             }
         }
         for (pos, agent) in izip!(&state.agents_positions, &self.agents) {

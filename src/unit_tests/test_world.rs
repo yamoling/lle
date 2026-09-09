@@ -154,7 +154,10 @@ fn test_two_same_colour_agents_on_one_beam() {
     // Bring agent 0 to (0, 1) and agent 1 to (2, 2), then both onto the beam at once.
     world.step(&[Action::East, Action::East]).unwrap();
     let events = world.step(&[Action::South, Action::North]).unwrap();
-    assert!(events.is_empty(), "Both agents share the colour: {events:?}");
+    assert!(
+        events.is_empty(),
+        "Both agents share the colour: {events:?}"
+    );
     assert_eq!(world.agents_positions(), &vec![pos(1, 1), pos(1, 2)]);
 
     let events = world.step(&[Action::North, Action::Stay]).unwrap();
@@ -586,6 +589,22 @@ fn test_force_state() {
     assert_eq!(w.agents_positions()[0], (1, 2));
     let gem = w.gems()[0];
     assert!(gem.is_collected());
+}
+
+/// A state round trip must restore gems covered by laser tiles.
+#[test]
+fn test_force_state_with_gem_under_laser() {
+    let mut world = World::try_from(
+        "
+        .  G   X
+        S0 L0N .
+    ",
+    )
+    .unwrap();
+    let state = WorldState::new_alive([(1, 0).into()].into(), [true].into());
+    world.set_state(&state).unwrap();
+    assert_eq!(world.get_state(), state);
+    assert!(world.gems()[0].is_collected());
 }
 
 #[test]

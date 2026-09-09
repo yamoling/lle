@@ -127,6 +127,14 @@ impl Laser {
         }
     }
 
+    pub fn gem_mut(&mut self) -> Option<&mut Gem> {
+        match self.wrapped.as_mut() {
+            Tile::Gem(gem) => Some(gem),
+            Tile::Laser(laser) => laser.gem_mut(),
+            _ => None,
+        }
+    }
+
     pub fn laser_id(&self) -> LaserId {
         self.beam.laser_id()
     }

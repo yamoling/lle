@@ -592,7 +592,8 @@ impl PyWorld {
     pub fn __setstate__(&mut self, state: (String, PyWorldState)) -> PyResult<()> {
         let world = match World::try_from(state.0) {
             Ok(mut w) => {
-                w.set_state(&state.1.into()).unwrap();
+                w.set_state(&state.1.into())
+                    .map_err(runtime_error_to_pyexception)?;
                 w
             }
             Err(e) => panic!("Could not parse the world: {:?}", e),
