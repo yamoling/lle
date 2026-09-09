@@ -70,8 +70,11 @@ def generate(width: int = 10, height: int = 10, n_agents: int = 3, t_max: int | 
     """Start a world-generation request.
 
     Returns a fluent `GeneratorBuilder` configured for a `width` × `height` grid
-    with `n_agents` agents and solver horizon `t_max`. Chain configuration methods and finish with a
-    terminal:
+    with `n_agents` agents and solver horizon `t_max`. When `t_max` is `"auto"`,
+    the horizon is `width * height // 2`. No gems are placed unless `gems(n)` is
+    called; calling it places exactly `n` gems.
+
+    Chain configuration methods and finish with a terminal:
 
     - Layout: `random()`, `lanes()`, `clustered()`, or fine-grained
       `starts(...)` / `exits(...)`.
