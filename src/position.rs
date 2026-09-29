@@ -1,4 +1,4 @@
-use std::ops::Add;
+use std::ops::{Add, Sub};
 
 use serde::{Deserialize, Serialize};
 
@@ -7,7 +7,7 @@ use crate::{
     tiles::{CardinalDirection, Direction, VerticalDirection},
 };
 
-#[derive(Debug, Clone, Copy, Eq, Hash, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, Eq, Hash, PartialEq, Deserialize, Serialize)]
 pub struct Position {
     pub i: usize,
     pub j: usize,
@@ -25,6 +25,10 @@ impl Position {
 
     pub fn as_ijk(&self) -> (usize, usize, usize) {
         (self.i, self.j, self.k)
+    }
+
+    pub fn as_ij(&self) -> (usize, usize) {
+        (self.i, self.j)
     }
 
     pub fn x(&self) -> usize {
@@ -126,15 +130,25 @@ impl From<Position> for (usize, usize, usize) {
     }
 }
 
-impl PartialEq<Position> for Position {
-    fn eq(&self, other: &Position) -> bool {
-        self.i == other.i && self.j == other.j && self.k == other.k
-    }
-}
-
 impl PartialEq<(usize, usize, usize)> for Position {
     fn eq(&self, other: &(usize, usize, usize)) -> bool {
         self.i == other.0 && self.j == other.1 && self.k == other.2
+    }
+}
+
+impl Sub<Position> for Position {
+    type Output = Result<Action, RuntimeWorldError>;
+
+    fn sub(self, rhs: Position) -> Self::Output {
+        let di = self.i as i32 - rhs.i as i32;
+        let dj = self.j as i32 - rhs.j as i32;
+        Action::try_from((di, dj))
+    }
+}
+
+impl From<&Position> for (usize, usize) {
+    fn from(val: &Position) -> Self {
+        (val.i, val.j)
     }
 }
 

@@ -4,6 +4,7 @@ from threading import Thread
 import pytest
 from lle import Action, EventType, Position, World, WorldState
 from lle.exceptions import InvalidActionError, InvalidWorldStateError, ParsingError
+from lle.world.rendering import TILE_SIZE
 
 
 def test_world_tiles():
@@ -86,6 +87,23 @@ def test_world_move():
     world.step([Action.SOUTH])
     world.step([Action.EAST])
     world.step([Action.NORTH])
+
+
+def test_world_step_tuple_and_invalid_sequence_action():
+    """Preserves tuple sequence input and generic errors for invalid sequence members.
+
+    @ai-generated
+    """
+    world = World(
+        """S0 X . .
+.  . . .
+.  . . ."""
+    )
+    world.reset()
+    world.step((Action.SOUTH,))
+    assert world.agents_positions == [(1, 0)]
+    with pytest.raises(TypeError, match="Action must be of type Action or list\\[Action\\]"):
+        world.step((23,))  # type: ignore[arg-type]
 
 
 def test_world_agents():
@@ -294,7 +312,6 @@ def test_world_send_thread():
 
 def test_rendering_size():
     world = World("S0 . X")
-    TILE_SIZE = 32
     expected_size = (TILE_SIZE * world.width + 1, TILE_SIZE * world.height + 1)
     assert world.image_dimensions == expected_size
     img = world.get_image()
@@ -550,36 +567,24 @@ def test_laser_colour_change_kills_agent_on_start():
         pass
 
 
-def test_change_laser_colour_to_invalid_colour():
-    world = World("L0E S0 . X")
+def test_change_laser_colour_beyond_n_agents():
+    """A colour is no longer an agent id, so it is not bounded by `n_agents`: a world may have
+    a laser of a colour that no agent has (nobody can block it)."""
+    # The beam must not cross a start position, or the change is refused for that reason.
+    world = World("L0E .  . X\n .  S0 . X")
     world.reset()
     source = world.source_at((0, 0))
 
-    try:
-        source.set_colour(2)
-        raise Exception("This should not be allowed because there is only one agent in the world")
-    except ValueError:
-        pass
+    source.set_colour(2)
+    assert source.colour == 2
+    assert world.n_colours == 3
 
-    try:
-        source.set_colour(1)
-        raise Exception("This should not be allowed because there is only one agent in the world")
-    except ValueError:
-        pass
+    source.set_colour(1)
+    assert source.colour == 1
 
-    # Same test but by assigning the agent_id directly
-    try:
-        source.agent_id = 2
-        raise Exception("This should not be allowed because there is only one agent in the world")
-    except ValueError:
-        pass
-
-    try:
-        source.agent_id = 1
-        raise Exception("This should not be allowed because there is only one agent in the world")
-    except ValueError:
-        pass
-
+    # Same thing through the deprecated `agent_id` property.
+    source.agent_id = 2
+    assert source.colour == 2
 
 def test_change_laser_colour_back():
     world = World(
@@ -699,10 +704,11 @@ X . . . S1 . . . . .
 """
 
 [[agents]]
-start_positions = [{ i_min = 0, i_max = 2 }]
+# Deduced from the string map: the `S1` token declares agent 0, of colour 1, at (0, 4).
+# The token number is a colour, not an index into this list.
 
 [[agents]]
-# Deduced from the string map that agent 1 has a start position at (0, 5).
+start_positions = [{ i_min = 0, i_max = 2 }]
 
 [[agents]]
 start_positions = [{ i = 0, j = 5 }, { i = 4, j = 5 }]
@@ -758,12 +764,13 @@ def test_laser_on_start_pos_error():
 def test_laser_on_start_pos_removed():
     world = World('''
 world_string = """
- .  S1 X . X
+S0  S1 X . X
 L1N .  . . ."""
 
 [[agents]]
-start_positions = [{ i = 0, j = 0 }, { i = 1, j = 1 }]
+start_positions = [{ i = 1, j = 1 }]
 ''')
+    # Agent 0 has colour 0 and the beam colour 1, so (0, 0) would kill it on reset.
     assert len(world.random_start_pos[0]) == 1, "S0 should be removed because the agent would die in a laser on start"
     assert world.random_start_pos[0][0] == (1, 1)
 
@@ -857,3 +864,25 @@ def test_reset_in_blocked_laser():
     w.reset()
     # This should not panic !
     w.step(actions)
+
+
+def test_many_agents():
+    world = World("""
+ .   .   . . . .
+S0  L0W  . . . X
+S1  L1W  . . . X
+S2  L2W  . . . X
+S3  L3W  . . . X
+S4  L4W  . . . X
+S5  L5W  . . . X
+S6  L6W  . . . X
+S7  L7W  . . . X
+S8  L8W  . . . X
+S9  L9W  . . . X
+S10 L10W . . . X
+S11 L11W . . . X
+S12 L12W . . . X
+S13 L13W . . . X
+""")
+    assert world.n_agents == 14
+    assert len(world.laser_sources) == 14

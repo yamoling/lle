@@ -18,6 +18,12 @@ class Agent:
         The agent id.
         """
     @property
+    def colour(self) -> builtins.int:
+        r"""
+        The agent's colour, which decides which laser beams it can block and cross.
+        Several agents may share a colour.
+        """
+    @property
     def is_dead(self) -> builtins.bool:
         r"""
         Whether the agent is dead or not.

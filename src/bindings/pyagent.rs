@@ -20,6 +20,13 @@ impl PyAgent {
         self.agent.id()
     }
 
+    /// The agent's colour, which decides which laser beams it can block and cross.
+    /// Several agents may share a colour.
+    #[getter]
+    fn colour(&self) -> usize {
+        self.agent.colour()
+    }
+
     /// Whether the agent is dead or not.
     #[getter]
     fn is_dead(&self) -> bool {

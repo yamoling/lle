@@ -6,23 +6,73 @@ use super::position_set::PositionSet;
 use crate::Position;
 use crate::{World, tiles::CardinalDirection};
 
+const MAX_NEIGHBOURS: usize = 5;
+
+/// A fixed-capacity, row-major list of positions adjacent in the movement graph.
+#[derive(Clone, Copy, Debug)]
+pub struct NeighbourList {
+    positions: [Position; MAX_NEIGHBOURS],
+    len: u8,
+}
+
+impl NeighbourList {
+    const EMPTY_POSITION: Position = Position { i: 0, j: 0, k: 0 };
+
+    pub const fn empty() -> Self {
+        Self {
+            positions: [Self::EMPTY_POSITION; MAX_NEIGHBOURS],
+            len: 0,
+        }
+    }
+
+    pub fn push(&mut self, pos: Position) {
+        debug_assert!((self.len as usize) < MAX_NEIGHBOURS);
+        self.positions[self.len as usize] = pos;
+        self.len += 1;
+    }
+
+    pub fn contains(&self, pos: &Position) -> bool {
+        self.iter().any(|candidate| candidate == *pos)
+    }
+
+    pub const fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = Position> + '_ {
+        self.positions[..self.len as usize].iter().copied()
+    }
+}
+
+impl<'a> IntoIterator for &'a NeighbourList {
+    type Item = Position;
+    type IntoIter = std::iter::Copied<std::slice::Iter<'a, Position>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.positions[..self.len as usize].iter().copied()
+    }
+}
+
+/// Return walkable cardinal neighbours, excluding the position itself.
 fn neighbours_of(
     pos: Position,
-    exits: &HashSet<Position>,
+    exits: &PositionSet,
     height: usize,
     width: usize,
-    walls: &HashSet<Position>,
-) -> Vec<Position> {
+    walls: &PositionSet,
+) -> NeighbourList {
+    let mut result = NeighbourList::empty();
     if exits.contains(&pos) {
         // Once an agent reaches an exit, it can no longer move.
-        return vec![pos];
+        return result;
     }
-    let mut result = Vec::new();
     for d in CardinalDirection::iter() {
-        if let Ok(n) = pos + d {
-            if n.i < height && n.j < width && !walls.contains(&n) {
-                result.push(n);
-            }
+        if let Ok(n) = pos + d
+            && n.i < height
+            && n.j < width
+            && !walls.contains(&n)
+        {
+            result.push(n);
         }
     }
     result
@@ -43,25 +93,25 @@ pub struct ConstraintContext {
     pub n_agents: usize,
     pub start_pos: Vec<Position>,
     /// `predecessors[i][j]` = positions from which an agent can move into `(i, j)`.
-    pub predecessors: Vec<Vec<Vec<Position>>>,
+    pub predecessors: Vec<Vec<NeighbourList>>,
     pub solution_lower_bound: usize,
     pub laser_sources: Vec<LaserSourceInfo>,
+    exits: PositionSet,
     height: usize,
     width: usize,
-    updated_until: usize,
+    updated_until: Option<usize>,
 
     /// `neighbours[i][j]` = `[(i, j), ...reachable single-step neighbours]`.
-    neighbours: Vec<Vec<Vec<Position>>>,
+    pub(crate) neighbours: Vec<Vec<NeighbourList>>,
 
     /// `distance_buckets[d]` = positions whose distance to the nearest exit is exactly `d`
     /// (only for `d <= t_max`, the only distances that ever matter). Used to incrementally
     /// build `exit_reachable` as `t` grows, instead of recomputing each entry from scratch.
-    distance_buckets: Vec<Vec<Position>>,
+    distance_buckets: Vec<PositionSet>,
 
     /// `exit_reachable[t]` = positions from which an exit can still be reached within
-    /// `t_max - t` steps. Lazily computed and cached per time step (in increasing order of
-    /// `t`, like `relevant_positions`): each entry is independent and never overwritten once
-    /// computed.
+    /// the remaining time budget (`t_max - t` steps).
+    /// Lazily computed and cached per time step (in increasing order of `t`).
     exit_reachable: Vec<PositionSet>,
 
     /// Cache for reachable positions per agent and time step: `relevant_positions[agent][t]`.
@@ -77,17 +127,19 @@ pub struct ConstraintContext {
     /// active ↔ ¬owner, so non-owner requires owner present — impossible by no_overlap; otherwise
     /// the beam is constant-active and the non-owner dies. This is pre-computed once and applied at
     /// every time step during `update_relevant_positions`.
-    forbidden_first_beam_tiles: Vec<Vec<Position>>,
+    forbidden_first_beam_tiles: Vec<PositionSet>,
 }
 
 impl ConstraintContext {
+    /// Build the static geometry and time-indexed context caches for a world.
     pub fn new(world: &World, t_max: usize) -> Self {
         let height = world.height();
         let width = world.width();
         let n_agents = world.n_agents();
-        let walls: HashSet<Position> = world.walls().into_iter().collect();
-        let voids: HashSet<Position> = world.void_positions().into_iter().collect();
-        let exits: HashSet<Position> = world.exits_positions().into_iter().collect();
+        let walls = PositionSet::from_positions(height, width, world.walls().into_iter());
+        let voids = PositionSet::from_positions(height, width, world.void_positions().into_iter());
+        let exits = PositionSet::from_positions(height, width, world.exits_positions().into_iter());
+        // let exits: HashSet<Position> = exit_positions.iter().collect();
         let start_pos: Vec<Position> = world.starts().into_iter().collect();
 
         let mut valid_positions = HashSet::new();
@@ -100,26 +152,26 @@ impl ConstraintContext {
             }
         }
 
-        // neighbours[i][j] = [(i, j), ...reachable single-step neighbours]
-        let mut neighbours: Vec<Vec<Vec<Position>>> = vec![vec![Vec::new(); width]; height];
+        // neighbours[i][j] = [(i, j), ...reachable single-step neighbours].
+        // Invalid tiles stay empty; valid tiles get their self-neighbour from `neighbours_of`.
+        let mut neighbours = vec![vec![NeighbourList::empty(); width]; height];
+
         for &pos in &valid_positions {
-            let mut succ = vec![pos];
-            for n in neighbours_of(pos, &exits, height, width, &walls) {
+            neighbours[pos.i][pos.j].push(pos);
+            for n in neighbours_of(pos, &exits, height, width, &walls).iter() {
                 if valid_positions.contains(&n) {
-                    succ.push(n);
+                    neighbours[pos.i][pos.j].push(n);
                 }
             }
-            neighbours[pos.i][pos.j] = succ;
         }
 
         // Reverse adjacency: predecessors[i][j] = positions from which an agent can move into (i, j).
-        let mut predecessors: Vec<Vec<Vec<Position>>> = vec![vec![Vec::new(); width]; height];
+        let mut predecessors = vec![vec![NeighbourList::empty(); width]; height];
         for &pos in &valid_positions {
-            for &succ in &neighbours[pos.i][pos.j] {
+            for succ in &neighbours[pos.i][pos.j] {
                 predecessors[succ.i][succ.j].push(pos);
             }
         }
-
         let exit_distance = compute_exit_distance(&exits, &predecessors);
         let solution_lower_bound = start_pos
             .iter()
@@ -147,12 +199,13 @@ impl ConstraintContext {
             });
         }
         // Opt 3: pre-compute first beam tiles forbidden for non-owner agents.
-        let mut forbidden_first_beam_tiles: Vec<Vec<Position>> = vec![Vec::new(); n_agents];
+        let mut forbidden_first_beam_tiles: Vec<PositionSet> =
+            vec![PositionSet::empty(height, width); n_agents];
         for source in &laser_sources {
             if let Some(&first_tile) = source.path.first() {
-                for agent in 0..n_agents {
+                for (agent, forbidden) in forbidden_first_beam_tiles.iter_mut().enumerate() {
                     if agent != source.agent_id {
-                        forbidden_first_beam_tiles[agent].push(first_tile);
+                        forbidden.insert(first_tile);
                     }
                 }
             }
@@ -160,64 +213,33 @@ impl ConstraintContext {
 
         // Bucket positions by their exact distance to the nearest exit (capped at `t_max`,
         // since farther positions can never be exit-reachable within the horizon).
-        let mut distance_buckets: Vec<Vec<Position>> = vec![Vec::new(); t_max + 1];
+        let mut distance_buckets = vec![PositionSet::empty(height, width); t_max + 1];
         for (&pos, &d) in &exit_distance {
             if d <= t_max {
-                distance_buckets[d].push(pos);
+                distance_buckets[d].insert(pos);
             }
         }
 
-        // Seed `exit_reachable[0]` with the full set of exit-reachable positions (distance
-        // `<= t_max`, i.e. `remaining = t_max - 0 = t_max`); `update` fills in the rest by
-        // shrinking this set one distance bucket at a time as `t` grows.
-        let mut exit_reachable: Vec<PositionSet> =
-            vec![PositionSet::empty(height, width); t_max + 1];
-        for bucket in &distance_buckets {
-            for &pos in bucket {
-                exit_reachable[0].insert(pos);
-            }
-        }
+        let exit_reachable = Vec::with_capacity(t_max + 1);
+        let relevant_positions = (0..n_agents)
+            .map(|_| Vec::with_capacity(t_max + 1))
+            .collect();
+        let relevant_laser_paths = (0..laser_sources.len())
+            .map(|_| Vec::with_capacity(t_max + 1))
+            .collect();
 
-        // Cache for reachable positions per agent and time step.
-        // Every slot is eventually populated (in increasing order of `t`).
-        // Seed the `t = 0` slots here; `update` fills in the rest.
-        let mut relevant_positions =
-            vec![vec![PositionSet::empty(height, width); t_max + 1]; n_agents];
-        for agent in 0..n_agents {
-            // Only the initial positions are relevant to consider at t=0
-            let agent_start = start_pos[agent];
-            if exit_reachable[0].contains(&agent_start) {
-                relevant_positions[agent][0] =
-                    PositionSet::singleton(height, width, start_pos[agent]);
-            }
-        }
-        // Seed the `t = 0` laser-path slots from the `t = 0` reachable-positions seed above
-        // (mirroring `update_relevant_laser_paths`); `update` only fills in `t >= 1`, since its
-        // loop range `(updated_until + 1)..=t` is empty for `t = 0`.
-        let mut relevant_laser_paths =
-            vec![vec![PositionSet::empty(height, width); t_max + 1]; laser_sources.len()];
-        for (laser_idx, source) in laser_sources.iter().enumerate() {
-            relevant_laser_paths[laser_idx][0] = compute_relevant_laser_path(
-                &source.path,
-                &relevant_positions,
-                0,
-                source.agent_id,
-                height,
-                width,
-            );
-        }
-
-        ConstraintContext {
+        Self {
             t_max,
             n_agents,
             start_pos,
             predecessors,
             solution_lower_bound,
             laser_sources,
+            exits,
             height,
             width,
             neighbours,
-            updated_until: 0,
+            updated_until: None,
             distance_buckets,
             exit_reachable,
             relevant_positions,
@@ -226,17 +248,27 @@ impl ConstraintContext {
         }
     }
 
-    /// Compute and cache `exit_reachable[t]` from `exit_reachable[t - 1]`: as `t` grows by one,
-    /// the remaining horizon `t_max - t` shrinks by one, so exactly the positions at distance
-    /// `t_max - t + 1` fall out of reach. Clones the previous entry and removes that bucket,
-    /// rather than mutating it in place, so every `exit_reachable[t]` stays independently cached.
+    /// Compute and cache the positions from which an exit is still reachable at time `t`.
+    ///
+    /// At `t = 0`, this seeds the cache with every position whose exit distance fits within the
+    /// horizon.
+    ///
+    /// Later steps shrink the previous set by removing positions whose shortest exit
+    /// distance no longer fits in the remaining time budget.
     fn update_exit_reachable(&mut self, t: usize) {
-        let mut result = self.exit_reachable[t - 1].clone();
-        let excluded_distance = self.t_max - t + 1;
-        for pos in &self.distance_buckets[excluded_distance] {
-            result.remove(pos);
+        if t == 0 {
+            let mut result = PositionSet::empty(self.height, self.width);
+            for bucket in &self.distance_buckets {
+                result.union_with(bucket);
+            }
+            self.exit_reachable.push(result);
+            return;
         }
-        self.exit_reachable[t] = result;
+
+        let mut prev_exit_reachable = self.exit_reachable[t - 1].clone();
+        let excluded_distance = self.t_max - t + 1;
+        prev_exit_reachable.subtract_with(&self.distance_buckets[excluded_distance]);
+        self.exit_reachable.push(prev_exit_reachable);
     }
 
     /// Update the relevant positions for each agent at time step t.
@@ -246,14 +278,19 @@ impl ConstraintContext {
     ///     - the agent can still access the exit within `t_max - t` steps
     fn update_relevant_positions(&mut self, t: usize) {
         for agent in 0..self.n_agents {
-            let mut result = PositionSet::empty(self.height, self.width);
-            for pos in &self.relevant_positions[agent][t - 1] {
-                for &n in &self.neighbours[pos.i][pos.j] {
-                    result.insert(n);
+            let mut result = if t == 0 {
+                PositionSet::singleton(self.height, self.width, self.start_pos[agent])
+            } else {
+                let mut reachable = PositionSet::empty(self.height, self.width);
+                for pos in &self.relevant_positions[agent][t - 1] {
+                    for n in &self.neighbours[pos.i][pos.j] {
+                        reachable.insert(n);
+                    }
                 }
-            }
+                reachable
+            };
             result.intersect_with(&self.exit_reachable[t]);
-            // Opt 2: at t=1 no agent can occupy another agent's t=0 start position.
+            // At t=1 no agent can occupy another agent's t=0 start position.
             // The no-following-conflict rule forbids agent A from being at start_B at t=1
             // because B was there at t=0 (implies(-a_cur, -b_prev) ⇒ ¬A here when B was here).
             if t == 1 {
@@ -263,18 +300,43 @@ impl ConstraintContext {
                     }
                 }
             }
-            // Opt 3: non-owner agents can never stand on the first tile of another agent's beam.
-            for &forbidden in &self.forbidden_first_beam_tiles[agent] {
-                result.remove(&forbidden);
-            }
-            self.relevant_positions[agent][t] = result;
+            // Non-owner agents can never stand on the first tile of another agent's beam.
+            result.subtract_with(&self.forbidden_first_beam_tiles[agent]);
+            self.relevant_positions[agent].push(result);
         }
     }
 
-    /// See [`ConstraintContext::compute_relevant_laser_path`] for the semantics.
-    fn update_relevant_laser_paths(&mut self, t: usize) {
+    /// Update every laser-derived relevance cache for time `t`.
+    ///
+    /// This first removes foreign-colour agent positions on beam tiles that cannot be made safe by
+    /// an upstream owner block, then computes the relevant laser paths from the pruned position
+    /// sets. Keeping all pruning before all path computation avoids order-dependent results when
+    /// laser paths overlap or cross.
+    fn update_laser_relevance(&mut self, t: usize) {
+        for source in &self.laser_sources {
+            // We use `split_at_mut` to avoid cloning the owner positions while respecting ownership rules.
+            let (before_owner, owner_and_after) =
+                self.relevant_positions.split_at_mut(source.agent_id);
+            let (owner_positions, after_owner) = owner_and_after
+                .split_first_mut()
+                .expect("laser owner index must refer to an existing agent");
+            let owner_reachable = &owner_positions[t];
+
+            let mut blockable_upstream = false;
+            for &pos in &source.path {
+                if !blockable_upstream {
+                    for positions in before_owner.iter_mut().chain(after_owner.iter_mut()) {
+                        positions[t].remove(&pos);
+                    }
+                }
+                if owner_reachable.contains(&pos) {
+                    blockable_upstream = true;
+                }
+            }
+        }
+
         for laser_idx in 0..self.laser_sources.len() {
-            self.relevant_laser_paths[laser_idx][t] = compute_relevant_laser_path(
+            let relevant_path = compute_relevant_laser_path(
                 &self.laser_sources[laser_idx].path,
                 &self.relevant_positions,
                 t,
@@ -282,21 +344,74 @@ impl ConstraintContext {
                 self.height,
                 self.width,
             );
+            self.relevant_laser_paths[laser_idx].push(relevant_path);
         }
     }
 
-    /// Pre-compute (and cache) every piece of on-demand data needed to generate constraints
-    /// for time step `t`: reachable positions for each agent and reachable laser paths for each source.
-    pub fn update(&mut self, t: usize) {
-        if t <= self.updated_until {
+    /// Remove exit positions that are incompatible with uniquely forced exit assignments.
+    ///
+    /// When there are exactly as many exits as agents, every exit tile must be occupied in any
+    /// satisfying objective state because all agents must end on distinct exits. If an exit is
+    /// reachable by exactly one agent at a timestep, and that agent is not the sole candidate for
+    /// any other exit, then the agent is forced to use that exit and cannot have previously stopped
+    /// on another exit.
+    fn update_forced_exit_relevance(&mut self, t: usize) {
+        if self.exits.size() != self.n_agents {
             return;
         }
-        for tt in (self.updated_until + 1)..=t {
+
+        let mut forced_exit_by_agent = vec![None; self.n_agents];
+        let mut unique_exit_count_by_agent = vec![0; self.n_agents];
+
+        for exit in &self.exits {
+            let mut unique_agent = None;
+            let mut n_reachable_agents = 0;
+            for agent in 0..self.n_agents {
+                if self.relevant_positions[agent][t].contains(&exit) {
+                    unique_agent = Some(agent);
+                    n_reachable_agents += 1;
+                }
+            }
+            if n_reachable_agents == 1 {
+                let agent = unique_agent.expect("unique reachable exit must have an agent");
+                forced_exit_by_agent[agent] = Some(exit);
+                unique_exit_count_by_agent[agent] += 1;
+            }
+        }
+
+        for agent in 0..self.n_agents {
+            if unique_exit_count_by_agent[agent] != 1 {
+                continue;
+            }
+            let forced_exit = forced_exit_by_agent[agent]
+                .expect("agent with one uniquely reachable exit must have a forced exit");
+            for exit in &self.exits {
+                if exit != forced_exit {
+                    self.relevant_positions[agent][t].remove(&exit);
+                }
+            }
+        }
+    }
+
+    /// Pre-compute and cache the reachable positions and relevant laser paths needed to generate
+    /// constraints for time step `t`.
+    pub fn update(&mut self, t: usize) {
+        if self
+            .updated_until
+            .is_some_and(|updated_until| t <= updated_until)
+        {
+            return;
+        }
+        let start = self
+            .updated_until
+            .map_or(0, |updated_until| updated_until + 1);
+        for tt in start..=t {
             self.update_exit_reachable(tt);
             self.update_relevant_positions(tt);
-            self.update_relevant_laser_paths(tt);
+            self.update_laser_relevance(tt);
+            self.update_forced_exit_relevance(tt);
         }
-        self.updated_until = t;
+        self.updated_until = Some(t);
     }
 
     /// Relevant positions for a single agent at time `t`, i.e. positions that the agent
@@ -322,16 +437,17 @@ impl ConstraintContext {
 
     /// Positions the agent could have occupied at time `t - 1` to reach `(i, j)` at `t`.
     /// Assumes `update` has already been called for this `t`.
-    pub fn prev_neighbours(&self, agent: usize, pos: &Position, t: usize) -> Vec<Position> {
-        if t == 0 {
-            return Vec::new();
-        }
-        let reachable = &self.relevant_positions[agent][t - 1];
+    pub fn prev_neighbours(
+        &self,
+        agent: usize,
+        pos: &Position,
+        t: usize,
+    ) -> impl Iterator<Item = Position> + '_ {
         self.predecessors[pos.i][pos.j]
             .iter()
-            .copied()
-            .filter(|p| reachable.contains(p))
-            .collect()
+            .filter(move |predecessor| {
+                t > 0 && self.relevant_positions[agent][t - 1].contains(predecessor)
+            })
     }
 
     /// The reachable laser tiles positions for a given laser source at time `t`: the beam tiles
@@ -405,18 +521,18 @@ fn compute_relevant_laser_path(
 }
 
 fn compute_exit_distance(
-    exits: &HashSet<Position>,
-    predecessors: &[Vec<Vec<Position>>],
+    exits: &PositionSet,
+    predecessors: &[Vec<NeighbourList>],
 ) -> HashMap<Position, usize> {
-    let mut dist: HashMap<Position, usize> = exits.iter().map(|&p| (p, 0)).collect();
-    let mut frontier: VecDeque<Position> = exits.iter().copied().collect();
+    let mut dist: HashMap<Position, usize> = exits.iter().map(|p| (p, 0)).collect();
+    let mut frontier: VecDeque<Position> = exits.iter().collect();
     while let Some(current) = frontier.pop_front() {
         let current_dist = dist[&current];
-        for &pred in &predecessors[current.i][current.j] {
-            if !dist.contains_key(&pred) {
-                dist.insert(pred, current_dist + 1);
+        for pred in &predecessors[current.i][current.j] {
+            dist.entry(pred).or_insert_with(|| {
                 frontier.push_back(pred);
-            }
+                current_dist + 1
+            });
         }
     }
     dist

@@ -8,7 +8,7 @@ import random
 from dataclasses import dataclass
 from enum import IntEnum
 from functools import cached_property
-from typing import Literal, Optional
+from typing import Literal
 
 import numpy as np
 import numpy.typing as npt
@@ -145,38 +145,51 @@ class LLE(DiscreteMARLEnv):
 
     def available_actions(self):
         available_actions = np.full((self.world.n_agents, self.n_actions), False, dtype=bool)
+        if self.walkable_lasers:
+            for agent, actions in enumerate(self.world.available_actions()):
+                for action in actions:
+                    available_actions[agent, action.value] = True
+            return available_actions
         lasers = self.world.lasers
         agents_pos = self.world.agents_positions
         for agent, actions in enumerate(self.world.available_actions()):
             for action in actions:
-                if not self.walkable_lasers:
-                    agent_pos = agents_pos[agent]
-                    new_pos = (agent_pos[0] + action.delta[0], agent_pos[1] + action.delta[1])
-                    # ignore action if new position is an active laser of another color
-                    if any(laser.pos == new_pos and laser.agent_id != agent and laser.is_on for laser in lasers):
-                        continue
+                agent_pos = agents_pos[agent]
+                new_pos = (agent_pos[0] + action.delta[0], agent_pos[1] + action.delta[1])
+                # ignore action if new position is an active laser of another color
+                if any(laser.pos == new_pos and laser.agent_id != agent and laser.is_on for laser in lasers):
+                    continue
                 available_actions[agent, action.value] = True
         return available_actions
 
-    def step(self, action):
+    def step(self, action: npt.ArrayLike):
         if self.done:
             raise ValueError("Cannot step in a done environment")
-        action = np.array(action)
-        agents_actions = [Action(a) for a in action]
+        actions = np.array(action)
+        agents_actions = [Action(a) for a in actions]
         events = self.world.step(agents_actions)
         # Beware to compute the reward before checking if the episode is done !
         reward = self.reward_strategy.compute_reward(events)
         self.done = self.compute_done()
+        metrics = {}
+        for i, agent in enumerate(self.world.agents):
+            metrics[f"has-arrived-{i}"] = agent.has_arrived
+            metrics[f"is-alive-{i}"] = agent.is_alive
         return Step(
-            action,
+            actions,
             self.get_observation(),
             self.get_state(),
             reward=reward,
             done=self.done,
-            info={"gems_collected": self.world.gems_collected, "exit_rate": self.n_arrived / self.n_agents},
+            info={
+                "gems_collected": self.world.gems_collected,
+                "exit_rate": self.n_arrived / self.n_agents,
+                "joint_exit": int(self.n_arrived == self.n_agents),
+                **metrics,
+            },
         )
 
-    def reset(self, *, seed: Optional[int] = None):
+    def reset(self, *, seed: int | None = None):
         if seed is not None:
             self.seed(seed)
         self.world.reset()
@@ -185,7 +198,9 @@ class LLE(DiscreteMARLEnv):
         self.done = False
         if self.randomize_lasers:
             for source in self.world.laser_sources:
-                source.set_colour(random.randint(0, self.n_agents - 1))
+                source.set_colour(random.randint(0, self.world.n_colours - 1))
+        self._observation_generator.reset()
+        self._state_generator.reset()
         return self.get_observation(), self.get_state()
 
     def get_state(self):

@@ -4,6 +4,7 @@ import tempfile
 import numpy as np
 from lle import LLE, Action, WorldState
 from lle.env.reward_strategy import REWARD_DEATH, REWARD_DONE, REWARD_EXIT, REWARD_GEM, MultiObjective
+from lle.observations import LayeredPadded
 
 
 def test_void_reward():
@@ -209,6 +210,69 @@ def test_reward_death():
     assert step.done
 
 
+def test_step_info_reports_arrival_metrics_for_each_agent():
+    env = LLE.from_str(
+        """
+    S0 X
+    S1 X
+    """
+    ).build()
+    env.reset()
+    info = env.step([Action.EAST.value, Action.STAY.value]).info
+    metrics = {key: value for key, value in info.items() if key.startswith(("has-arrived-", "is-alive-"))}
+    assert metrics == {
+        "has-arrived-0": True,
+        "is-alive-0": True,
+        "has-arrived-1": False,
+        "is-alive-1": True,
+    }
+
+
+def test_step_info_reports_death_metrics_for_each_agent():
+    env = LLE.from_str(
+        """
+    S0 L0S X
+    S1  .  X
+    """
+    ).build()
+    env.reset()
+    info = env.step([Action.STAY.value, Action.EAST.value]).info
+    metrics = {key: value for key, value in info.items() if key.startswith(("has-arrived-", "is-alive-"))}
+    assert metrics == {
+        "has-arrived-0": False,
+        "is-alive-0": True,
+        "has-arrived-1": False,
+        "is-alive-1": False,
+    }
+
+
+def test_step_info_reports_joint_exit():
+    env = LLE.from_str(
+        """
+    S0 X
+    S1 X
+    """
+    ).build()
+    env.reset()
+    assert env.step([Action.EAST.value, Action.STAY.value]).info["joint_exit"] == 0
+    step = env.step([Action.STAY.value, Action.EAST.value])
+    assert step.done
+    assert step.info["joint_exit"] == 1
+
+
+def test_step_info_joint_exit_is_zero_on_death():
+    env = LLE.from_str(
+        """
+    S0 L0S X
+    S1  .  X
+    """
+    ).build()
+    env.reset()
+    step = env.step([Action.STAY.value, Action.EAST.value])
+    assert step.done
+    assert step.info["joint_exit"] == 0
+
+
 def test_reward_collect_and_death():
     env = LLE.from_str(
         """
@@ -365,3 +429,28 @@ def test_randomized_lasers():
         if all(all(ce) for ce in colour_encountered):
             return
     assert False, "The two colours were never encountered for some lasers"
+
+
+def test_randomized_lasers_updates_static_observation_layer():
+    """The layered observation's static buffer caches laser-source colour markers across
+    steps but must be refreshed on every reset(), since randomize_lasers() changes colours
+    per episode, not per step.
+
+    @ai-generated
+    """
+    env = (
+        LLE.from_str("""
+                       S0 S1 L0S
+                       .   . L1W
+                       .   . L0W
+                       X   X  .""")
+        .randomize_lasers()
+        .build()
+    )
+    generator = env._observation_generator
+    assert isinstance(generator, LayeredPadded)
+    for _ in range(50):
+        env.reset()
+        for source in env.world.laser_sources:
+            i, j, k = source.pos
+            assert generator.static_obs[generator.LASER_0 + source.agent_id, i, j, k] == -1.0

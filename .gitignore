@@ -85,3 +85,10 @@ python/main.py
 .zed
 .qwen
 benchmarks/*
+CLAUDE.md
+claude.md
+**/__marimo__
+prompt.md
+todo.md
+.agents
+.playwright-mcp/

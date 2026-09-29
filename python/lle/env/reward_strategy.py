@@ -7,7 +7,7 @@ vector, or a potential-based shaping wrapper around either strategy.
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Iterable
+from typing import Iterable, Sequence
 
 import numpy as np
 import numpy.typing as npt
@@ -44,7 +44,7 @@ class RewardStrategy(ABC):
         self.n_deads = 0
 
     @abstractmethod
-    def compute_reward(self, events: list[WorldEvent]) -> npt.NDArray[np.float32]:
+    def compute_reward(self, events: Sequence[WorldEvent]) -> npt.NDArray[np.float32]:
         """Compute the reward for the given events."""
 
 
@@ -55,7 +55,7 @@ class SingleObjective(RewardStrategy):
     def __init__(self, n_agents: int):
         super().__init__(n_agents, ["reward"])
 
-    def compute_reward(self, events: list[WorldEvent]):
+    def compute_reward(self, events: Sequence[WorldEvent]):
         reward = 0.0
         death_reward = 0.0
         for event in events:
@@ -87,7 +87,7 @@ class MultiObjective(RewardStrategy):
     def __init__(self, n_agents: int):
         super().__init__(n_agents, ["gem", "exit", "death", "done"])
 
-    def compute_reward(self, events: list[WorldEvent]):
+    def compute_reward(self, events: Sequence[WorldEvent]):
         reward = np.zeros(self.reward_space.shape, dtype=np.float32)
         for event in events:
             match event.event_type:
@@ -145,7 +145,7 @@ class PotentialShapedLLE(RewardStrategy):
         self._agents_pos_reached = np.full((world.n_agents, len(self.pos_to_reward)), False, dtype=np.bool)
         self._previous_potential = self.compute_potential()
 
-    def compute_reward(self, events: list[WorldEvent]):
+    def compute_reward(self, events: Sequence[WorldEvent]):
         reward = self.strategy.compute_reward(events)
         current_potential = self.compute_potential()
         potential_reward = self.gamma * self._previous_potential - current_potential

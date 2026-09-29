@@ -7,13 +7,17 @@ from lle import agent
 from lle import tiles
 import numpy
 import numpy.typing
+import os
+import pathlib
 import typing
+from . import rendering
 __all__ = [
     "Action",
     "EventType",
     "World",
     "WorldEvent",
     "WorldState",
+    "rendering",
 ]
 
 class World:
@@ -26,10 +30,10 @@ class World:
     from lle import World
     # Create from a predefined level
     w1 = World.level(5)
-    # Create from a file
-    w2 = World.from_file("my_map.txt")
     # Create from a string
-    w3 = World("S0 X")
+    w2 = World("S0 X")
+    # From a file
+    w3 = World.from_file("resources/levels/lvl1")
     ```
     """
     @property
@@ -142,6 +146,19 @@ class World:
         The list of agents in the world.
         """
     @property
+    def n_colours(self) -> builtins.int:
+        r"""
+        The size of the colour space: `1 + max(colour)` over agent and laser colours.
+        
+        Observation layers are indexed by colour, so this covers the largest colour value even
+        when the colour space is sparse (agents of colours `{0, 2}` give `3`).
+        """
+    @property
+    def agent_colours(self) -> builtins.list[builtins.int]:
+        r"""
+        The colour of each agent, indexed by agent id.
+        """
+    @property
     def n_laser_colours(self) -> builtins.int:
         r"""
         The number of different laser colours in the world.
@@ -155,7 +172,7 @@ class World:
             `ValueError` if the file is not a valid level (inconsistent dimensions or invalid grid).
         """
     @staticmethod
-    def from_file(filename: builtins.str) -> World:
+    def from_file(filename: builtins.str | os.PathLike | pathlib.Path) -> World:
         r"""
         Parse the content of `filename` to create a World.
         

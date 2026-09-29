@@ -231,7 +231,7 @@ def test_builder_obs_type_string():
     assert env.has_same_inouts(env2)
 
     env = LLE.level(1).obs_type("perspective").build()
-    env2 = LLE.level(1).obs_type(ObservationType.AGENT0_PERSPECTIVE_LAYERED).build()
+    env2 = LLE.level(1).obs_type(ObservationType.PERSPECTIVE).build()
     assert env.has_same_inouts(env2)
 
 

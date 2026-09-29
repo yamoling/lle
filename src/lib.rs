@@ -1,9 +1,9 @@
 mod action;
 mod agent;
+#[cfg(feature = "python-bindings")]
 pub mod bindings;
 mod core;
 mod grid;
-mod logger;
 mod position;
 pub mod rendering;
 pub mod solver;
@@ -11,11 +11,10 @@ pub mod solver;
 mod utils;
 
 pub use action::Action;
-pub use agent::AgentId;
+pub use agent::{Agent, AgentId};
 pub use core::parsing::parse_toml as parse_v2;
 pub use core::{ParseError, RuntimeWorldError, World, WorldEvent, WorldState, tiles, tiles::Tile};
 pub use grid::Grid;
-pub use logger::*;
 pub use position::Position;
 pub use rendering::Renderer;
 // Include the version number of the crate from the build script

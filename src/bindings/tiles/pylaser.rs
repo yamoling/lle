@@ -19,9 +19,9 @@ pub struct PyLaser {
     /// The ID of the laser (unique per laser source)
     #[pyo3(get)]
     laser_id: LaserId,
-    /// The id of the agent that can block the laser.
+    /// The colour of the laser: every agent of this colour can block and cross it.
     #[pyo3(get)]
-    agent_id: AgentId,
+    colour: AgentId,
     /// The direction of the laser beam.
     #[pyo3(get)]
     direction: PyDirection,
@@ -44,7 +44,7 @@ impl PyLaser {
     pub fn new(laser: &Laser, pos: Position, world: Arc<Mutex<World>>) -> Self {
         Self {
             laser_id: laser.laser_id(),
-            agent_id: laser.agent_id(),
+            colour: laser.colour(),
             direction: PyDirection::from(laser.direction()),
             is_on: laser.is_on(),
             is_enabled: laser.is_enabled(),
@@ -69,6 +69,12 @@ impl PyLaser {
         !self.is_enabled
     }
 
+    /// Deprecated alias for `colour`, kept for one release.
+    #[getter]
+    pub fn agent_id(&self) -> AgentId {
+        self.colour
+    }
+
     /// The id of the agent currently standing on the tile, if any.
     #[getter]
     pub fn agent(&self) -> Option<AgentId> {
@@ -87,11 +93,11 @@ impl PyLaser {
         };
 
         format!(
-            "Laser(laser_id={}, is_on={}, direction={}, agent_id={}, agent={agent})",
+            "Laser(laser_id={}, is_on={}, direction={}, colour={}, agent={agent})",
             self.laser_id,
             self.is_on,
             self.direction.name(),
-            self.agent_id
+            self.colour
         )
     }
 

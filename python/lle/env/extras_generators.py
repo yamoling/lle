@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional, Sequence
+from typing import Sequence
 
 import numpy as np
 import numpy.typing as npt
@@ -77,11 +77,11 @@ class LaserSubgoal(ExtraGenerator):
     Generates extras that indicate whether the agents have reached each laser, which are subgoals of the environment.
     """
 
-    def __init__(self, world: World, sources: Optional[Sequence[tiles.LaserSource]] = None):
+    def __init__(self, world: World, sources: Sequence[tiles.LaserSource] | None = None):
         """
-        Args:
-            world: The world
-            sources: The laser sources to consider. If None, all laser sources in the world are considered.
+        ## Parameters
+        - **world**: The world.
+        - **sources**: The laser sources to consider. If `None`, all laser sources in the world are considered.
         """
         self.world = world
         if sources is None:

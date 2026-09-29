@@ -1,9 +1,10 @@
-use crate::log_debug;
+use std::{collections::HashSet, fmt::Display, vec};
+
 use crate::{
     Grid, Position, World,
+    agent::Colour,
     tiles::{Gem, Laser, Tile, Void},
 };
-use std::{collections::HashSet, vec};
 
 use crate::ParseError;
 
@@ -25,9 +26,12 @@ pub struct WorldConfig {
     lasers: Vec<(Position, LaserConfig)>,
     lifts: Vec<(Position, LiftConfig)>,
     buttons: Vec<(Position, ButtonConfig)>,
+    /// The colour of each agent, indexed by agent id. Defaults to the agent id.
+    colours: Vec<Colour>,
 }
 
 impl WorldConfig {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         width: usize,
         height: usize,
@@ -40,24 +44,8 @@ impl WorldConfig {
         source_configs: Vec<(Position, LaserConfig)>,
         lift_configs: Vec<(Position, LiftConfig)>,
         button_configs: Vec<(Position, ButtonConfig)>,
+        colours: Vec<Colour>,
     ) -> Self {
-        log_debug!(
-            "creating WorldConfig with width={}, height={}, layers={}, {} gems, {} random start positions, {} voids, {} exits, {} walls, {} laser sources, {} lifts, {} buttons",
-            width,
-            height,
-            layers,
-            gem_positions.len(),
-            random_start_positions
-                .iter()
-                .map(|starts| starts.len())
-                .sum::<usize>(),
-            void_positions.len(),
-            exit_positions.len(),
-            walls_positions.len(),
-            source_configs.len(),
-            lift_configs.len(),
-            button_configs.len(),
-        );
         Self {
             width,
             height,
@@ -70,6 +58,7 @@ impl WorldConfig {
             lasers: source_configs,
             lifts: lift_configs,
             buttons: button_configs,
+            colours,
         }
     }
 
@@ -117,6 +106,18 @@ impl WorldConfig {
         &self.buttons
     }
 
+    /// The colour of each agent, indexed by agent id.
+    pub fn colours(&self) -> &Vec<Colour> {
+        &self.colours
+    }
+
+    /// Whether two agents share a colour, which the solver forbids and the non-perspective
+    /// observations refuse to represent.
+    pub fn has_shared_colours(&self) -> bool {
+        let mut seen = HashSet::new();
+        !self.colours.iter().all(|c| seen.insert(c))
+    }
+
     pub fn add_random_starts(&mut self, starts: Vec<Vec<Position>>) {
         for (i, start) in starts.into_iter().enumerate() {
             let start = self.filter_positions(start, &self.walls);
@@ -137,18 +138,14 @@ impl WorldConfig {
         self.gems.extend(gems);
     }
 
-    fn filter_positions(
-        &self,
-        positions: Vec<Position>,
-        forbidden: &Vec<Position>,
-    ) -> Vec<Position> {
+    fn filter_positions(&self, positions: Vec<Position>, forbidden: &[Position]) -> Vec<Position> {
         positions
             .into_iter()
             .filter(|pos| !forbidden.contains(pos))
             .collect()
     }
 
-    pub fn to_world(mut self) -> Result<World, ParseError> {
+    pub fn into_world(mut self) -> Result<World, ParseError> {
         self.pre_validate()?;
         let (grid, lasers_positions) = self.make_grid();
         self.post_validate()?;
@@ -166,16 +163,8 @@ impl WorldConfig {
             lasers_positions,
             lift_positions,
             button_positions,
+            self.colours,
         ))
-    }
-
-    pub fn to_string(&self) -> String {
-        if let Ok(string) = to_v1_string(&self) {
-            return string;
-        }
-        let toml_config: TomlConfig = self.into();
-        let toml_string = toml_config.to_toml_string();
-        toml_string
     }
 
     fn pre_validate(&self) -> Result<(), ParseError> {
@@ -256,7 +245,6 @@ impl WorldConfig {
 
     /// Place the laser sources and wrap the required tiles behind a
     /// `Laser` tile.
-    //? care about pos variable shadowing here, quickfix pos -> laser_pos
     fn laser_setup(&mut self, grid: &mut Grid<Tile>) -> HashSet<Position> {
         let mut laser_positions = HashSet::new();
         let width = grid.width as i32;
@@ -285,26 +273,25 @@ impl WorldConfig {
             let source = source.build(beam_positions.len());
             let mut is_blocked = false;
             for (i, pos) in beam_positions.into_iter().enumerate() {
-                if let Some(agent_starts) = self.random_starts.get(source.agent_id()) {
-                    if agent_starts.len() == 1 && agent_starts.contains(&pos) {
+                // Any agent of the source's colour blocks the beam where it spawns.
+                for (agent_id, agent_starts) in self.random_starts.iter().enumerate() {
+                    if self.colours.get(agent_id) == Some(&source.colour())
+                        && agent_starts.len() == 1
+                        && agent_starts.contains(&pos)
+                    {
                         is_blocked = true;
                     }
                 }
                 let wrapped = grid.pop(&pos);
                 let laser = Tile::Laser(Laser::new(wrapped, source.beam(), i));
                 if !is_blocked {
-                    // Remove the random starts on this location for agents of a different ID if the agent would die on reset
+                    // Remove the random starts on this location for agents of another colour,
+                    // which would die there on reset.
                     for (start_agent_id, starts) in self.random_starts.iter_mut().enumerate() {
-                        if start_agent_id == source.agent_id() {
+                        if self.colours.get(start_agent_id) == Some(&source.colour()) {
                             continue;
                         }
-                        let len_before = starts.len();
                         starts.retain(|start| *start != pos);
-                        if starts.len() != len_before {
-                            eprintln!(
-                                "[WARNING] {pos:?} is not a valid start position for agent {start_agent_id} since the agent would be killed on startup. The starting position {pos:?} has therefore been removed for agent {start_agent_id}."
-                            );
-                        }
                     }
                 }
 
@@ -313,5 +300,15 @@ impl WorldConfig {
             grid.replace_at(laser_pos, Tile::LaserSource(source));
         }
         laser_positions
+    }
+}
+
+impl Display for WorldConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Ok(string) = to_v1_string(self) {
+            return write!(f, "{string}");
+        }
+        let toml_config: TomlConfig = self.into();
+        write!(f, "{}", toml_config.to_toml_string())
     }
 }

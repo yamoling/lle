@@ -4,7 +4,6 @@ use toml;
 use crate::{
     ParseError, Position,
     core::parsing::{WorldConfig, parse_v1},
-    log_debug,
 };
 
 use super::{AgentConfig, PositionsConfig, TomlButtonConfig, TomlLaserConfig, TomlLiftConfig};
@@ -42,8 +41,7 @@ impl TomlConfig {
             Some(s) => s,
             None => return Ok(()),
         };
-        log_debug!("Completing TOML config with world string:\n{world_str}");
-        let config = parse_v1(&world_str)?;
+        let config = parse_v1(world_str)?;
         if let Some(w) = self.width {
             if w != config.width() {
                 return Err(ParseError::InconsistentWorldStringWidth {
@@ -79,16 +77,21 @@ impl TomlConfig {
             if self.agents.len() <= agent_num {
                 self.agents.push(AgentConfig::default());
             }
-            let positions = starts.iter().map(|pos| PositionsConfig::from(pos));
+            let positions = starts.iter().map(PositionsConfig::from);
             self.agents[agent_num].starts.extend(positions);
-        }
-        if let Some(n) = self.n_agents {
-            if n < self.agents.len() {
-                return Err(ParseError::InconsistentNumberOfAgents {
-                    toml_n_agents_field: n,
-                    actual_n_agents: self.agents.len(),
-                });
+            // The `S<c>` token supplies the agent's colour, unless `[[agents]] colour`
+            // states one explicitly — the explicit declaration always wins.
+            if self.agents[agent_num].colour.is_none() {
+                self.agents[agent_num].colour = Some(config.colours()[agent_num]);
             }
+        }
+        if let Some(n) = self.n_agents
+            && n < self.agents.len()
+        {
+            return Err(ParseError::InconsistentNumberOfAgents {
+                toml_n_agents_field: n,
+                actual_n_agents: self.agents.len(),
+            });
         }
 
         for pos in config.exits() {
@@ -209,6 +212,13 @@ impl TryInto<WorldConfig> for TomlConfig {
             .iter()
             .map(|b| (b.position, b.into()))
             .collect();
+        // An agent without a declared colour keeps the historical default: colour = agent id.
+        let colours = self
+            .agents
+            .iter()
+            .enumerate()
+            .map(|(agent_id, agent)| agent.colour.unwrap_or(agent_id))
+            .collect();
         Ok(WorldConfig::new(
             width,
             height,
@@ -221,6 +231,7 @@ impl TryInto<WorldConfig> for TomlConfig {
             source_configs,
             lift_configs,
             button_configs,
+            colours,
         ))
     }
 }
@@ -231,12 +242,10 @@ impl From<&WorldConfig> for TomlConfig {
         let height = value.height();
         let layers = value.layers();
         let mut agents = vec![];
-        for starts in value.random_starts() {
+        for (agent_id, starts) in value.random_starts().iter().enumerate() {
             agents.push(AgentConfig {
-                starts: starts
-                    .iter()
-                    .map(|pos| PositionsConfig::from(pos))
-                    .collect(),
+                starts: starts.iter().map(PositionsConfig::from).collect(),
+                colour: value.colours().get(agent_id).copied(),
             })
         }
         let exits = value.exits().iter().map(PositionsConfig::from).collect();
@@ -279,338 +288,5 @@ impl From<&WorldConfig> for TomlConfig {
 }
 
 #[cfg(test)]
-mod tests {
-    use crate::{ParseError, Position, World};
-
-    use super::parse;
-
-    #[test]
-    fn invalid_toml_field() {
-        let toml_content = r#"
-        world_string = "S0 X"
-        invalid_field = 25
-        "#;
-        match parse(toml_content) {
-            Err(ParseError::UnknownTomlKey { key, .. }) => {
-                assert_eq!(key, "invalid_field");
-            }
-            other => panic!("Should return a ParseError::UnknownTomlKey instead of {other:?}"),
-        }
-    }
-
-    #[test]
-    fn invalid_toml_subfield() {
-        let toml_content = r#"
-        world_string = "S0 X"
-        [[agents]]
-        invalid_subfield = 25
-        "#;
-        match parse(toml_content) {
-            Err(ParseError::UnknownTomlKey { key, .. }) => {
-                assert_eq!(key, "invalid_subfield");
-            }
-            other => panic!("Should return a ParseError::UnknownTomlKey instead of {other:?}"),
-        }
-    }
-
-    #[test]
-    fn parse_toml_width_problem() {
-        match parse(
-            r#"
-width = 10
-world_string = "S0 X"
-"#,
-        ) {
-            Err(ParseError::InconsistentWorldStringWidth {
-                toml_width,
-                world_str_width,
-            }) => {
-                assert_eq!(toml_width, 10);
-                assert_eq!(world_str_width, 2);
-            }
-            _ => panic!("Should return a ParseError::InconsistentWorldStringWidth"),
-        }
-    }
-
-    #[test]
-    fn parse_toml_height_problem() {
-        match parse(
-            r#"
-height = 10
-world_string = "S0 X"
-"#,
-        ) {
-            Err(ParseError::InconsistentWorldStringHeight {
-                toml_height,
-                world_str_height,
-            }) => {
-                assert_eq!(toml_height, 10);
-                assert_eq!(world_str_height, 1);
-            }
-            _ => panic!("Should return a ParseError::InconsistentWorldStringWidth"),
-        }
-    }
-
-    #[test]
-    fn parse_start_pos_rows() {
-        match parse(
-            r#"
-height = 10
-width = 10
-n_agents = 2
-starts = [{row = 0}]
-"#,
-        ) {
-            Ok(config) => {
-                // Start positions should be (0, 0), (0, 1) ... (0, 9)
-                for start in config.random_starts() {
-                    for j in 0..config.width() {
-                        assert!(start.contains(&Position { i: 0, j, k: 0 }));
-                    }
-                }
-            }
-            _ => panic!("The TOML should be parsed successfully"),
-        }
-    }
-
-    #[test]
-    fn parse_start_pos_cols() {
-        match parse(
-            r#"
-height = 10
-width = 10
-layers = 1
-n_agents = 2
-starts = [{col = 0}]
-"#,
-        ) {
-            Ok(config) => {
-                for start in config.random_starts() {
-                    for i in 0..config.height() {
-                        assert!(start.contains(&Position { i, j: 0, k: 0 }));
-                    }
-                }
-            }
-            _ => panic!("The TOML should be parsed successfully"),
-        }
-    }
-
-    #[test]
-    fn parse_start_pos_rows_and_cols() {
-        match parse(
-            r#"
-height = 10
-width = 10
-n_agents = 2
-starts = [{col = 0}, {row=0}]
-"#,
-        ) {
-            Ok(config) => {
-                for start in config.random_starts() {
-                    assert_eq!(
-                        start.len(),
-                        19,
-                        "There should only be 19 starts since duplicates should be removed"
-                    );
-                    for i in 0..config.height() {
-                        assert!(start.contains(&Position { i, j: 0, k: 0 }));
-                    }
-                    for j in 0..config.width() {
-                        assert!(start.contains(&Position { i: 0, j, k: 0 }));
-                    }
-                }
-            }
-            _ => panic!("The TOML should be parsed successfully"),
-        }
-    }
-
-    #[test]
-    fn start_position_in_wall() {
-        let toml_content = r#"
-world_string="""
-@ . .
-@ . X
-"""
-[[agents]]
-start_positions = [{i_min=1}]
-        "#;
-        let world = World::try_from(toml_content).unwrap();
-        let starts = world.possible_starts();
-        assert_eq!(1, starts[0].len(), "possible start has {:?}", starts[0]);
-    }
-
-    #[test]
-    fn test_ok() {
-        let toml_content = r#"
-width = 10
-height = 5
-exits = [{ j_min = 9 }]
-gems = [{ i = 0, j = 2}]
-world_string = """
-X . . . S1 . . . . .
-. . . . .  . . . . .
-. . . . .  . . . . .
-. . . . .  . . . . .
-. . . . .  . . . . .
-"""
-
-[[agents]]
-start_positions = [{ i_min = 0, i_max = 0 }]
-
-[[agents]]
-# Deduced from the string map that agent 1 has a start position at (0, 5).
-
-[[agents]]
-start_positions = [{ i = 0, j = 5 }, { i = 3, j = 5 , k = 0}]
-
-[[agents]]
-start_positions = [
-    { i = 4, j = 9 },
-    { i_min = 1, i_max = 3, j_min = 0, j_max = 3 },
-    { j_min = 4 },
-]
-"#;
-        let w = World::try_from(toml_content).unwrap();
-        assert_eq!(w.exits_positions().len(), 6);
-        assert_eq!(w.gems_positions().len(), 1);
-    }
-
-    #[test]
-    fn test_global_start_pos() {
-        let toml_content = r#"
-width = 10
-height = 10
-n_agents = 5
-starts = [{ row = 0 }]
-exits = [{ col = 4 }]
-"#;
-        let w = World::try_from(toml_content).unwrap();
-        assert_eq!(w.exits_positions().len(), 10);
-        for starts in w.possible_starts() {
-            assert_eq!(starts.len(), 9);
-        }
-    }
-
-    #[test]
-    fn empty_world_string_returns_parse_error_not_panic() {
-        match parse(r#"world_string = """#) {
-            Err(ParseError::EmptyWorld) => {}
-            other => panic!("Expected ParseError::EmptyWorld, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn malformed_lift_table_returns_invalid_toml_document() {
-        let toml_content = r#"
-width = 3
-height = 3
-[[lifts]]
-direction = "Up"
-group_id = "oops"
-[lifts.position]
-i = 0
-j = 0
-k = 0
-"#;
-        match parse(toml_content) {
-            Err(ParseError::InvalidTomlDocument { .. }) => {}
-            other => panic!("Expected ParseError::InvalidTomlDocument, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn malformed_button_table_missing_required_field() {
-        let toml_content = r#"
-width = 3
-height = 3
-[[buttons]]
-[buttons.position]
-i = 0
-j = 0
-k = 0
-"#;
-        match parse(toml_content) {
-            Err(ParseError::InvalidTomlDocument { .. }) => {}
-            other => panic!("Expected ParseError::InvalidTomlDocument, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn unknown_field_in_lift_table_is_reported() {
-        let toml_content = r#"
-width = 3
-height = 3
-[[lifts]]
-direction = "Up"
-group_id = 0
-directoin = "typo"
-[lifts.position]
-i = 0
-j = 0
-k = 0
-"#;
-        match parse(toml_content) {
-            Err(ParseError::UnknownTomlKey { key, .. }) => {
-                assert_eq!(key, "directoin");
-            }
-            other => panic!("Expected ParseError::UnknownTomlKey, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn unknown_field_in_button_table_is_reported() {
-        let toml_content = r#"
-width = 3
-height = 3
-[[buttons]]
-group_id = 0
-gruop_id = 0
-[buttons.position]
-i = 0
-j = 0
-k = 0
-"#;
-        match parse(toml_content) {
-            Err(ParseError::UnknownTomlKey { key, .. }) => {
-                assert_eq!(key, "gruop_id");
-            }
-            other => panic!("Expected ParseError::UnknownTomlKey, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn parse_toml_with_buttons_and_lifts_round_trip() {
-        let toml_content = r#"
-width = 3
-height = 3
-[[lifts]]
-direction = "Up"
-group_id = 1
-authorized_agent_id = 0
-[lifts.position]
-i = 0
-j = 2
-k = 0
-
-[[buttons]]
-group_id = 1
-[buttons.position]
-i = 1
-j = 1
-k = 0
-"#;
-        let config = parse(toml_content).unwrap();
-        assert_eq!(config.lifts().len(), 1);
-        let (pos, lift) = &config.lifts()[0];
-        assert_eq!(*pos, Position { i: 0, j: 2, k: 0 });
-        assert_eq!(lift.direction, crate::tiles::VerticalDirection::Up);
-        assert_eq!(lift.group_id, 1);
-        assert_eq!(lift.authorized_agent_id, Some(0));
-
-        assert_eq!(config.buttons().len(), 1);
-        let (pos, button) = &config.buttons()[0];
-        assert_eq!(*pos, Position { i: 1, j: 1, k: 0 });
-        assert_eq!(button.group_id, 1);
-        assert_eq!(button.authorized_agent_id, None);
-    }
-}
+#[path = "../../../unit_tests/test_toml_config.rs"]
+mod tests;

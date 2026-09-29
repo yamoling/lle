@@ -1,9 +1,11 @@
+use std::collections::BTreeMap;
+
+use crate::{Grid, Position, agent::Colour};
+
 use super::{
     ParseError, button_config::ButtonConfig, laser_config::LaserConfig, lift_config::LiftConfig,
     world_config::WorldConfig,
 };
-use crate::{AgentId, Grid, Position, log_warn};
-use crate::{log_debug, log_info};
 
 #[derive(Default)]
 pub struct ParsingData {
@@ -11,7 +13,11 @@ pub struct ParsingData {
     pub height: usize,
     pub layers: usize,
     pub gem_positions: Vec<Position>,
-    pub start_positions: Vec<Vec<Position>>,
+    /// Start positions grouped by colour, in reading order. `k` occurrences of `S<c>` declare `k`
+    /// agents of colour `c`. Ordered by colour so that flattening yields colour-major agent ids
+    /// (see `.agents/plans/agent-colour-id.md` §3.4a): with unique tokens this reproduces the
+    /// historical "agent id = token number" assignment exactly.
+    pub start_positions: BTreeMap<Colour, Vec<Position>>,
     pub void_positions: Vec<Position>,
     pub exit_positions: Vec<Position>,
     pub walls_positions: Vec<Position>,
@@ -38,24 +44,18 @@ impl ParsingData {
         self.button_configs.push((pos, config));
     }
 
-    pub fn add_start_position(
-        &mut self,
-        agent_id: AgentId,
-        pos: Position,
-    ) -> Result<(), ParseError> {
-        while self.start_positions.len() <= agent_id as usize {
-            self.start_positions.push(Vec::new());
-        }
-        if !self.start_positions[agent_id].is_empty() {
-            //? why one start position if we create a vector of positions per agent?
-            return Err(ParseError::DuplicateStartTile {
-                agent_id,
-                start1: self.start_positions[agent_id][0],
-                start2: pos,
-            });
-        }
-        self.start_positions[agent_id].push(pos);
-        Ok(())
+    /// Declare one agent of colour `colour` starting at `pos`. Repeating a token declares
+    /// several agents of that colour.
+    pub fn add_start_position(&mut self, colour: Colour, pos: Position) {
+        self.start_positions.entry(colour).or_default().push(pos);
+    }
+
+    /// The colour of each agent, in colour-major agent-id order.
+    pub fn agent_colours(&self) -> Vec<Colour> {
+        self.start_positions
+            .iter()
+            .flat_map(|(&colour, starts)| std::iter::repeat_n(colour, starts.len()))
+            .collect()
     }
 
     pub fn add_gem(&mut self, pos: Position) {
@@ -79,7 +79,6 @@ impl ParsingData {
     }
 
     pub fn add_row(&mut self, n_cols: usize, line: &str, row: usize) -> Result<(), ParseError> {
-        log_debug!("Adding row with {} columns: {}", n_cols, line);
         if let Some(w) = self.width {
             if w != n_cols {
                 return Err(ParseError::Inconsistent2Dimensions {
@@ -96,7 +95,6 @@ impl ParsingData {
     }
     pub fn add_layer(&mut self, hw: (usize, usize)) -> Result<(), ParseError> {
         // TODO refactor
-        log_debug!("Adding layer with dimensions: {}x{}", hw.0, hw.1);
         match (self.height, self.width) {
             (h, Some(w)) => {
                 if hw != (h, w) {
@@ -108,7 +106,6 @@ impl ParsingData {
                 }
             }
             _ => {
-                log_warn!("Attempted to add a layer with no rows parsed (empty world)");
                 return Err(ParseError::EmptyWorld);
             }
         }
@@ -120,37 +117,60 @@ impl ParsingData {
 impl TryInto<WorldConfig> for ParsingData {
     type Error = ParseError;
     fn try_into(self) -> Result<WorldConfig, Self::Error> {
-        log_info!("begin converting ParsingData to WorldConfig");
         if self.height == 0 {
             return Err(ParseError::EmptyWorld);
         }
         let width = self.width.ok_or(ParseError::MissingWidth)?;
         let layers = self.layers; //? need to be consistent with the default value of layers in ParsingData
+        let colours = self.agent_colours();
+        // One agent per start tile, ordered by (colour, reading order).
+        let starts = self
+            .start_positions
+            .into_values()
+            .flatten()
+            .map(|pos| vec![pos])
+            .collect();
         Ok(WorldConfig::new(
             width,
             self.height,
             layers,
             self.gem_positions,
-            self.start_positions,
+            starts,
             self.void_positions,
             self.exit_positions,
             self.walls_positions,
             self.laser_configs,
             self.lift_configs,
             self.button_configs,
+            colours,
         ))
     }
 }
 
+/// Render a config as a v1 ASCII world string, or `Err(())` when v1 cannot express it.
+///
+/// v1 cannot express several possible start positions for one agent, and it re-derives agent ids
+/// by `(colour, reading order)` on reparse — so a world whose same-colour agents are not already
+/// in reading order would come back with those agents swapped. Both cases return `Err(())`, and
+/// `WorldConfig::Display` falls back to TOML (see `.agents/plans/agent-colour-id.md` §3.4d).
 pub fn to_v1_string(config: &WorldConfig) -> Result<String, ()> {
     let mut res =
         Grid::<String>::new(config.width(), config.height(), config.layers()).default_init();
+    let mut previous_of_colour: std::collections::HashMap<usize, Position> =
+        std::collections::HashMap::new();
     for (agent_num, pos) in config.random_starts().iter().enumerate() {
         if pos.len() > 1 {
             return Err(());
         }
         let pos = pos[0];
-        res.replace_at(&pos, format!("S{agent_num}"));
+        let colour = *config.colours().get(agent_num).ok_or(())?;
+        // Agents of one colour must already be in reading order, or the emission is lossy.
+        if let Some(previous) = previous_of_colour.insert(colour, pos)
+            && (previous.i, previous.j) > (pos.i, pos.j)
+        {
+            return Err(());
+        }
+        res.replace_at(&pos, format!("S{colour}"));
     }
 
     for pos in config.gems() {
@@ -189,11 +209,6 @@ pub fn parse(world_str: &str) -> Result<WorldConfig, ParseError> {
             continue;
         }
         if line.starts_with(';') {
-            log_debug!(
-                "Finished parsing layer {layer} with dimensions: {}x{}",
-                row,
-                n_cols
-            );
             data.add_layer((row, n_cols))?;
             row = 0;
             layer += 1;
@@ -215,10 +230,10 @@ pub fn parse(world_str: &str) -> Result<WorldConfig, ParseError> {
                 'X' => data.add_exit(pos),
                 'V' => data.add_void(pos),
                 'S' => {
-                    let agent_id = token[1..].parse().map_err(|_| ParseError::InvalidAgentId {
+                    let colour = token[1..].parse().map_err(|_| ParseError::InvalidAgentId {
                         given_agent_id: token[1..].into(),
                     })?;
-                    data.add_start_position(agent_id, pos)?;
+                    data.add_start_position(colour, pos);
                 }
                 'L' => {
                     let source_config = LaserConfig::from_str(token, data.n_lasers())?;
@@ -248,178 +263,9 @@ pub fn parse(world_str: &str) -> Result<WorldConfig, ParseError> {
         row += 1;
     }
     data.add_layer((row, n_cols))?;
-    log_debug!(
-        "Finished parsing world with dimensions: {}x{}x{}",
-        data.height,
-        data.width.unwrap(),
-        data.layers // will be done downstream
-    );
     data.try_into()
 }
 
 #[cfg(test)]
-mod tests {
-    use crate::{
-        ParseError, Position,
-        tiles::{Tile, VerticalDirection},
-    };
-
-    use super::parse;
-
-    #[test]
-    fn test_parse_lift_and_button() {
-        let config = parse(
-            "
-            S0 .  TU0A1
-            .  B0 .
-            .  .  X
-            ",
-        )
-        .unwrap();
-        let world = config.to_world().unwrap();
-
-        match world.at(&Position { i: 0, j: 2, k: 0 }) {
-            Some(Tile::Lift(lift)) => {
-                assert_eq!(lift.direction(), VerticalDirection::Up);
-                assert_eq!(lift.group_id(), 0);
-                assert_eq!(lift.authorized_agent_id(), Some(1));
-            }
-            other => panic!("Expected a Lift tile, got {:?}", other),
-        }
-
-        match world.at(&Position { i: 1, j: 1, k: 0 }) {
-            Some(Tile::Button(button)) => {
-                assert_eq!(button.group_id(), 0);
-                assert_eq!(button.authorized_agent_id(), None);
-            }
-            other => panic!("Expected a Button tile, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_parse_lift_button_invalid_group_id() {
-        match parse(
-            "
-            S0 TUx
-            .  X
-            ",
-        ) {
-            Err(ParseError::InvalidGroupId { .. }) => {}
-            other => panic!("Expected ParseError::InvalidGroupId, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_lift_button_round_trip() {
-        let config = parse(
-            "
-            S0 .  TU0A1
-            .  B0 .
-            .  .  X
-            ",
-        )
-        .unwrap();
-        let as_string = super::to_v1_string(&config).unwrap();
-        let reparsed = parse(&as_string).unwrap();
-        let world = reparsed.to_world().unwrap();
-
-        match world.at(&Position { i: 0, j: 2, k: 0 }) {
-            Some(Tile::Lift(lift)) => {
-                assert_eq!(lift.direction(), VerticalDirection::Up);
-                assert_eq!(lift.group_id(), 0);
-                assert_eq!(lift.authorized_agent_id(), Some(1));
-            }
-            other => panic!("Expected a Lift tile, got {:?}", other),
-        }
-        match world.at(&Position { i: 1, j: 1, k: 0 }) {
-            Some(Tile::Button(button)) => {
-                assert_eq!(button.group_id(), 0);
-            }
-            other => panic!("Expected a Button tile, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_laser_kill_on_spawn() {
-        match parse(
-            "
-            L1S  X  .
-            S0 S1  X
-            ",
-        ) {
-            Ok(config) => {
-                let world = config.to_world();
-                match world {
-                    Ok(_) => panic!(
-                        "The start location of agent 0 should have been removed and no remaining start position remains for agent 0"
-                    ),
-                    Err(ParseError::AgentWithoutStart { .. }) => {}
-                    Err(ParseError::NotEnoughExitTiles { .. }) => {}
-                    Err(e) => panic!("Unexpected error: {:?}", e),
-                }
-            }
-            Err(e) => panic!("Unexpected error during parsing: {:?}", e),
-        }
-    }
-
-    #[test]
-    fn test_laser_blocked_on_spawn() {
-        let config = parse(
-            "
-        L1E . S1 S0 X
-        L0E .  .  . X
-        ",
-        )
-        .unwrap();
-        let world = config.to_world();
-        match world {
-            Ok(_) => {}
-            Err(ParseError::AgentWithoutStart { .. }) => panic!(
-                "The start location of agent 0 should have been removed and no remaining start position remains for agent 0"
-            ),
-            Err(ParseError::NotEnoughExitTiles { .. }) => panic!("There are enough exit tiles"),
-            Err(e) => panic!("Unexpected error: {:?}", e),
-        }
-    }
-
-    #[test]
-    fn test_empty_string_returns_empty_world_not_panic() {
-        match parse("") {
-            Err(ParseError::EmptyWorld) => {}
-            other => panic!("Expected ParseError::EmptyWorld, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_leading_semicolon_returns_parse_error() {
-        match parse(";\nS0 X") {
-            Err(ParseError::EmptyWorld) => {}
-            other => panic!("Expected ParseError::EmptyWorld, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_doubled_semicolon_returns_parse_error() {
-        match parse("S0 X\n;\n;") {
-            Err(ParseError::Inconsistent3Dimensions { .. }) => {}
-            other => panic!("Expected ParseError::Inconsistent3Dimensions, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_row_length_mismatch_returns_inconsistent_2d() {
-        match parse("X S0 .\n. .") {
-            Err(ParseError::Inconsistent2Dimensions {
-                expected_n_cols,
-                actual_n_cols,
-                row,
-                ..
-            }) => {
-                assert_eq!(expected_n_cols, 3);
-                assert_eq!(actual_n_cols, 2);
-                assert_eq!(row, 1);
-            }
-            other => panic!("Expected ParseError::Inconsistent2Dimensions, got {:?}", other),
-        }
-    }
-}
+#[path = "../../unit_tests/test_parser_v1.rs"]
+mod tests;

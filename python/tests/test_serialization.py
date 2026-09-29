@@ -2,7 +2,7 @@ import pickle
 import random
 
 import orjson
-from lle import LLE, World, WorldState
+from lle import LLE, Action, World, WorldState
 
 
 def test_pickle_world_state():
@@ -48,6 +48,16 @@ def test_pickled_world_keeps_same_laser_ids():
         assert world.source_at(pos).laser_id == deserialised.source_at(pos).laser_id
         assert world.source_at(pos).agent_id == deserialised.source_at(pos).agent_id
         assert world.source_at(pos).direction == deserialised.source_at(pos).direction
+
+
+def test_pickle_world_with_collected_gem_under_laser():
+    """Pickling restores collected gems even when a laser wraps their tile."""
+    world = World(". G X\nS0 L0N .")
+    world.step(Action.NORTH)
+    world.step(Action.EAST)
+    assert world.get_state().gems_collected[0]
+    deserialised = pickle.loads(pickle.dumps(world))
+    assert deserialised.get_state() == world.get_state()
 
 
 def test_serialize_env_to_json():

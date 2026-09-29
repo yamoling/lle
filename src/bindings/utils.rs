@@ -1,22 +1,13 @@
 use pyo3::prelude::*;
 
-/// Register submodules.
-pub trait RegisterSubmodules {
-    /// Register submodules.
-    fn register_submodules(&self, module_name: &str) -> PyResult<()>;
+/// Recursively register every submodule of `module` in `sys.modules` under `parent_name`,
+/// so that statements such as `from lle.tiles import X` resolve.
+pub fn register_submodules(module: &Bound<'_, PyModule>, parent_name: &str) -> PyResult<()> {
+    let sys_modules = module.py().import("sys")?.getattr("modules")?;
+    register_into(module, parent_name, &sys_modules)
 }
 
-impl RegisterSubmodules for Bound<'_, PyModule> {
-    fn register_submodules(&self, module_name: &str) -> PyResult<()> {
-        register_submodules(
-            self,
-            module_name,
-            &self.py().import("sys")?.getattr("modules")?,
-        )
-    }
-}
-
-fn register_submodules(
+fn register_into(
     module: &Bound<'_, PyModule>,
     parent_name: &str,
     sys_modules: &Bound<'_, PyAny>,
@@ -28,7 +19,7 @@ fn register_submodules(
         if let Ok(submodule) = attr.cast::<PyModule>() {
             let parent_name = format!("{}.{}", parent_name, attr_name);
             sys_modules.set_item(&parent_name, submodule)?;
-            register_submodules(submodule, &parent_name, sys_modules)?;
+            register_into(submodule, &parent_name, sys_modules)?;
         }
     }
 

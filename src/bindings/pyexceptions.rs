@@ -53,11 +53,6 @@ pub fn parse_error_to_exception(error: ParseError) -> PyErr {
         ));
     }
     let msg = match error {
-        ParseError::DuplicateStartTile {
-            agent_id,
-            start1,
-            start2,
-        } => format!("Agent {agent_id} has two start tiles: {start1:?} and {start2:?}"),
         ParseError::Inconsistent2Dimensions {
             row_str,
             expected_n_cols,
@@ -194,6 +189,12 @@ pub fn runtime_error_to_pyexception(error: RuntimeWorldError) -> PyErr {
         RuntimeWorldError::MutexPoisoned => {
             panic!("Mutex poisoned ! Check your code for deadlocks or exceptions.")
         }
+        RuntimeWorldError::InvalidActionDelta { di, dj } => {
+            PyValueError::new_err(format!("Invalid action delta: ({di}, {dj})"))
+        }
+        RuntimeWorldError::PositionsNotAdjacent { pos_0, pos1 } => {
+            PyValueError::new_err(format!("Positions are not adjacent: {pos_0:?} vs {pos1:?}"))
+        }
     }
 }
 
@@ -212,6 +213,24 @@ pub fn solver_error_to_exception(error: crate::solver::errors::SolverError) -> P
             index,
         } => SolverError::new_err(format!(
             "Invalid trajectory: prev_pos={prev_pos:?}, current_pos={current_pos:?}, agent={agent}, index={index}"
+        )),
+        crate::solver::errors::SolverError::MissingPosition { agent, t } => SolverError::new_err(
+            format!("Incomplete model: agent {agent} has no decoded position at time step {t}."),
+        ),
+        // Handing the solver a colour-sharing world is a caller mistake, like an invalid mode
+        // parameter, rather than an illegal solver state.
+        crate::solver::errors::SolverError::SharedColour { colour, agents } => {
+            PyValueError::new_err(format!(
+                "Agents {agents:?} share the colour {colour}. The solver requires every colour to belong to exactly one agent."
+            ))
+        }
+        // An invalid mode parameter is a caller mistake rather than an illegal solver state.
+        crate::solver::errors::SolverError::InvalidModeParameter {
+            variant,
+            value,
+            reason,
+        } => PyValueError::new_err(format!(
+            "Invalid parameter {value} for SolveMode::{variant}: {reason}"
         )),
     }
 }

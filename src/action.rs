@@ -68,6 +68,21 @@ impl From<u32> for Action {
     }
 }
 
+impl TryFrom<(i32, i32)> for Action {
+    type Error = RuntimeWorldError;
+
+    fn try_from(value: (i32, i32)) -> Result<Self, Self::Error> {
+        match value {
+            (-1, 0) => Ok(Action::North),
+            (1, 0) => Ok(Action::South),
+            (0, 1) => Ok(Action::East),
+            (0, -1) => Ok(Action::West),
+            (0, 0) => Ok(Action::Stay),
+            (di, dj) => Err(RuntimeWorldError::InvalidActionDelta { di, dj }),
+        }
+    }
+}
+
 impl From<&str> for Action {
     fn from(value: &str) -> Self {
         match value {

@@ -1,10 +1,10 @@
 use image::{GenericImage, Rgb, RgbImage, RgbaImage};
 use itertools::izip;
 
-use super::{BLACK, GRID_GREY, TileVisitor, sprites};
+use super::{BLACK, GRID_GREY, sprites};
 use crate::{
     core::World,
-    tiles::{Button, CardinalDirection, Gem, Laser, LaserSource, Lift, VerticalDirection},
+    tiles::{Button, CardinalDirection, Gem, Laser, LaserSource, Lift, Tile, VerticalDirection},
 };
 
 use super::{BACKGROUND_GREY, TILE_SIZE};
@@ -99,7 +99,7 @@ impl Renderer {
                 y: pos.y() as u32 * TILE_SIZE,
                 frame: &mut frame_stack[pos.z() as usize],
             };
-            self.visit_laser(laser, &mut data);
+            self.draw_laser(laser, &mut data);
         }
         for (pos, gem) in izip!(world.gems_positions(), world.gems()) {
             let mut data = VisitorData {
@@ -107,7 +107,7 @@ impl Renderer {
                 y: pos.y() as u32 * TILE_SIZE,
                 frame: &mut frame_stack[pos.z() as usize],
             };
-            self.visit_gem(&gem, &mut data);
+            self.draw_gem(gem, &mut data);
         }
         for (pos, lift) in world.lifts() {
             let mut data = VisitorData {
@@ -125,12 +125,12 @@ impl Renderer {
             };
             self.visit_button(button, &mut data);
         }
-        for (id, pos) in world.agents_positions().iter().enumerate() {
+        for (agent, pos) in izip!(world.agents(), world.agents_positions()) {
             let x = pos.x() as u32 * TILE_SIZE;
             let y = pos.y() as u32 * TILE_SIZE;
             add_transparent_image(
                 &mut frame_stack[pos.z() as usize],
-                &sprites::AGENTS[id],
+                sprites::agent(agent.colour()),
                 x,
                 y,
             );
@@ -141,7 +141,7 @@ impl Renderer {
                 y: pos.y() as u32 * TILE_SIZE,
                 frame: &mut frame_stack[pos.z() as usize],
             };
-            self.visit_laser_source(source, &mut data);
+            self.draw_laser_source(source, &mut data);
         }
         frame_stack.iter_mut().for_each(|frame| {
             draw_grid(frame);
@@ -245,10 +245,10 @@ fn draw_rectangle(
     let horizontal_line = RgbImage::from_pixel(width, thickness, color);
     let vertical_line = RgbImage::from_pixel(thickness, height, color);
     img.copy_from(&horizontal_line, x, y).unwrap();
-    img.copy_from(&horizontal_line, x, y + height - thickness + 1)
+    img.copy_from(&horizontal_line, x, y + height - thickness)
         .unwrap();
     img.copy_from(&vertical_line, x, y).unwrap();
-    img.copy_from(&vertical_line, x + width - thickness + 1, y)
+    img.copy_from(&vertical_line, x + width - thickness, y)
         .unwrap();
 }
 
@@ -311,37 +311,47 @@ fn hsv_to_rgb(h: f32, s: f32, v: f32) -> Rgb<u8> {
     ])
 }
 
-impl TileVisitor for Renderer {
-    fn visit_gem(&self, gem: &Gem, data: &mut VisitorData) {
+impl Renderer {
+    /// Draw whichever tile sits at this cell, dispatching on its variant.
+    fn draw_tile(&self, tile: &Tile, data: &mut VisitorData) {
+        match tile {
+            Tile::Gem(gem) => self.draw_gem(gem, data),
+            Tile::Laser(laser) => self.draw_laser(laser, data),
+            Tile::LaserSource(source) => self.draw_laser_source(source, data),
+            _ => {} // Nothing to draw.
+        }
+    }
+
+    fn draw_gem(&self, gem: &Gem, data: &mut VisitorData) {
         if !gem.is_collected() {
             add_transparent_image(data.frame, &sprites::GEM, data.x, data.y);
         }
     }
 
-    fn visit_laser(&self, laser: &Laser, data: &mut VisitorData) {
+    fn draw_laser(&self, laser: &Laser, data: &mut VisitorData) {
         if laser.is_on() {
-            let agent_id = laser.agent_id();
+            let colour = laser.colour();
             let laser_sprite = match laser.direction() {
                 CardinalDirection::North | CardinalDirection::South => {
-                    &sprites::VERTICAL_LASERS[agent_id]
+                    sprites::vertical_laser(colour)
                 }
                 CardinalDirection::East | CardinalDirection::West => {
-                    &sprites::HORIZONTAL_LASERS[agent_id]
+                    sprites::horizontal_laser(colour)
                 }
             };
             add_transparent_image(data.frame, laser_sprite, data.x, data.y);
         }
         // Draw the tile below the laser
-        laser.wrapped().accept(self, data);
+        self.draw_tile(laser.wrapped(), data);
     }
 
-    fn visit_laser_source(&self, source: &LaserSource, data: &mut VisitorData) {
-        let agent_id = source.agent_id();
+    fn draw_laser_source(&self, source: &LaserSource, data: &mut VisitorData) {
+        let colour = source.colour();
         let source_sprite = match source.direction() {
-            CardinalDirection::North => &sprites::LASER_SOURCES_NORTH[agent_id],
-            CardinalDirection::East => &sprites::LASER_SOURCES_EAST[agent_id],
-            CardinalDirection::South => &sprites::LASER_SOURCES_SOUTH[agent_id],
-            CardinalDirection::West => &sprites::LASER_SOURCES_WEST[agent_id],
+            CardinalDirection::North => sprites::laser_source_north(colour),
+            CardinalDirection::East => sprites::laser_source_east(colour),
+            CardinalDirection::South => sprites::laser_source_south(colour),
+            CardinalDirection::West => sprites::laser_source_west(colour),
         };
         data.frame.copy_from(source_sprite, data.x, data.y).unwrap();
     }
@@ -385,70 +395,5 @@ impl TileVisitor for Renderer {
 }
 
 #[cfg(test)]
-mod test_renderer {
-    use crate::{Renderer, World, rendering::TILE_SIZE};
-
-    #[test]
-    fn pixel_dimensions() {
-        let world = World::try_from("S0 . X").unwrap();
-        let renderer = Renderer::new(&world);
-        assert_eq!(TILE_SIZE * world.width() as u32 + 1, renderer.pixel_width());
-        assert_eq!(
-            TILE_SIZE * world.height() as u32 + 1,
-            renderer.pixel_height()
-        );
-    }
-
-    #[test]
-    fn lift_and_button_are_rendered() {
-        let world = World::try_from("S0 . TU0\nB0 .  X").unwrap();
-        let renderer = Renderer::new(&world);
-        let image = renderer.update(&world);
-
-        // A plain floor tile is left as the untouched background fill.
-        let floor_pixel = *image.get_pixel(TILE_SIZE + TILE_SIZE / 2, TILE_SIZE / 2);
-
-        // Lift at (row 0, col 2): the up-arrow sprite covers the tile center.
-        let lift_pixel = *image.get_pixel(2 * TILE_SIZE + TILE_SIZE / 2, TILE_SIZE / 2);
-        assert_ne!(lift_pixel, floor_pixel);
-
-        // Button at (row 1, col 0), unoccupied: only the idle ring is drawn
-        // (the tile center is transparent), so sample a pixel on the ring itself.
-        let button_pixel = *image.get_pixel(TILE_SIZE / 2, TILE_SIZE + 5);
-        assert_ne!(button_pixel, floor_pixel);
-    }
-
-    #[test]
-    fn lift_and_button_restriction_badge_is_rendered() {
-        // Same group_id (0), same shape/direction — only the `A0` suffix
-        // restricts the tile to agent 0. The badge should be the only
-        // difference between the two renders.
-        let unrestricted = World::try_from("S0 . TU0\nB0 .  X").unwrap();
-        let restricted = World::try_from("S0 . TU0A0\nB0A0 .  X").unwrap();
-
-        let unrestricted_image = Renderer::new(&unrestricted).update(&unrestricted);
-        let restricted_image = Renderer::new(&restricted).update(&restricted);
-
-        const BADGE_OFFSET: u32 = TILE_SIZE - 14 - 2;
-        // Offset of an opaque pixel inside the badge sprite itself (its
-        // top-left corner is transparent, so sampling BADGE_OFFSET alone
-        // would land on background/sprite-underneath, not the badge).
-        const BADGE_INNER: u32 = 7;
-
-        // Lift at (row 0, col 2).
-        let lift_x = 2 * TILE_SIZE + BADGE_OFFSET + BADGE_INNER;
-        let lift_y = BADGE_OFFSET + BADGE_INNER;
-        assert_ne!(
-            *restricted_image.get_pixel(lift_x, lift_y),
-            *unrestricted_image.get_pixel(lift_x, lift_y)
-        );
-
-        // Button at (row 1, col 0).
-        let button_x = BADGE_OFFSET + BADGE_INNER;
-        let button_y = TILE_SIZE + BADGE_OFFSET + BADGE_INNER;
-        assert_ne!(
-            *restricted_image.get_pixel(button_x, button_y),
-            *unrestricted_image.get_pixel(button_x, button_y)
-        );
-    }
-}
+#[path = "../unit_tests/test_renderer.rs"]
+mod test_renderer;

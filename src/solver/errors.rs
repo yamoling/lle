@@ -6,6 +6,14 @@ use super::clauses::VarKey;
 
 #[derive(Debug)]
 pub enum SolverError {
+    /// Two agents share a laser colour. The SAT encoding reasons about exactly one owning agent
+    /// per beam (`ConstraintContext::update_laser_relevance`, `ClauseEngine::beam_activation`),
+    /// and the cooperation taxonomy identifies colours with helper agents, so a colour-sharing
+    /// world would be encoded unsoundly. See `.agents/plans/agent-colour-id.md` §2.
+    SharedColour {
+        colour: usize,
+        agents: Vec<AgentId>,
+    },
     VariableNotCreated {
         var: VarKey,
     },
@@ -19,11 +27,29 @@ pub enum SolverError {
         agent: AgentId,
         index: usize,
     },
+    /// The decoded model has no position for `agent` at time step `t`, so the trajectory cannot be
+    /// reconstructed. This signals an incomplete or malformed SAT model.
+    MissingPosition {
+        agent: AgentId,
+        t: usize,
+    },
+    /// A parameterized [`SolveMode`](crate::solver::SolveMode) carries a value that has no meaning
+    /// for that variant. `variant` is the Rust variant name and `reason` explains what the value
+    /// would encode, if anything.
+    InvalidModeParameter {
+        variant: &'static str,
+        value: usize,
+        reason: String,
+    },
 }
 
 impl Display for SolverError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            SolverError::SharedColour { colour, agents } => write!(
+                f,
+                "Agents {agents:?} share the colour {colour}. The solver requires every colour to belong to exactly one agent."
+            ),
             SolverError::VariableNotCreated { var } => write!(f, "Variable not created: {var:?}"),
             SolverError::InvalidAssumption { var, reason } => {
                 write!(f, "Invalid assumption for {var:?}: {reason}")
@@ -41,6 +67,18 @@ impl Display for SolverError {
                     "Invalid trajectory at index {index}: agent {agent} goes from {prev_pos:?} to {next_pos:?} (i.e. a distance of {distance} tiles), which does not match any possible action."
                 )
             }
+            SolverError::MissingPosition { agent, t } => write!(
+                f,
+                "Incomplete model: agent {agent} has no decoded position at time step {t}."
+            ),
+            SolverError::InvalidModeParameter {
+                variant,
+                value,
+                reason,
+            } => write!(
+                f,
+                "Invalid parameter {value} for SolveMode::{variant}: {reason}"
+            ),
         }
     }
 }
