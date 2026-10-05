@@ -32,6 +32,8 @@ class Solver:
     generator: ClauseGenerator
 
     def __init__(self, world: World, t_max: int | Literal["auto"] = "auto") -> None:
+        if world.n_boxes > 0:
+            raise NotImplementedError("Worlds with movable boxes are not supported yet")
         self.world = world
         self.t_max = _default_t_max(world) if t_max == "auto" else t_max
         self.generator = ClauseGenerator(world, self.t_max)
