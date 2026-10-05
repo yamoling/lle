@@ -71,21 +71,26 @@ fn test_restore_sets_an_arbitrary_consistent_state() {
 
 #[test]
 fn test_id_at_returns_none_for_position_outside_grid() {
-    let boxes = two_boxes();
+    let boxes = Boxes::new(vec![pos(1, 0)], 3, 3);
     // Grid is 3x3, so valid indices are 0-2 for both i and j
-    assert_eq!(
-        boxes.id_at(pos(3, 0)),
-        None,
-        "position outside grid returns None"
-    );
+    // Box is at (1,0), flat index 3
+    // pos(0,3) would naively map to flat index 0*3+3=3 (aliasing to (1,0))
+    // But bounds check should reject it before that lookup
     assert_eq!(
         boxes.id_at(pos(0, 3)),
         None,
-        "position outside grid returns None"
+        "column out of range returns None, not aliased cell"
+    );
+    assert_eq!(
+        boxes.id_at(pos(3, 0)),
+        None,
+        "row out of range returns None"
     );
     assert_eq!(
         boxes.id_at(pos(5, 5)),
         None,
         "position far outside grid returns None"
     );
+    // Verify the box is really at (1,0)
+    assert_eq!(boxes.id_at(pos(1, 0)), Some(0), "box at (1,0) is present");
 }

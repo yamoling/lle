@@ -17,6 +17,7 @@ pub struct Boxes {
     /// Flat `height * width` occupancy index. `None` where no *present* box is.
     occupancy: Vec<Option<BoxId>>,
     width: usize,
+    height: usize,
 }
 
 #[allow(dead_code)]
@@ -29,6 +30,7 @@ impl Boxes {
             initial_positions,
             occupancy: vec![None; width * height],
             width,
+            height,
         };
         boxes.reindex();
         boxes
@@ -70,6 +72,9 @@ impl Boxes {
 
     /// The present box occupying `pos`, if any.
     pub fn id_at(&self, pos: Position) -> Option<BoxId> {
+        if pos.i >= self.height || pos.j >= self.width {
+            return None;
+        }
         *self.occupancy.get(self.index(pos))?
     }
 
