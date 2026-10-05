@@ -1,4 +1,4 @@
-use image::{self, RgbImage, RgbaImage};
+use image::{self, RgbImage, Rgba, RgbaImage};
 
 use super::{BLACK, TILE_SIZE};
 use std::sync::LazyLock;
@@ -146,3 +146,23 @@ pub fn laser_source_south(agent_id: usize) -> &'static RgbImage {
 pub fn laser_source_west(agent_id: usize) -> &'static RgbImage {
     rgb_or_fallback(&LASER_SOURCES_WEST, &LASER_SOURCE_WEST_FALLBACK, agent_id)
 }
+
+/// Drawn rather than loaded: a filled brown square with a darker border,
+/// following `WALL`, which is also generated rather than shipped as a PNG.
+pub static BOX: LazyLock<RgbaImage> = LazyLock::new(|| {
+    const FILL: Rgba<u8> = Rgba([150, 103, 61, 255]);
+    const BORDER: Rgba<u8> = Rgba([92, 60, 33, 255]);
+    const MARGIN: u32 = 3;
+    const THICKNESS: u32 = 2;
+    let mut image = RgbaImage::from_pixel(TILE_SIZE, TILE_SIZE, Rgba([0, 0, 0, 0]));
+    for x in MARGIN..TILE_SIZE - MARGIN {
+        for y in MARGIN..TILE_SIZE - MARGIN {
+            let on_border = x < MARGIN + THICKNESS
+                || y < MARGIN + THICKNESS
+                || x >= TILE_SIZE - MARGIN - THICKNESS
+                || y >= TILE_SIZE - MARGIN - THICKNESS;
+            image.put_pixel(x, y, if on_border { BORDER } else { FILL });
+        }
+    }
+    image
+});
