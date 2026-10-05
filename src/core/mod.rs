@@ -1,3 +1,4 @@
+pub mod boxes;
 mod errors;
 mod event;
 mod levels;
@@ -6,6 +7,8 @@ pub mod tiles;
 mod world;
 mod world_state;
 
+#[allow(unused_imports)]
+pub use boxes::{BoxId, Boxes};
 pub use errors::RuntimeWorldError;
 pub use event::WorldEvent;
 pub use parsing::ParseError;
