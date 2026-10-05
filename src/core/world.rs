@@ -166,6 +166,60 @@ impl World {
         }
     }
 
+    /// Checks the box part of `state` against this world without mutating anything.
+    ///
+    /// Every box must lie on a walkable cell of the grid. A present box may not
+    /// stand on a void, share its cell with another present box or with any agent
+    /// of `state` (dead ones included). An absent box must lie on a void, since a
+    /// destroyed box keeps the void cell it fell into.
+    fn validate_boxes(&self, state: &WorldState) -> Result<(), RuntimeWorldError> {
+        if state.boxes_positions.len() != self.n_boxes()
+            || state.boxes_present.len() != self.n_boxes()
+        {
+            let given = if state.boxes_positions.len() != self.n_boxes() {
+                state.boxes_positions.len()
+            } else {
+                state.boxes_present.len()
+            };
+            return Err(RuntimeWorldError::InvalidNumberOfBoxes {
+                given,
+                expected: self.n_boxes(),
+            });
+        }
+        let invalid = |reason: &str| RuntimeWorldError::InvalidWorldState {
+            reason: reason.into(),
+            state: Box::new(state.clone()),
+        };
+        for (pos, &present) in izip!(&state.boxes_positions, &state.boxes_present) {
+            let tile = self
+                .at(pos)
+                .ok_or(RuntimeWorldError::OutOfWorldPosition { position: *pos })?;
+            if !tile.is_walkable() {
+                return Err(invalid("A box is on a non-walkable tile"));
+            }
+            if present && tile.is_void() {
+                return Err(invalid("A present box is on a void"));
+            }
+            if !present && !tile.is_void() {
+                return Err(invalid("An absent box is not on a void"));
+            }
+        }
+        let present_positions = izip!(&state.boxes_positions, &state.boxes_present)
+            .filter(|(_, present)| **present)
+            .map(|(pos, _)| *pos)
+            .collect::<Vec<_>>();
+        if find_duplicates(&present_positions).iter().any(|&b| b) {
+            return Err(invalid("There are two present boxes at the same position"));
+        }
+        if present_positions
+            .iter()
+            .any(|pos| state.agents_positions.contains(pos))
+        {
+            return Err(invalid("A present box is at the same position as an agent"));
+        }
+        Ok(())
+    }
+
     pub fn n_agents(&self) -> usize {
         self.agents.len()
     }
@@ -436,6 +490,8 @@ impl World {
                     agents_positions,
                     gems_collected,
                     agents_alive,
+                    boxes_positions: self.boxes.initial_positions().clone(),
+                    boxes_present: vec![true; self.n_boxes()],
                 },
             )
     }
@@ -740,6 +796,8 @@ impl World {
             agents_positions: self.agents_positions.clone(),
             gems_collected: self.gems().iter().map(|gem| gem.is_collected()).collect(),
             agents_alive: self.agents.iter().map(|agent| agent.is_alive()).collect(),
+            boxes_positions: self.boxes.positions().clone(),
+            boxes_present: self.boxes.present().clone(),
         }
     }
 
@@ -761,7 +819,7 @@ impl World {
         if find_duplicates(&state.agents_positions).iter().any(|&b| b) {
             return Err(RuntimeWorldError::InvalidWorldState {
                 reason: "There are two agents at the same position".into(),
-                state: state.clone(),
+                state: Box::new(state.clone()),
             });
         }
 
@@ -770,6 +828,7 @@ impl World {
                 return Err(RuntimeWorldError::OutOfWorldPosition { position: *pos });
             }
         }
+        self.validate_boxes(state)?;
         let current_state = self.get_state();
 
         // Reset tiles and agents (but do not enter the new tiles)
@@ -791,6 +850,12 @@ impl World {
                 }
             }
         }
+        // Boxes settle before the agents pre-enter (spec phase order). The restored
+        // state already records which boxes are absent, so no destruction event
+        // belongs to a `set_state`: the settle events are discarded.
+        self.boxes
+            .restore(&state.boxes_positions, &state.boxes_present);
+        self.settle_boxes();
         for (pos, agent) in izip!(&state.agents_positions, &self.agents) {
             if let Err(error) = self.grid[pos.i][pos.j].pre_enter(agent) {
                 let reason = match error {
@@ -828,7 +893,7 @@ impl World {
         if actual_state != *state {
             return Err(RuntimeWorldError::InvalidWorldState {
                 reason: "The given state is invalid (e.g. an agent whose alive status was set to `true` died).".into(),
-                state: state.clone(),
+                state: Box::new(state.clone()),
             });
         }
         self.compute_available_actions();

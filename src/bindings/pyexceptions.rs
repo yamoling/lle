@@ -156,6 +156,11 @@ pub fn runtime_error_to_pyexception(error: RuntimeWorldError) -> PyErr {
                 "Invalid number of gems: given {given}, expected {expected}",
             ))
         }
+        RuntimeWorldError::InvalidNumberOfBoxes { given, expected } => {
+            InvalidWorldStateError::new_err(format!(
+                "Invalid number of boxes: given {given}, expected {expected}",
+            ))
+        }
         RuntimeWorldError::InvalidAgentPosition { position, reason } => {
             InvalidWorldStateError::new_err(format!(
                 "Invalid agent position {position:?}: {reason}",

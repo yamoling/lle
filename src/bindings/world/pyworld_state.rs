@@ -185,6 +185,8 @@ impl From<PyWorldState> for WorldState {
             agents_positions: val.agents_positions.into_iter().map(Into::into).collect(),
             gems_collected: val.gems_collected,
             agents_alive: val.agents_alive,
+            boxes_positions: vec![],
+            boxes_present: vec![],
         }
     }
 }

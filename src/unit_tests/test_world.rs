@@ -639,6 +639,8 @@ fn test_force_state_agent_dies() {
         agents_positions: vec![(1, 0).into(), (1, 1).into()],
         gems_collected: vec![false],
         agents_alive: vec![true, false],
+        boxes_positions: vec![],
+        boxes_present: vec![],
     };
     w.set_state(&s).unwrap();
     assert!(w.agents()[1].is_dead());
@@ -1485,4 +1487,335 @@ fn test_an_exit_works_again_once_its_box_is_pushed_off() {
         events.contains(&WorldEvent::AgentExit { agent_id: 0 }),
         "the agent exits once the box is off the exit: {events:?}"
     );
+}
+
+#[test]
+fn test_state_round_trips_with_boxes() {
+    let mut world = World::try_from("S0 B . . X").unwrap();
+    world.reset();
+    world.step(&[Action::East]).unwrap();
+
+    let state = world.get_state();
+    assert_eq!(state.boxes_positions, vec![pos(0, 2)]);
+    assert_eq!(state.boxes_present, vec![true]);
+
+    world.reset();
+    assert_eq!(world.boxes_positions(), vec![pos(0, 1)]);
+
+    world.set_state(&state).unwrap();
+    assert_eq!(world.boxes_positions(), vec![pos(0, 2)]);
+    assert_eq!(world.agents_positions(), &vec![pos(0, 1)]);
+    assert!(world.has_box_at(pos(0, 2)));
+    assert!(!world.has_box_at(pos(0, 1)));
+}
+
+#[test]
+fn test_state_round_trips_with_a_destroyed_box() {
+    let mut world = World::try_from("S0 B V X").unwrap();
+    world.reset();
+    world.step(&[Action::East]).unwrap();
+    let state = world.get_state();
+    assert_eq!(state.boxes_present, vec![false]);
+
+    world.reset();
+    let events = world.set_state(&state).unwrap();
+
+    assert_eq!(world.boxes_present(), vec![false]);
+    assert!(!world.has_box_at(pos(0, 2)));
+    assert!(
+        !events
+            .iter()
+            .any(|e| matches!(e, WorldEvent::BoxDestroyed { .. })),
+        "restoring an absent box emits no destruction: {events:?}"
+    );
+}
+
+#[test]
+fn test_world_state_new_alive_has_no_boxes() {
+    let state = WorldState::new_alive(vec![pos(0, 0)], vec![false]);
+    assert!(state.boxes_positions.is_empty());
+    assert!(state.boxes_present.is_empty());
+}
+
+#[test]
+fn test_set_state_rejects_a_wrong_number_of_boxes() {
+    let mut world = World::try_from("S0 B . X").unwrap();
+    world.reset();
+    let mut state = world.get_state();
+    state.boxes_positions.push(pos(0, 2));
+
+    match world.set_state(&state) {
+        Err(RuntimeWorldError::InvalidNumberOfBoxes { given, expected }) => {
+            assert_eq!(given, 2);
+            assert_eq!(expected, 1);
+        }
+        other => panic!("expected InvalidNumberOfBoxes, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_set_state_rejects_a_wrong_number_of_box_presence_flags() {
+    let mut world = World::try_from("S0 B . X").unwrap();
+    world.reset();
+    let mut state = world.get_state();
+    state.boxes_present.push(true);
+
+    assert!(matches!(
+        world.set_state(&state),
+        Err(RuntimeWorldError::InvalidNumberOfBoxes { expected: 1, .. })
+    ));
+}
+
+#[test]
+fn test_set_state_rejects_missing_boxes_on_a_world_with_boxes() {
+    let mut world = World::try_from("S0 B . X").unwrap();
+    world.reset();
+    let state = WorldState::new_alive(vec![pos(0, 0)], vec![]);
+
+    assert!(matches!(
+        world.set_state(&state),
+        Err(RuntimeWorldError::InvalidNumberOfBoxes {
+            given: 0,
+            expected: 1
+        })
+    ));
+}
+
+#[test]
+fn test_set_state_rejects_a_box_on_a_wall() {
+    let mut world = World::try_from("S0 B @ X\n.  . . .").unwrap();
+    world.reset();
+    let mut state = world.get_state();
+    state.boxes_positions[0] = pos(0, 2);
+
+    assert!(matches!(
+        world.set_state(&state),
+        Err(RuntimeWorldError::InvalidWorldState { .. })
+    ));
+}
+
+#[test]
+fn test_set_state_rejects_a_box_on_a_laser_source() {
+    let mut world = World::try_from("S0 B L0W X").unwrap();
+    world.reset();
+    let mut state = world.get_state();
+    state.boxes_positions[0] = pos(0, 2);
+
+    assert!(matches!(
+        world.set_state(&state),
+        Err(RuntimeWorldError::InvalidWorldState { .. })
+    ));
+}
+
+#[test]
+fn test_set_state_rejects_a_box_out_of_the_world() {
+    let mut world = World::try_from("S0 B . X").unwrap();
+    world.reset();
+    let mut state = world.get_state();
+    state.boxes_positions[0] = pos(3, 0);
+
+    match world.set_state(&state) {
+        Err(RuntimeWorldError::OutOfWorldPosition { position }) => {
+            assert_eq!(position, pos(3, 0))
+        }
+        other => panic!("expected OutOfWorldPosition, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_set_state_rejects_a_present_box_on_a_void() {
+    let mut world = World::try_from("S0 B V X").unwrap();
+    world.reset();
+    let mut state = world.get_state();
+    state.boxes_positions[0] = pos(0, 2);
+
+    assert!(matches!(
+        world.set_state(&state),
+        Err(RuntimeWorldError::InvalidWorldState { .. })
+    ));
+}
+
+#[test]
+fn test_set_state_rejects_a_present_box_on_a_void_under_a_beam() {
+    // The beam crosses the void at (0,1): the laser tile wraps a void.
+    let mut world = World::try_from("L0E V . X\nS0 . B .").unwrap();
+    world.reset();
+    assert!(get_laser(&world, pos(0, 1)).is_on());
+    let mut state = world.get_state();
+    state.boxes_positions[0] = pos(0, 1);
+
+    assert!(matches!(
+        world.set_state(&state),
+        Err(RuntimeWorldError::InvalidWorldState { .. })
+    ));
+}
+
+#[test]
+fn test_set_state_accepts_an_absent_box_on_a_void_under_a_beam() {
+    let mut world = World::try_from("L0E V . X\nS0 . B .").unwrap();
+    world.reset();
+    let mut state = world.get_state();
+    state.boxes_positions[0] = pos(0, 1);
+    state.boxes_present[0] = false;
+
+    world.set_state(&state).unwrap();
+    assert_eq!(world.boxes_present(), vec![false]);
+    assert!(
+        get_laser(&world, pos(0, 2)).is_on(),
+        "an absent box blocks no beam"
+    );
+}
+
+#[test]
+fn test_set_state_rejects_an_absent_box_off_a_void() {
+    let mut world = World::try_from("S0 B V X").unwrap();
+    world.reset();
+    let mut state = world.get_state();
+    state.boxes_present[0] = false;
+
+    assert!(matches!(
+        world.set_state(&state),
+        Err(RuntimeWorldError::InvalidWorldState { .. })
+    ));
+}
+
+#[test]
+fn test_set_state_rejects_two_present_boxes_on_one_cell() {
+    let mut world = World::try_from("S0 B B . X").unwrap();
+    world.reset();
+    let mut state = world.get_state();
+    state.boxes_positions = vec![pos(0, 3), pos(0, 3)];
+
+    assert!(matches!(
+        world.set_state(&state),
+        Err(RuntimeWorldError::InvalidWorldState { .. })
+    ));
+}
+
+#[test]
+fn test_set_state_accepts_two_absent_boxes_on_one_void() {
+    let mut world = World::try_from("S0 B B V X").unwrap();
+    world.reset();
+    let mut state = world.get_state();
+    state.boxes_positions = vec![pos(0, 3), pos(0, 3)];
+    state.boxes_present = vec![false, false];
+
+    world.set_state(&state).unwrap();
+    assert_eq!(world.boxes_present(), vec![false, false]);
+}
+
+#[test]
+fn test_set_state_rejects_a_present_box_on_an_agent() {
+    let mut world = World::try_from("S0 B . X").unwrap();
+    world.reset();
+    let mut state = world.get_state();
+    state.boxes_positions[0] = pos(0, 0);
+
+    assert!(matches!(
+        world.set_state(&state),
+        Err(RuntimeWorldError::InvalidWorldState { .. })
+    ));
+}
+
+#[test]
+fn test_set_state_rejects_a_present_box_on_a_dead_agent() {
+    let mut world = World::try_from("S0 B . X\n.  . X S1").unwrap();
+    world.reset();
+    let mut state = world.get_state();
+    state.agents_alive[1] = false;
+    state.boxes_positions[0] = pos(1, 3);
+
+    assert!(matches!(
+        world.set_state(&state),
+        Err(RuntimeWorldError::InvalidWorldState { .. })
+    ));
+}
+
+#[test]
+fn test_set_state_box_rejection_leaves_the_world_untouched() {
+    let mut world = World::try_from("L0E B . X\nS0 . . .").unwrap();
+    world.reset();
+    let before = world.get_state();
+    let mut state = before.clone();
+    state.agents_positions[0] = pos(1, 1);
+    state.boxes_positions[0] = pos(1, 1);
+
+    assert!(world.set_state(&state).is_err());
+    assert_eq!(world.get_state(), before);
+    assert!(get_laser(&world, pos(0, 2)).is_off());
+}
+
+#[test]
+fn test_set_state_rolls_back_the_boxes_when_an_agent_cannot_enter() {
+    let mut world = World::try_from("S0 B . X\n.  @ . .").unwrap();
+    world.reset();
+    world.step(&[Action::East]).unwrap();
+    let before = world.get_state();
+    assert_eq!(before.boxes_positions, vec![pos(0, 2)]);
+
+    let mut state = before.clone();
+    state.boxes_positions[0] = pos(1, 2);
+    state.agents_positions[0] = pos(1, 1); // a wall: pre_enter fails
+
+    assert!(matches!(
+        world.set_state(&state),
+        Err(RuntimeWorldError::InvalidAgentPosition { .. })
+    ));
+    assert_eq!(world.get_state(), before);
+    assert!(world.has_box_at(pos(0, 2)));
+    assert!(!world.has_box_at(pos(1, 2)));
+}
+
+#[test]
+fn test_state_round_trips_restore_beam_blocking() {
+    let mut world = World::try_from(
+        "
+        L0S .  X
+        B   S1 .
+        .   .  .
+        ",
+    )
+    .unwrap();
+    world.reset();
+    let blocked = world.get_state();
+    assert!(get_laser(&world, pos(2, 0)).is_off());
+
+    // Move the box out of the beam: the downstream cell is lit again.
+    let mut unblocked = blocked.clone();
+    unblocked.boxes_positions[0] = pos(1, 2);
+    world.set_state(&unblocked).unwrap();
+    assert!(get_laser(&world, pos(1, 0)).is_on());
+    assert!(get_laser(&world, pos(2, 0)).is_on());
+    assert!(world.has_box_at(pos(1, 2)));
+
+    // Restore the blocked state: the box shields the beam again.
+    world.set_state(&blocked).unwrap();
+    assert!(get_laser(&world, pos(1, 0)).is_off());
+    assert!(get_laser(&world, pos(2, 0)).is_off());
+    assert_eq!(world.get_state(), blocked);
+}
+
+#[test]
+fn test_clone_preserves_boxes() {
+    let mut world = World::try_from("S0 B . . X").unwrap();
+    world.reset();
+    world.step(&[Action::East]).unwrap();
+
+    let clone = world.clone();
+
+    assert_eq!(clone.boxes_positions(), vec![pos(0, 2)]);
+    assert_eq!(clone.boxes_present(), vec![true]);
+    assert_eq!(clone.get_state(), world.get_state());
+}
+
+#[test]
+fn test_clone_preserves_a_destroyed_box() {
+    let mut world = World::try_from("S0 B V X").unwrap();
+    world.reset();
+    world.step(&[Action::East]).unwrap();
+
+    let clone = world.clone();
+
+    assert_eq!(clone.boxes_present(), vec![false]);
+    assert_eq!(clone.get_state(), world.get_state());
 }

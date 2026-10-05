@@ -99,7 +99,6 @@ impl Boxes {
         self.reindex();
     }
 
-    #[allow(dead_code)] // used by later tasks (movement, state)
     pub fn restore(&mut self, positions: &[Position], present: &[bool]) {
         self.positions.clear();
         self.positions.extend_from_slice(positions);

@@ -69,6 +69,15 @@ impl Tile {
         }
     }
 
+    /// Whether this tile is a void, looking through any laser beams crossing it.
+    pub fn is_void(&self) -> bool {
+        match self {
+            Self::Void(_) => true,
+            Self::Laser(laser) => laser.wrapped().is_void(),
+            _ => false,
+        }
+    }
+
     pub fn is_walkable(&self) -> bool {
         match self {
             Self::Gem(_) => true,
