@@ -9,10 +9,11 @@ use crate::{
     Action, ParseError, Position, RuntimeWorldError, WorldEvent, WorldState,
     agent::{Agent, Colour},
     core::{
+        boxes::{BoxId, Boxes},
         levels,
         parsing::{WorldConfig, parse},
     },
-    tiles::{Gem, Laser, LaserId, LaserSource, Tile},
+    tiles::{BoxOutcome, Gem, Laser, LaserId, LaserSource, Tile},
     utils::{find_duplicates, find_duplicates_into, sample_different},
 };
 
@@ -33,6 +34,7 @@ pub struct World {
     exits: Vec<Position>,
     agents_positions: Vec<Position>,
     wall_positions: Vec<Position>,
+    boxes: Boxes,
 
     available_actions: Vec<Vec<Action>>,
     /// The actual start position of the agents since the last `reset`.
@@ -52,6 +54,7 @@ impl World {
         void_positions: Vec<Position>,
         exit_positions: Vec<Position>,
         walls_positions: Vec<Position>,
+        box_positions: Vec<Position>,
         source_positions: Vec<Position>,
         lasers_positions: Vec<Position>,
         agent_colours: Vec<Colour>,
@@ -62,13 +65,15 @@ impl World {
             .map(|(id, _)| Agent::new(id, agent_colours[id]))
             .collect();
         let n_agents = agents.len();
+        let (width, height) = (grid[0].len(), grid.len());
         let mut w = Self {
-            width: grid[0].len(),
-            height: grid.len(),
+            width,
+            height,
             gems_positions: gem_positions,
             agents_positions: Vec::with_capacity(n_agents),
             random_start_positions,
             wall_positions: walls_positions,
+            boxes: Boxes::new(box_positions, width, height),
             void_positions,
             agents,
             exits: exit_positions,
@@ -82,6 +87,64 @@ impl World {
         };
         w.reset();
         w
+    }
+
+    pub fn n_boxes(&self) -> usize {
+        self.boxes.len()
+    }
+
+    pub fn boxes_positions(&self) -> Vec<Position> {
+        self.boxes.positions().clone()
+    }
+
+    pub fn boxes_present(&self) -> Vec<bool> {
+        self.boxes.present().clone()
+    }
+
+    /// Whether a *present* box occupies `pos`.
+    pub fn has_box_at(&self, pos: Position) -> bool {
+        self.boxes.id_at(pos).is_some()
+    }
+
+    pub fn box_id_at(&self, pos: Position) -> Option<BoxId> {
+        self.boxes.id_at(pos)
+    }
+
+    /// Phase 3 of the step protocol: every present box enters its current tile,
+    /// turning beams off. A box that lands on a void is destroyed instead.
+    /// Returns the destruction events.
+    fn settle_boxes(&mut self) -> Vec<WorldEvent> {
+        let mut events = vec![];
+        for id in 0..self.boxes.len() {
+            if !self.boxes.present()[id] {
+                continue;
+            }
+            let pos = self.boxes.positions()[id];
+            let outcome = self
+                .at_mut(&pos)
+                .expect("A box is always within the grid")
+                .box_enter();
+            if outcome == BoxOutcome::Destroyed {
+                self.boxes.destroy(id);
+                events.push(WorldEvent::BoxDestroyed { box_id: id });
+            }
+        }
+        events
+    }
+
+    /// Phase 2 of the step protocol: every present box leaves its tile, relighting
+    /// beams, so that the reapply pass can recompute them from scratch.
+    #[allow(dead_code)] // used by the box movement step (later task)
+    fn release_boxes(&mut self) {
+        for id in 0..self.boxes.len() {
+            if !self.boxes.present()[id] {
+                continue;
+            }
+            let pos = self.boxes.positions()[id];
+            self.at_mut(&pos)
+                .expect("A box is always within the grid")
+                .box_leave();
+        }
     }
 
     pub fn n_agents(&self) -> usize {
@@ -124,7 +187,7 @@ impl World {
             self.void_positions.clone(),
             self.exits.clone(),
             self.wall_positions.clone(),
-            vec![], // boxes: wired in Task 4
+            self.boxes.initial_positions().clone(),
             source_configs,
             self.agent_colours(),
         )
@@ -435,6 +498,10 @@ impl World {
                 tile.reset();
             }
         }
+        // Boxes settle before the agents pre-enter (spec phase order). Destruction
+        // events cannot occur on reset: a box never starts on a void.
+        self.boxes.reset();
+        self.settle_boxes();
         // Reset (dead=false) the agents such that they can block lasers on spacwn
         for agent in &mut self.agents {
             agent.reset();

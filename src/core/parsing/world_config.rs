@@ -141,6 +141,7 @@ impl WorldConfig {
             self.voids,
             self.exits,
             self.walls,
+            self.boxes,
             source_positions,
             lasers_positions,
             self.colours,
@@ -274,6 +275,12 @@ impl WorldConfig {
                     {
                         is_blocked = true;
                     }
+                }
+                // A box standing in the beam blocks it from the very first
+                // reset, so the cells behind it are safe and their starts must
+                // not be pruned.
+                if self.boxes.contains(&pos) {
+                    is_blocked = true;
                 }
                 let wrapped = grid[pos.i].remove(pos.j);
                 let laser = Tile::Laser(Laser::new(wrapped, source.beam(), i));

@@ -133,8 +133,6 @@ fn test_box_is_emitted_in_the_v1_string() {
 }
 
 #[test]
-#[cfg(any())] // unignore in Task 4 (needs World accessors; remove this cfg)
-#[ignore]
 fn test_box_round_trips_through_v1() {
     let world = crate::World::try_from("S0 B . X").unwrap();
     let round_tripped = crate::World::try_from(world.world_string()).unwrap();
@@ -152,8 +150,6 @@ fn test_box_next_to_a_void_is_fine() {
 }
 
 #[test]
-#[cfg(any())] // unignore in Task 4 (needs World accessors; remove this cfg)
-#[ignore]
 fn test_box_starting_on_a_laser_is_allowed() {
     // A box may start inside a beam: the beam is pre-blocked from reset.
     let world = crate::World::try_from("L0E B . X\n S0 . . .").unwrap();

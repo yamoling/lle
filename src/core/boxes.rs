@@ -1,6 +1,5 @@
 use crate::Position;
 
-#[allow(dead_code)]
 pub type BoxId = usize;
 
 /// The movable boxes of a world. Boxes are occupants of a cell, like agents:
@@ -9,7 +8,6 @@ pub type BoxId = usize;
 /// A destroyed box keeps its last position and is marked absent, exactly as a
 /// dead agent keeps its position with `agents_alive[i] = false`. That is what
 /// keeps the state vector fixed-size for RL.
-#[allow(dead_code)]
 pub struct Boxes {
     positions: Vec<Position>,
     present: Vec<bool>,
@@ -20,7 +18,6 @@ pub struct Boxes {
     height: usize,
 }
 
-#[allow(dead_code)]
 impl Boxes {
     pub fn new(initial_positions: Vec<Position>, width: usize, height: usize) -> Self {
         let n = initial_positions.len();
@@ -54,6 +51,7 @@ impl Boxes {
         self.positions.len()
     }
 
+    #[allow(dead_code)] // used by later tasks (movement, state)
     pub fn is_empty(&self) -> bool {
         self.positions.is_empty()
     }
@@ -78,6 +76,7 @@ impl Boxes {
         *self.occupancy.get(self.index(pos))?
     }
 
+    #[allow(dead_code)] // used by later tasks (movement, state)
     pub fn set_position(&mut self, id: BoxId, dest: Position) {
         let from = self.index(self.positions[id]);
         self.occupancy[from] = None;
@@ -101,6 +100,7 @@ impl Boxes {
         self.reindex();
     }
 
+    #[allow(dead_code)] // used by later tasks (movement, state)
     pub fn restore(&mut self, positions: &[Position], present: &[bool]) {
         self.positions.clear();
         self.positions.extend_from_slice(positions);

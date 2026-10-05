@@ -67,6 +67,9 @@ impl From<&WorldEvent> for PyWorldEvent {
             WorldEvent::AgentExit { agent_id } => (PyEventType::AgentExit, agent_id),
             WorldEvent::GemCollected { agent_id } => (PyEventType::GemCollected, agent_id),
             WorldEvent::AgentDied { agent_id } => (PyEventType::AgentDied, agent_id),
+            WorldEvent::BoxDestroyed { .. } => {
+                unimplemented!("BoxDestroyed is exposed to Python in Task 10")
+            }
         };
         PyWorldEvent {
             agent_id: *agent_id,

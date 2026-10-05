@@ -910,3 +910,82 @@ fn test_beam_two_sources() {
     let l1_beam = w.beam(l1_first).unwrap();
     assert_eq!(l1_beam.count(), 1);
 }
+
+#[test]
+fn test_box_blocks_a_beam_from_reset() {
+    let mut world = World::try_from(
+        "
+        L0S .  X
+        B   .  .
+        .   S0 .
+        ",
+    )
+    .unwrap();
+    world.reset();
+    assert_eq!(world.n_boxes(), 1);
+    assert_eq!(world.boxes_positions(), vec![pos(1, 0)]);
+    assert_eq!(world.boxes_present(), vec![true]);
+    assert!(
+        get_laser(&world, pos(1, 0)).is_off(),
+        "the box must block the beam where it stands"
+    );
+    assert!(
+        get_laser(&world, pos(2, 0)).is_off(),
+        "and downstream of it"
+    );
+}
+
+#[test]
+fn test_world_without_boxes_is_unaffected() {
+    let world = World::try_from("S0 . X").unwrap();
+    assert_eq!(world.n_boxes(), 0);
+    assert!(world.boxes_positions().is_empty());
+    assert!(!world.has_box_at(pos(0, 1)));
+}
+
+#[test]
+fn test_has_box_at_tracks_the_occupancy_index() {
+    let mut world = World::try_from("S0 B . X").unwrap();
+    world.reset();
+    assert!(world.has_box_at(pos(0, 1)));
+    assert!(!world.has_box_at(pos(0, 2)));
+    assert_eq!(world.box_id_at(pos(0, 1)), Some(0));
+    assert_eq!(world.box_id_at(pos(0, 2)), None);
+}
+
+#[test]
+fn test_an_agent_may_start_in_the_shadow_of_a_box() {
+    // Beam runs West from (0,4). The box at (0,2) blocks it, so the agent's
+    // only start at (0,1) is safe and must not be pruned away.
+    let mut world = World::try_from("X S1 B . L0W").expect("the box shields the start");
+    world.reset();
+    assert_eq!(world.agents_positions(), &vec![pos(0, 1)]);
+    assert!(world.agents()[0].is_alive());
+    assert!(get_laser(&world, pos(0, 1)).is_off());
+}
+
+#[test]
+fn test_beam_upstream_of_a_box_stays_on() {
+    let mut world = World::try_from("L0E . B . X\nS1 . . . .").unwrap();
+    world.reset();
+    assert!(get_laser(&world, pos(0, 1)).is_on());
+    assert!(get_laser(&world, pos(0, 2)).is_off());
+    assert!(get_laser(&world, pos(0, 3)).is_off());
+}
+
+#[test]
+fn test_reset_keeps_the_box_blocking_and_the_boxes_in_place() {
+    let mut world = World::try_from("L0E B . X\nS1 . . .").unwrap();
+    world.reset();
+    world.reset();
+    assert_eq!(world.boxes_positions(), vec![pos(0, 1)]);
+    assert_eq!(world.boxes_present(), vec![true]);
+    assert!(get_laser(&world, pos(0, 1)).is_off());
+    assert!(get_laser(&world, pos(0, 2)).is_off());
+}
+
+#[test]
+fn test_get_config_preserves_boxes() {
+    let world = World::try_from("S0 B . X").unwrap();
+    assert_eq!(world.get_config().boxes(), &vec![pos(0, 1)]);
+}
