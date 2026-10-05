@@ -83,9 +83,9 @@ impl ClauseEngine {
                 }
 
                 if !is_complete {
-                    let progress = self
-                        .pool
-                        .sequence_progress(length, pattern_index, prefix_len, t);
+                    let progress =
+                        self.pool
+                            .sequence_progress(length, pattern_index, prefix_len, t);
                     if let Some(previous_time) = previous_time.flatten() {
                         clauses.push(vec![-previous_time, progress]);
                     }

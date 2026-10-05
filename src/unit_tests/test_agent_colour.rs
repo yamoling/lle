@@ -190,7 +190,11 @@ fn sparse_colour_tokens_yield_sparse_colours() {
     let world = World::try_from("S0 S2 X X").unwrap();
     assert_eq!(world.n_agents(), 2);
     assert_eq!(
-        world.agents().iter().map(|a| a.colour()).collect::<Vec<_>>(),
+        world
+            .agents()
+            .iter()
+            .map(|a| a.colour())
+            .collect::<Vec<_>>(),
         vec![0, 2]
     );
     assert_eq!(world.n_colours(), 3);
@@ -235,4 +239,3 @@ colour = 0
     let round_tripped = World::try_from(world.world_string()).unwrap();
     assert_eq!(round_tripped.possible_starts(), world.possible_starts());
 }
-

@@ -1,5 +1,4 @@
 mod assumptions;
-mod sequences;
 mod clause_engine;
 mod convergence;
 mod cooperation;
@@ -9,6 +8,7 @@ mod interdependence;
 mod lasers;
 mod movement;
 mod pairwise_help;
+mod sequences;
 mod utils;
 
 pub use clause_engine::ClauseEngine;

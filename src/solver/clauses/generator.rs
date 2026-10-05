@@ -46,7 +46,8 @@ impl ClauseGenerator {
     /// The encoding treats a laser colour as its single owning agent, so colour sharing is a
     /// checked precondition rather than a supported case (`.agents/plans/agent-colour-id.md` §2).
     pub fn new(world: &World, t_max: usize) -> Result<Self, SolverError> {
-        let mut agents_by_colour: std::collections::BTreeMap<usize, Vec<usize>> = Default::default();
+        let mut agents_by_colour: std::collections::BTreeMap<usize, Vec<usize>> =
+            Default::default();
         for (agent_id, colour) in world.agent_colours().into_iter().enumerate() {
             agents_by_colour.entry(colour).or_default().push(agent_id);
         }
