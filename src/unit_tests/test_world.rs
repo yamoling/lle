@@ -1819,3 +1819,32 @@ fn test_clone_preserves_a_destroyed_box() {
     assert_eq!(clone.boxes_present(), vec![false]);
     assert_eq!(clone.get_state(), world.get_state());
 }
+
+#[test]
+fn test_set_state_restoring_a_box_in_a_beam_shields_the_agent_downstream() {
+    // The beam (colour 0) runs East from (0,0). The box at (0,1) shields the colour-1 agent at (0,3).
+    let mut source = World::try_from(
+        "L0E B . S1 X
+S0 . . . X",
+    )
+    .unwrap();
+    source.reset();
+    assert!(source.agents()[1].is_alive());
+    let shielded = source.get_state();
+
+    // Same layout, but the box and the agent start outside the beam.
+    let mut world = World::try_from(
+        "L0E . . . X
+S0 B . S1 X",
+    )
+    .unwrap();
+    world.reset();
+    assert!(world.agents()[1].is_alive());
+
+    world.set_state(&shielded).unwrap();
+    assert_eq!(world.boxes_positions(), vec![pos(0, 1)]);
+    assert_eq!(world.agents_positions()[1], pos(0, 3));
+    assert!(world.agents()[1].is_alive());
+    assert!(!get_laser(&world, pos(0, 2)).is_on());
+    assert!(!get_laser(&world, pos(0, 3)).is_on());
+}
