@@ -175,3 +175,15 @@ def test_state_generator_round_trips_on_a_box_world():
         obs = generator.observe()[0]
         assert obs.shape == generator.shape
         assert generator.to_world_state(obs.copy()) == world.get_state()
+
+
+@pytest.mark.parametrize("under", ["G", "X"])
+def test_pickle_world_with_a_box_on_a_gem_or_an_exit(under: str):
+    toml = f'world_string = """\nS0 {under} . X\n"""\n[[boxes]]\ni = 0\nj = 1\n'
+    world = World(toml)
+    world.reset()
+    restored = pickle.loads(pickle.dumps(world))
+    assert restored.boxes_positions == world.boxes_positions == [(0, 1)]
+    assert sorted(g.pos for g in restored.gems) == sorted(g.pos for g in world.gems)
+    assert restored.exit_pos == world.exit_pos
+    assert restored.n_gems == world.n_gems

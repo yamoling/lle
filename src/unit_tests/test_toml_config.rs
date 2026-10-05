@@ -493,3 +493,58 @@ j = 2
     let reloaded = World::try_from(string.as_str()).unwrap();
     assert_eq!(reloaded.boxes_positions(), vec![pos(0, 2)]);
 }
+
+#[test]
+fn test_toml_world_string_voids_survive() {
+    let toml = r#"
+world_string = """
+S0 . V X
+.  . . .
+"""
+[[boxes]]
+i = 1
+j = 1
+"#;
+    let world = World::try_from(toml).unwrap();
+    assert_eq!(world.void_positions(), vec![pos(0, 2)]);
+    assert_eq!(world.boxes_positions(), vec![pos(1, 1)]);
+}
+
+/// A box on a gem or an exit cannot be written in v1 (` B ` would erase the gem or exit), so
+/// `world_string()` must fall back to TOML and keep both the box and what lies under it.
+#[test]
+fn test_world_string_round_trip_keeps_a_gem_under_a_box() {
+    let toml = r#"
+world_string = """
+S0 G . X
+"""
+[[boxes]]
+i = 0
+j = 1
+"#;
+    let world = World::try_from(toml).unwrap();
+    assert_eq!(world.boxes_positions(), vec![pos(0, 1)]);
+    assert_eq!(world.gems_positions(), vec![pos(0, 1)]);
+    let restored = World::try_from(world.world_string()).unwrap();
+    assert_eq!(restored.gems_positions(), vec![pos(0, 1)]);
+    assert_eq!(restored.boxes_positions(), vec![pos(0, 1)]);
+    assert_eq!(restored.exits_positions(), world.exits_positions());
+}
+
+#[test]
+fn test_world_string_round_trip_keeps_an_exit_under_a_box() {
+    let toml = r#"
+world_string = """
+S0 X . X
+"""
+[[boxes]]
+i = 0
+j = 1
+"#;
+    let world = World::try_from(toml).unwrap();
+    assert_eq!(world.boxes_positions(), vec![pos(0, 1)]);
+    let restored = World::try_from(world.world_string()).unwrap();
+    assert_eq!(restored.exits_positions(), world.exits_positions());
+    assert_eq!(restored.exits_positions().len(), 2);
+    assert_eq!(restored.boxes_positions(), vec![pos(0, 1)]);
+}

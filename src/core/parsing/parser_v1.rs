@@ -120,6 +120,13 @@ impl TryInto<WorldConfig> for ParsingData {
 /// in reading order would come back with those agents swapped. Both cases return `Err(())`, and
 /// `WorldConfig::Display` falls back to TOML (see `.agents/plans/agent-colour-id.md` §3.4d).
 pub fn to_v1_string(config: &WorldConfig) -> Result<String, ()> {
+    if config
+        .boxes()
+        .iter()
+        .any(|b| config.gems().contains(b) || config.exits().contains(b))
+    {
+        return Err(());
+    }
     let mut res = vec![vec![String::from(" . "); config.width()]; config.height()];
     let mut previous_of_colour: std::collections::HashMap<usize, Position> =
         std::collections::HashMap::new();
