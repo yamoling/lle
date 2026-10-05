@@ -63,6 +63,14 @@
       },
       "default": []
     },
+    "boxes": {
+      "type": "array",
+      "description": "Movable box positions. A box blocks laser beams of every colour and is destroyed if pushed onto a void. Example:\n[[boxes]]\ni = 2\nj = 3",
+      "items": {
+        "$ref": "#/definitions/PositionsConfig"
+      },
+      "default": []
+    },
     "lasers": {
       "type": "array",
       "description": "Laser source configurations. Example:\n[[lasers]]\ndirection = \"East\"\nagent = 0\nlaser_id = 0\n[lasers.position]\ni = 0\nj = 0",
