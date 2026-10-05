@@ -13,6 +13,8 @@ pub enum PyEventType {
     GemCollected,
     #[pyo3(name = "AGENT_DIED")]
     AgentDied,
+    #[pyo3(name = "BOX_DESTROYED")]
+    BoxDestroyed,
 }
 
 #[gen_stub_pymethods]
@@ -27,6 +29,7 @@ impl PyEventType {
             PyEventType::AgentExit => 0,
             PyEventType::GemCollected => 1,
             PyEventType::AgentDied => 2,
+            PyEventType::BoxDestroyed => 3,
         }
     }
 }
@@ -35,25 +38,36 @@ impl PyEventType {
 #[derive(Clone)]
 #[pyclass(name = "WorldEvent", module = "lle.world", skip_from_py_object)]
 pub struct PyWorldEvent {
+    /// The kind of event.
     #[pyo3(get)]
     event_type: PyEventType,
-    // pos: Position,
+    /// The agent concerned by the event, or `None` for events that involve no agent (`BOX_DESTROYED`).
     #[pyo3(get)]
-    agent_id: AgentId,
+    agent_id: Option<AgentId>,
+    /// The box concerned by the event, or `None` for events that involve no box.
+    #[pyo3(get)]
+    box_id: Option<usize>,
 }
 
 #[gen_stub_pymethods]
 #[pymethods]
 impl PyWorldEvent {
     #[new]
-    pub fn new(event_type: PyEventType, agent_id: AgentId) -> Self {
+    #[pyo3(signature = (event_type, agent_id=None, box_id=None))]
+    pub fn new(event_type: PyEventType, agent_id: Option<AgentId>, box_id: Option<usize>) -> Self {
         Self {
             event_type,
             agent_id,
+            box_id,
         }
     }
+
     fn __str__(&self) -> String {
-        format!("{:?}, agent id: {}", self.event_type, self.agent_id)
+        match (self.agent_id, self.box_id) {
+            (Some(agent_id), _) => format!("{:?}, agent id: {}", self.event_type, agent_id),
+            (None, Some(box_id)) => format!("{:?}, box id: {}", self.event_type, box_id),
+            (None, None) => format!("{:?}", self.event_type),
+        }
     }
 
     fn __repr__(&self) -> String {
@@ -63,17 +77,19 @@ impl PyWorldEvent {
 
 impl From<&WorldEvent> for PyWorldEvent {
     fn from(val: &WorldEvent) -> Self {
-        let (event_type, agent_id) = match val {
-            WorldEvent::AgentExit { agent_id } => (PyEventType::AgentExit, agent_id),
-            WorldEvent::GemCollected { agent_id } => (PyEventType::GemCollected, agent_id),
-            WorldEvent::AgentDied { agent_id } => (PyEventType::AgentDied, agent_id),
-            WorldEvent::BoxDestroyed { .. } => {
-                unimplemented!("BoxDestroyed is exposed to Python in Task 10")
+        match val {
+            WorldEvent::AgentExit { agent_id } => {
+                Self::new(PyEventType::AgentExit, Some(*agent_id), None)
             }
-        };
-        PyWorldEvent {
-            agent_id: *agent_id,
-            event_type,
+            WorldEvent::GemCollected { agent_id } => {
+                Self::new(PyEventType::GemCollected, Some(*agent_id), None)
+            }
+            WorldEvent::AgentDied { agent_id } => {
+                Self::new(PyEventType::AgentDied, Some(*agent_id), None)
+            }
+            WorldEvent::BoxDestroyed { box_id } => {
+                Self::new(PyEventType::BoxDestroyed, None, Some(*box_id))
+            }
         }
     }
 }

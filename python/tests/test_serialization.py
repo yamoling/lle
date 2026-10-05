@@ -2,6 +2,7 @@ import pickle
 import random
 
 import orjson
+import pytest
 from lle import LLE, Action, World, WorldState
 
 
@@ -69,3 +70,108 @@ def test_serialize_env_to_json():
     assert deserialized["state_type"] == env.state_type
     assert deserialized["walkable_lasers"] == env.walkable_lasers
     assert deserialized["randomize_lasers"] == env.randomize_lasers
+
+
+def test_world_state_without_boxes_is_backward_compatible():
+    state = WorldState([(0, 1)], [])
+    assert state.boxes_positions == []
+    assert state.boxes_present == []
+
+
+def test_world_state_with_boxes():
+    state = WorldState([(0, 1)], [], [True], [(0, 2)], [True])
+    assert state.boxes_positions == [(0, 2)]
+    assert state.boxes_present == [True]
+
+
+def test_world_state_with_boxes_pickles():
+    state = WorldState([(0, 1)], [False], [True], [(0, 2)], [False])
+    assert pickle.loads(pickle.dumps(state)) == state
+
+
+def test_world_state_boxes_take_part_in_equality():
+    a = WorldState([(0, 1)], [], [True], [(0, 2)], [True])
+    assert a != WorldState([(0, 1)], [], [True], [(0, 3)], [True])
+    assert a != WorldState([(0, 1)], [], [True], [(0, 2)], [False])
+    assert a == WorldState([(0, 1)], [], [True], [(0, 2)], [True])
+
+
+def test_world_state_array_round_trip_with_boxes():
+    state = WorldState([(0, 1)], [True], [True], [(0, 2)], [True])
+    array = state.as_array().tolist()
+    assert len(array) == 1 * 3 + 1 + 1 * 3
+    assert WorldState.from_array(array, n_agents=1, n_gems=1, n_boxes=1) == state
+
+
+def test_world_state_array_round_trip_with_a_destroyed_box():
+    state = WorldState([(2, 1), (0, 3)], [True, False], [True, True], [(4, 5), (1, 2)], [False, True])
+    array = state.as_array().tolist()
+    assert WorldState.from_array(array, n_agents=2, n_gems=2, n_boxes=2) == state
+
+
+def test_from_array_defaults_to_no_boxes():
+    state = WorldState([(0, 1)], [True], [True])
+    assert WorldState.from_array(state.as_array().tolist(), 1, 1) == state
+
+
+def test_from_array_rejects_a_wrong_length_with_boxes():
+    with pytest.raises(ValueError):
+        WorldState.from_array([0.0] * 6, n_agents=1, n_gems=1, n_boxes=1)
+
+
+def test_pickle_world_state_after_a_push():
+    world = World("S0 B . X")
+    world.reset()
+    world.step(Action.EAST)
+    state = world.get_state()
+    assert pickle.loads(pickle.dumps(state)) == state
+
+
+def test_pickle_world_state_after_a_void_destruction():
+    world = World("S0 B V X")
+    world.reset()
+    world.step(Action.EAST)
+    state = world.get_state()
+    restored = pickle.loads(pickle.dumps(state))
+    assert restored == state
+    assert restored.boxes_present == [False]
+
+
+def test_pickle_world_after_a_push():
+    world = World("S0 B . X")
+    world.reset()
+    world.step(Action.EAST)
+    restored = pickle.loads(pickle.dumps(world))
+    assert restored.get_state() == world.get_state()
+    assert restored.boxes_positions == [(0, 2)]
+
+
+def test_pickle_world_after_a_void_destruction():
+    world = World("S0 B V X")
+    world.reset()
+    world.step(Action.EAST)
+    restored = pickle.loads(pickle.dumps(world))
+    assert restored.get_state() == world.get_state()
+    assert restored.get_state().boxes_present == [False]
+
+
+def test_state_generator_shape_matches_the_state_array():
+    from lle.observations import StateGenerator
+
+    world = World("S0 B G X")
+    world.reset()
+    generator = StateGenerator(world, normalize=False)
+    assert generator.shape == (world.get_state().as_array().shape[0],)
+
+
+def test_state_generator_round_trips_on_a_box_world():
+    from lle.observations import StateGenerator
+
+    for normalize in (False, True):
+        world = World("S0 B G X")
+        world.reset()
+        world.step(Action.EAST)
+        generator = StateGenerator(world, normalize=normalize)
+        obs = generator.observe()[0]
+        assert obs.shape == generator.shape
+        assert generator.to_world_state(obs.copy()) == world.get_state()

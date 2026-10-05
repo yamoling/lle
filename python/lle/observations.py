@@ -166,6 +166,7 @@ class StateGenerator(ObservationGenerator):
         super().__init__(world)
         self.n_gems = world.n_gems
         self.n_agents = world.n_agents
+        self.n_boxes = world.n_boxes
         if normalize:
             self.dimensions = np.array([world.height, world.width] * world.n_agents)
         else:
@@ -178,7 +179,7 @@ class StateGenerator(ObservationGenerator):
 
     def to_world_state(self, data):
         data[: self._world.n_agents * 2] = data[: self._world.n_agents * 2] * self.dimensions
-        return WorldState.from_array(data.tolist(), self.n_agents, self.n_gems)
+        return WorldState.from_array(data.tolist(), self.n_agents, self.n_gems, self.n_boxes)
 
     @property
     def obs_type(self) -> ObservationType:
@@ -186,8 +187,9 @@ class StateGenerator(ObservationGenerator):
 
     @property
     def shape(self):
-        """The full world state: (i, j) for each agent, each gem's collection status, and each agent's alive flag."""
-        return (self._world.n_agents * 3 + self.n_gems,)
+        """The full world state: (i, j) for each agent, each gem's collection status, each agent's
+        alive flag, then (i, j) and a presence flag for each box. Box positions are not normalised."""
+        return (self._world.n_agents * 3 + self.n_gems + self.n_boxes * 3,)
 
     @property
     def unit_size(self) -> int:

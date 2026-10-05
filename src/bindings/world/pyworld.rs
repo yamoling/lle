@@ -229,6 +229,25 @@ impl PyWorld {
         self.world.lock().unwrap().n_gems_collected()
     }
 
+    /// The number of movable boxes in the world.
+    #[getter]
+    fn n_boxes(&self) -> usize {
+        self.world.lock().unwrap().n_boxes()
+    }
+
+    /// The (i, j) position of each box, indexed by box id. A destroyed box keeps its
+    /// last position; check `WorldState.boxes_present` to tell them apart.
+    #[getter]
+    fn boxes_positions(&self) -> Vec<PyPosition> {
+        self.world
+            .lock()
+            .unwrap()
+            .boxes_positions()
+            .iter()
+            .map(|p| (*p).into())
+            .collect()
+    }
+
     /// The (i, j) position of each agent.
     #[getter]
     fn agents_positions(&self) -> Vec<PyPosition> {

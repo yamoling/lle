@@ -862,3 +862,87 @@ S13 L13W . . . X
 """)
     assert world.n_agents == 14
     assert len(world.laser_sources) == 14
+
+
+def test_world_exposes_boxes():
+    world = World("S0 B . X")
+    world.reset()
+    assert world.n_boxes == 1
+    assert world.boxes_positions == [(0, 1)]
+
+
+def test_world_without_boxes():
+    world = World("S0 . X")
+    world.reset()
+    assert world.n_boxes == 0
+    assert world.boxes_positions == []
+
+
+def test_push_a_box_from_python():
+    world = World("S0 B . X")
+    world.reset()
+    world.step(Action.EAST)
+    assert world.agents_positions == [(0, 1)]
+    assert world.boxes_positions == [(0, 2)]
+
+
+def test_box_destroyed_event():
+    world = World("S0 B V X")
+    world.reset()
+    events = world.step(Action.EAST)
+    assert len(events) == 1
+    assert events[0].event_type == EventType.BOX_DESTROYED
+    assert events[0].box_id == 0
+    assert events[0].agent_id is None
+
+
+def test_destroyed_box_keeps_its_last_position():
+    world = World("S0 B V X")
+    world.reset()
+    world.step(Action.EAST)
+    assert world.boxes_positions == [(0, 2)]
+    assert world.get_state().boxes_present == [False]
+
+
+def test_existing_events_have_no_box_id():
+    world = World("S0 G X")
+    world.reset()
+    events = world.step(Action.EAST)
+    assert events[0].event_type == EventType.GEM_COLLECTED
+    assert events[0].agent_id == 0
+    assert events[0].box_id is None
+    events = world.step(Action.EAST)
+    assert events[0].event_type == EventType.AGENT_EXIT
+    assert events[0].box_id is None
+
+
+def test_state_round_trip_on_a_box_world():
+    world = World("S0 B . X")
+    world.reset()
+    initial = world.get_state()
+    world.step(Action.EAST)
+    pushed = world.get_state()
+    assert pushed != initial
+    world.set_state(initial)
+    assert world.boxes_positions == [(0, 1)]
+    assert world.agents_positions == [(0, 0)]
+    world.set_state(pushed)
+    assert world.boxes_positions == [(0, 2)]
+    world.reset()
+    assert world.boxes_positions == [(0, 1)]
+    world.set_state(pushed)
+    assert world.boxes_positions == [(0, 2)]
+
+
+def test_state_round_trip_restores_a_destroyed_box():
+    world = World("S0 B V X")
+    world.reset()
+    initial = world.get_state()
+    world.step(Action.EAST)
+    destroyed = world.get_state()
+    assert destroyed.boxes_present == [False]
+    world.set_state(initial)
+    assert world.get_state().boxes_present == [True]
+    assert world.boxes_positions == [(0, 1)]
+    world.set_state(destroyed)
+    assert world.get_state().boxes_present == [False]
