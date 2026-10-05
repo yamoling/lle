@@ -182,6 +182,7 @@ impl TryInto<WorldConfig> for TomlConfig {
             compute_positions(&self.voids, width, height)?,
             exit_positions,
             walls_positions,
+            vec![], // boxes: TOML support comes in Task 8
             source_configs,
             colours,
         ))

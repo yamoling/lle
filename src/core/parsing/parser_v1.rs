@@ -17,6 +17,7 @@ pub struct ParsingData {
     pub void_positions: Vec<Position>,
     pub exit_positions: Vec<Position>,
     pub walls_positions: Vec<Position>,
+    pub box_positions: Vec<Position>,
     pub laser_configs: Vec<(Position, LaserConfig)>,
 }
 
@@ -46,6 +47,10 @@ impl ParsingData {
 
     pub fn add_gem(&mut self, pos: Position) {
         self.gem_positions.push(pos);
+    }
+
+    pub fn add_box(&mut self, pos: Position) {
+        self.box_positions.push(pos);
     }
 
     pub fn add_void(&mut self, pos: Position) {
@@ -101,6 +106,7 @@ impl TryInto<WorldConfig> for ParsingData {
             self.void_positions,
             self.exit_positions,
             self.walls_positions,
+            self.box_positions,
             self.laser_configs,
             colours,
         ))
@@ -144,6 +150,9 @@ pub fn to_v1_string(config: &WorldConfig) -> Result<String, ()> {
     for pos in config.voids() {
         res[pos.i][pos.j] = " V ".into();
     }
+    for pos in config.boxes() {
+        res[pos.i][pos.j] = " B ".into();
+    }
     for (pos, config) in config.sources() {
         res[pos.i][pos.j] = config.to_string();
     }
@@ -175,6 +184,7 @@ pub fn parse(world_str: &str) -> Result<WorldConfig, ParseError> {
                 '@' => data.add_wall(pos),
                 'X' => data.add_exit(pos),
                 'V' => data.add_void(pos),
+                'B' => data.add_box(pos),
                 'S' => {
                     let colour = token[1..].parse().map_err(|_| ParseError::InvalidAgentId {
                         given_agent_id: token[1..].into(),

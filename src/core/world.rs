@@ -124,6 +124,7 @@ impl World {
             self.void_positions.clone(),
             self.exits.clone(),
             self.wall_positions.clone(),
+            vec![], // boxes: wired in Task 4
             source_configs,
             self.agent_colours(),
         )

@@ -19,6 +19,8 @@ pub struct WorldConfig {
     voids: Vec<Position>,
     exits: Vec<Position>,
     walls: Vec<Position>,
+    /// Initial positions of the movable boxes. Boxes are occupants, not tiles.
+    boxes: Vec<Position>,
     lasers: Vec<(Position, LaserConfig)>,
     /// The colour of each agent, indexed by agent id. Defaults to the agent id.
     colours: Vec<Colour>,
@@ -34,6 +36,7 @@ impl WorldConfig {
         void_positions: Vec<Position>,
         exit_positions: Vec<Position>,
         walls_positions: Vec<Position>,
+        box_positions: Vec<Position>,
         source_configs: Vec<(Position, LaserConfig)>,
         colours: Vec<Colour>,
     ) -> Self {
@@ -45,6 +48,7 @@ impl WorldConfig {
             voids: void_positions,
             exits: exit_positions,
             walls: walls_positions,
+            boxes: box_positions,
             lasers: source_configs,
             colours,
         }
@@ -72,6 +76,10 @@ impl WorldConfig {
 
     pub fn walls(&self) -> &Vec<Position> {
         &self.walls
+    }
+
+    pub fn boxes(&self) -> &Vec<Position> {
+        &self.boxes
     }
 
     pub fn gems(&self) -> &Vec<Position> {
@@ -150,6 +158,22 @@ impl WorldConfig {
                 n_starts: self.n_agents(),
                 n_exits: self.exits.len(),
             });
+        }
+
+        // Boxes start on a free cell: no wall, void, laser source, agent start or other box.
+        for (k, pos) in self.boxes.iter().enumerate() {
+            let on_occupied_cell = self.walls.contains(pos)
+                || self.voids.contains(pos)
+                || self.lasers.iter().any(|(source, _)| source == pos)
+                || self
+                    .random_starts
+                    .iter()
+                    .flatten()
+                    .any(|start| start == pos)
+                || self.boxes[..k].contains(pos);
+            if on_occupied_cell {
+                return Err(ParseError::InvalidBoxPosition { position: *pos });
+            }
         }
 
         // // Check that there are no lasers with an agent ID that does not exist
