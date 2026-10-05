@@ -385,6 +385,35 @@ class WorldEvent:
     def __repr__(self) -> builtins.str: ...
 
 class WorldState:
+    r"""
+    A state in the `World` is defined by:
+     - The position of each agent.
+     - Whether each gem has been collected.
+     - Whether each agent is alive.
+     - The position of each movable box and whether it is still present (a box pushed onto a void tile is destroyed).
+    ## Using `WorldState`s
+    ```python
+    from lle import WorldState, World
+    w = World("S0 . X")
+    w.reset()
+    s1 = w.get_state()
+    s2 = WorldState([(0, 1)], [], [True])
+    w.set_state(s2)
+    ```
+    ## Inheritance
+    To inherit from `WorldState`, it is required to override the `__new__` method such that its signature
+    is compatible with `__init__`, i.e. it accepts the same leading arguments in the same order.
+    Additionally, the `__new__` method **must** call the `super()` constructor with the parameters of the parent class, as shown below.
+    ```python
+    class SubWorldState(WorldState):
+        def __init__(self, agents_positions: list[tuple[int, int]], gems_collected: list[bool], agents_alive: list[bool], x: int):
+            super().__init__(agents_positions, gems_collected, agents_alive)
+            self.x = x
+        def __new__(cls, agents_positions: list[tuple[int, int]], gems_collected: list[bool], agents_alive: list[bool], *args, **kwargs):
+            instance = super().__new__(cls, agents_positions, gems_collected, agents_alive)
+            return instance
+    ```
+    """
     @property
     def agents_positions(self) -> builtins.list[tuple[builtins.int, builtins.int]]:
         r"""

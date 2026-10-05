@@ -3,6 +3,15 @@ use numpy::PyArray1;
 use pyo3::{exceptions, prelude::*, pyclass::CompareOp, types::PyDict};
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use std::hash::{Hash, Hasher};
+
+type PickledState = (
+    Vec<bool>,
+    Vec<PyPosition>,
+    Vec<bool>,
+    Vec<PyPosition>,
+    Vec<bool>,
+);
+
 ///
 /// A state in the `World` is defined by:
 ///  - The position of each agent.
@@ -31,14 +40,6 @@ use std::hash::{Hash, Hasher};
 ///         instance = super().__new__(cls, agents_positions, gems_collected, agents_alive)
 ///         return instance
 /// ```
-type PickledState = (
-    Vec<bool>,
-    Vec<PyPosition>,
-    Vec<bool>,
-    Vec<PyPosition>,
-    Vec<bool>,
-);
-
 #[gen_stub_pyclass]
 #[pyclass(name = "WorldState", module = "lle.world", subclass, from_py_object)]
 #[derive(Clone, Hash, Debug)]
