@@ -1122,7 +1122,7 @@ fn test_a_box_may_rest_on_an_exit() {
 /// Moving East pushes the box to (0,3) — offset 0 — darkening the entire beam,
 /// and the agent lands on (0,2). Phase 2 releases every blocker, so if agents
 /// entered before boxes settled, the agent would walk into a lit beam and die.
-/// Phase 3 must precede phases 4 and 5.
+/// Phase 3 must precede phase 5.
 #[test]
 fn test_a_pushed_box_saves_its_pusher() {
     let mut world = World::try_from("X S1 B . L0W").unwrap();

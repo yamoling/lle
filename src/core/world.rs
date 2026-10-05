@@ -110,13 +110,11 @@ impl World {
         self.boxes.id_at(pos)
     }
 
-    /// Whether a box may come to rest on `dest`. Pure: no `&mut`, no side effects.
+    /// Whether a box may come to rest on `dest`. Pure: no side effects.
     ///
-    /// The solver calls this too, so that the runtime and the clause generator
-    /// cannot drift apart about what a legal push is. Note `is_walkable()` is true
-    /// for `Void` — pushing a box into a void is legal and destroys it.
+    /// A void is walkable, so pushing a box into a void is legal and destroys it.
     ///
-    /// A box cannot be pushed onto any agent — living, dead or arrived — since
+    /// A cell holding any agent — living, dead or arrived — is refused, since
     /// none of them vacate their cell. Tile occupancy alone does not cover that:
     /// an agent killed by a beam is never recorded by the laser's wrapped tile,
     /// so the agents' positions are checked as well.
@@ -656,6 +654,9 @@ impl World {
     ) -> Vec<(BoxId, Position)> {
         loop {
             let pushes = self.box_pushes(new_agent_positions);
+            if pushes.is_empty() {
+                return Vec::new();
+            }
             let mut revert = vec![false; new_agent_positions.len()];
             for (k, (pusher, _, dest)) in pushes.iter().enumerate() {
                 let rival_box = pushes
@@ -708,8 +709,9 @@ impl World {
         // `[offset..]` unconditionally, so a partial release would be wrong.
         self.release_boxes();
         // Phase 3: boxes move, then settle on their new tile, turning beams off.
-        // This MUST precede phases 4 and 5: an agent pushing a box toward a laser
-        // source is saved by the box it just pushed.
+        // This must precede phase 5 (phase 4 commutes with it, as both only turn
+        // beams off): an agent pushing a box toward a laser source is saved by the
+        // box it just pushed.
         for (box_id, dest) in box_moves {
             self.boxes.set_position(*box_id, *dest);
         }
