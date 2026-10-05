@@ -7,8 +7,7 @@ pub mod tiles;
 mod world;
 mod world_state;
 
-#[allow(unused_imports)] // re-export used by later tasks (state, bindings)
-pub use boxes::{BoxId, Boxes};
+pub use boxes::BoxId;
 pub use errors::RuntimeWorldError;
 pub use event::WorldEvent;
 pub use parsing::ParseError;

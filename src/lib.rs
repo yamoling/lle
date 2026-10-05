@@ -12,7 +12,9 @@ mod utils;
 pub use action::Action;
 pub use agent::{Agent, AgentId};
 pub use core::parsing::parse_toml as parse_v2;
-pub use core::{ParseError, RuntimeWorldError, World, WorldEvent, WorldState, tiles, tiles::Tile};
+pub use core::{
+    BoxId, ParseError, RuntimeWorldError, World, WorldEvent, WorldState, tiles, tiles::Tile,
+};
 pub use position::Position;
 pub use rendering::Renderer;
 // Include the version number of the crate from the build script

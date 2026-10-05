@@ -51,11 +51,6 @@ impl Boxes {
         self.positions.len()
     }
 
-    #[allow(dead_code)] // used by later tasks (movement, state)
-    pub fn is_empty(&self) -> bool {
-        self.positions.is_empty()
-    }
-
     pub fn positions(&self) -> &Vec<Position> {
         &self.positions
     }
