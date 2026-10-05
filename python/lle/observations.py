@@ -188,7 +188,7 @@ class StateGenerator(ObservationGenerator):
     @property
     def shape(self):
         """The full world state: (i, j) for each agent, each gem's collection status, each agent's
-        alive flag, then (i, j) and a presence flag for each box. Box positions are not normalised."""
+        alive flag, then (i, j) and a presence flag for each box. Box positions are not normalized."""
         return (self._world.n_agents * 3 + self.n_gems + self.n_boxes * 3,)
 
     @property
@@ -270,7 +270,14 @@ class LayeredPadded(ObservationGenerator):
         """Reconstruct a world state from a layered observation.
 
         This assumes that all agents are alive.
+
+        Raises:
+            NotImplementedError: if the world has boxes, since the layered observation has no box layer.
         """
+        if self._world.n_boxes > 0:
+            raise NotImplementedError(
+                "Layered states cannot reconstruct box positions; use the 'state' state type for worlds with boxes"
+            )
         _, i, j = np.nonzero(data[self.A0 : self.A0 + self.n_colours])
         agents_positions = [(int(i[n]), int(j[n])) for n in range(self._world.n_agents)]
         gems_collected = []
