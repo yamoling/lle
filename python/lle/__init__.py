@@ -32,6 +32,17 @@ world.set_state(state)
 print(world.exit_pos)          # [(0, 3)]
 ```
 
+Boxes are movable: walking into one pushes it one cell further, and a box blocks
+a laser beam of any colour. A box pushed onto a void tile is destroyed.
+```python
+from lle import Action, World
+
+world = World("S0 B . X")
+world.reset()
+world.step([Action.EAST])
+print(world.boxes_positions)   # [(0, 2)]
+```
+
 ## High-level `LLE`
 Use `LLE` when you want a ready-to-use MARL environment with multiple types of observations (partial, full, 1d, 3d, ...).
 The usual workflow is `lle.level(...)`, `lle.from_str(...)`, or `lle.from_file(...)`, followed by
@@ -145,6 +156,7 @@ width = 10 # Optional, deduced from `world_string`
 height = 5 # Optional, deduced from `world_string`
 exits = [{ j_min = 9 }] # Exits on all cells with j>=9
 gems = [{ i = 0, j = 2 }] # One single gem at position (0, 2)
+boxes = [{ i = 4, j = 1 }] # One box at position (4, 1)
 starts = [{ row = 2}] # All tiles on row=2 are start positions for all agents
 world_string = '''
 X . . . S1 . . . . .
