@@ -1371,3 +1371,118 @@ fn test_death_replay_does_not_move_a_pushed_box_twice() {
     assert_eq!(world.boxes_positions(), vec![pos(0, 2)]);
     assert_eq!(world.boxes_present(), vec![true]);
 }
+
+#[test]
+fn test_box_pushed_onto_a_void_is_destroyed() {
+    let mut world = World::try_from("S0 B V X").unwrap();
+    world.reset();
+    assert!(world.available_actions()[0].contains(&Action::East));
+
+    let events = world.step(&[Action::East]).unwrap();
+
+    assert_eq!(events, vec![WorldEvent::BoxDestroyed { box_id: 0 }]);
+    assert_eq!(world.boxes_present(), vec![false]);
+    assert!(
+        !world.has_box_at(pos(0, 2)),
+        "a destroyed box holds no cell"
+    );
+}
+
+#[test]
+fn test_a_destroyed_box_on_a_void_under_a_beam_does_not_block() {
+    // Source at (0,2) fires South over the void at (1,2) offset 0 and (2,2)
+    // offset 1 — a beam crosses a void, because `Void::is_walkable()` is true.
+    // The agent at (1,0) pushes the box from (1,1) onto that void.
+    let mut world = World::try_from(
+        "
+        .  .  L0S X
+        S1 B  V   .
+        .  .  .   .
+        ",
+    )
+    .unwrap();
+    world.reset();
+    assert!(get_laser(&world, pos(1, 2)).is_on());
+
+    let events = world.step(&[Action::East]).unwrap();
+
+    assert!(
+        events.contains(&WorldEvent::BoxDestroyed { box_id: 0 }),
+        "the box falls into the void: {events:?}"
+    );
+    assert_eq!(world.boxes_present(), vec![false]);
+    assert!(
+        get_laser(&world, pos(1, 2)).is_on(),
+        "a destroyed box must not block the beam it fell through"
+    );
+    assert!(
+        get_laser(&world, pos(2, 2)).is_on(),
+        "nor anything downstream of it"
+    );
+    assert_eq!(world.agents_positions(), &vec![pos(1, 1)]);
+}
+
+#[test]
+fn test_reset_revives_a_destroyed_box() {
+    let mut world = World::try_from("S0 B V X").unwrap();
+    world.reset();
+    world.step(&[Action::East]).unwrap();
+    assert_eq!(world.boxes_present(), vec![false]);
+
+    world.reset();
+
+    assert_eq!(world.boxes_present(), vec![true]);
+    assert_eq!(world.boxes_positions(), vec![pos(0, 1)]);
+}
+
+#[test]
+fn test_box_on_a_gem_does_not_collect_it_and_frees_it_again() {
+    let mut world = World::try_from("S0 B G . X").unwrap();
+    world.reset();
+
+    world.step(&[Action::East]).unwrap();
+    assert_eq!(world.boxes_positions(), vec![pos(0, 2)]);
+    assert_eq!(world.n_gems_collected(), 0, "a box never collects a gem");
+
+    world.step(&[Action::East]).unwrap();
+    assert_eq!(world.boxes_positions(), vec![pos(0, 3)]);
+    assert_eq!(
+        world.n_gems_collected(),
+        1,
+        "the agent collects it after the push"
+    );
+}
+
+#[test]
+fn test_a_box_on_an_exit_obstructs_it() {
+    // The box rests on the exit and has nowhere to go: the agent cannot enter.
+    let mut world = World::try_from("S0 B X @").unwrap();
+    world.reset();
+    world.step(&[Action::East]).unwrap();
+    assert_eq!(world.boxes_positions(), vec![pos(0, 2)]);
+    assert_eq!(world.agents_positions(), &vec![pos(0, 1)]);
+
+    assert!(
+        !world.available_actions()[0].contains(&Action::East),
+        "the exit is blocked by a box that cannot be pushed further"
+    );
+    assert!(world.step(&[Action::East]).is_err());
+    assert_eq!(world.agents_positions(), &vec![pos(0, 1)]);
+}
+
+#[test]
+fn test_an_exit_works_again_once_its_box_is_pushed_off() {
+    let mut world = World::try_from("S0 B X .").unwrap();
+    world.reset();
+    world.step(&[Action::East]).unwrap();
+    assert_eq!(world.boxes_positions(), vec![pos(0, 2)]);
+
+    let events = world.step(&[Action::East]).unwrap();
+
+    assert_eq!(world.boxes_positions(), vec![pos(0, 3)]);
+    assert_eq!(world.agents_positions(), &vec![pos(0, 2)]);
+    assert!(
+        events.contains(&WorldEvent::AgentExit { agent_id: 0 }),
+        "the agent exits once the box is off the exit: {events:?}"
+    );
+}
