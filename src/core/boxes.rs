@@ -76,7 +76,6 @@ impl Boxes {
         *self.occupancy.get(self.index(pos))?
     }
 
-    #[allow(dead_code)] // used by later tasks (movement, state)
     pub fn set_position(&mut self, id: BoxId, dest: Position) {
         let from = self.index(self.positions[id]);
         self.occupancy[from] = None;

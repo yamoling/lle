@@ -989,3 +989,385 @@ fn test_get_config_preserves_boxes() {
     let world = World::try_from("S0 B . X").unwrap();
     assert_eq!(world.get_config().boxes(), &vec![pos(0, 1)]);
 }
+
+#[test]
+fn test_push_a_box_east() {
+    let mut world = World::try_from("S0 B . X").unwrap();
+    world.reset();
+    assert!(world.available_actions()[0].contains(&Action::East));
+
+    world.step(&[Action::East]).unwrap();
+
+    assert_eq!(world.agents_positions(), &vec![pos(0, 1)]);
+    assert_eq!(world.boxes_positions(), vec![pos(0, 2)]);
+}
+
+#[test]
+fn test_push_blocked_by_a_wall() {
+    let mut world = World::try_from("S0 B @ X\n.  . . .").unwrap();
+    world.reset();
+    assert!(!world.available_actions()[0].contains(&Action::East));
+}
+
+#[test]
+fn test_push_blocked_by_another_box_no_chains() {
+    let mut world = World::try_from("S0 B B . X").unwrap();
+    world.reset();
+    assert!(!world.available_actions()[0].contains(&Action::East));
+}
+
+#[test]
+fn test_push_blocked_by_the_grid_edge() {
+    let mut world = World::try_from("X . S0 B").unwrap();
+    world.reset();
+    assert!(!world.available_actions()[0].contains(&Action::East));
+}
+
+#[test]
+fn test_push_blocked_by_a_living_agent() {
+    let mut world = World::try_from("S0 B S1 X X").unwrap();
+    world.reset();
+    assert!(!world.available_actions()[0].contains(&Action::East));
+}
+
+#[test]
+fn test_push_blocked_by_an_agent_that_died_in_a_beam() {
+    // Beam runs East from (0,0) over (0,1); the box at (0,2) shields the rest.
+    // Agent 1 (colour 1) walks North into the lit (0,1) and dies there. A
+    // corpse in a lit beam is never recorded by the laser's wrapped tile, so
+    // the push check must not rely on tile occupancy alone.
+    let mut world = World::try_from(
+        "
+        L0E .  B  S0 .
+        X   S1 .  .  X
+        ",
+    )
+    .unwrap();
+    world.reset();
+    assert!(
+        world.available_actions()[0].contains(&Action::West),
+        "the push is legal while (0,1) is empty"
+    );
+
+    let events = world.step(&[Action::Stay, Action::North]).unwrap();
+    assert!(events.contains(&WorldEvent::AgentDied { agent_id: 1 }));
+    assert_eq!(world.agents_positions()[1], pos(0, 1), "the corpse stays");
+
+    assert!(
+        !world.available_actions()[0].contains(&Action::West),
+        "a dead agent blocks the push"
+    );
+}
+
+#[test]
+fn test_push_blocked_by_an_agent_that_died_in_a_void() {
+    let mut world = World::try_from(
+        "
+        S0 B  V  .
+        X  .  S1 X
+        ",
+    )
+    .unwrap();
+    world.reset();
+    assert!(world.available_actions()[0].contains(&Action::East));
+
+    let events = world.step(&[Action::Stay, Action::North]).unwrap();
+    assert!(events.contains(&WorldEvent::AgentDied { agent_id: 1 }));
+
+    assert!(
+        !world.available_actions()[0].contains(&Action::East),
+        "a dead agent blocks the push"
+    );
+}
+
+#[test]
+fn test_push_blocked_by_an_arrived_agent() {
+    let mut world = World::try_from(
+        "
+        S0 B X
+        X  . S1
+        ",
+    )
+    .unwrap();
+    world.reset();
+    assert!(world.available_actions()[0].contains(&Action::East));
+
+    let events = world.step(&[Action::Stay, Action::North]).unwrap();
+    assert!(events.contains(&WorldEvent::AgentExit { agent_id: 1 }));
+    assert!(world.agents()[1].has_arrived());
+
+    assert!(
+        !world.available_actions()[0].contains(&Action::East),
+        "an arrived agent blocks the push"
+    );
+}
+
+#[test]
+fn test_a_box_may_rest_on_an_exit() {
+    // Two exits, one agent: pushing a box onto an exit is legal and the
+    // obstruction is reversible, so it is not a deadlock.
+    let mut world = World::try_from("S0 B X X").unwrap();
+    world.reset();
+    assert!(world.available_actions()[0].contains(&Action::East));
+
+    world.step(&[Action::East]).unwrap();
+
+    assert_eq!(world.boxes_positions(), vec![pos(0, 2)]);
+}
+
+/// The ordering case. The beam points West from the source at (0,4) across
+/// (0,3) offset 0, (0,2) offset 1, (0,1) offset 2, (0,0) offset 3. The box at
+/// (0,2) already blocks from offset 1, so the agent's start at (0,1) is dark.
+///
+/// Moving East pushes the box to (0,3) — offset 0 — darkening the entire beam,
+/// and the agent lands on (0,2). Phase 2 releases every blocker, so if agents
+/// entered before boxes settled, the agent would walk into a lit beam and die.
+/// Phase 3 must precede phases 4 and 5.
+#[test]
+fn test_a_pushed_box_saves_its_pusher() {
+    let mut world = World::try_from("X S1 B . L0W").unwrap();
+    world.reset();
+    assert!(
+        get_laser(&world, pos(0, 3)).is_on(),
+        "offset 0 is lit at reset"
+    );
+    assert!(
+        get_laser(&world, pos(0, 1)).is_off(),
+        "the box shields the start"
+    );
+
+    let events = world.step(&[Action::East]).unwrap();
+
+    assert!(events.is_empty(), "the agent must not die: {events:?}");
+    assert_eq!(world.agents_positions(), &vec![pos(0, 2)]);
+    assert_eq!(world.boxes_positions(), vec![pos(0, 3)]);
+    assert!(world.agents()[0].is_alive());
+    assert!(
+        get_laser(&world, pos(0, 3)).is_off(),
+        "the box now blocks offset 0"
+    );
+}
+
+#[test]
+fn test_two_agents_pushing_one_box_both_revert() {
+    // Agent 0 at (0,1) pushes South, agent 1 at (1,0) pushes East.
+    // Both destinations are (1,1), the box's cell -> vertex conflict.
+    let mut world = World::try_from(
+        "
+        .  S0 X
+        S1 B  X
+        .  .  .
+        ",
+    )
+    .unwrap();
+    world.reset();
+
+    world.step(&[Action::South, Action::East]).unwrap();
+
+    assert_eq!(
+        world.agents_positions(),
+        &vec![pos(0, 1), pos(1, 0)],
+        "both agents revert on the vertex conflict"
+    );
+    assert_eq!(
+        world.boxes_positions(),
+        vec![pos(1, 1)],
+        "the box does not move"
+    );
+}
+
+#[test]
+fn test_agent_entering_a_pushed_box_destination_reverts_with_the_pusher() {
+    // Agent 0 pushes the box from (0,1) to (0,2) while agent 1 walks North
+    // into (0,2). Two occupants would share one cell: both agents revert.
+    let mut world = World::try_from(
+        "
+        S0 B  .  X
+        .  .  S1 X
+        ",
+    )
+    .unwrap();
+    world.reset();
+    assert!(world.available_actions()[0].contains(&Action::East));
+    assert!(world.available_actions()[1].contains(&Action::North));
+
+    world.step(&[Action::East, Action::North]).unwrap();
+
+    assert_eq!(world.agents_positions(), &vec![pos(0, 0), pos(1, 2)]);
+    assert_eq!(
+        world.boxes_positions(),
+        vec![pos(0, 1)],
+        "the box does not move"
+    );
+}
+
+#[test]
+fn test_two_boxes_pushed_into_one_cell_both_pushers_revert() {
+    let mut world = World::try_from(
+        "
+        S0 B  .  B  S1
+        X  .  .  .  X
+        ",
+    )
+    .unwrap();
+    world.reset();
+    assert!(world.available_actions()[0].contains(&Action::East));
+    assert!(world.available_actions()[1].contains(&Action::West));
+
+    world.step(&[Action::East, Action::West]).unwrap();
+
+    assert_eq!(world.agents_positions(), &vec![pos(0, 0), pos(0, 4)]);
+    assert_eq!(
+        world.boxes_positions(),
+        vec![pos(0, 1), pos(0, 3)],
+        "neither box moves"
+    );
+}
+
+#[test]
+fn test_box_contention_reverts_only_the_agents_involved() {
+    // Agent 0 pushes the box into (0,2) while agent 1 walks into (0,2): both
+    // revert. Agent 2 is uninvolved and still moves. (Agents never walk into an
+    // occupied cell, so a revert cannot cascade onto a follower.)
+    let mut world = World::try_from(
+        "
+        S0 B  .  X
+        S2 .  S1 X
+        .  .  .  X
+        ",
+    )
+    .unwrap();
+    world.reset();
+    assert!(
+        !world.available_actions()[2].contains(&Action::North),
+        "agents cannot follow into an occupied cell"
+    );
+
+    world
+        .step(&[Action::East, Action::North, Action::South])
+        .unwrap();
+
+    assert_eq!(
+        world.agents_positions(),
+        &vec![pos(0, 0), pos(1, 2), pos(2, 0)]
+    );
+    assert_eq!(world.boxes_positions(), vec![pos(0, 1)]);
+}
+
+#[test]
+fn test_uncontended_pushes_in_the_same_step_all_happen() {
+    // Two agents push two different boxes to two different cells.
+    let mut world = World::try_from(
+        "
+        S0 B  .  .  X
+        S1 B  .  .  X
+        ",
+    )
+    .unwrap();
+    world.reset();
+
+    world.step(&[Action::East, Action::East]).unwrap();
+
+    assert_eq!(world.agents_positions(), &vec![pos(0, 1), pos(1, 1)]);
+    assert_eq!(world.boxes_positions(), vec![pos(0, 2), pos(1, 2)]);
+}
+
+#[test]
+fn test_box_pushed_into_a_beam_blocks_it() {
+    // Source at (0,2) fires South over (1,2) offset 0 and (2,2) offset 1.
+    // The box starts outside the beam at (1,1); the agent pushes it in.
+    let mut world = World::try_from(
+        "
+        .  .  L0S
+        S1 B  X
+        .  .  X
+        ",
+    )
+    .unwrap();
+    world.reset();
+    assert!(get_laser(&world, pos(1, 2)).is_on());
+    assert!(get_laser(&world, pos(2, 2)).is_on());
+
+    world.step(&[Action::East]).unwrap();
+
+    assert_eq!(world.boxes_positions(), vec![pos(1, 2)]);
+    assert!(get_laser(&world, pos(1, 2)).is_off());
+    assert!(get_laser(&world, pos(2, 2)).is_off(), "and downstream");
+}
+
+#[test]
+fn test_box_pushed_out_of_a_beam_relights_it_and_kills() {
+    // Source at (0,1) fires South over (1,1) offset 0 and (2,1) offset 1.
+    // The box starts in the beam at (1,1), shielding nothing the agent needs.
+    // Pushing it East to (1,2) relights the beam onto the agent's destination.
+    let mut world = World::try_from(
+        "
+        .  L0S .  X
+        S1 B   .  X
+        .  .   .  .
+        ",
+    )
+    .unwrap();
+    world.reset();
+    assert!(
+        get_laser(&world, pos(1, 1)).is_off(),
+        "the box blocks at reset"
+    );
+
+    let events = world.step(&[Action::East]).unwrap();
+
+    assert_eq!(world.boxes_positions(), vec![pos(1, 2)]);
+    assert!(
+        events.contains(&WorldEvent::AgentDied { agent_id: 0 }),
+        "the relit beam kills the agent that walked into it: {events:?}"
+    );
+    assert!(!world.agents()[0].is_alive());
+}
+
+#[test]
+fn test_death_replay_neither_moves_nor_destroys_a_box_twice() {
+    // The box is pushed into the void while agent 1 dies in a beam on the
+    // same step, which forces the death-replay pass. The replay re-settles
+    // boxes but must neither move the box again nor re-emit its destruction.
+    let mut world = World::try_from(
+        "
+        S0 B  V  L0S
+        X  .  S1 .
+        X  .  .  .
+        ",
+    )
+    .unwrap();
+    world.reset();
+
+    let events = world.step(&[Action::East, Action::East]).unwrap();
+
+    assert!(events.contains(&WorldEvent::AgentDied { agent_id: 1 }));
+    let destroyed = events
+        .iter()
+        .filter(|e| matches!(e, WorldEvent::BoxDestroyed { .. }))
+        .count();
+    assert_eq!(destroyed, 1, "{events:?}");
+    assert_eq!(world.boxes_present(), vec![false]);
+    assert_eq!(world.boxes_positions(), vec![pos(0, 2)]);
+    assert_eq!(world.agents_positions()[0], pos(0, 1));
+}
+
+#[test]
+fn test_death_replay_does_not_move_a_pushed_box_twice() {
+    // Same replay, but the box survives: it must advance exactly one cell.
+    let mut world = World::try_from(
+        "
+        S0 B  .  .  L0S
+        X  .  .  S1 .
+        X  .  .  .  .
+        ",
+    )
+    .unwrap();
+    world.reset();
+
+    let events = world.step(&[Action::East, Action::East]).unwrap();
+
+    assert!(events.contains(&WorldEvent::AgentDied { agent_id: 1 }));
+    assert_eq!(world.boxes_positions(), vec![pos(0, 2)]);
+    assert_eq!(world.boxes_present(), vec![true]);
+}
