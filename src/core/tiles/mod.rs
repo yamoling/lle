@@ -9,5 +9,5 @@ pub use direction::Direction;
 pub use gem::Gem;
 pub use laser::{Laser, LaserBeam};
 pub use laser_source::{LaserId, LaserSource};
-pub use tile::Tile;
+pub use tile::{BoxOutcome, Tile};
 pub use void::Void;

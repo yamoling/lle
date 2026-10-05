@@ -6,7 +6,7 @@ use crate::RuntimeWorldError;
 use crate::{
     WorldEvent,
     agent::{Agent, AgentId, Colour},
-    tiles::{Direction, LaserId, Tile},
+    tiles::{BoxOutcome, Direction, LaserId, Tile},
 };
 
 use super::Gem;
@@ -217,5 +217,20 @@ impl Laser {
 
     pub fn agent(&self) -> Option<AgentId> {
         self.wrapped.agent()
+    }
+
+    /// Blocks the beam only if the wrapped tile lets the box rest. A beam can
+    /// cross a void, and a box destroyed there must not block it.
+    pub fn box_enter(&mut self) -> BoxOutcome {
+        let outcome = self.wrapped.box_enter();
+        if outcome == BoxOutcome::Rests {
+            self.turn_off();
+        }
+        outcome
+    }
+
+    pub fn box_leave(&mut self) {
+        self.turn_on();
+        self.wrapped.box_leave();
     }
 }

@@ -6,6 +6,15 @@ use core::panic;
 
 use super::{Gem, Laser, LaserSource, Void};
 
+/// What happens to a box that is pushed onto a tile.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BoxOutcome {
+    /// The box settles here.
+    Rests,
+    /// The box does not survive (a void) and is removed from the world.
+    Destroyed,
+}
+
 #[derive(Debug)]
 pub enum Tile {
     Gem(Gem),
@@ -122,4 +131,33 @@ impl Tile {
         }
         .to_string()
     }
+
+    /// A box settles on this tile. Boxes are colour-blind: they block a beam of
+    /// any colour. Unlike agents, boxes never reach `enter`, so a box on a gem
+    /// does not collect it.
+    pub fn box_enter(&mut self) -> BoxOutcome {
+        match self {
+            Self::Void(_) => BoxOutcome::Destroyed,
+            Self::Laser(laser) => laser.box_enter(),
+            Self::Floor { .. } | Self::Exit { .. } | Self::Gem(_) => BoxOutcome::Rests,
+            Self::Wall | Self::LaserSource(_) => {
+                panic!("A box cannot be pushed onto a wall or a laser source")
+            }
+        }
+    }
+
+    /// A box leaves this tile.
+    pub fn box_leave(&mut self) {
+        match self {
+            Self::Laser(laser) => laser.box_leave(),
+            Self::Floor { .. } | Self::Exit { .. } | Self::Gem(_) | Self::Void(_) => {}
+            Self::Wall | Self::LaserSource(_) => {
+                panic!("A box cannot leave a wall or a laser source")
+            }
+        }
+    }
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/test_box_tiles.rs"]
+mod test_box_tiles;
