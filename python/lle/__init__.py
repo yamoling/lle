@@ -32,6 +32,17 @@ world.set_state(state)
 print(world.exit_pos)          # [(0, 3)]
 ```
 
+Boxes are movable: walking into one pushes it one cell further, and a box blocks
+a laser beam of any colour. A box pushed onto a void tile is destroyed.
+```python
+from lle import Action, World
+
+world = World("S0 B . X")
+world.reset()
+world.step([Action.EAST])
+print(world.boxes_positions)   # [(0, 2)]
+```
+
 ## High-level `LLE`
 Use `LLE` when you want a ready-to-use MARL environment with multiple types of observations (partial, full, 1d, 3d, ...).
 The usual workflow is `lle.level(...)`, `lle.from_str(...)`, or `lle.from_file(...)`, followed by
@@ -51,6 +62,7 @@ print(step.reward)
 `lle.solve(world, t_max, path_length="auto")` creates a solver with episode horizon `t_max` and
 finds a joint plan of exactly `path_length` steps. When `path_length` is `"auto"` (the default), it
 uses `t_max`. This solving is performed via a SAT solver.
+The solver does not currently support worlds with boxes and will raise `NotImplementedError`.
 More details about the solver can be found in the `lle.solver` module.
 
 ```python
@@ -117,6 +129,7 @@ separate tiles.
 | `@` | Wall  | No | A wall that blocks lasers. |
 | `X` | Exit  | Yes | An exit tile. The agent can no longer move after reaching it. |
 | `G` | Gem   | Yes | A gem to collect. |
+| `B` | Box   | Yes | A movable box. Walking into it pushes it one cell further. Blocks lasers of any colour. |
 | `S<n>` | Start | Yes | Start position of agent `n`. |
 | `L<n><d>` | Laser source | No | Source of a laser of colour `n` (a number) beaming toward the direction `d` (N, S, E, W). |
 | `V` | Void | Yes | A void tile. The agent dies if it walks on it |
@@ -143,10 +156,11 @@ width = 10 # Optional, deduced from `world_string`
 height = 5 # Optional, deduced from `world_string`
 exits = [{ j_min = 9 }] # Exits on all cells with j>=9
 gems = [{ i = 0, j = 2 }] # One single gem at position (0, 2)
+boxes = [{ i = 1, j = 3 }] # One box at position (1, 3)
 starts = [{ row = 2}] # All tiles on row=2 are start positions for all agents
 world_string = '''
 X . . . S1 . . . . .
-. . . . .  . . . . .
+. . . B .  . . . . .
 . . . . .  . . . . .
 . . . . .  . . . . .
 . . . . S2 . . . . .
