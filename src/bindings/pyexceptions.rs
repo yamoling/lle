@@ -115,7 +115,7 @@ pub fn parse_error_to_exception(error: ParseError) -> PyErr {
             format!("Position ({i}, {j}) is out of the world's boundaries")
         }
         ParseError::InvalidBoxPosition { position } => format!(
-            "A box cannot start at {position:?}: boxes may only start on a walkable, non-void tile"
+            "A box cannot start at {position:?}: it must start on a free floor, gem, exit or laser tile (not a wall, void, laser source, agent start or another box)"
         ),
         ParseError::MissingHeight => "Missing height in the world configuration file".into(),
         ParseError::MissingWidth => "Missing width in the world configuration file".into(),

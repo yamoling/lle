@@ -63,12 +63,23 @@ impl Boxes {
         &self.initial_positions
     }
 
+    /// The id and position of every present box.
+    pub fn present_boxes(&self) -> Vec<(BoxId, Position)> {
+        self.positions
+            .iter()
+            .zip(&self.present)
+            .enumerate()
+            .filter(|(_, (_, present))| **present)
+            .map(|(id, (pos, _))| (id, *pos))
+            .collect()
+    }
+
     /// The present box occupying `pos`, if any.
     pub fn id_at(&self, pos: Position) -> Option<BoxId> {
         if pos.i >= self.height || pos.j >= self.width {
             return None;
         }
-        *self.occupancy.get(self.index(pos))?
+        self.occupancy[self.index(pos)]
     }
 
     pub fn set_position(&mut self, id: BoxId, dest: Position) {

@@ -1,4 +1,4 @@
-use crate::{AgentId, WorldEvent};
+use crate::{AgentId, BoxId, WorldEvent};
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum, gen_stub_pymethods};
 
@@ -46,7 +46,7 @@ pub struct PyWorldEvent {
     agent_id: Option<AgentId>,
     /// The box concerned by the event, or `None` for events that involve no box.
     #[pyo3(get)]
-    box_id: Option<usize>,
+    box_id: Option<BoxId>,
 }
 
 #[gen_stub_pymethods]
@@ -54,7 +54,7 @@ pub struct PyWorldEvent {
 impl PyWorldEvent {
     #[new]
     #[pyo3(signature = (event_type, agent_id=None, box_id=None))]
-    pub fn new(event_type: PyEventType, agent_id: Option<AgentId>, box_id: Option<usize>) -> Self {
+    pub fn new(event_type: PyEventType, agent_id: Option<AgentId>, box_id: Option<BoxId>) -> Self {
         Self {
             event_type,
             agent_id,

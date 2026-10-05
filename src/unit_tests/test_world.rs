@@ -951,8 +951,6 @@ fn test_has_box_at_tracks_the_occupancy_index() {
     world.reset();
     assert!(world.has_box_at(pos(0, 1)));
     assert!(!world.has_box_at(pos(0, 2)));
-    assert_eq!(world.box_id_at(pos(0, 1)), Some(0));
-    assert_eq!(world.box_id_at(pos(0, 2)), None);
 }
 
 #[test]

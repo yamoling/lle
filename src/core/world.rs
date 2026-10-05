@@ -106,28 +106,16 @@ impl World {
         self.boxes.id_at(pos).is_some()
     }
 
-    pub fn box_id_at(&self, pos: Position) -> Option<BoxId> {
-        self.boxes.id_at(pos)
-    }
-
-    /// Whether a box may come to rest on `dest`. Pure: no side effects.
+    /// Whether a box may be pushed onto `dest`: a walkable cell of the grid that
+    /// holds neither an agent (living, dead or arrived) nor another box.
     ///
     /// A void is walkable, so pushing a box into a void is legal and destroys it.
-    ///
-    /// A cell holding any agent — living, dead or arrived — is refused, since
-    /// none of them vacate their cell. Tile occupancy alone does not cover that:
-    /// an agent killed by a beam is never recorded by the laser's wrapped tile,
-    /// so the agents' positions are checked as well.
+    /// The agents' positions are checked rather than `Tile::is_occupied`, because
+    /// an agent killed by a laser is not recorded on its tile.
     pub fn can_push_to(&self, dest: Position) -> bool {
-        match self.at(&dest) {
-            Some(tile) => {
-                tile.is_walkable()
-                    && !tile.is_occupied()
-                    && !self.agents_positions.contains(&dest)
-                    && !self.has_box_at(dest)
-            }
-            None => false,
-        }
+        self.at(&dest).is_some_and(|tile| tile.is_walkable())
+            && !self.agents_positions.contains(&dest)
+            && !self.has_box_at(dest)
     }
 
     /// Phase 3 of the step protocol: every present box enters its current tile,
@@ -135,16 +123,9 @@ impl World {
     /// Returns the destruction events.
     fn settle_boxes(&mut self) -> Vec<WorldEvent> {
         let mut events = vec![];
-        for id in 0..self.boxes.len() {
-            if !self.boxes.present()[id] {
-                continue;
-            }
-            let pos = self.boxes.positions()[id];
-            let outcome = self
-                .at_mut(&pos)
-                .expect("A box is always within the grid")
-                .box_enter();
-            if outcome == BoxOutcome::Destroyed {
+        for (id, pos) in self.boxes.present_boxes() {
+            let tile = self.at_mut(&pos).expect("A box is always within the grid");
+            if tile.box_enter() == BoxOutcome::Destroyed {
                 self.boxes.destroy(id);
                 events.push(WorldEvent::BoxDestroyed { box_id: id });
             }
@@ -155,11 +136,7 @@ impl World {
     /// Phase 2 of the step protocol: every present box leaves its tile, relighting
     /// beams, so that the reapply pass can recompute them from scratch.
     fn release_boxes(&mut self) {
-        for id in 0..self.boxes.len() {
-            if !self.boxes.present()[id] {
-                continue;
-            }
-            let pos = self.boxes.positions()[id];
+        for (_, pos) in self.boxes.present_boxes() {
             self.at_mut(&pos)
                 .expect("A box is always within the grid")
                 .box_leave();
@@ -173,18 +150,13 @@ impl World {
     /// of `state` (dead ones included). An absent box must lie on a void, since a
     /// destroyed box keeps the void cell it fell into.
     fn validate_boxes(&self, state: &WorldState) -> Result<(), RuntimeWorldError> {
-        if state.boxes_positions.len() != self.n_boxes()
-            || state.boxes_present.len() != self.n_boxes()
-        {
-            let given = if state.boxes_positions.len() != self.n_boxes() {
-                state.boxes_positions.len()
-            } else {
-                state.boxes_present.len()
-            };
-            return Err(RuntimeWorldError::InvalidNumberOfBoxes {
-                given,
-                expected: self.n_boxes(),
-            });
+        for given in [state.boxes_positions.len(), state.boxes_present.len()] {
+            if given != self.n_boxes() {
+                return Err(RuntimeWorldError::InvalidNumberOfBoxes {
+                    given,
+                    expected: self.n_boxes(),
+                });
+            }
         }
         let invalid = |reason: &str| RuntimeWorldError::InvalidWorldState {
             reason: reason.into(),
@@ -508,26 +480,17 @@ impl World {
             agent_actions.push(Action::Stay);
             if agent.is_alive() && !agent.has_arrived() {
                 for action in [Action::North, Action::East, Action::South, Action::West] {
-                    let Ok(dest) = &action + agent_pos else {
-                        continue;
-                    };
-                    let Some(tile) = self.at(&dest) else {
-                        continue;
-                    };
-                    if !tile.is_walkable() || tile.is_occupied() {
-                        continue;
+                    // Walking into a box pushes it one cell further, which is
+                    // only possible if the cell beyond can hold it.
+                    if let Ok(pos) = &action + agent_pos
+                        && let Some(tile) = self.at(&pos)
+                        && tile.is_walkable()
+                        && !tile.is_occupied()
+                        && (!self.has_box_at(pos)
+                            || (action + pos).is_ok_and(|beyond| self.can_push_to(beyond)))
+                    {
+                        agent_actions.push(action);
                     }
-                    if self.has_box_at(dest) {
-                        // Walking into a box pushes it one further; legal only if
-                        // the cell beyond can hold it.
-                        let Ok(beyond) = action + dest else {
-                            continue;
-                        };
-                        if !self.can_push_to(beyond) {
-                            continue;
-                        }
-                    }
-                    agent_actions.push(action);
                 }
             }
         }
@@ -586,8 +549,8 @@ impl World {
                 tile.reset();
             }
         }
-        // Boxes settle before the agents pre-enter (spec phase order). Destruction
-        // events cannot occur on reset: a box never starts on a void.
+        // Boxes settle before the agents enter, as in `step`. No box can be
+        // destroyed here: a box never starts on a void.
         self.boxes.reset();
         self.settle_boxes();
         // Reset (dead=false) the agents such that they can block lasers on spacwn
@@ -637,8 +600,7 @@ impl World {
         // Check for vertex conflicts
         // If a new_pos occurs more than once, then set it back to its original position
         self.solve_vertex_conflicts(&mut new_positions);
-        // Pushes may revert more agents (contended box destinations).
-        let box_moves = self.resolve_box_pushes(&mut new_positions);
+        let box_moves = self.resolve_box_pushes(actions, &mut new_positions);
         let (mut events, mut agent_died) =
             self.move_agents_and_boxes(&new_positions, &box_moves)?;
         self.agents_positions.clone_from(&new_positions);
@@ -655,96 +617,45 @@ impl World {
         Ok(events)
     }
 
-    /// The pushes implied by the agents' destinations, as `(pusher, box, box destination)`.
+    /// The boxes pushed this step, as `(box, destination)`, given the agents'
+    /// destinations after vertex conflicts. An agent pushes a box by moving onto
+    /// its cell, and the box moves one cell further in the same direction.
     ///
-    /// An agent pushes a box when it moves onto the box's cell; the box moves one
-    /// cell further in the same direction. Pure: it neither checks nor resolves
-    /// contention, see `resolve_box_pushes`.
-    fn box_pushes(&self, new_agent_positions: &[Position]) -> Vec<(AgentId, BoxId, Position)> {
-        let mut pushes: Vec<(AgentId, BoxId, Position)> = vec![];
-        for (agent_id, (old, new)) in izip!(&self.agents_positions, new_agent_positions).enumerate()
-        {
-            if old == new {
-                continue;
-            }
-            let Some(box_id) = self.boxes.id_at(*new) else {
-                continue;
-            };
-            let delta = (new.i as i32 - old.i as i32, new.j as i32 - old.j as i32);
-            let action = Action::try_from(delta).expect("An agent moves by one cell at a time");
-            let dest =
-                (&action + new).expect("Push legality was checked in compute_available_actions");
-            debug_assert!(
-                !pushes.iter().any(|(_, id, _)| *id == box_id),
-                "at most one agent may push a given box per step"
-            );
-            pushes.push((agent_id, box_id, dest));
-        }
-        pushes
-    }
-
-    /// Which boxes move this step, given the agents' post-conflict destinations.
-    /// Agents whose pushes contend are reverted in `new_agent_positions`.
-    ///
-    /// Runs *after* `solve_vertex_conflicts`, which buys two properties for free:
-    /// an agent reverted by a conflict does not move its box, and two agents
-    /// pushing one box from different axes both want the box's cell, so both
-    /// revert. Head-on pushes cannot arise — each pusher's destination is the
-    /// other's current cell, so neither action is ever available.
-    ///
-    /// A box's destination is a cell claimed by its pusher. When it is also
-    /// another agent's new position, or another pushed box's destination, every
-    /// agent involved reverts to its current position — the same "all parties
-    /// revert" rule as a vertex conflict. Vertex conflicts and pushes are then
-    /// re-resolved until a fixed point. Today a revert cannot cascade (agents
-    /// never walk into an occupied cell, so nobody follows a reverted agent, and
-    /// a reverted pusher's box stays on a cell no other push may target), so the
-    /// loop runs at most twice; it is kept so that a future rule allowing
-    /// following stays correct. It terminates: every unresolved pass reverts at
-    /// least one moving pusher, and a reverted agent never moves again.
-    ///
-    /// Takes `&mut self` only for the scratch buffer of `solve_vertex_conflicts`.
+    /// The destination of a box is claimed by its pusher. If another agent moves
+    /// onto it, or another box is pushed onto it, every agent involved stays where
+    /// it is (as in a vertex conflict) and the contended boxes do not move. This
+    /// cannot cause new conflicts, since no agent ever moves onto an occupied cell.
     fn resolve_box_pushes(
-        &mut self,
-        new_agent_positions: &mut [Position],
+        &self,
+        actions: &[Action],
+        new_positions: &mut [Position],
     ) -> Vec<(BoxId, Position)> {
-        loop {
-            let pushes = self.box_pushes(new_agent_positions);
-            if pushes.is_empty() {
-                return Vec::new();
+        let pushes: Vec<(AgentId, BoxId, Position)> = izip!(actions, new_positions.iter())
+            .enumerate()
+            .filter_map(|(agent_id, (action, new))| {
+                let box_id = self.boxes.id_at(*new)?;
+                let dest = (action + new).expect("Checked by compute_available_actions");
+                Some((agent_id, box_id, dest))
+            })
+            .collect();
+        let mut moves = vec![];
+        let mut reverted = vec![];
+        for &(pusher, box_id, dest) in &pushes {
+            let rival_push = pushes
+                .iter()
+                .any(|&(other, _, d)| other != pusher && d == dest);
+            let entering = new_positions.iter().position(|pos| *pos == dest);
+            if rival_push || entering.is_some() {
+                reverted.push(pusher);
+                reverted.extend(entering);
+            } else {
+                moves.push((box_id, dest));
             }
-            let mut revert = vec![false; new_agent_positions.len()];
-            for (k, (pusher, _, dest)) in pushes.iter().enumerate() {
-                let rival_box = pushes
-                    .iter()
-                    .enumerate()
-                    .any(|(l, (_, _, other))| l != k && other == dest);
-                // After vertex conflicts, at most one agent can be heading to `dest`.
-                let entering = new_agent_positions.iter().position(|p| p == dest);
-                if rival_box || entering.is_some() {
-                    revert[*pusher] = true;
-                    if let Some(agent_id) = entering {
-                        revert[agent_id] = true;
-                    }
-                }
-            }
-            if !revert.contains(&true) {
-                return pushes
-                    .into_iter()
-                    .map(|(_, box_id, dest)| (box_id, dest))
-                    .collect();
-            }
-            for (new, old, reverted) in izip!(
-                new_agent_positions.iter_mut(),
-                &self.agents_positions,
-                revert
-            ) {
-                if reverted {
-                    *new = *old;
-                }
-            }
-            self.solve_vertex_conflicts(new_agent_positions);
         }
+        for agent_id in reverted {
+            new_positions[agent_id] = self.agents_positions[agent_id];
+        }
+        moves
     }
 
     /// Moves agents and boxes through the five phases of the step protocol.
@@ -850,9 +761,8 @@ impl World {
                 }
             }
         }
-        // Boxes settle before the agents pre-enter (spec phase order). The restored
-        // state already records which boxes are absent, so no destruction event
-        // belongs to a `set_state`: the settle events are discarded.
+        // Boxes settle before the agents enter, as in `step`. `validate_boxes`
+        // guarantees that no present box is on a void, so nothing is destroyed here.
         self.boxes
             .restore(&state.boxes_positions, &state.boxes_present);
         self.settle_boxes();
