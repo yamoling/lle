@@ -114,6 +114,9 @@ pub fn parse_error_to_exception(error: ParseError) -> PyErr {
         ParseError::PositionOutOfBounds { i, j } => {
             format!("Position ({i}, {j}) is out of the world's boundaries")
         }
+        ParseError::InvalidBoxPosition { position } => format!(
+            "A box cannot start at {position:?}: boxes may only start on a walkable, non-void tile"
+        ),
         ParseError::MissingHeight => "Missing height in the world configuration file".into(),
         ParseError::MissingWidth => "Missing width in the world configuration file".into(),
         ParseError::UnknownTomlKey { message, .. } => message,
