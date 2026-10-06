@@ -1,4 +1,7 @@
-use crate::{Action, Renderer, World, rendering::TILE_SIZE};
+use crate::{
+    Action, Renderer, World,
+    rendering::{TILE_SIZE, sprites},
+};
 use image::RgbImage;
 
 #[test]
@@ -107,7 +110,7 @@ fn test_a_destroyed_box_is_not_drawn() {
 
 /// A box standing on a laser beam must stay visible on top of the beam. A box
 /// may also shorten the beam, so the frame is not compared with a box-free one:
-/// the centre of the cell must show the box's fill colour instead.
+/// the centre of the cell must show the box sprite instead.
 #[test]
 fn test_a_box_on_a_laser_is_visible() {
     // The box is pushed east, under the vertical beam of the source above.
@@ -137,7 +140,12 @@ S0 B .
     let frame = Renderer::new(&world).update(&world);
 
     let centre = (2 * TILE_SIZE + TILE_SIZE / 2, TILE_SIZE + TILE_SIZE / 2);
-    assert_eq!(frame.get_pixel(centre.0, centre.1).0, [150, 103, 61]);
+    let [r, g, b, a] = sprites::BOX.get_pixel(TILE_SIZE / 2, TILE_SIZE / 2).0;
+    assert_eq!(
+        a, 255,
+        "precondition: the centre of the box sprite is opaque"
+    );
+    assert_eq!(frame.get_pixel(centre.0, centre.1).0, [r, g, b]);
 }
 
 /// After a push, the box is drawn at its new cell and no longer at its old one.

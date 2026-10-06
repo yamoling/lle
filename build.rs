@@ -165,6 +165,9 @@ fn include_sprites_in_binary() {
     res.push_str(&format!(
         "pub const VOID_BYTES: &[u8] = include_bytes!(r#\"{cwd}/{RESOURCES}/void.png\"#);\n",
     ));
+    res.push_str(&format!(
+        "pub const BOX_BYTES: &[u8] = include_bytes!(r#\"{cwd}/{RESOURCES}/box.png\"#);\n",
+    ));
     let dest_path = out_dir.join("constants.rs");
     fs::write(dest_path, res).unwrap();
 }
@@ -186,4 +189,5 @@ fn main() {
     println!("cargo:rerun-if-changed={RESOURCES}/sources");
     println!("cargo:rerun-if-changed={RESOURCES}/gem.png");
     println!("cargo:rerun-if-changed={RESOURCES}/void.png");
+    println!("cargo:rerun-if-changed={RESOURCES}/box.png");
 }
