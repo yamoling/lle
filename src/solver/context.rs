@@ -92,6 +92,8 @@ pub struct ConstraintContext {
     pub t_max: usize,
     pub n_agents: usize,
     pub start_pos: Vec<Position>,
+    /// Position of each box at `t == 0`, indexed by box id.
+    pub box_start_pos: Vec<Position>,
     /// `predecessors[i][j]` = positions from which an agent can move into `(i, j)`.
     pub predecessors: Vec<Vec<NeighbourList>>,
     pub solution_lower_bound: usize,
@@ -141,6 +143,7 @@ impl ConstraintContext {
         let exits = PositionSet::from_positions(height, width, world.exits_positions().into_iter());
         // let exits: HashSet<Position> = exit_positions.iter().collect();
         let start_pos: Vec<Position> = world.starts().into_iter().collect();
+        let box_start_pos = world.boxes_start_positions();
 
         let mut valid_positions = HashSet::new();
         for i in 0..height {
@@ -232,6 +235,7 @@ impl ConstraintContext {
             t_max,
             n_agents,
             start_pos,
+            box_start_pos,
             predecessors,
             solution_lower_bound,
             laser_sources,

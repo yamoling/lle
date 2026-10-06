@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    Action, AgentId, Position,
+    Action, AgentId, BoxId, Position,
     solver::{Literal, errors::SolverError},
 };
 
@@ -11,6 +11,12 @@ pub enum VarKey {
     /// Whether the specified agent is located at `pos` at time step `t`.
     Agent {
         agent_id: AgentId,
+        pos: Position,
+        t: usize,
+    },
+    /// Whether the specified box is located at `pos` at time step `t`.
+    Box {
+        box_id: BoxId,
         pos: Position,
         t: usize,
     },
@@ -83,6 +89,11 @@ impl VarKey {
     }
 
     #[inline]
+    pub fn box_at(id: BoxId, pos: Position, t: usize) -> Self {
+        VarKey::Box { box_id: id, pos, t }
+    }
+
+    #[inline]
     pub fn laser(id: AgentId, pos: Position, t: usize) -> Self {
         VarKey::Laser {
             laser_id: id,
@@ -141,6 +152,10 @@ impl VarPool {
 
     pub fn agent(&mut self, agent_id: AgentId, pos: Position, t: usize) -> Literal {
         self.id(VarKey::Agent { agent_id, pos, t })
+    }
+
+    pub fn box_at(&mut self, box_id: BoxId, pos: Position, t: usize) -> Literal {
+        self.id(VarKey::Box { box_id, pos, t })
     }
 
     pub fn arrived(&mut self, agent_id: AgentId, t: usize) -> Literal {

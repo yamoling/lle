@@ -97,6 +97,11 @@ impl World {
         self.boxes.positions().clone()
     }
 
+    /// The positions of the boxes when the world is reset.
+    pub fn boxes_start_positions(&self) -> Vec<Position> {
+        self.boxes.initial_positions().clone()
+    }
+
     pub fn boxes_present(&self) -> Vec<bool> {
         self.boxes.present().clone()
     }

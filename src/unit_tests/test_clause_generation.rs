@@ -171,6 +171,30 @@ fn test_position_validity_single_agent() {
     }
 }
 
+/// Every box is fixed at its start position at `t == 0`, like an agent.
+#[test]
+fn boxes_are_initialized_at_their_start_position() {
+    let world = World::try_from("S0 B . B X").expect("failed to parse world");
+    let mut generator = ClauseGenerator::new(&world, 4).unwrap();
+    let (clauses, _) = generator.generate(4, SolveMode::Standard, false);
+
+    for (box_id, start) in [(0, pos(0, 1)), (1, pos(0, 3))] {
+        let lit = generator
+            .literal(&VarKey::box_at(box_id, start, 0))
+            .expect("box variable at t = 0 must exist");
+        assert!(clauses.contains(&vec![lit]));
+    }
+}
+
+/// A world without boxes allocates no box variable.
+#[test]
+fn no_box_variable_without_boxes() {
+    let world = World::try_from("S0 . X").expect("failed to parse world");
+    let mut generator = ClauseGenerator::new(&world, 2).unwrap();
+    generator.generate(2, SolveMode::Standard, false);
+    assert!(!generator.exists(&VarKey::box_at(0, pos(0, 1), 0)));
+}
+
 #[test]
 fn possible_positions_multiple_agents() {
     let world = World::try_from(

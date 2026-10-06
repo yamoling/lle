@@ -5,17 +5,26 @@ use crate::solver::{Clause, clauses::ClauseEngine};
 use super::utils::{PAIRWISE_ATMOST_MAX, at_most_one_sequential, implies};
 
 impl ClauseEngine {
-    /// Clauses fixing each agent at its start position at `t == 0`.
+    /// Clauses fixing each agent and each box at its start position at `t == 0`.
     pub(super) fn initialization(&mut self, t: usize) -> Vec<Clause> {
         if t != 0 {
             return Vec::new();
         }
-        let starts = self.ctx.start_pos.clone();
-        starts
-            .into_iter()
+        let ctx = &self.ctx;
+        let pool = &mut self.pool;
+        let mut clauses: Vec<Clause> = ctx
+            .start_pos
+            .iter()
             .enumerate()
-            .map(|(agent, pos)| vec![self.pool.agent(agent, pos, 0)])
-            .collect()
+            .map(|(agent, &pos)| vec![pool.agent(agent, pos, 0)])
+            .collect();
+        clauses.extend(
+            ctx.box_start_pos
+                .iter()
+                .enumerate()
+                .map(|(box_id, &pos)| vec![pool.box_at(box_id, pos, 0)]),
+        );
+        clauses
     }
 
     /// Every agent is in exactly one position at any given time step.
