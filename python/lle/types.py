@@ -16,6 +16,15 @@ AgentId = int
 The integer identifier of an agent.
 """
 
+Colour = int
+"""
+The colour of an agent, a laser beam, or a lift/button authorization.
+
+Distinct from `AgentId`: several agents may share one colour, and a colour is
+what decides which beams an agent may block and cross and which lifts and
+buttons it may use.
+"""
+
 LaserId = int
 """
 The identifier of a laser source.

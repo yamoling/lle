@@ -3,7 +3,12 @@ use std::sync::{Arc, Mutex};
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
-use crate::{Position, Tile, World, agent::AgentId, bindings::PyPosition, tiles::Lift};
+use crate::{
+    Position, Tile, World,
+    agent::{AgentId, Colour},
+    bindings::PyPosition,
+    tiles::Lift,
+};
 
 use super::inner;
 
@@ -20,9 +25,11 @@ pub struct PyLift {
     /// The group shared with the `Button`(s) that can pulse this lift.
     #[pyo3(get)]
     group_id: usize,
-    /// If set, only this agent is relocated when the lift is pulsed.
+    /// If set, only agents of this colour are relocated when the lift is
+    /// pulsed. Several agents may share a colour, so this authorizes a group,
+    /// not one agent.
     #[pyo3(get)]
-    authorized_agent_id: Option<AgentId>,
+    authorized_colour: Option<Colour>,
     /// The (i, j, k) position of the lift.
     #[pyo3(get)]
     pos: PyPosition,
@@ -37,7 +44,7 @@ impl PyLift {
         Self {
             direction: lift.direction().to_file_string(),
             group_id: lift.group_id(),
-            authorized_agent_id: lift.authorized_agent_id(),
+            authorized_colour: lift.authorized_colour(),
             pos: PyPosition::from(pos),
             world,
         }
@@ -60,11 +67,11 @@ impl PyLift {
 
     pub fn __str__(&self) -> String {
         format!(
-            "Lift(pos={:?}, direction={}, group_id={}, authorized_agent_id={:?}, agent={:?})",
+            "Lift(pos={:?}, direction={}, group_id={}, authorized_colour={:?}, agent={:?})",
             self.pos,
             self.direction,
             self.group_id,
-            self.authorized_agent_id,
+            self.authorized_colour,
             self.agent()
         )
     }

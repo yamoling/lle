@@ -776,6 +776,8 @@ def test_non_perspective_generators_refuse_shared_colours(obs_type: str):
 
 
 def test_perspective_carries_lift_button_authorization():
+    """`B0A1` restricts the button to colour 1, and AUTH is permuted like the other
+    colour bands: whoever is observing reads its own authorization out of `AUTH_0`."""
     world = World("""
                   S0 S1 B0A1 X
                   .  .  .    X
@@ -788,15 +790,133 @@ def test_perspective_carries_lift_button_authorization():
     obs = generator.observe()
     AUTH = generator.AUTH_0
 
-    # The button is restricted to agent 1. The AUTH band is per-agent-identity, not
-    # per-colour, so it is never permuted: every observer sees the same values, just
-    # shifted into its own window.
     button_i, button_j, button_k = 0, 2, 0
     for num, (i, j, _) in enumerate(world.agents_positions):
         di, dj = world.height - 1 - i, world.width - 1 - j
-        assert obs[num, AUTH + 0, button_i + di, button_j + dj, button_k] == 0
-        assert obs[num, AUTH + 1, button_i + di, button_j + dj, button_k] == 1
+        cell = (button_i + di, button_j + dj, button_k)
+        own = 1 if world.agent_colours[num] == 1 else 0
+        assert obs[num, AUTH + 0, *cell] == own, f"agent {num} should read its own authorization in AUTH_0"
+        # Slot 0 is the observer's own colour, so the *other* colour moved into slot 1.
+        assert obs[num, AUTH + 1, *cell] == 1 - own
 
+
+def test_authorization_band_is_one_channel_per_colour():
+    """The AUTH band is sized by colour count, not agent count.
+
+    Pinned explicitly because the two coincide in most worlds: here three agents
+    carry two colours, so an `n_agents`-wide band would be the wrong shape.
+    """
+    world = World("""
+                  S0 S0 S1 B0A1 X X X
+                  .  .  .  .    . . .
+                  ;
+                  .  .  .  TU0  . . .
+                  .  .  .  .    . . .
+                  """)
+    world.reset()
+    assert world.n_agents == 3 and world.n_colours == 2
+
+    for generator in (
+        Layered(world, guard_shared_colours=False),
+        PerspectiveLayered(world),
+    ):
+        band = generator.shape[0] - generator.AUTH_0
+        assert band == world.n_colours, (
+            f"{type(generator).__name__} reserved {band} authorization channels "
+            f"for {world.n_colours} colours"
+        )
+
+
+def test_authorization_handles_a_colour_above_nine():
+    """`A10` authorizes colour 10, not colour 1.
+
+    Colours are not single-digit (`S10` declares colour 10), so the lift/button
+    token has to carry a multi-digit colour through to the observation band.
+    """
+    world = World("""
+                  S10 B0A10 X X
+                  .   .     . .
+                  ;
+                  .   TU0   . .
+                  .   .     . .
+                  """)
+    world.reset()
+    assert world.agent_colours == [10]
+    assert world.n_colours == 11
+    assert world.buttons[0].authorized_colour == 10
+
+    generator = Layered(world)
+    obs = generator.observe()[0]
+    bi, bj, bk = 0, 1, 0
+    assert obs[generator.AUTH_0 + 10, bi, bj, bk] == 1.0, "colour 10 belongs in channel 10"
+    assert obs[generator.AUTH_0 + 1, bi, bj, bk] == 0.0, "it must not land in channel 1"
+
+    # And the perspective generator permutes that colour into slot 0.
+    perspective = PerspectiveLayered(world)
+    pobs = perspective.observe()
+    i, j, _ = world.agents_positions[0]
+    di, dj = world.height - 1 - i, world.width - 1 - j
+    assert pobs[0, perspective.AUTH_0, bi + di, bj + dj, bk] == 1.0
+
+
+def test_authorization_colour_with_no_channel_encodes_nothing():
+    """A colour past the band simply encodes nothing, as the laser band does.
+
+    `B0A5` names colour 5 in a world whose only colour is 0, so there is no
+    channel for it - it must not alias into another colour's layer or raise.
+    """
+    world = World("""
+                  S0 B0A5 X X
+                  .  .    . .
+                  ;
+                  .  TU0  . .
+                  .  .    . .
+                  """)
+    world.reset()
+    assert world.n_colours == 1
+    assert world.buttons[0].authorized_colour == 5
+
+    generator = Layered(world)
+    obs = generator.observe()[0]
+    # Only the button is restricted; the lift next to it is unrestricted and so
+    # legitimately marks every colour as authorized on its own cell.
+    bi, bj, bk = 0, 1, 0
+    band_at_button = obs[generator.AUTH_0 : generator.AUTH_0 + world.n_colours, bi, bj, bk]
+    assert np.all(band_at_button == 0.0), (
+        "an unrepresentable colour must leave the button's authorization empty "
+        "rather than alias into another colour's layer"
+    )
+
+
+def test_perspective_authorization_slot_zero_is_always_the_observer():
+    """The invariant that matters for a weight-sharing policy: slot 0 is "me".
+
+    Agents 0 and 1 share colour 0, so the agent band cannot tell them apart - the
+    permuted AUTH band is what lets each one know whether it may use the button.
+    `B0A1` authorizes colour 1, which only agent 2 has.
+    """
+    world = World("""
+                  S0 S0 S1 B0A1 X X X
+                  .  .  .  .    . . .
+                  ;
+                  .  .  .  TU0  . . .
+                  .  .  .  .    . . .
+                  """)
+    world.reset()
+    assert world.agent_colours == [0, 0, 1]
+    generator = PerspectiveLayered(world)
+    obs = generator.observe()
+    AUTH = generator.AUTH_0
+    button_i, button_j, button_k = 0, 3, 0
+
+    for num, (i, j, _) in enumerate(world.agents_positions):
+        di, dj = world.height - 1 - i, world.width - 1 - j
+        cell = (button_i + di, button_j + dj, button_k)
+        authorized = world.agent_colours[num] == 1
+        assert obs[num, AUTH + 0, *cell] == float(authorized), (
+            f"agent {num} (colour {world.agent_colours[num]}) should read its own "
+            f"authorization in AUTH_0"
+        )
 
 def _perform_tests_extras_one_agent(env: LLE):
     assert env.extras_shape[0] == 1

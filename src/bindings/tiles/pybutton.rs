@@ -3,7 +3,12 @@ use std::sync::{Arc, Mutex};
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
-use crate::{Position, Tile, World, agent::AgentId, bindings::PyPosition, tiles::Button};
+use crate::{
+    Position, Tile, World,
+    agent::{AgentId, Colour},
+    bindings::PyPosition,
+    tiles::Button,
+};
 
 use super::inner;
 
@@ -15,9 +20,10 @@ pub struct PyButton {
     /// The group shared with the `Lift`(s) this button can pulse.
     #[pyo3(get)]
     group_id: usize,
-    /// If set, only this agent can actuate the button.
+    /// If set, only agents of this colour can actuate the button. Several
+    /// agents may share a colour, so this authorizes a group, not one agent.
     #[pyo3(get)]
-    authorized_agent_id: Option<AgentId>,
+    authorized_colour: Option<Colour>,
     /// The (i, j, k) position of the button.
     #[pyo3(get)]
     pos: PyPosition,
@@ -31,7 +37,7 @@ impl PyButton {
     pub fn new(button: &Button, pos: Position, world: Arc<Mutex<World>>) -> Self {
         Self {
             group_id: button.group_id(),
-            authorized_agent_id: button.authorized_agent_id(),
+            authorized_colour: button.authorized_colour(),
             pos: PyPosition::from(pos),
             world,
         }
@@ -54,10 +60,10 @@ impl PyButton {
 
     pub fn __str__(&self) -> String {
         format!(
-            "Button(pos={:?}, group_id={}, authorized_agent_id={:?}, agent={:?})",
+            "Button(pos={:?}, group_id={}, authorized_colour={:?}, agent={:?})",
             self.pos,
             self.group_id,
-            self.authorized_agent_id,
+            self.authorized_colour,
             self.agent()
         )
     }

@@ -117,7 +117,8 @@ fn test_button_basic() {
 
     if let Tile::Button(button) = &mut tile {
         assert_eq!(button.group_id(), 7);
-        assert_eq!(button.actuate(), Some(7));
+        // The agent is colour 0 and the button is unrestricted, so any colour actuates it.
+        assert_eq!(button.actuate(agent.colour()), Some(7));
     } else {
         panic!();
     }
@@ -135,7 +136,7 @@ fn test_lift_basic() {
     let lift = Lift::new(VerticalDirection::Up, None, 2);
     assert_eq!(lift.group_id(), 2);
     assert_eq!(lift.direction(), VerticalDirection::Up);
-    assert_eq!(lift.authorized_agent_id(), None);
+    assert_eq!(lift.authorized_colour(), None);
     assert!(!lift.take_triggered()); // never notified yet
 
     lift.notify();

@@ -1,6 +1,6 @@
 use crate::{
     Grid, RuntimeWorldError, WorldEvent,
-    agent::{Agent, AgentId},
+    agent::{Agent, AgentId, Colour},
 };
 use core::panic;
 
@@ -124,23 +124,23 @@ impl Tile {
         };
         match self {
             Self::Lift(lift) => {
-                if lift.authorized_agent_id().is_some() {
+                if lift.authorized_colour().is_some() {
                     return format!(
                         "T{}{}A{}",
                         lift.direction().to_file_string(),
                         lift.group_id(),
-                        lift.authorized_agent_id().unwrap()
+                        lift.authorized_colour().unwrap()
                     );
                 } else {
                     return format!("T{}{}", lift.direction().to_file_string(), lift.group_id());
                 }
             }
             Self::Button(button) => {
-                if button.authorized_agent_id().is_some() {
+                if button.authorized_colour().is_some() {
                     return format!(
                         "B{}A{}",
                         button.group_id(),
-                        button.authorized_agent_id().unwrap()
+                        button.authorized_colour().unwrap()
                     );
                 } else {
                     return format!("B{}", button.group_id(),);
@@ -164,9 +164,11 @@ impl Tile {
         .to_string()
     }
 
-    pub fn actuate(&mut self) -> Option<usize> {
+    /// `colour` is the colour of the agent taking `Action::Trigger` on this tile,
+    /// which is what a `Button`'s authorization is checked against.
+    pub fn actuate(&mut self, colour: Colour) -> Option<usize> {
         match self {
-            Self::Button(button) => button.actuate(),
+            Self::Button(button) => button.actuate(colour),
             _ => None,
         }
     }

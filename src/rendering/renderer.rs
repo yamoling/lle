@@ -3,6 +3,7 @@ use itertools::izip;
 
 use super::{BLACK, GRID_GREY, sprites};
 use crate::{
+    agent::Colour,
     core::World,
     tiles::{Button, CardinalDirection, Gem, Laser, LaserSource, Lift, Tile, VerticalDirection},
 };
@@ -273,16 +274,36 @@ fn tint_image(sprite: &RgbaImage, color: Rgb<u8>) -> RgbaImage {
     })
 }
 
-/// Fixed colors for the per-agent restriction badge, indexed by `AgentId`,
-/// matching the order of the `agents/{red,blue,green,yellow}.png` sprites.
-/// Unlike `group_color`, this is a fixed 4-entry table since agent count is
-/// bounded the same way `sprites::AGENTS` is.
-const AGENT_COLORS: [Rgb<u8>; 4] = [
-    Rgb([220, 20, 20]),
-    Rgb([30, 80, 220]),
-    Rgb([30, 160, 60]),
-    Rgb([220, 190, 20]),
+/// Badge tints for the lift/button restriction badge, indexed by `Colour`.
+///
+/// Each entry is the flat accent colour of the matching `agents/<c>.png` sprite,
+/// so a badge is tinted like the agents it authorizes. Sprite 11 is neutral and
+/// has no accent, so it falls through to `AGENT_COLOR_FALLBACK` along with every
+/// colour past the numbered sprites - `S10` declares colour 10, and a colour has
+/// no upper bound, so index this through `agent_color` and never directly.
+const AGENT_COLORS: [Rgb<u8>; 11] = [
+    Rgb([203, 52, 52]),  // 0  red
+    Rgb([203, 178, 52]), // 1  yellow
+    Rgb([52, 203, 77]),  // 2  green
+    Rgb([51, 38, 190]),  // 3  blue
+    Rgb([203, 52, 148]), // 4  magenta
+    Rgb([203, 122, 52]), // 5  orange
+    Rgb([140, 52, 203]), // 6  purple
+    Rgb([52, 190, 203]), // 7  cyan
+    Rgb([126, 73, 32]),  // 8  brown
+    Rgb([148, 203, 52]), // 9  lime
+    Rgb([52, 203, 173]), // 10 teal
 ];
+
+/// Badge tint for a colour past the numbered sprites. Those colours all share
+/// one fallback agent sprite, so their badges share one fallback tint.
+const AGENT_COLOR_FALLBACK: Rgb<u8> = Rgb([150, 150, 150]);
+
+/// The badge tint for `colour`, falling back instead of panicking when the
+/// colour runs past the table - the same contract as `sprites::agent`.
+fn agent_color(colour: Colour) -> Rgb<u8> {
+    *AGENT_COLORS.get(colour).unwrap_or(&AGENT_COLOR_FALLBACK)
+}
 
 /// A deterministic, visually distinct color for a given `group_id`, obtained by
 /// rotating the hue by the golden angle each time so consecutive group ids don't
@@ -363,8 +384,8 @@ impl Renderer {
         };
         let tinted = tint_image(sprite, group_color(lift.group_id()));
         add_transparent_image(data.frame, &tinted, data.x, data.y);
-        if let Some(agent_id) = lift.authorized_agent_id() {
-            let badge = tint_image(&sprites::AGENT_LOCK, AGENT_COLORS[agent_id]);
+        if let Some(colour) = lift.authorized_colour() {
+            let badge = tint_image(&sprites::AGENT_LOCK, agent_color(colour));
             add_transparent_image(
                 data.frame,
                 &badge,
@@ -382,8 +403,8 @@ impl Renderer {
         };
         let tinted = tint_image(sprite, group_color(button.group_id()));
         add_transparent_image(data.frame, &tinted, data.x, data.y);
-        if let Some(agent_id) = button.authorized_agent_id() {
-            let badge = tint_image(&sprites::AGENT_LOCK, AGENT_COLORS[agent_id]);
+        if let Some(colour) = button.authorized_colour() {
+            let badge = tint_image(&sprites::AGENT_LOCK, agent_color(colour));
             add_transparent_image(
                 data.frame,
                 &badge,

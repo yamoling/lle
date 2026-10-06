@@ -73,7 +73,7 @@ fn test_parse_lift_and_button() {
         Some(Tile::Lift(lift)) => {
             assert_eq!(lift.direction(), VerticalDirection::Up);
             assert_eq!(lift.group_id(), 0);
-            assert_eq!(lift.authorized_agent_id(), Some(1));
+            assert_eq!(lift.authorized_colour(), Some(1));
         }
         other => panic!("Expected a Lift tile, got {:?}", other),
     }
@@ -81,7 +81,7 @@ fn test_parse_lift_and_button() {
     match world.at(&Position { i: 1, j: 1, k: 0 }) {
         Some(Tile::Button(button)) => {
             assert_eq!(button.group_id(), 0);
-            assert_eq!(button.authorized_agent_id(), None);
+            assert_eq!(button.authorized_colour(), None);
         }
         other => panic!("Expected a Button tile, got {:?}", other),
     }
@@ -118,7 +118,7 @@ fn test_lift_button_round_trip() {
         Some(Tile::Lift(lift)) => {
             assert_eq!(lift.direction(), VerticalDirection::Up);
             assert_eq!(lift.group_id(), 0);
-            assert_eq!(lift.authorized_agent_id(), Some(1));
+            assert_eq!(lift.authorized_colour(), Some(1));
         }
         other => panic!("Expected a Lift tile, got {:?}", other),
     }
@@ -150,7 +150,10 @@ fn test_leading_semicolon_returns_parse_error() {
 fn test_doubled_semicolon_returns_parse_error() {
     match parse("S0 X\n;\n;") {
         Err(ParseError::Inconsistent3Dimensions { .. }) => {}
-        other => panic!("Expected ParseError::Inconsistent3Dimensions, got {:?}", other),
+        other => panic!(
+            "Expected ParseError::Inconsistent3Dimensions, got {:?}",
+            other
+        ),
     }
 }
 
@@ -167,7 +170,10 @@ fn test_row_length_mismatch_returns_inconsistent_2d() {
             assert_eq!(actual_n_cols, 2);
             assert_eq!(row, 1);
         }
-        other => panic!("Expected ParseError::Inconsistent2Dimensions, got {:?}", other),
+        other => panic!(
+            "Expected ParseError::Inconsistent2Dimensions, got {:?}",
+            other
+        ),
     }
 }
 

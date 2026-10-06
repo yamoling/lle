@@ -2,7 +2,7 @@ use std::cell::Cell;
 
 use crate::{
     Position, RuntimeWorldError, WorldEvent,
-    agent::{Agent, AgentId},
+    agent::{Agent, AgentId, Colour},
     tiles::VerticalDirection,
 };
 
@@ -15,9 +15,11 @@ use crate::{
 pub struct Lift {
     direction: VerticalDirection,
     agent: Option<AgentId>,
-    /// If set, only this agent will be relocated when the lift is pulsed;
-    /// other riders are left in place (enforced in `World::resolve_lift_moves`).
-    authorized_agent_id: Cell<Option<AgentId>>,
+    /// If set, only agents of this colour are relocated when the lift is pulsed;
+    /// riders of any other colour are left in place (enforced in
+    /// `World::resolve_lift_moves`). Several agents may share a colour, so this
+    /// authorizes a group rather than one individual.
+    authorized_colour: Option<Colour>,
     group_id: usize,
     /// Set by `notify()` when a same-group `Button` was actuated this tick;
     /// consumed (and reset) by `take_triggered()` during `World::step`'s
@@ -28,13 +30,13 @@ pub struct Lift {
 impl Lift {
     pub fn new(
         direction: VerticalDirection,
-        authorized_agent_id: Option<AgentId>,
+        authorized_colour: Option<Colour>,
         group_id: usize,
     ) -> Self {
         Self {
             direction,
             agent: None,
-            authorized_agent_id: Cell::new(authorized_agent_id),
+            authorized_colour,
             group_id,
             triggered: Cell::new(false),
         }
@@ -44,8 +46,9 @@ impl Lift {
         self.direction
     }
 
-    pub fn authorized_agent_id(&self) -> Option<AgentId> {
-        self.authorized_agent_id.get()
+    /// The colour allowed to ride this lift, or `None` when every agent may.
+    pub fn authorized_colour(&self) -> Option<Colour> {
+        self.authorized_colour
     }
 
     pub fn group_id(&self) -> usize {

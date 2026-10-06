@@ -944,7 +944,7 @@ height = 5
 [[lifts]]
 direction = "North"
 group_id = 0
-authorized_agent_id = 1
+authorized_colour = 1
 position = { i = 0, j = 0, k = 0 }
 "#,
     );
@@ -1023,7 +1023,7 @@ height = 5
 
 [[buttons]]
 group_id = 0
-authorized_agent_id = 0
+authorized_colour = 0
 position = { i = 1, j = 1, k = 0 }
 "#,
     );

@@ -25,9 +25,10 @@ class Button:
         The group shared with the `Lift`(s) this button can pulse.
         """
     @property
-    def authorized_agent_id(self) -> typing.Optional[builtins.int]:
+    def authorized_colour(self) -> typing.Optional[builtins.int]:
         r"""
-        If set, only this agent can actuate the button.
+        If set, only agents of this colour can actuate the button. Several
+        agents may share a colour, so this authorizes a group, not one agent.
         """
     @property
     def pos(self) -> builtins.tuple[int, int, int]:
@@ -221,9 +222,11 @@ class Lift:
         The group shared with the `Button`(s) that can pulse this lift.
         """
     @property
-    def authorized_agent_id(self) -> typing.Optional[builtins.int]:
+    def authorized_colour(self) -> typing.Optional[builtins.int]:
         r"""
-        If set, only this agent is relocated when the lift is pulsed.
+        If set, only agents of this colour are relocated when the lift is
+        pulsed. Several agents may share a colour, so this authorizes a group,
+        not one agent.
         """
     @property
     def pos(self) -> builtins.tuple[int, int, int]:

@@ -1,6 +1,6 @@
 use crate::{
     WorldEvent,
-    agent::{Agent, AgentId},
+    agent::{Agent, AgentId, Colour},
 };
 /// A pressure-plate-like tile. Standing on it does nothing by itself; taking
 /// `Action::Trigger` while standing on it pulses every `Lift` sharing the
@@ -9,7 +9,9 @@ use crate::{
 /// fresh one-shot event.
 #[derive(Debug, Clone)]
 pub struct Button {
-    authorized_agent_id: Option<AgentId>,
+    /// If set, only agents of this colour may actuate the button. Several agents
+    /// may share a colour, so this authorizes a group rather than one individual.
+    authorized_colour: Option<Colour>,
     agent: Option<AgentId>,
     group_id: usize,
 }
@@ -17,7 +19,7 @@ pub struct Button {
 impl Button {
     pub fn new(group_id: usize) -> Self {
         Self {
-            authorized_agent_id: None,
+            authorized_colour: None,
             agent: None,
             group_id,
         }
@@ -27,9 +29,9 @@ impl Button {
         self.group_id
     }
 
-    /// Restrict this button to only be actuable by the given agent.
-    pub fn restricted_to(mut self, agent_id: AgentId) -> Self {
-        self.authorized_agent_id = Some(agent_id);
+    /// Restrict this button to only be actuable by agents of `colour`.
+    pub fn restricted_to(mut self, colour: Colour) -> Self {
+        self.authorized_colour = Some(colour);
         self
     }
 
@@ -50,19 +52,22 @@ impl Button {
         self.agent
     }
 
-    pub fn authorized_agent_id(&self) -> Option<AgentId> {
-        self.authorized_agent_id
+    /// The colour allowed to actuate this button, or `None` when every agent may.
+    pub fn authorized_colour(&self) -> Option<Colour> {
+        self.authorized_colour
     }
 
     /// Dispatched by `Tile::actuate`. Returns the lift group this button
     /// belongs to, so `World` knows which `Lift` tiles to notify this tick.
-    pub fn actuate(&mut self) -> Option<usize> {
-        let agent_id = self.agent()?;
+    ///
+    /// `colour` is the colour of the agent taking `Action::Trigger` here. The
+    /// button only records its occupant's *id*, so the colour to authorize
+    /// against comes from the caller.
+    pub fn actuate(&mut self, colour: Colour) -> Option<usize> {
+        // An unoccupied button cannot be actuated, whatever the colour.
+        self.agent()?;
 
-        if self
-            .authorized_agent_id
-            .is_some_and(|auth_id| auth_id != agent_id)
-        {
+        if self.authorized_colour.is_some_and(|auth| auth != colour) {
             return None;
         }
 

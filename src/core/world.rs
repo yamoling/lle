@@ -511,15 +511,16 @@ impl World {
     }
 
     fn trigger_environment_actions(&mut self, actions: &[Action]) -> Vec<usize> {
-        let trigger_positions: Vec<Position> = izip!(actions, &self.agents, &self.agents_positions)
-            .filter(|(action, agent, _)| **action == Action::Trigger && agent.is_alive())
-            .map(|(_, _, pos)| *pos)
-            .collect();
+        let triggers: Vec<(Colour, Position)> =
+            izip!(actions, &self.agents, &self.agents_positions)
+                .filter(|(action, agent, _)| **action == Action::Trigger && agent.is_alive())
+                .map(|(_, agent, pos)| (agent.colour(), *pos))
+                .collect();
 
         let mut triggered_groups = vec![];
-        for pos in trigger_positions {
+        for (colour, pos) in triggers {
             if let Some(tile) = self.at_mut(&pos) {
-                if let Some(group_id) = tile.actuate() {
+                if let Some(group_id) = tile.actuate(colour) {
                     if !triggered_groups.contains(&group_id) {
                         triggered_groups.push(group_id);
                     }
@@ -551,9 +552,10 @@ impl World {
             let Some(agent_id) = lift.agent() else {
                 continue;
             };
+            let rider_colour = self.agents[agent_id].colour();
             if lift
-                .authorized_agent_id()
-                .is_some_and(|auth| auth != agent_id)
+                .authorized_colour()
+                .is_some_and(|auth| auth != rider_colour)
             {
                 continue;
             }

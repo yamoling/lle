@@ -310,7 +310,7 @@ height = 3
 [[lifts]]
 direction = "Up"
 group_id = 1
-authorized_agent_id = 0
+authorized_colour = 0
 [lifts.position]
 i = 0
 j = 2
@@ -329,11 +329,11 @@ k = 0
     assert_eq!(*pos, Position { i: 0, j: 2, k: 0 });
     assert_eq!(lift.direction, crate::tiles::VerticalDirection::Up);
     assert_eq!(lift.group_id, 1);
-    assert_eq!(lift.authorized_agent_id, Some(0));
+    assert_eq!(lift.authorized_colour, Some(0));
 
     assert_eq!(config.buttons().len(), 1);
     let (pos, button) = &config.buttons()[0];
     assert_eq!(*pos, Position { i: 1, j: 1, k: 0 });
     assert_eq!(button.group_id, 1);
-    assert_eq!(button.authorized_agent_id, None);
+    assert_eq!(button.authorized_colour, None);
 }

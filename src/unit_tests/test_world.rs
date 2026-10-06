@@ -3,7 +3,7 @@ use std::vec;
 
 use crate::{
     Action, Grid, ParseError, Position, RuntimeWorldError, WorldEvent,
-    agent::Agent,
+    agent::{Agent, Colour},
     core::WorldState,
     tiles::{Button, Laser, Lift, Tile, VerticalDirection},
 };
@@ -861,6 +861,22 @@ fn build_lift_world(
     tiles: Vec<(Position, Tile)>,
     starts: Vec<Position>,
 ) -> World {
+    // Default colours: one per agent, so colour == id. Tests that need two
+    // agents to share a colour use `build_lift_world_with_colours`.
+    let colours = (0..starts.len()).collect();
+    build_lift_world_with_colours(width, layers, tiles, starts, colours)
+}
+
+/// Same, but with explicit agent colours. Lift and button authorization is
+/// keyed by colour, so a world where colour != id is the only thing that can
+/// tell colour-keyed authorization apart from id-keyed authorization.
+fn build_lift_world_with_colours(
+    width: usize,
+    layers: usize,
+    tiles: Vec<(Position, Tile)>,
+    starts: Vec<Position>,
+    colours: Vec<Colour>,
+) -> World {
     let mut grid = Grid::<Tile>::new(width, 1, layers).default_init();
     let mut lift_positions = vec![];
     let mut button_positions = vec![];
@@ -872,7 +888,6 @@ fn build_lift_world(
         }
         grid.replace_at(&pos, tile);
     }
-    let n_agents = starts.len();
     let random_start_positions = starts.into_iter().map(|p| vec![p]).collect();
     World::new(
         grid,
@@ -885,7 +900,7 @@ fn build_lift_world(
         vec![],
         lift_positions,
         button_positions,
-        (0..n_agents).collect(),
+        colours,
     )
 }
 
@@ -1147,7 +1162,7 @@ fn test_button_pulses_lift_down_moves_agent_to_lower_layer() {
 }
 
 #[test]
-fn test_button_authorized_agent_id_blocks_other_agents() {
+fn test_button_authorized_colour_blocks_other_agents() {
     let button_pos = Position { i: 0, j: 0, k: 0 };
     let lift_pos = Position { i: 0, j: 1, k: 0 };
     let tiles = vec![
@@ -1169,7 +1184,7 @@ fn test_button_authorized_agent_id_blocks_other_agents() {
 }
 
 #[test]
-fn test_lift_authorized_agent_id_blocks_other_riders() {
+fn test_lift_authorized_colour_blocks_other_riders() {
     let button_pos = Position { i: 0, j: 0, k: 0 };
     let lift_pos = Position { i: 0, j: 1, k: 0 };
     let tiles = vec![
@@ -1188,7 +1203,7 @@ fn test_lift_authorized_agent_id_blocks_other_riders() {
 }
 
 #[test]
-fn test_lift_authorized_agent_id_allows_matching_rider() {
+fn test_lift_authorized_colour_allows_matching_rider() {
     let lift_pos = Position { i: 0, j: 0, k: 0 };
     let dest_pos = Position { i: 0, j: 0, k: 1 };
     let button_pos = Position { i: 0, j: 1, k: 0 };
@@ -1199,13 +1214,103 @@ fn test_lift_authorized_agent_id_allows_matching_rider() {
         ),
         (button_pos, Tile::Button(Button::new(5))),
     ];
-    // Agent 0 rides the lift (matches its authorized_agent_id); agent 1 triggers.
+    // Agent 0 rides the lift (matches its authorized_colour); agent 1 triggers.
     let mut world = build_lift_world(2, 2, tiles, vec![lift_pos, button_pos]);
 
     world.step(&[Action::Stay, Action::Trigger]).unwrap();
 
     assert_eq!(world.agents_positions()[0], dest_pos);
     assert_eq!(world.agents_positions()[1], button_pos);
+}
+
+#[test]
+fn test_lift_authorization_admits_any_agent_of_the_colour() {
+    // Both agents are colour 0 and the lift admits colour 0, so the rider goes up
+    // even though its *id* (1) is not the authorized number. Under id-keyed
+    // authorization this rider would have been left in place.
+    let button_pos = Position { i: 0, j: 0, k: 0 };
+    let lift_pos = Position { i: 0, j: 1, k: 0 };
+    let dest_pos = Position { i: 0, j: 1, k: 1 };
+    let tiles = vec![
+        (button_pos, Tile::Button(Button::new(5))),
+        (
+            lift_pos,
+            Tile::Lift(Lift::new(VerticalDirection::Up, Some(0), 5)),
+        ),
+    ];
+    // Agent 0 (colour 0) triggers; agent 1 (also colour 0) rides.
+    let mut world =
+        build_lift_world_with_colours(2, 2, tiles, vec![button_pos, lift_pos], vec![0, 0]);
+
+    world.step(&[Action::Trigger, Action::Stay]).unwrap();
+
+    assert_eq!(world.agents_positions()[1], dest_pos);
+}
+
+#[test]
+fn test_lift_authorization_blocks_a_rider_of_another_colour() {
+    let button_pos = Position { i: 0, j: 0, k: 0 };
+    let lift_pos = Position { i: 0, j: 1, k: 0 };
+    let tiles = vec![
+        (button_pos, Tile::Button(Button::new(5))),
+        (
+            lift_pos,
+            Tile::Lift(Lift::new(VerticalDirection::Up, Some(1), 5)),
+        ),
+    ];
+    // The rider is colour 0 but the lift admits colour 1 only.
+    let mut world =
+        build_lift_world_with_colours(2, 2, tiles, vec![button_pos, lift_pos], vec![1, 0]);
+
+    world.step(&[Action::Trigger, Action::Stay]).unwrap();
+
+    assert_eq!(world.agents_positions()[1], lift_pos);
+}
+
+#[test]
+fn test_button_authorization_admits_any_agent_of_the_colour() {
+    // The button admits colour 1; the presser is agent id 0, which *has* colour 1.
+    // Id-keyed authorization would have rejected it.
+    let button_pos = Position { i: 0, j: 0, k: 0 };
+    let lift_pos = Position { i: 0, j: 1, k: 0 };
+    let dest_pos = Position { i: 0, j: 1, k: 1 };
+    let tiles = vec![
+        (button_pos, Tile::Button(Button::new(5).restricted_to(1))),
+        (
+            lift_pos,
+            Tile::Lift(Lift::new(VerticalDirection::Up, None, 5)),
+        ),
+    ];
+    let mut world =
+        build_lift_world_with_colours(2, 2, tiles, vec![button_pos, lift_pos], vec![1, 0]);
+
+    world.step(&[Action::Trigger, Action::Stay]).unwrap();
+
+    assert_eq!(world.agents_positions()[1], dest_pos);
+}
+
+#[test]
+fn test_button_authorization_blocks_an_agent_of_another_colour() {
+    let button_pos = Position { i: 0, j: 0, k: 0 };
+    let lift_pos = Position { i: 0, j: 1, k: 0 };
+    let tiles = vec![
+        (button_pos, Tile::Button(Button::new(5).restricted_to(1))),
+        (
+            lift_pos,
+            Tile::Lift(Lift::new(VerticalDirection::Up, None, 5)),
+        ),
+    ];
+    // The presser is agent id 1 - which *is* the authorized number - but its colour
+    // is 0, so the button admitting colour 1 must still reject it. Id-keyed
+    // authorization would have let this through.
+    let mut world =
+        build_lift_world_with_colours(2, 2, tiles, vec![lift_pos, button_pos], vec![0, 0]);
+
+    let events = world.step(&[Action::Stay, Action::Trigger]).unwrap();
+
+    assert!(events.is_empty());
+    // The lift was never pulsed, so its rider stays put.
+    assert_eq!(world.agents_positions()[0], lift_pos);
 }
 
 #[test]

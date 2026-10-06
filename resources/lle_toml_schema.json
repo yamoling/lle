@@ -346,10 +346,10 @@
           "$ref": "#/definitions/LiftDirection",
           "description": "The direction the lift relocates its rider in. Example: direction = \"Up\""
         },
-        "authorized_agent_id": {
+        "authorized_colour": {
           "type": "integer",
           "minimum": 0,
-          "description": "If set, only this agent is relocated when the lift is pulsed; other riders are left in place. Example: authorized_agent_id = 1"
+          "description": "If set, only agents of this colour are relocated when the lift is pulsed; riders of any other colour are left in place. Several agents may share a colour, so this authorizes a group rather than one individual. Example: authorized_colour = 1"
         },
         "position": {
           "$ref": "#/definitions/PositionIJK",
@@ -372,10 +372,10 @@
       "type": "object",
       "description": "Configuration for a button tile. Example:\n[[buttons]]\ngroup_id = 0\n[buttons.position]\ni = 1\nj = 1\nk = 0",
       "properties": {
-        "authorized_agent_id": {
+        "authorized_colour": {
           "type": "integer",
           "minimum": 0,
-          "description": "If set, only this agent can actuate the button. Example: authorized_agent_id = 0"
+          "description": "If set, only agents of this colour can actuate the button. Several agents may share a colour, so this authorizes a group rather than one individual. Example: authorized_colour = 0"
         },
         "position": {
           "$ref": "#/definitions/PositionIJK",
