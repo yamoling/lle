@@ -150,6 +150,18 @@ CASES = [
         5,
     ),
     BoxCase(
+        # Agent 1 would cross the colour-2 beam while agent 0 pushes the box onto the void under
+        # it: the box is destroyed at once and never blocks the beam.
+        "box-falling-into-void-under-beam-does-not-block",
+        """
+        X   S0 .  .
+        .   B  S1 .
+        L2E V  .  .
+        @   @  X  @
+        """,
+        None,
+    ),
+    BoxCase(
         # No agent has colour 2: only a box can block that beam.
         "box-blocks-beam-of-colour-without-agent",
         """

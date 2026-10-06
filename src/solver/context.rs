@@ -358,12 +358,12 @@ impl ConstraintContext {
                 let owner_reachable = source
                     .owner
                     .is_some_and(|owner| self.relevant_positions[owner][t].contains(&pos));
-                if owner_reachable
-                    || self
+                let box_reachable = !self.voids.contains(&pos)
+                    && self
                         .relevant_box_positions
                         .iter()
-                        .any(|positions| positions[t].contains(&pos))
-                {
+                        .any(|positions| positions[t].contains(&pos));
+                if owner_reachable || box_reachable {
                     blockable_upstream = true;
                 }
             }

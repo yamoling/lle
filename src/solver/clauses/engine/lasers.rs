@@ -28,6 +28,7 @@ impl ClauseEngine {
             let mut prev_active: Option<i32> = None;
             for &pos in &source.path {
                 // Literals of everything that can block the beam on this tile: its owner or a box.
+                // A box pushed onto a void is destroyed before it can block anything.
                 let mut blockers = Vec::new();
                 if let Some(owner) = source.owner
                     && ctx.relevant_positions_for_agent(owner, t).contains(&pos)
@@ -35,7 +36,9 @@ impl ClauseEngine {
                     blockers.push(pool.agent(owner, pos, t));
                 }
                 for box_id in 0..ctx.n_boxes() {
-                    if ctx.relevant_positions_for_box(box_id, t).contains(&pos) {
+                    if !ctx.is_void(&pos)
+                        && ctx.relevant_positions_for_box(box_id, t).contains(&pos)
+                    {
                         blockers.push(pool.box_at(box_id, pos, t));
                     }
                 }
