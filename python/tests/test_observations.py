@@ -793,11 +793,13 @@ def test_perspective_carries_lift_button_authorization():
     button_i, button_j, button_k = 0, 2, 0
     for num, (i, j, _) in enumerate(world.agents_positions):
         di, dj = world.height - 1 - i, world.width - 1 - j
-        cell = (button_i + di, button_j + dj, button_k)
+        ci, cj, ck = button_i + di, button_j + dj, button_k
         own = 1 if world.agent_colours[num] == 1 else 0
-        assert obs[num, AUTH + 0, *cell] == own, f"agent {num} should read its own authorization in AUTH_0"
+        assert obs[num, AUTH + 0, ci, cj, ck] == own, (
+            f"agent {num} should read its own authorization in AUTH_0"
+        )
         # Slot 0 is the observer's own colour, so the *other* colour moved into slot 1.
-        assert obs[num, AUTH + 1, *cell] == 1 - own
+        assert obs[num, AUTH + 1, ci, cj, ck] == 1 - own
 
 
 def test_authorization_band_is_one_channel_per_colour():
@@ -911,9 +913,9 @@ def test_perspective_authorization_slot_zero_is_always_the_observer():
 
     for num, (i, j, _) in enumerate(world.agents_positions):
         di, dj = world.height - 1 - i, world.width - 1 - j
-        cell = (button_i + di, button_j + dj, button_k)
+        ci, cj, ck = button_i + di, button_j + dj, button_k
         authorized = world.agent_colours[num] == 1
-        assert obs[num, AUTH + 0, *cell] == float(authorized), (
+        assert obs[num, AUTH + 0, ci, cj, ck] == float(authorized), (
             f"agent {num} (colour {world.agent_colours[num]}) should read its own "
             f"authorization in AUTH_0"
         )

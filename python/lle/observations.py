@@ -16,7 +16,7 @@ import numpy.typing as npt
 
 from lle.world import World, WorldState
 
-from .types import AgentId, Colour, Position
+from .types import Colour, Position
 
 ObservationTypeLiteral = Literal[
     "layered",
