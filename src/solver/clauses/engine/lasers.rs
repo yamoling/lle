@@ -25,13 +25,14 @@ impl ClauseEngine {
         let ctx = &self.ctx;
         let pool = &mut self.pool;
         for source in &ctx.laser_sources {
-            let owner_reachable = ctx.relevant_positions_for_agent(source.agent_id, t);
             let mut prev_active: Option<i32> = None;
             for &pos in &source.path {
                 // Literals of everything that can block the beam on this tile: its owner or a box.
                 let mut blockers = Vec::new();
-                if owner_reachable.contains(&pos) {
-                    blockers.push(pool.agent(source.agent_id, pos, t));
+                if let Some(owner) = source.owner
+                    && ctx.relevant_positions_for_agent(owner, t).contains(&pos)
+                {
+                    blockers.push(pool.agent(owner, pos, t));
                 }
                 for box_id in 0..ctx.n_boxes() {
                     if ctx.relevant_positions_for_box(box_id, t).contains(&pos) {
@@ -85,7 +86,7 @@ impl ClauseEngine {
         for agent in 0..ctx.n_agents {
             let reachable = ctx.relevant_positions(t, &[agent]);
             for source in &ctx.laser_sources {
-                if source.agent_id == agent {
+                if source.owner == Some(agent) {
                     continue;
                 }
                 for &pos in &source.path {

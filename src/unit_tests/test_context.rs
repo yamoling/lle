@@ -757,3 +757,18 @@ fn relevant_laser_tiles() {
     assert!(relevant_t1.contains(&pos(1, 2))); // Accessible by agent 1
     assert!(relevant_t1.contains(&pos(1, 3))); // Since (1, 2) can be blocked, this tile is relevant to consider
 }
+
+/// A laser is owned by the agent of its colour, which is not necessarily the agent with the same
+/// index, and by nobody when no agent has its colour.
+#[test]
+fn laser_owner_is_the_agent_of_its_colour() {
+    // The only agent, agent 0, has colour 1: no agent has colour 0.
+    let world = World::try_from("L1E . S1 X\nL0E . . X").unwrap();
+    let ctx = ConstraintContext::new(&world, 4);
+    let owners: Vec<_> = ctx
+        .laser_sources
+        .iter()
+        .map(|source| source.owner)
+        .collect();
+    assert_eq!(owners, vec![Some(0), None]);
+}

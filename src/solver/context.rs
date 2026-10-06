@@ -80,7 +80,9 @@ fn neighbours_of(
 
 /// One laser source's relevant info for constraint generation.
 pub struct LaserSourceInfo {
-    pub agent_id: usize,
+    /// The agent of the beam's colour, which can block it. `None` when no agent has that colour:
+    /// the beam can then only be blocked by boxes.
+    pub owner: Option<usize>,
     pub laser_id: usize,
     /// Beam tiles, in order, starting right after the source tile.
     pub path: Vec<Position>,
@@ -189,6 +191,7 @@ impl ConstraintContext {
             .max()
             .unwrap_or(0);
 
+        let agent_colours = world.agent_colours();
         let mut laser_sources = Vec::new();
         for (pos, source) in world.sources() {
             let d = source.direction();
@@ -203,7 +206,9 @@ impl ConstraintContext {
                 prev = current;
             }
             laser_sources.push(LaserSourceInfo {
-                agent_id: source.agent_id(),
+                owner: agent_colours
+                    .iter()
+                    .position(|&colour| colour == source.colour()),
                 laser_id: source.laser_id(),
                 path,
             });
@@ -214,7 +219,7 @@ impl ConstraintContext {
         for source in &laser_sources {
             if let Some(&first_tile) = source.path.first() {
                 for (agent, forbidden) in forbidden_first_beam_tiles.iter_mut().enumerate() {
-                    if agent != source.agent_id {
+                    if Some(agent) != source.owner {
                         forbidden.insert(first_tile);
                     }
                 }
@@ -341,22 +346,19 @@ impl ConstraintContext {
     /// laser paths overlap or cross.
     fn update_laser_relevance(&mut self, t: usize) {
         for source in &self.laser_sources {
-            // We use `split_at_mut` to avoid cloning the owner positions while respecting ownership rules.
-            let (before_owner, owner_and_after) =
-                self.relevant_positions.split_at_mut(source.agent_id);
-            let (owner_positions, after_owner) = owner_and_after
-                .split_first_mut()
-                .expect("laser owner index must refer to an existing agent");
-            let owner_reachable = &owner_positions[t];
-
             let mut blockable_upstream = false;
             for &pos in &source.path {
                 if !blockable_upstream {
-                    for positions in before_owner.iter_mut().chain(after_owner.iter_mut()) {
-                        positions[t].remove(&pos);
+                    for (agent, positions) in self.relevant_positions.iter_mut().enumerate() {
+                        if Some(agent) != source.owner {
+                            positions[t].remove(&pos);
+                        }
                     }
                 }
-                if owner_reachable.contains(&pos)
+                let owner_reachable = source
+                    .owner
+                    .is_some_and(|owner| self.relevant_positions[owner][t].contains(&pos));
+                if owner_reachable
                     || self
                         .relevant_box_positions
                         .iter()
@@ -368,14 +370,19 @@ impl ConstraintContext {
         }
 
         for laser_idx in 0..self.laser_sources.len() {
-            let relevant_path = compute_relevant_laser_path(
-                &self.laser_sources[laser_idx].path,
-                &self.relevant_positions,
-                t,
-                self.laser_sources[laser_idx].agent_id,
-                self.height,
-                self.width,
-            );
+            let source = &self.laser_sources[laser_idx];
+            // Without an owner, no agent can help another one through this beam.
+            let relevant_path = match source.owner {
+                Some(owner) => compute_relevant_laser_path(
+                    &source.path,
+                    &self.relevant_positions,
+                    t,
+                    owner,
+                    self.height,
+                    self.width,
+                ),
+                None => PositionSet::empty(self.height, self.width),
+            };
             self.relevant_laser_paths[laser_idx].push(relevant_path);
         }
     }

@@ -33,7 +33,7 @@ impl ClauseEngine {
                 .ctx
                 .laser_sources
                 .iter()
-                .filter(|source| source.agent_id == helper)
+                .filter(|source| source.owner == Some(helper))
             {
                 for pos in self.ctx.relevant_laser_tiles(source.laser_id, t) {
                     if let Some(benef_in_laser_pos) = self.pool.get(&VarKey::Agent {

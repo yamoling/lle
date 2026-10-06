@@ -13,7 +13,7 @@ impl ClauseEngine {
             .ctx
             .laser_sources
             .iter()
-            .map(|source| source.agent_id)
+            .filter_map(|source| source.owner)
             .collect::<std::collections::HashSet<_>>()
             .len();
         let max_temporal_edges = n_helpers

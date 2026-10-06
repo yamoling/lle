@@ -149,6 +149,48 @@ CASES = [
         """,
         5,
     ),
+    BoxCase(
+        # No agent has colour 2: only a box can block that beam.
+        "box-blocks-beam-of-colour-without-agent",
+        """
+        L2S . .
+        .   B S0
+        .   . .
+        X   @ @
+        """,
+        4,
+    ),
+    BoxCase(
+        "beam-of-colour-without-agent-is-unblockable",
+        """
+        L2S . .
+        .   . S0
+        .   . .
+        X   @ @
+        """,
+        None,
+    ),
+    BoxCase(
+        # Agent 0 has colour 1: it cannot block the colour-0 beam, but the box can.
+        "laser-colour-differs-from-agent-index",
+        """
+        L0S . .
+        .   B S1
+        .   . .
+        X   @ @
+        """,
+        4,
+    ),
+    BoxCase(
+        "agent-index-does-not-block-beam-of-same-number",
+        """
+        L0S . .
+        .   . S1
+        .   . .
+        X   @ @
+        """,
+        None,
+    ),
 ]
 
 

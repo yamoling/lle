@@ -9,7 +9,7 @@ impl ClauseEngine {
         for source in &self.ctx.laser_sources {
             let path = self.ctx.relevant_laser_tiles(source.laser_id, t);
             for agent in 0..self.ctx.n_agents {
-                if agent == source.agent_id {
+                if source.owner == Some(agent) {
                     continue;
                 }
                 let positions = self.ctx.relevant_positions_for_agent(agent, t);
