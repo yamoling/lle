@@ -2,7 +2,7 @@ use itertools::Itertools;
 
 use crate::solver::{Clause, clauses::ClauseEngine};
 
-use super::utils::{PAIRWISE_ATMOST_MAX, at_most_one_sequential, implies};
+use super::utils::{at_most_one, implies};
 
 impl ClauseEngine {
     /// Clauses fixing each agent and each box at its start position at `t == 0`.
@@ -34,23 +34,11 @@ impl ClauseEngine {
         let mut clauses = Vec::new();
         for agent in 0..self.ctx.n_agents {
             let positions = self.ctx.relevant_positions_for_agent(agent, t);
-            if positions.size() <= 1 {
-                continue;
-            }
             let vars: Vec<i32> = positions
                 .into_iter()
                 .map(|p| self.pool.agent(agent, p, t))
                 .collect();
-            if vars.len() <= PAIRWISE_ATMOST_MAX {
-                for i in 0..vars.len() {
-                    for j in i + 1..vars.len() {
-                        clauses.push(implies(vars[i], -vars[j]));
-                        // clauses.push(vec![-vars[i], -vars[j]]);
-                    }
-                }
-            } else {
-                clauses.extend(at_most_one_sequential(&vars, &mut self.pool));
-            }
+            clauses.extend(at_most_one(&vars, &mut self.pool));
         }
         clauses
     }

@@ -2,11 +2,12 @@ use std::collections::HashMap;
 
 use crate::solver::{Clause, VarKey, clauses::ClauseEngine};
 
-use super::utils::{equals, implies};
+use super::utils::implies;
 
 impl ClauseEngine {
     /// Defines, for each beam tile, the literal denoting "this beam tile is active at time `t`",
-    /// folding away tiles that no same-colour agent can ever reach (constant-active tiles).
+    /// folding away tiles that neither a same-colour agent nor a box can ever reach
+    /// (constant-active tiles). A beam is blocked on a tile by its owner or by any box.
     /// Returns both the clauses and a map from `(laser_id, x, y)` to the literal representing
     /// beam-tile activation; tiles absent from the map are constant-active.
     ///
@@ -24,20 +25,33 @@ impl ClauseEngine {
         let ctx = &self.ctx;
         let pool = &mut self.pool;
         for source in &ctx.laser_sources {
-            let blockable = ctx.relevant_positions_for_agent(source.agent_id, t);
+            let owner_reachable = ctx.relevant_positions_for_agent(source.agent_id, t);
             let mut prev_active: Option<i32> = None;
             for &pos in &source.path {
-                if blockable.contains(&pos) {
-                    let agent_var = pool.agent(source.agent_id, pos, t);
-                    let active = pool.laser(source.laser_id, pos, t);
-                    match prev_active {
-                        None => clauses.extend(equals(active, -agent_var)),
-                        Some(prev) => {
-                            clauses.push(implies(active, prev));
-                            clauses.push(implies(active, -agent_var));
-                            clauses.push(vec![-prev, agent_var, active]);
-                        }
+                // Literals of everything that can block the beam on this tile: its owner or a box.
+                let mut blockers = Vec::new();
+                if owner_reachable.contains(&pos) {
+                    blockers.push(pool.agent(source.agent_id, pos, t));
+                }
+                for box_id in 0..ctx.n_boxes() {
+                    if ctx.relevant_positions_for_box(box_id, t).contains(&pos) {
+                        blockers.push(pool.box_at(box_id, pos, t));
                     }
+                }
+                if !blockers.is_empty() {
+                    let active = pool.laser(source.laser_id, pos, t);
+                    // active <-> prev & !blocker_1 & ... & !blocker_n
+                    let mut activation = Vec::with_capacity(blockers.len() + 2);
+                    if let Some(prev) = prev_active {
+                        clauses.push(implies(active, prev));
+                        activation.push(-prev);
+                    }
+                    for &blocker in &blockers {
+                        clauses.push(implies(active, -blocker));
+                    }
+                    activation.extend(blockers);
+                    activation.push(active);
+                    clauses.push(activation);
                     prev_active = Some(active);
                     active_lit.insert(VarKey::laser(source.laser_id, pos, t), active);
                 } else if let Some(prev) = prev_active {

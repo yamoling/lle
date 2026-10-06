@@ -123,7 +123,7 @@ impl ClauseEngine {
         patterns
     }
 
-    /// Movement-only world-enforcing clauses for a single step `t`.
+    /// Movement world-enforcing clauses (agents and boxes) for a single step `t`.
     pub fn generate_movement_clauses(&mut self, t: usize) -> Vec<Clause> {
         self.ctx.update(t);
         let mut clauses = Vec::new();
@@ -134,6 +134,7 @@ impl ClauseEngine {
         clauses.extend(self.no_following_conflict(t));
         clauses.extend(self.stays_on_exit(t));
         clauses.extend(self.no_early_termination(t));
+        clauses.extend(self.generate_box_clauses(t));
         clauses
     }
 

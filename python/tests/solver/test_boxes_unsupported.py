@@ -1,19 +1,8 @@
 import lle
 import pytest
 from lle import World
-from lle.solver import Solver
 
 BOXED = "S0 B . X"
-
-
-def test_solve_raises_on_world_with_boxes():
-    with pytest.raises(NotImplementedError, match="movable boxes"):
-        lle.solve(World(BOXED), 10)
-
-
-def test_solver_constructor_raises_on_world_with_boxes():
-    with pytest.raises(NotImplementedError, match="movable boxes"):
-        Solver(World(BOXED), 10)
 
 
 def test_characterize_raises_on_world_with_boxes():

@@ -20,6 +20,12 @@ def _parse_mode(mode: SolveModeLiteral | str | SolveMode) -> SolveMode:
     return mode
 
 
+def _check_mode_supported(world: World, mode: SolveMode):
+    """Raise `NotImplementedError` for cooperation modes on worlds with movable boxes."""
+    if world.n_boxes > 0 and mode != SolveMode.standard():
+        raise NotImplementedError(f"Solve mode {mode.value!r} is not supported yet on worlds with movable boxes")
+
+
 class Solver:
     """Reusable SAT solver facade for one world and maximum horizon.
 
@@ -32,8 +38,6 @@ class Solver:
     generator: ClauseGenerator
 
     def __init__(self, world: World, t_max: int | Literal["auto"] = "auto") -> None:
-        if world.n_boxes > 0:
-            raise NotImplementedError("Worlds with movable boxes are not supported yet")
         self.world = world
         self.t_max = _default_t_max(world) if t_max == "auto" else t_max
         self.generator = ClauseGenerator(world, self.t_max)
@@ -73,6 +77,7 @@ class Solver:
             return None
 
         parsed_mode = _parse_mode(mode)
+        _check_mode_supported(self.world, parsed_mode)
         clauses, assumptions = self.generator.generate(path_length, mode=parsed_mode, collect_gems=collect_gems)
         if shuffle:
             random.shuffle(clauses)
@@ -110,6 +115,7 @@ class Solver:
             raise ValueError(f"t_min={t_min} exceeds this solver's t_max={self.t_max}.")
 
         parsed_mode = _parse_mode(mode)
+        _check_mode_supported(self.world, parsed_mode)
         self.generator.start_delta_stream(mode=parsed_mode, collect_gems=collect_gems)
         with Minisat22() as sat_solver:
             for path_length in range(t_min, self.t_max + 1):

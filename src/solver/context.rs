@@ -124,6 +124,13 @@ pub struct ConstraintContext {
     /// Cache for reachable laser paths per laser source and time step: `relevant_laser_paths[laser_idx][t]`.
     relevant_laser_paths: Vec<Vec<PositionSet>>,
 
+    /// Cells a box may occupy: inside the grid, neither a wall nor a laser source. Voids included.
+    box_walkable: PositionSet,
+    voids: PositionSet,
+
+    /// Cache for the positions each box can occupy per time step: `relevant_box_positions[box][t]`.
+    relevant_box_positions: Vec<Vec<PositionSet>>,
+
     /// `forbidden_first_beam_tiles[agent]` = first beam tiles of every laser NOT owned by `agent`.
     /// A non-owner can never stand on the first beam tile: if the owner can reach it, the beam is
     /// active ↔ ¬owner, so non-owner requires owner present — impossible by no_overlap; otherwise
@@ -223,6 +230,19 @@ impl ConstraintContext {
             }
         }
 
+        let sources: Vec<Position> = world.sources().map(|(pos, _)| pos).collect();
+        let box_walkable = PositionSet::from_positions(
+            height,
+            width,
+            (0..height)
+                .flat_map(|i| (0..width).map(move |j| Position { i, j }))
+                .filter(|pos| !walls.contains(pos) && !sources.contains(pos)),
+        );
+        let relevant_box_positions = box_start_pos
+            .iter()
+            .map(|_| Vec::with_capacity(t_max + 1))
+            .collect();
+
         let exit_reachable = Vec::with_capacity(t_max + 1);
         let relevant_positions = (0..n_agents)
             .map(|_| Vec::with_capacity(t_max + 1))
@@ -247,6 +267,9 @@ impl ConstraintContext {
             distance_buckets,
             exit_reachable,
             relevant_positions,
+            box_walkable,
+            voids,
+            relevant_box_positions,
             forbidden_first_beam_tiles,
             relevant_laser_paths,
         }
@@ -333,7 +356,12 @@ impl ConstraintContext {
                         positions[t].remove(&pos);
                     }
                 }
-                if owner_reachable.contains(&pos) {
+                if owner_reachable.contains(&pos)
+                    || self
+                        .relevant_box_positions
+                        .iter()
+                        .any(|positions| positions[t].contains(&pos))
+                {
                     blockable_upstream = true;
                 }
             }
@@ -350,6 +378,61 @@ impl ConstraintContext {
             );
             self.relevant_laser_paths[laser_idx].push(relevant_path);
         }
+    }
+
+    /// Update the positions each box can occupy at time step `t`.
+    ///
+    /// A box can stay where it is, unless it lies on a void (it is then destroyed), or be pushed
+    /// from `q` to `r = q + d` by an agent that can stand on `q - d` at `t - 1` and step onto `q`.
+    /// The destination `r` must be walkable for a box, voids included.
+    fn update_box_relevance(&mut self, t: usize) {
+        for box_id in 0..self.box_start_pos.len() {
+            let result = if t == 0 {
+                PositionSet::singleton(self.height, self.width, self.box_start_pos[box_id])
+            } else {
+                let mut result = PositionSet::empty(self.height, self.width);
+                for q in &self.relevant_box_positions[box_id][t - 1] {
+                    if self.voids.contains(&q) {
+                        continue;
+                    }
+                    result.insert(q);
+                    for d in Direction::iter() {
+                        if let Some(r) = self.push_destination(q, d)
+                            && self.can_push_from(q, d, t - 1)
+                        {
+                            result.insert(r);
+                        }
+                    }
+                }
+                result
+            };
+            self.relevant_box_positions[box_id].push(result);
+        }
+    }
+
+    /// The cell a box at `q` lands on when pushed in direction `d`, if it is walkable for a box.
+    pub fn push_destination(&self, q: Position, d: Direction) -> Option<Position> {
+        (q + d)
+            .ok()
+            .filter(|r| r.i < self.height && r.j < self.width && self.box_walkable.contains(r))
+    }
+
+    /// The cell an agent pushing a box at `q` in direction `d` comes from.
+    pub fn pusher_origin(&self, q: Position, d: Direction) -> Option<Position> {
+        (q + d.opposite())
+            .ok()
+            .filter(|p| p.i < self.height && p.j < self.width)
+    }
+
+    /// Whether some agent can stand behind `q` at `t` and step onto `q` in direction `d`.
+    fn can_push_from(&self, q: Position, d: Direction, t: usize) -> bool {
+        self.pusher_origin(q, d).is_some_and(|p| {
+            self.neighbours[p.i][p.j].contains(&q)
+                && self
+                    .relevant_positions
+                    .iter()
+                    .any(|positions| positions[t].contains(&p))
+        })
     }
 
     /// Remove exit positions that are incompatible with uniquely forced exit assignments.
@@ -412,6 +495,7 @@ impl ConstraintContext {
         for tt in start..=t {
             self.update_exit_reachable(tt);
             self.update_relevant_positions(tt);
+            self.update_box_relevance(tt);
             self.update_laser_relevance(tt);
             self.update_forced_exit_relevance(tt);
         }
@@ -452,6 +536,20 @@ impl ConstraintContext {
             .filter(move |predecessor| {
                 t > 0 && self.relevant_positions[agent][t - 1].contains(predecessor)
             })
+    }
+
+    pub fn n_boxes(&self) -> usize {
+        self.box_start_pos.len()
+    }
+
+    /// Positions box `box_id` can occupy at time `t`. Assumes `update` has already been called
+    /// for this `t`.
+    pub fn relevant_positions_for_box(&self, box_id: usize, t: usize) -> &PositionSet {
+        &self.relevant_box_positions[box_id][t]
+    }
+
+    pub fn is_void(&self, pos: &Position) -> bool {
+        self.voids.contains(pos)
     }
 
     /// The reachable laser tiles positions for a given laser source at time `t`: the beam tiles
