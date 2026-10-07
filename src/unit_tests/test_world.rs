@@ -1391,7 +1391,7 @@ fn test_box_blocks_a_beam_from_reset() {
     let mut world = World::try_from(
         "
         L0S .  X
-        B   .  .
+        #   .  .
         .   S0 .
         ",
     )
@@ -1420,7 +1420,7 @@ fn test_world_without_boxes_is_unaffected() {
 
 #[test]
 fn test_has_box_at_tracks_the_occupancy_index() {
-    let mut world = World::try_from("S0 B . X").unwrap();
+    let mut world = World::try_from("S0 # . X").unwrap();
     world.reset();
     assert!(world.has_box_at(pos(0, 1)));
     assert!(!world.has_box_at(pos(0, 2)));
@@ -1430,7 +1430,7 @@ fn test_has_box_at_tracks_the_occupancy_index() {
 fn test_an_agent_may_start_in_the_shadow_of_a_box() {
     // Beam runs West from (0,4). The box at (0,2) blocks it, so the agent's
     // only start at (0,1) is safe and must not be pruned away.
-    let mut world = World::try_from("X S1 B . L0W").expect("the box shields the start");
+    let mut world = World::try_from("X S1 # . L0W").expect("the box shields the start");
     world.reset();
     assert_eq!(world.agents_positions(), &vec![pos(0, 1)]);
     assert!(world.agents()[0].is_alive());
@@ -1439,7 +1439,7 @@ fn test_an_agent_may_start_in_the_shadow_of_a_box() {
 
 #[test]
 fn test_beam_upstream_of_a_box_stays_on() {
-    let mut world = World::try_from("L0E . B . X\nS1 . . . .").unwrap();
+    let mut world = World::try_from("L0E . # . X\nS1 . . . .").unwrap();
     world.reset();
     assert!(get_laser(&world, pos(0, 1)).is_on());
     assert!(get_laser(&world, pos(0, 2)).is_off());
@@ -1448,7 +1448,7 @@ fn test_beam_upstream_of_a_box_stays_on() {
 
 #[test]
 fn test_reset_keeps_the_box_blocking_and_the_boxes_in_place() {
-    let mut world = World::try_from("L0E B . X\nS1 . . .").unwrap();
+    let mut world = World::try_from("L0E # . X\nS1 . . .").unwrap();
     world.reset();
     world.reset();
     assert_eq!(world.boxes_positions(), vec![pos(0, 1)]);
@@ -1459,13 +1459,13 @@ fn test_reset_keeps_the_box_blocking_and_the_boxes_in_place() {
 
 #[test]
 fn test_get_config_preserves_boxes() {
-    let world = World::try_from("S0 B . X").unwrap();
+    let world = World::try_from("S0 # . X").unwrap();
     assert_eq!(world.get_config().boxes(), &vec![pos(0, 1)]);
 }
 
 #[test]
 fn test_push_a_box_east() {
-    let mut world = World::try_from("S0 B . X").unwrap();
+    let mut world = World::try_from("S0 # . X").unwrap();
     world.reset();
     assert!(world.available_actions()[0].contains(&Action::East));
 
@@ -1477,28 +1477,28 @@ fn test_push_a_box_east() {
 
 #[test]
 fn test_push_blocked_by_a_wall() {
-    let mut world = World::try_from("S0 B @ X\n.  . . .").unwrap();
+    let mut world = World::try_from("S0 # @ X\n.  . . .").unwrap();
     world.reset();
     assert!(!world.available_actions()[0].contains(&Action::East));
 }
 
 #[test]
 fn test_push_blocked_by_another_box_no_chains() {
-    let mut world = World::try_from("S0 B B . X").unwrap();
+    let mut world = World::try_from("S0 # # . X").unwrap();
     world.reset();
     assert!(!world.available_actions()[0].contains(&Action::East));
 }
 
 #[test]
 fn test_push_blocked_by_the_grid_edge() {
-    let mut world = World::try_from("X . S0 B").unwrap();
+    let mut world = World::try_from("X . S0 #").unwrap();
     world.reset();
     assert!(!world.available_actions()[0].contains(&Action::East));
 }
 
 #[test]
 fn test_push_blocked_by_a_living_agent() {
-    let mut world = World::try_from("S0 B S1 X X").unwrap();
+    let mut world = World::try_from("S0 # S1 X X").unwrap();
     world.reset();
     assert!(!world.available_actions()[0].contains(&Action::East));
 }
@@ -1511,7 +1511,7 @@ fn test_push_blocked_by_an_agent_that_died_in_a_beam() {
     // the push check must not rely on tile occupancy alone.
     let mut world = World::try_from(
         "
-        L0E .  B  S0 .
+        L0E .  #  S0 .
         X   S1 .  .  X
         ",
     )
@@ -1536,7 +1536,7 @@ fn test_push_blocked_by_an_agent_that_died_in_a_beam() {
 fn test_push_blocked_by_an_agent_that_died_in_a_void() {
     let mut world = World::try_from(
         "
-        S0 B  V  .
+        S0 #  V  .
         X  .  S1 X
         ",
     )
@@ -1557,7 +1557,7 @@ fn test_push_blocked_by_an_agent_that_died_in_a_void() {
 fn test_push_blocked_by_an_arrived_agent() {
     let mut world = World::try_from(
         "
-        S0 B X
+        S0 # X
         X  . S1
         ",
     )
@@ -1579,7 +1579,7 @@ fn test_push_blocked_by_an_arrived_agent() {
 fn test_a_box_may_rest_on_an_exit() {
     // Two exits, one agent: pushing a box onto an exit is legal and the
     // obstruction is reversible, so it is not a deadlock.
-    let mut world = World::try_from("S0 B X X").unwrap();
+    let mut world = World::try_from("S0 # X X").unwrap();
     world.reset();
     assert!(world.available_actions()[0].contains(&Action::East));
 
@@ -1598,7 +1598,7 @@ fn test_a_box_may_rest_on_an_exit() {
 /// Phase 3 must precede phase 5.
 #[test]
 fn test_a_pushed_box_saves_its_pusher() {
-    let mut world = World::try_from("X S1 B . L0W").unwrap();
+    let mut world = World::try_from("X S1 # . L0W").unwrap();
     world.reset();
     assert!(
         get_laser(&world, pos(0, 3)).is_on(),
@@ -1628,7 +1628,7 @@ fn test_two_agents_pushing_one_box_both_revert() {
     let mut world = World::try_from(
         "
         .  S0 X
-        S1 B  X
+        S1 #  X
         .  .  .
         ",
     )
@@ -1655,7 +1655,7 @@ fn test_agent_entering_a_pushed_box_destination_reverts_with_the_pusher() {
     // into (0,2). Two occupants would share one cell: both agents revert.
     let mut world = World::try_from(
         "
-        S0 B  .  X
+        S0 #  .  X
         .  .  S1 X
         ",
     )
@@ -1678,7 +1678,7 @@ fn test_agent_entering_a_pushed_box_destination_reverts_with_the_pusher() {
 fn test_two_boxes_pushed_into_one_cell_both_pushers_revert() {
     let mut world = World::try_from(
         "
-        S0 B  .  B  S1
+        S0 #  .  #  S1
         X  .  .  .  X
         ",
     )
@@ -1704,7 +1704,7 @@ fn test_box_contention_reverts_only_the_agents_involved() {
     // occupied cell, so a revert cannot cascade onto a follower.)
     let mut world = World::try_from(
         "
-        S0 B  .  X
+        S0 #  .  X
         S2 .  S1 X
         .  .  .  X
         ",
@@ -1732,8 +1732,8 @@ fn test_uncontended_pushes_in_the_same_step_all_happen() {
     // Two agents push two different boxes to two different cells.
     let mut world = World::try_from(
         "
-        S0 B  .  .  X
-        S1 B  .  .  X
+        S0 #  .  .  X
+        S1 #  .  .  X
         ",
     )
     .unwrap();
@@ -1752,7 +1752,7 @@ fn test_box_pushed_into_a_beam_blocks_it() {
     let mut world = World::try_from(
         "
         .  .  L0S
-        S1 B  X
+        S1 #  X
         .  .  X
         ",
     )
@@ -1776,7 +1776,7 @@ fn test_box_pushed_out_of_a_beam_relights_it_and_kills() {
     let mut world = World::try_from(
         "
         .  L0S .  X
-        S1 B   .  X
+        S1 #   .  X
         .  .   .  .
         ",
     )
@@ -1804,7 +1804,7 @@ fn test_death_replay_neither_moves_nor_destroys_a_box_twice() {
     // boxes but must neither move the box again nor re-emit its destruction.
     let mut world = World::try_from(
         "
-        S0 B  V  L0S
+        S0 #  V  L0S
         X  .  S1 .
         X  .  .  .
         ",
@@ -1830,7 +1830,7 @@ fn test_death_replay_does_not_move_a_pushed_box_twice() {
     // Same replay, but the box survives: it must advance exactly one cell.
     let mut world = World::try_from(
         "
-        S0 B  .  .  L0S
+        S0 #  .  .  L0S
         X  .  .  S1 .
         X  .  .  .  .
         ",
@@ -1847,7 +1847,7 @@ fn test_death_replay_does_not_move_a_pushed_box_twice() {
 
 #[test]
 fn test_box_pushed_onto_a_void_is_destroyed() {
-    let mut world = World::try_from("S0 B V X").unwrap();
+    let mut world = World::try_from("S0 # V X").unwrap();
     world.reset();
     assert!(world.available_actions()[0].contains(&Action::East));
 
@@ -1869,7 +1869,7 @@ fn test_a_destroyed_box_on_a_void_under_a_beam_does_not_block() {
     let mut world = World::try_from(
         "
         .  .  L0S X
-        S1 B  V   .
+        S1 #  V   .
         .  .  .   .
         ",
     )
@@ -1897,7 +1897,7 @@ fn test_a_destroyed_box_on_a_void_under_a_beam_does_not_block() {
 
 #[test]
 fn test_reset_revives_a_destroyed_box() {
-    let mut world = World::try_from("S0 B V X").unwrap();
+    let mut world = World::try_from("S0 # V X").unwrap();
     world.reset();
     world.step(&[Action::East]).unwrap();
     assert_eq!(world.boxes_present(), vec![false]);
@@ -1910,7 +1910,7 @@ fn test_reset_revives_a_destroyed_box() {
 
 #[test]
 fn test_box_on_a_gem_does_not_collect_it_and_frees_it_again() {
-    let mut world = World::try_from("S0 B G . X").unwrap();
+    let mut world = World::try_from("S0 # G . X").unwrap();
     world.reset();
 
     world.step(&[Action::East]).unwrap();
@@ -1929,7 +1929,7 @@ fn test_box_on_a_gem_does_not_collect_it_and_frees_it_again() {
 #[test]
 fn test_a_box_on_an_exit_obstructs_it() {
     // The box rests on the exit and has nowhere to go: the agent cannot enter.
-    let mut world = World::try_from("S0 B X @").unwrap();
+    let mut world = World::try_from("S0 # X @").unwrap();
     world.reset();
     world.step(&[Action::East]).unwrap();
     assert_eq!(world.boxes_positions(), vec![pos(0, 2)]);
@@ -1945,7 +1945,7 @@ fn test_a_box_on_an_exit_obstructs_it() {
 
 #[test]
 fn test_an_exit_works_again_once_its_box_is_pushed_off() {
-    let mut world = World::try_from("S0 B X .").unwrap();
+    let mut world = World::try_from("S0 # X .").unwrap();
     world.reset();
     world.step(&[Action::East]).unwrap();
     assert_eq!(world.boxes_positions(), vec![pos(0, 2)]);
@@ -1962,7 +1962,7 @@ fn test_an_exit_works_again_once_its_box_is_pushed_off() {
 
 #[test]
 fn test_state_round_trips_with_boxes() {
-    let mut world = World::try_from("S0 B . . X").unwrap();
+    let mut world = World::try_from("S0 # . . X").unwrap();
     world.reset();
     world.step(&[Action::East]).unwrap();
 
@@ -1982,7 +1982,7 @@ fn test_state_round_trips_with_boxes() {
 
 #[test]
 fn test_state_round_trips_with_a_destroyed_box() {
-    let mut world = World::try_from("S0 B V X").unwrap();
+    let mut world = World::try_from("S0 # V X").unwrap();
     world.reset();
     world.step(&[Action::East]).unwrap();
     let state = world.get_state();
@@ -2010,7 +2010,7 @@ fn test_world_state_new_alive_has_no_boxes() {
 
 #[test]
 fn test_set_state_rejects_a_wrong_number_of_boxes() {
-    let mut world = World::try_from("S0 B . X").unwrap();
+    let mut world = World::try_from("S0 # . X").unwrap();
     world.reset();
     let mut state = world.get_state();
     state.boxes_positions.push(pos(0, 2));
@@ -2026,7 +2026,7 @@ fn test_set_state_rejects_a_wrong_number_of_boxes() {
 
 #[test]
 fn test_set_state_rejects_a_wrong_number_of_box_presence_flags() {
-    let mut world = World::try_from("S0 B . X").unwrap();
+    let mut world = World::try_from("S0 # . X").unwrap();
     world.reset();
     let mut state = world.get_state();
     state.boxes_present.push(true);
@@ -2039,7 +2039,7 @@ fn test_set_state_rejects_a_wrong_number_of_box_presence_flags() {
 
 #[test]
 fn test_set_state_rejects_missing_boxes_on_a_world_with_boxes() {
-    let mut world = World::try_from("S0 B . X").unwrap();
+    let mut world = World::try_from("S0 # . X").unwrap();
     world.reset();
     let state = WorldState::new_alive(vec![pos(0, 0)], vec![]);
 
@@ -2054,7 +2054,7 @@ fn test_set_state_rejects_missing_boxes_on_a_world_with_boxes() {
 
 #[test]
 fn test_set_state_rejects_a_box_on_a_wall() {
-    let mut world = World::try_from("S0 B @ X\n.  . . .").unwrap();
+    let mut world = World::try_from("S0 # @ X\n.  . . .").unwrap();
     world.reset();
     let mut state = world.get_state();
     state.boxes_positions[0] = pos(0, 2);
@@ -2067,7 +2067,7 @@ fn test_set_state_rejects_a_box_on_a_wall() {
 
 #[test]
 fn test_set_state_rejects_a_box_on_a_laser_source() {
-    let mut world = World::try_from("S0 B L0W X").unwrap();
+    let mut world = World::try_from("S0 # L0W X").unwrap();
     world.reset();
     let mut state = world.get_state();
     state.boxes_positions[0] = pos(0, 2);
@@ -2080,7 +2080,7 @@ fn test_set_state_rejects_a_box_on_a_laser_source() {
 
 #[test]
 fn test_set_state_rejects_a_box_out_of_the_world() {
-    let mut world = World::try_from("S0 B . X").unwrap();
+    let mut world = World::try_from("S0 # . X").unwrap();
     world.reset();
     let mut state = world.get_state();
     state.boxes_positions[0] = pos(3, 0);
@@ -2095,7 +2095,7 @@ fn test_set_state_rejects_a_box_out_of_the_world() {
 
 #[test]
 fn test_set_state_rejects_a_present_box_on_a_void() {
-    let mut world = World::try_from("S0 B V X").unwrap();
+    let mut world = World::try_from("S0 # V X").unwrap();
     world.reset();
     let mut state = world.get_state();
     state.boxes_positions[0] = pos(0, 2);
@@ -2109,7 +2109,7 @@ fn test_set_state_rejects_a_present_box_on_a_void() {
 #[test]
 fn test_set_state_rejects_a_present_box_on_a_void_under_a_beam() {
     // The beam crosses the void at (0,1): the laser tile wraps a void.
-    let mut world = World::try_from("L0E V . X\nS0 . B .").unwrap();
+    let mut world = World::try_from("L0E V . X\nS0 . # .").unwrap();
     world.reset();
     assert!(get_laser(&world, pos(0, 1)).is_on());
     let mut state = world.get_state();
@@ -2123,7 +2123,7 @@ fn test_set_state_rejects_a_present_box_on_a_void_under_a_beam() {
 
 #[test]
 fn test_set_state_accepts_an_absent_box_on_a_void_under_a_beam() {
-    let mut world = World::try_from("L0E V . X\nS0 . B .").unwrap();
+    let mut world = World::try_from("L0E V . X\nS0 . # .").unwrap();
     world.reset();
     let mut state = world.get_state();
     state.boxes_positions[0] = pos(0, 1);
@@ -2139,7 +2139,7 @@ fn test_set_state_accepts_an_absent_box_on_a_void_under_a_beam() {
 
 #[test]
 fn test_set_state_rejects_an_absent_box_off_a_void() {
-    let mut world = World::try_from("S0 B V X").unwrap();
+    let mut world = World::try_from("S0 # V X").unwrap();
     world.reset();
     let mut state = world.get_state();
     state.boxes_present[0] = false;
@@ -2152,7 +2152,7 @@ fn test_set_state_rejects_an_absent_box_off_a_void() {
 
 #[test]
 fn test_set_state_rejects_two_present_boxes_on_one_cell() {
-    let mut world = World::try_from("S0 B B . X").unwrap();
+    let mut world = World::try_from("S0 # # . X").unwrap();
     world.reset();
     let mut state = world.get_state();
     state.boxes_positions = vec![pos(0, 3), pos(0, 3)];
@@ -2165,7 +2165,7 @@ fn test_set_state_rejects_two_present_boxes_on_one_cell() {
 
 #[test]
 fn test_set_state_accepts_two_absent_boxes_on_one_void() {
-    let mut world = World::try_from("S0 B B V X").unwrap();
+    let mut world = World::try_from("S0 # # V X").unwrap();
     world.reset();
     let mut state = world.get_state();
     state.boxes_positions = vec![pos(0, 3), pos(0, 3)];
@@ -2177,7 +2177,7 @@ fn test_set_state_accepts_two_absent_boxes_on_one_void() {
 
 #[test]
 fn test_set_state_rejects_a_present_box_on_an_agent() {
-    let mut world = World::try_from("S0 B . X").unwrap();
+    let mut world = World::try_from("S0 # . X").unwrap();
     world.reset();
     let mut state = world.get_state();
     state.boxes_positions[0] = pos(0, 0);
@@ -2190,7 +2190,7 @@ fn test_set_state_rejects_a_present_box_on_an_agent() {
 
 #[test]
 fn test_set_state_rejects_a_present_box_on_a_dead_agent() {
-    let mut world = World::try_from("S0 B . X\n.  . X S1").unwrap();
+    let mut world = World::try_from("S0 # . X\n.  . X S1").unwrap();
     world.reset();
     let mut state = world.get_state();
     state.agents_alive[1] = false;
@@ -2204,7 +2204,7 @@ fn test_set_state_rejects_a_present_box_on_a_dead_agent() {
 
 #[test]
 fn test_set_state_box_rejection_leaves_the_world_untouched() {
-    let mut world = World::try_from("L0E B . X\nS0 . . .").unwrap();
+    let mut world = World::try_from("L0E # . X\nS0 . . .").unwrap();
     world.reset();
     let before = world.get_state();
     let mut state = before.clone();
@@ -2218,7 +2218,7 @@ fn test_set_state_box_rejection_leaves_the_world_untouched() {
 
 #[test]
 fn test_set_state_rolls_back_the_boxes_when_an_agent_cannot_enter() {
-    let mut world = World::try_from("S0 B . X\n.  @ . .").unwrap();
+    let mut world = World::try_from("S0 # . X\n.  @ . .").unwrap();
     world.reset();
     world.step(&[Action::East]).unwrap();
     let before = world.get_state();
@@ -2242,7 +2242,7 @@ fn test_state_round_trips_restore_beam_blocking() {
     let mut world = World::try_from(
         "
         L0S .  X
-        B   S1 .
+        #   S1 .
         .   .  .
         ",
     )
@@ -2268,7 +2268,7 @@ fn test_state_round_trips_restore_beam_blocking() {
 
 #[test]
 fn test_clone_preserves_boxes() {
-    let mut world = World::try_from("S0 B . . X").unwrap();
+    let mut world = World::try_from("S0 # . . X").unwrap();
     world.reset();
     world.step(&[Action::East]).unwrap();
 
@@ -2281,7 +2281,7 @@ fn test_clone_preserves_boxes() {
 
 #[test]
 fn test_clone_preserves_a_destroyed_box() {
-    let mut world = World::try_from("S0 B V X").unwrap();
+    let mut world = World::try_from("S0 # V X").unwrap();
     world.reset();
     world.step(&[Action::East]).unwrap();
 
@@ -2295,7 +2295,7 @@ fn test_clone_preserves_a_destroyed_box() {
 fn test_set_state_restoring_a_box_in_a_beam_shields_the_agent_downstream() {
     // The beam (colour 0) runs East from (0,0). The box at (0,1) shields the colour-1 agent at (0,3).
     let mut source = World::try_from(
-        "L0E B . S1 X
+        "L0E # . S1 X
 S0 . . . X",
     )
     .unwrap();
@@ -2306,7 +2306,7 @@ S0 . . . X",
     // Same layout, but the box and the agent start outside the beam.
     let mut world = World::try_from(
         "L0E . . . X
-S0 B . S1 X",
+S0 # . S1 X",
     )
     .unwrap();
     world.reset();

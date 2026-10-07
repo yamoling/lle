@@ -248,7 +248,7 @@ j = 1
 fn test_toml_boxes_combine_with_the_world_string() {
     let toml = r#"
 world_string = """
-S0 B . X
+S0 # . X
 .  . . .
 """
 [[boxes]]
@@ -275,7 +275,7 @@ row = 1
     assert_eq!(parse_boxes(toml).unwrap().len(), 4);
 }
 
-/// `B` and `V` cannot share a cell in the v1 format, so TOML is the only route
+/// `#` and `V` cannot share a cell in the v1 format, so TOML is the only route
 /// to an illegal box position. This is the test for `InvalidBoxPosition`.
 #[test]
 fn test_toml_box_on_a_void_is_rejected() {
@@ -369,7 +369,7 @@ j = 1
 fn test_toml_box_duplicated_with_the_world_string_is_rejected() {
     let toml = r#"
 world_string = """
-S0 B . X
+S0 # . X
 .  . . .
 """
 [[boxes]]
@@ -510,7 +510,7 @@ j = 1
     assert_eq!(world.boxes_positions(), vec![pos(1, 1)]);
 }
 
-/// A box on a gem or an exit cannot be written in v1 (` B ` would erase the gem or exit), so
+/// A box on a gem or an exit cannot be written in v1 (` # ` would erase the gem or exit), so
 /// `world_string()` must fall back to TOML and keep both the box and what lies under it.
 #[test]
 fn test_world_string_round_trip_keeps_a_gem_under_a_box() {

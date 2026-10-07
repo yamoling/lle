@@ -1042,7 +1042,7 @@ def test_all_shapes():
 def test_layered_state_types_refuse_to_reconstruct_a_box_world(state_type):
     from lle import LLE
 
-    env = LLE.from_str("S0 B G X").state_type(state_type).build()
+    env = LLE.from_str("S0 # G X").state_type(state_type).build()
     env.reset()
     with pytest.raises(NotImplementedError):
         env.set_state(env.get_state())

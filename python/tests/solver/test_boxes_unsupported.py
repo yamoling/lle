@@ -2,7 +2,7 @@ import lle
 import pytest
 from lle import World
 
-BOXED = "S0 B . X"
+BOXED = "S0 # . X"
 
 
 def test_characterize_raises_on_world_with_boxes():

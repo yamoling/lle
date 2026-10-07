@@ -120,7 +120,7 @@ def test_from_array_rejects_a_wrong_length_with_boxes():
 
 
 def test_pickle_world_state_after_a_push():
-    world = World("S0 B . X")
+    world = World("S0 # . X")
     world.reset()
     world.step(Action.EAST)
     state = world.get_state()
@@ -128,7 +128,7 @@ def test_pickle_world_state_after_a_push():
 
 
 def test_pickle_world_state_after_a_void_destruction():
-    world = World("S0 B V X")
+    world = World("S0 # V X")
     world.reset()
     world.step(Action.EAST)
     state = world.get_state()
@@ -138,7 +138,7 @@ def test_pickle_world_state_after_a_void_destruction():
 
 
 def test_pickle_world_after_a_push():
-    world = World("S0 B . X")
+    world = World("S0 # . X")
     world.reset()
     world.step(Action.EAST)
     restored = pickle.loads(pickle.dumps(world))
@@ -147,7 +147,7 @@ def test_pickle_world_after_a_push():
 
 
 def test_pickle_world_after_a_void_destruction():
-    world = World("S0 B V X")
+    world = World("S0 # V X")
     world.reset()
     world.step(Action.EAST)
     restored = pickle.loads(pickle.dumps(world))
@@ -158,7 +158,7 @@ def test_pickle_world_after_a_void_destruction():
 def test_state_generator_shape_matches_the_state_array():
     from lle.observations import StateGenerator
 
-    world = World("S0 B G X")
+    world = World("S0 # G X")
     world.reset()
     generator = StateGenerator(world, normalize=False)
     assert generator.shape == (world.get_state().as_array().shape[0],)
@@ -168,7 +168,7 @@ def test_state_generator_round_trips_on_a_box_world():
     from lle.observations import StateGenerator
 
     for normalize in (False, True):
-        world = World("S0 B G X")
+        world = World("S0 # G X")
         world.reset()
         world.step(Action.EAST)
         generator = StateGenerator(world, normalize=normalize)

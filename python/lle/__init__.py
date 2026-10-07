@@ -37,7 +37,7 @@ a laser beam of any colour. A box pushed onto a void tile is destroyed.
 ```python
 from lle import Action, World
 
-world = World("S0 B . X")
+world = World("S0 # . X")
 world.reset()
 world.step([Action.EAST])
 print(world.boxes_positions)   # [(0, 2)]
@@ -129,7 +129,7 @@ separate tiles.
 | `@` | Wall  | No | A wall that blocks lasers. |
 | `X` | Exit  | Yes | An exit tile. The agent can no longer move after reaching it. |
 | `G` | Gem   | Yes | A gem to collect. |
-| `B` | Box   | Yes | A movable box. Walking into it pushes it one cell further. Blocks lasers of any colour. |
+| `#` | Box   | Yes | A movable box. Walking into it pushes it one cell further. Blocks lasers of any colour. |
 | `S<n>` | Start | Yes | Start position of agent `n`. |
 | `L<n><d>` | Laser source | No | Source of a laser of colour `n` (a number) beaming toward the direction `d` (N, S, E, W). |
 | `V` | Void | Yes | A void tile. The agent dies if it walks on it |

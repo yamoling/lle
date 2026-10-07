@@ -889,7 +889,7 @@ S13 L13W . . . X
 
 
 def test_world_exposes_boxes():
-    world = World("S0 B . X")
+    world = World("S0 # . X")
     world.reset()
     assert world.n_boxes == 1
     assert world.boxes_positions == [(0, 1)]
@@ -903,7 +903,7 @@ def test_world_without_boxes():
 
 
 def test_push_a_box_from_python():
-    world = World("S0 B . X")
+    world = World("S0 # . X")
     world.reset()
     world.step(Action.EAST)
     assert world.agents_positions == [(0, 1)]
@@ -911,7 +911,7 @@ def test_push_a_box_from_python():
 
 
 def test_box_destroyed_event():
-    world = World("S0 B V X")
+    world = World("S0 # V X")
     world.reset()
     events = world.step(Action.EAST)
     assert len(events) == 1
@@ -921,7 +921,7 @@ def test_box_destroyed_event():
 
 
 def test_destroyed_box_keeps_its_last_position():
-    world = World("S0 B V X")
+    world = World("S0 # V X")
     world.reset()
     world.step(Action.EAST)
     assert world.boxes_positions == [(0, 2)]
@@ -941,7 +941,7 @@ def test_existing_events_have_no_box_id():
 
 
 def test_state_round_trip_on_a_box_world():
-    world = World("S0 B . X")
+    world = World("S0 # . X")
     world.reset()
     initial = world.get_state()
     world.step(Action.EAST)
@@ -959,7 +959,7 @@ def test_state_round_trip_on_a_box_world():
 
 
 def test_state_round_trip_restores_a_destroyed_box():
-    world = World("S0 B V X")
+    world = World("S0 # V X")
     world.reset()
     initial = world.get_state()
     world.step(Action.EAST)

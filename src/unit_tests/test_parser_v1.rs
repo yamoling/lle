@@ -219,23 +219,17 @@ fn test_laser_blocked_on_spawn() {
 
 #[test]
 fn test_parse_box_token() {
-    let config = parse("S0 B . X").unwrap();
+    let config = parse("S0 # . X").unwrap();
     assert_eq!(config.boxes(), &vec![Position::new2d(0, 1)]);
 }
 
 #[test]
 fn test_several_boxes_keep_reading_order() {
-    let config = parse("S0 B X\n.  B .").unwrap();
+    let config = parse("S0 # X\n.  # .").unwrap();
     assert_eq!(
         config.boxes(),
         &vec![Position::new2d(0, 1), Position::new2d(1, 1)]
     );
-}
-
-#[test]
-fn test_lowercase_box_token() {
-    let config = parse("S0 b X").unwrap();
-    assert_eq!(config.boxes(), &vec![Position::new2d(0, 1)]);
 }
 
 #[test]
@@ -245,13 +239,13 @@ fn test_world_without_box_has_no_boxes() {
 
 #[test]
 fn test_box_is_emitted_in_the_v1_string() {
-    let config = parse("S0 B . X").unwrap();
-    assert_eq!(config.to_string(), "S0 B . X \n");
+    let config = parse("S0 # . X").unwrap();
+    assert_eq!(config.to_string(), "S0 # . X \n");
 }
 
 #[test]
 fn test_box_round_trips_through_v1() {
-    let world = crate::World::try_from("S0 B . X").unwrap();
+    let world = crate::World::try_from("S0 # . X").unwrap();
     let round_tripped = crate::World::try_from(world.world_string()).unwrap();
     assert_eq!(round_tripped.boxes_positions(), vec![Position::new2d(0, 1)]);
 }
@@ -259,6 +253,6 @@ fn test_box_round_trips_through_v1() {
 #[test]
 fn test_box_starting_on_a_laser_is_allowed() {
     // A box may start inside a beam: the beam is pre-blocked from reset.
-    let world = crate::World::try_from("L0E B . X\n S0 . . .").unwrap();
+    let world = crate::World::try_from("L0E # . X\n S0 . . .").unwrap();
     assert_eq!(world.n_boxes(), 1);
 }

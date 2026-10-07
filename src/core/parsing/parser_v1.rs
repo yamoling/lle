@@ -199,7 +199,7 @@ pub fn to_v1_string(config: &WorldConfig) -> Result<String, ()> {
         res.replace_at(&pos, "V".into());
     }
     for pos in config.boxes() {
-        res.replace_at(&pos, "B".into());
+        res.replace_at(&pos, "#".into());
     }
     for (pos, config) in config.sources() {
         res.replace_at(&pos, config.to_string());
@@ -245,6 +245,7 @@ pub fn parse(world_str: &str) -> Result<WorldConfig, ParseError> {
                 '@' => data.add_wall(pos),
                 'X' => data.add_exit(pos),
                 'V' => data.add_void(pos),
+                '#' => data.add_box(pos),
                 'S' => {
                     let colour = token[1..].parse().map_err(|_| ParseError::InvalidAgentId {
                         given_agent_id: token[1..].into(),
@@ -259,8 +260,6 @@ pub fn parse(world_str: &str) -> Result<WorldConfig, ParseError> {
                     let lift_config = LiftConfig::from_str(token)?;
                     data.add_lift(pos, lift_config);
                 }
-                // A bare `B` is a box, `B<group_id>[A<colour>]` is a button.
-                'B' if token.len() == 1 => data.add_box(pos),
                 'B' => {
                     let button_config = ButtonConfig::from_str(token)?;
                     data.add_button(pos, button_config);

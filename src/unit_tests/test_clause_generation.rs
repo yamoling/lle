@@ -174,7 +174,7 @@ fn test_position_validity_single_agent() {
 /// Every box is fixed at its start position at `t == 0`, like an agent.
 #[test]
 fn boxes_are_initialized_at_their_start_position() {
-    let world = World::try_from("S0 B . B X").expect("failed to parse world");
+    let world = World::try_from("S0 # . # X").expect("failed to parse world");
     let mut generator = ClauseGenerator::new(&world, 4).unwrap();
     let (clauses, _) = generator.generate(4, SolveMode::Standard, false);
 

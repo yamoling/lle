@@ -129,7 +129,7 @@ fn assert_differ_only_in_cell(drawn: &RgbImage, reference: &RgbImage, col: u32, 
 /// this fail when the box is simply never drawn.
 #[test]
 fn test_a_box_is_drawn_in_its_own_cell() {
-    let mut with_box = World::try_from("S0 B . X").unwrap();
+    let mut with_box = World::try_from("S0 # . X").unwrap();
     let mut without = World::try_from("S0 . . X").unwrap();
     with_box.reset();
     without.reset();
@@ -142,7 +142,7 @@ fn test_a_box_is_drawn_in_its_own_cell() {
 
 #[test]
 fn test_a_destroyed_box_is_not_drawn() {
-    let mut world = World::try_from("S0 B V X").unwrap();
+    let mut world = World::try_from("S0 # V X").unwrap();
     let mut reference = World::try_from("S0 . V X").unwrap();
     world.reset();
     reference.reset();
@@ -172,7 +172,7 @@ fn test_a_box_on_a_laser_is_visible() {
     // The box is pushed east, under the vertical beam of the source above.
     let mut world = World::try_from(
         ". . L1S
-S0 B .
+S0 # .
 . . X",
     )
     .unwrap();
@@ -207,7 +207,7 @@ S0 B .
 /// After a push, the box is drawn at its new cell and no longer at its old one.
 #[test]
 fn test_a_pushed_box_is_drawn_at_its_new_cell() {
-    let mut world = World::try_from("S0 B . X").unwrap();
+    let mut world = World::try_from("S0 # . X").unwrap();
     let mut empty = World::try_from("S0 . . X").unwrap();
     world.reset();
     empty.reset();

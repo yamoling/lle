@@ -42,7 +42,7 @@ CASES = [
     BoxCase(
         "push-along-corridor",
         """
-        S0 B . .
+        S0 # . .
         @  @ X @
         """,
         3,
@@ -51,7 +51,7 @@ CASES = [
         "box-blocks-beam",
         """
         L1S . . . @ @
-        .   B S0 . @ @
+        .   # S0 . @ @
         .   . . . @ @
         X   @ @ @ @ @"""
         + POCKET,
@@ -71,7 +71,7 @@ CASES = [
         "box-destroyed-in-void-does-not-block",
         """
         L1S . . . @ @
-        V   B S0 . @ @
+        V   # S0 . @ @
         .   . . . @ @
         X   @ @ @ @ @"""
         + POCKET,
@@ -80,7 +80,7 @@ CASES = [
     BoxCase(
         "box-pushed-along-beam-protects-pusher",
         """
-        S0 . B . L1W @
+        S0 . # . L1W @
         @  @ X @ @   @"""
         + POCKET,
         3,
@@ -91,7 +91,7 @@ CASES = [
         "immovable-box-neither-moves-nor-duplicates",
         """
         S0  . . @ @ @
-        B   . . @ @ @
+        #   . . @ @ @
         L1E . . @ @ @
         @   @ X @ @ @"""
         + POCKET,
@@ -100,7 +100,7 @@ CASES = [
     BoxCase(
         "box-cannot-be-pushed-into-wall",
         """
-        S0 B @
+        S0 # @
         @  X @
         """,
         None,
@@ -108,7 +108,7 @@ CASES = [
     BoxCase(
         "box-cannot-be-pushed-off-grid",
         """
-        S0 B X
+        S0 # X
         @  @ @
         """,
         None,
@@ -116,7 +116,7 @@ CASES = [
     BoxCase(
         "box-cannot-be-pushed-into-box",
         """
-        S0 B B . .
+        S0 # # . .
         @  @ X @ @
         """,
         None,
@@ -125,7 +125,7 @@ CASES = [
         "push-box-into-void-to-clear-path",
         """
         .  . @ @
-        S0 B . X
+        S0 # . X
         @  V @ @
         """,
         5,
@@ -134,7 +134,7 @@ CASES = [
         "same-path-without-void-is-blocked",
         """
         .  . @ @
-        S0 B . X
+        S0 # . X
         @  @ @ @
         """,
         None,
@@ -143,7 +143,7 @@ CASES = [
         # Agent 0 must wait one step: the box cannot be pushed onto the cell agent 1 is leaving.
         "box-cannot-follow-leaving-agent",
         """
-        S0 B S1 X
+        S0 # S1 X
         @  . .  X
         @  @ @  X
         """,
@@ -155,7 +155,7 @@ CASES = [
         "box-falling-into-void-under-beam-does-not-block",
         """
         X   S0 .  .
-        .   B  S1 .
+        .   #  S1 .
         L2E V  .  .
         @   @  X  @
         """,
@@ -166,7 +166,7 @@ CASES = [
         "box-blocks-beam-of-colour-without-agent",
         """
         L2S . .
-        .   B S0
+        .   # S0
         .   . .
         X   @ @
         """,
@@ -187,7 +187,7 @@ CASES = [
         "laser-colour-differs-from-agent-index",
         """
         L0S . .
-        .   B S1
+        .   # S1
         .   . .
         X   @ @
         """,
@@ -216,7 +216,7 @@ def test_box_case(case: BoxCase):
 
 @pytest.mark.parametrize("mode", ["no-cooperation", "no-mutual", "no-sequence"])
 def test_cooperation_modes_are_not_supported_with_boxes(mode: str):
-    solver = Solver(World("S0 B . .\n@ @ X @"), T_MAX)
+    solver = Solver(World("S0 # . .\n@ @ X @"), T_MAX)
     with pytest.raises(NotImplementedError, match="movable boxes"):
         solver.solve(mode=mode)
     with pytest.raises(NotImplementedError, match="movable boxes"):
