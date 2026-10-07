@@ -35,7 +35,11 @@ def test_time_reward():
     . .  . ."""
     ).build()
     env.reset()
+    # Trigger is only a legal action while standing on a Button, which this
+    # world does not have.
     for action in Action.variants():
+        if action == Action.TRIGGER:
+            continue
         reward = env.step([action.value]).reward
         assert reward == 0
 
@@ -242,6 +246,33 @@ def test_step_info_reports_death_metrics_for_each_agent():
     }
 
 
+def test_step_info_reports_joint_exit():
+    env = LLE.from_str(
+        """
+    S0 X
+    S1 X
+    """
+    ).build()
+    env.reset()
+    assert env.step([Action.EAST.value, Action.STAY.value]).info["joint_exit"] == 0
+    step = env.step([Action.STAY.value, Action.EAST.value])
+    assert step.done
+    assert step.info["joint_exit"] == 1
+
+
+def test_step_info_joint_exit_is_zero_on_death():
+    env = LLE.from_str(
+        """
+    S0 L0S X
+    S1  .  X
+    """
+    ).build()
+    env.reset()
+    step = env.step([Action.STAY.value, Action.EAST.value])
+    assert step.done
+    assert step.info["joint_exit"] == 0
+
+
 def test_reward_collect_and_death():
     env = LLE.from_str(
         """
@@ -421,5 +452,5 @@ def test_randomized_lasers_updates_static_observation_layer():
     for _ in range(50):
         env.reset()
         for source in env.world.laser_sources:
-            i, j = source.pos
-            assert generator.static_obs[generator.LASER_0 + source.agent_id, i, j] == -1.0
+            i, j, k = source.pos
+            assert generator.static_obs[generator.LASER_0 + source.agent_id, i, j, k] == -1.0

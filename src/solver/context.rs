@@ -4,7 +4,7 @@ use strum::IntoEnumIterator;
 
 use super::position_set::PositionSet;
 use crate::Position;
-use crate::{World, tiles::Direction};
+use crate::{World, tiles::CardinalDirection};
 
 const MAX_NEIGHBOURS: usize = 5;
 
@@ -16,7 +16,7 @@ pub struct NeighbourList {
 }
 
 impl NeighbourList {
-    const EMPTY_POSITION: Position = Position { i: 0, j: 0 };
+    const EMPTY_POSITION: Position = Position { i: 0, j: 0, k: 0 };
 
     pub const fn empty() -> Self {
         Self {
@@ -66,7 +66,7 @@ fn neighbours_of(
         // Once an agent reaches an exit, it can no longer move.
         return result;
     }
-    for d in Direction::iter() {
+    for d in CardinalDirection::iter() {
         if let Ok(n) = pos + d
             && n.i < height
             && n.j < width
@@ -145,7 +145,7 @@ impl ConstraintContext {
         let mut valid_positions = HashSet::new();
         for i in 0..height {
             for j in 0..width {
-                let pos = Position { i, j };
+                let pos = Position::new2d(i, j);
                 if !walls.contains(&pos) && !voids.contains(&pos) {
                     valid_positions.insert(pos);
                 }

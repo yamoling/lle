@@ -11,7 +11,7 @@ use rstest::rstest;
 use rstest_reuse::{self, apply, template};
 
 fn pos(i: usize, j: usize) -> Position {
-    Position { i, j }
+    Position { i, j, k: 0 }
 }
 
 fn build(map: &str, t_max: usize) -> ClauseGenerator {
@@ -487,7 +487,10 @@ fn test_gem_must_be_collected_clause_3gems() {
     // within the time window [1, 3] for gem 0 and [2, 4] for gem 1
     let t_min = [1, 2];
     let t_max = [3, 4];
-    let positions = [Position { i: 0, j: 1 }, Position { i: 0, j: 2 }];
+    let positions = [
+        Position { i: 0, j: 1, k: 0 },
+        Position { i: 0, j: 2, k: 0 },
+    ];
     for (i, gem_pos) in positions.into_iter().enumerate() {
         for tau in t_min[i]..=t_max[i] {
             if tau <= t_max[i] {
@@ -504,7 +507,7 @@ fn test_gem_must_be_collected_clause_3gems() {
         );
     }
     // Check gem 2 at (3,2): only accessible by agent 1 within the time window [2, 4]
-    let gem_pos = Position { i: 3, j: 2 };
+    let gem_pos = Position { i: 3, j: 2, k: 0 };
     for tau in 2..=4 {
         let err_message = format!("literal agent=1, pos={gem_pos:?}, t={tau} should exist");
         let lit = cg

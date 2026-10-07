@@ -83,7 +83,7 @@ starts = [{row = 0}]
             // Start positions should be (0, 0), (0, 1) ... (0, 9)
             for start in config.random_starts() {
                 for j in 0..config.width() {
-                    assert!(start.contains(&Position { i: 0, j }));
+                    assert!(start.contains(&Position { i: 0, j, k: 0 }));
                 }
             }
         }
@@ -104,7 +104,7 @@ starts = [{col = 0}]
         Ok(config) => {
             for start in config.random_starts() {
                 for i in 0..config.height() {
-                    assert!(start.contains(&Position { i, j: 0 }));
+                    assert!(start.contains(&Position { i, j: 0, k: 0 }));
                 }
             }
         }
@@ -130,10 +130,10 @@ starts = [{col = 0}, {row=0}]
                     "There should only be 19 starts since duplicates should be removed"
                 );
                 for i in 0..config.height() {
-                    assert!(start.contains(&Position { i, j: 0 }));
+                    assert!(start.contains(&Position { i, j: 0, k: 0 }));
                 }
                 for j in 0..config.width() {
-                    assert!(start.contains(&Position { i: 0, j }));
+                    assert!(start.contains(&Position { i: 0, j, k: 0 }));
                 }
             }
         }
@@ -195,7 +195,7 @@ start_positions = [
     assert_eq!(w.gems_positions().len(), 1);
     assert_eq!(w.n_agents(), 4);
     // Agent 0 gets its only start from the world string, and its colour from the token.
-    assert_eq!(w.possible_starts()[0], vec![Position { i: 0, j: 4 }]);
+    assert_eq!(w.possible_starts()[0], vec![Position { i: 0, j: 4, k: 0 }]);
     assert_eq!(w.agent_colours(), vec![1, 1, 2, 3]);
 }
 
@@ -213,4 +213,127 @@ exits = [{ col = 4 }]
     for starts in w.possible_starts() {
         assert_eq!(starts.len(), 9);
     }
+}
+
+#[test]
+fn empty_world_string_returns_parse_error_not_panic() {
+    match parse(r#"world_string = """#) {
+        Err(ParseError::EmptyWorld) => {}
+        other => panic!("Expected ParseError::EmptyWorld, got {other:?}"),
+    }
+}
+
+#[test]
+fn malformed_lift_table_returns_invalid_toml_document() {
+    let toml_content = r#"
+width = 3
+height = 3
+[[lifts]]
+direction = "Up"
+group_id = "oops"
+[lifts.position]
+i = 0
+j = 0
+k = 0
+"#;
+    match parse(toml_content) {
+        Err(ParseError::InvalidTomlDocument { .. }) => {}
+        other => panic!("Expected ParseError::InvalidTomlDocument, got {other:?}"),
+    }
+}
+
+#[test]
+fn malformed_button_table_missing_required_field() {
+    let toml_content = r#"
+width = 3
+height = 3
+[[buttons]]
+[buttons.position]
+i = 0
+j = 0
+k = 0
+"#;
+    match parse(toml_content) {
+        Err(ParseError::InvalidTomlDocument { .. }) => {}
+        other => panic!("Expected ParseError::InvalidTomlDocument, got {other:?}"),
+    }
+}
+
+#[test]
+fn unknown_field_in_lift_table_is_reported() {
+    let toml_content = r#"
+width = 3
+height = 3
+[[lifts]]
+direction = "Up"
+group_id = 0
+directoin = "typo"
+[lifts.position]
+i = 0
+j = 0
+k = 0
+"#;
+    match parse(toml_content) {
+        Err(ParseError::UnknownTomlKey { key, .. }) => {
+            assert_eq!(key, "directoin");
+        }
+        other => panic!("Expected ParseError::UnknownTomlKey, got {other:?}"),
+    }
+}
+
+#[test]
+fn unknown_field_in_button_table_is_reported() {
+    let toml_content = r#"
+width = 3
+height = 3
+[[buttons]]
+group_id = 0
+gruop_id = 0
+[buttons.position]
+i = 0
+j = 0
+k = 0
+"#;
+    match parse(toml_content) {
+        Err(ParseError::UnknownTomlKey { key, .. }) => {
+            assert_eq!(key, "gruop_id");
+        }
+        other => panic!("Expected ParseError::UnknownTomlKey, got {other:?}"),
+    }
+}
+
+#[test]
+fn parse_toml_with_buttons_and_lifts_round_trip() {
+    let toml_content = r#"
+width = 3
+height = 3
+[[lifts]]
+direction = "Up"
+group_id = 1
+authorized_colour = 0
+[lifts.position]
+i = 0
+j = 2
+k = 0
+
+[[buttons]]
+group_id = 1
+[buttons.position]
+i = 1
+j = 1
+k = 0
+"#;
+    let config = parse(toml_content).unwrap();
+    assert_eq!(config.lifts().len(), 1);
+    let (pos, lift) = &config.lifts()[0];
+    assert_eq!(*pos, Position { i: 0, j: 2, k: 0 });
+    assert_eq!(lift.direction, crate::tiles::VerticalDirection::Up);
+    assert_eq!(lift.group_id, 1);
+    assert_eq!(lift.authorized_colour, Some(0));
+
+    assert_eq!(config.buttons().len(), 1);
+    let (pos, button) = &config.buttons()[0];
+    assert_eq!(*pos, Position { i: 1, j: 1, k: 0 });
+    assert_eq!(button.group_id, 1);
+    assert_eq!(button.authorized_colour, None);
 }

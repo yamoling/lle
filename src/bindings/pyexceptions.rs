@@ -53,13 +53,21 @@ pub fn parse_error_to_exception(error: ParseError) -> PyErr {
         ));
     }
     let msg = match error {
-        ParseError::InconsistentDimensions {
+        ParseError::Inconsistent2Dimensions {
             row_str,
             expected_n_cols,
             actual_n_cols,
             row,
         } => format!(
             "Inconsistent number of columns in world string. Row number {row} with content {row_str} expected {expected_n_cols} tiles but got {actual_n_cols} tiles"
+        ),
+        ParseError::Inconsistent3Dimensions {
+            expected_n_dims,
+            actual_n_dims,
+            layer,
+        } => format!(
+            "Inconsistent number of dimensions in layer {}: expected {:?}, got {:?}",
+            layer, expected_n_dims, actual_n_dims
         ),
         ParseError::NotEnoughExitTiles { n_starts, n_exits } => {
             format!("Not enough exit tiles: {n_starts} starts, {n_exits} exits")
@@ -74,6 +82,9 @@ pub fn parse_error_to_exception(error: ParseError) -> PyErr {
         } => format!("Invalid tile '{tile_str}' at position ({line}, {col})"),
         ParseError::InvalidAgentId { given_agent_id } => {
             format!("Can not parse agent id: {given_agent_id}. Expected an interger >= 0.")
+        }
+        ParseError::InvalidGroupId { given_group_id } => {
+            format!("Can not parse group id: {given_group_id}. Expected an integer >= 0.")
         }
         ParseError::InvalidLaserSourceAgentId { asked_id, n_agents } => {
             format!(
@@ -111,12 +122,22 @@ pub fn parse_error_to_exception(error: ParseError) -> PyErr {
         } => format!(
             "Inconsistent world string height: toml height is {toml_height}, world string height is {world_str_height}"
         ),
-        ParseError::PositionOutOfBounds { i, j } => {
-            format!("Position ({i}, {j}) is out of the world's boundaries")
+        ParseError::InconsistentWorldStringLayers {
+            toml_layers,
+            world_str_layers,
+        } => format!(
+            "Inconsistent world string layers: toml layers is {toml_layers}, world string layers is {world_str_layers}"
+        ),
+        ParseError::PositionOutOfBounds { i, j, k } => {
+            format!("Position ({i}, {j}, {k}) is out of the world's boundaries")
         }
         ParseError::MissingHeight => "Missing height in the world configuration file".into(),
         ParseError::MissingWidth => "Missing width in the world configuration file".into(),
+        ParseError::MissingLayers => "Missing layers in the world configuration file".into(),
         ParseError::UnknownTomlKey { message, .. } => message,
+        ParseError::InvalidTomlDocument { message } => {
+            format!("Invalid TOML document: {message}")
+        }
         ParseError::NotV2 => panic!("NotV2 exception should not be raised here"),
     };
     ParsingError::new_err(msg)

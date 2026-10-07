@@ -1,11 +1,11 @@
-use crate::{Position, Tile, World, solver::context::ConstraintContext, tiles::Direction};
+use crate::{Position, Tile, World, solver::context::ConstraintContext, tiles::CardinalDirection};
 use rstest::rstest;
 use rstest_reuse::{self, apply, template};
 use std::collections::HashSet;
 use strum::IntoEnumIterator;
 
 fn pos(i: usize, j: usize) -> Position {
-    Position { i, j }
+    Position::new2d(i, j)
 }
 
 #[template]
@@ -438,7 +438,7 @@ fn neighbours_include_stay_and_walkable_cardinal_tiles() {
                     // Neighbours are the position itself + the non-walls neighbours
                     std::iter::once(p)
                         .chain(
-                            Direction::iter()
+                            CardinalDirection::iter()
                                 .filter_map(|d| (p + d).ok())
                                 .filter(|n| n.i < world.height() && n.j < world.width())
                                 .filter(|n| !is_invalid(n)),

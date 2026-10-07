@@ -9,7 +9,7 @@
 use crate::{Action, Position, World, tiles::Laser};
 
 fn pos(i: usize, j: usize) -> Position {
-    Position { i, j }
+    Position { i, j, k: 0 }
 }
 
 fn get_laser(world: &World, pos: Position) -> &Laser {

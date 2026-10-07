@@ -1,14 +1,18 @@
 use pyo3::PyResult;
 
+mod pybutton;
 mod pydirection;
 mod pygem;
 mod pylaser;
 mod pylaser_source;
+mod pylift;
 
+pub use pybutton::PyButton;
 pub use pydirection::PyDirection;
 pub use pygem::PyGem;
 pub use pylaser::PyLaser;
 pub use pylaser_source::PyLaserSource;
+pub use pylift::PyLift;
 
 use crate::{Position, Tile, World};
 

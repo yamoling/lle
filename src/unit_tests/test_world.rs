@@ -2,14 +2,16 @@ use core::panic;
 use std::vec;
 
 use crate::{
-    Action, ParseError, Position, RuntimeWorldError, WorldEvent, agent::Agent, core::WorldState,
-    tiles::Laser,
+    Action, Grid, ParseError, Position, RuntimeWorldError, WorldEvent,
+    agent::{Agent, Colour},
+    core::WorldState,
+    tiles::{Button, Laser, Lift, Tile, VerticalDirection},
 };
 
 use super::World;
 
 fn pos(i: usize, j: usize) -> Position {
-    Position { i, j }
+    Position { i, j, k: 0 }
 }
 
 fn get_laser(world: &World, pos: Position) -> &Laser {
@@ -31,9 +33,9 @@ fn test_tile_type() {
     )
     .unwrap();
     world.reset();
-    assert!(world.start_positions.contains(&(Position { i: 0, j: 0 })));
+    assert!(world.start_positions.contains(&(Position::new2d(0, 0))));
     //let start = world.start_positions[0].get(&(0, 0)).unwrap();
-    assert_eq!(world.start_positions[0], Position { i: 0, j: 0 });
+    assert_eq!(world.start_positions[0], Position::new2d(0, 0));
 
     assert!(
         world
@@ -43,21 +45,21 @@ fn test_tile_type() {
     );
     let source = world
         .sources()
-        .find(|(Position { i, j }, _)| *i == 1 && *j == 0)
+        .find(|(Position { i, j, k: _ }, _)| *i == 1 && *j == 0)
         .unwrap()
         .1;
     assert_eq!(source.agent_id(), 0);
-    let laser = get_laser(&world, Position { i: 1, j: 1 });
+    let laser = get_laser(&world, Position::new2d(1, 1));
     assert_eq!(laser.agent_id(), 0);
     let n_exits_at_1_1 = world
         .exits
         .iter()
-        .filter(|Position { i, j }| *i == 1 && *j == 1)
+        .filter(|Position { i, j, k: _ }| *i == 1 && *j == 1)
         .count();
     assert!(n_exits_at_1_1 == 1);
     assert!(world.wall_positions.len() == 2);
-    assert!(world.wall_positions.contains(&Position { i: 1, j: 2 }));
-    assert!(world.wall_positions.contains(&Position { i: 1, j: 0 }));
+    assert!(world.wall_positions.contains(&Position::new2d(1, 2)));
+    assert!(world.wall_positions.contains(&Position::new2d(1, 0)));
 }
 
 /// See `.agents/plans/agent-colour-id.md` §3.4: a repeated `S<c>` token no longer is a
@@ -328,7 +330,7 @@ fn test_force_state_invalid_number_of_agents() {
     .unwrap();
     w.reset();
     let s = WorldState::new_alive(
-        [Position { i: 1, j: 2 }, Position { i: 0, j: 0 }].into(),
+        [Position::new2d(1, 2), Position::new2d(0, 0)].into(),
         [true].into(),
     );
     match w.set_state(&s) {
@@ -484,7 +486,7 @@ fn parse_inconsistent_row_lengths() {
     ) {
         Ok(_) => panic!("Should not be able to parse worlds with inconsistent row lengths"),
         Err(e) => match e {
-            ParseError::InconsistentDimensions {
+            ParseError::Inconsistent2Dimensions {
                 actual_n_cols,
                 expected_n_cols,
                 row,
@@ -494,11 +496,63 @@ fn parse_inconsistent_row_lengths() {
                 assert_eq!(expected_n_cols, 3);
                 assert_eq!(row, 1);
             }
-            _ => panic!("Expected InconsistentDimensions, got {e:?}"),
+            _ => panic!("Expected Inconsistent2Dimensions, got {e:?}"),
         },
     }
 }
 
+#[test]
+fn parse_inconsistent_size_between_layers() {
+    match World::try_from(
+        "X S0 .
+         . . .
+         ;
+         . .
+         . .",
+    ) {
+        Ok(_) => panic!("Should not be able to parse worlds with inconsistent row lengths"),
+        Err(e) => match e {
+            ParseError::Inconsistent2Dimensions {
+                actual_n_cols,
+                expected_n_cols,
+                row,
+                ..
+            } => {
+                assert_eq!(actual_n_cols, 2);
+                assert_eq!(expected_n_cols, 3);
+                assert_eq!(row, 0);
+            }
+            _ => panic!("Expected Inconsistent2Dimensions, got {e:?}"),
+        },
+    }
+}
+#[test]
+fn parse_inconsistent_size_between_layers2() {
+    match World::try_from(
+        "X S0 .
+         . . .
+         ;
+         . . .
+         . . .
+         . . .
+         ",
+    ) {
+        Ok(_) => panic!("Should not be able to parse worlds with inconsistent column lengths"),
+        Err(e) => match e {
+            ParseError::Inconsistent3Dimensions {
+                actual_n_dims,
+                expected_n_dims,
+                layer,
+                ..
+            } => {
+                assert_eq!(actual_n_dims, (3, 3));
+                assert_eq!(expected_n_dims, (2, 3));
+                assert_eq!(layer, 1);
+            }
+            _ => panic!("Expected InconsistentDimensions, got {e:?}"),
+        },
+    }
+}
 #[test]
 fn parse_inconsistent_start_exit_tiles() {
     match World::try_from("S1 S0 X") {
@@ -710,10 +764,10 @@ start_positions = [{i=0, j=0}]
     for _ in 0..1_000 {
         world.reset();
         let positions = world.agents_positions();
-        assert_eq!(positions[0], Position { i: 3, j: 0 });
-        assert_eq!(positions[1], Position { i: 2, j: 0 });
-        assert_eq!(positions[2], Position { i: 1, j: 0 });
-        assert_eq!(positions[3], Position { i: 0, j: 0 });
+        assert_eq!(positions[0], Position::new2d(3, 0));
+        assert_eq!(positions[1], Position::new2d(2, 0));
+        assert_eq!(positions[2], Position::new2d(1, 0));
+        assert_eq!(positions[3], Position::new2d(0, 0));
     }
 }
 
@@ -728,14 +782,14 @@ fn set_exits() {
     .unwrap();
     world.reset();
     assert!(world.exits_positions().len() == 1);
-    assert!(world.exits_positions().contains(&Position { i: 1, j: 0 }));
+    assert!(world.exits_positions().contains(&Position::new2d(1, 0)));
 
     world
         .set_exit_positions(vec![(0, 1).into(), (1, 1).into()])
         .unwrap();
     assert_eq!(world.exits_positions().len(), 2);
-    assert!(world.exits_positions().contains(&Position { i: 0, j: 1 }));
-    assert!(world.exits_positions().contains(&Position { i: 1, j: 1 }));
+    assert!(world.exits_positions().contains(&Position::new2d(0, 1)));
+    assert!(world.exits_positions().contains(&Position::new2d(1, 1)));
 }
 
 #[test]
@@ -796,6 +850,173 @@ fn set_exits_old_exit_inactive() {
     assert!(events.is_empty());
 }
 
+/// Builds a world directly (bypassing the text parser) with the given tiles
+/// placed on top of a floor, and one agent per given start position. `Lift`
+/// only ever moves an agent along `k`, so tests that need actual lift
+/// movement use `layers > 1` and keep independent lift/button setups apart
+/// by column (`j`) instead of by row.
+fn build_lift_world(
+    width: usize,
+    layers: usize,
+    tiles: Vec<(Position, Tile)>,
+    starts: Vec<Position>,
+) -> World {
+    // Default colours: one per agent, so colour == id. Tests that need two
+    // agents to share a colour use `build_lift_world_with_colours`.
+    let colours = (0..starts.len()).collect();
+    build_lift_world_with_colours(width, layers, tiles, starts, colours)
+}
+
+/// Same, but with explicit agent colours. Lift and button authorization is
+/// keyed by colour, so a world where colour != id is the only thing that can
+/// tell colour-keyed authorization apart from id-keyed authorization.
+fn build_lift_world_with_colours(
+    width: usize,
+    layers: usize,
+    tiles: Vec<(Position, Tile)>,
+    starts: Vec<Position>,
+    colours: Vec<Colour>,
+) -> World {
+    let mut grid = Grid::<Tile>::new(width, 1, layers).default_init();
+    let mut lift_positions = vec![];
+    let mut button_positions = vec![];
+    for (pos, tile) in tiles {
+        match &tile {
+            Tile::Lift(_) => lift_positions.push(pos),
+            Tile::Button(_) => button_positions.push(pos),
+            _ => {}
+        }
+        grid.replace_at(&pos, tile);
+    }
+    let random_start_positions = starts.into_iter().map(|p| vec![p]).collect();
+    World::new(
+        grid,
+        vec![],
+        random_start_positions,
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        lift_positions,
+        button_positions,
+        colours,
+    )
+}
+
+#[test]
+fn test_button_pulses_lift_only_moves_same_group_occupant() {
+    let button_pos = Position { i: 0, j: 0, k: 0 };
+    let lift1_pos = Position { i: 0, j: 1, k: 0 };
+    let dest1_pos = Position { i: 0, j: 1, k: 1 };
+    let lift2_pos = Position { i: 0, j: 2, k: 0 };
+
+    let tiles = vec![
+        (button_pos, Tile::Button(Button::new(1))),
+        (
+            lift1_pos,
+            Tile::Lift(Lift::new(VerticalDirection::Up, None, 1)),
+        ),
+        (
+            lift2_pos,
+            Tile::Lift(Lift::new(VerticalDirection::Up, None, 2)),
+        ),
+    ];
+    let mut world = build_lift_world(3, 2, tiles, vec![button_pos, lift1_pos, lift2_pos]);
+
+    world
+        .step(&[Action::Trigger, Action::Stay, Action::Stay])
+        .unwrap();
+
+    assert_eq!(world.agents_positions()[0], button_pos);
+    assert_eq!(world.agents_positions()[1], dest1_pos);
+    // Different group: must not be pulsed by the button.
+    assert_eq!(world.agents_positions()[2], lift2_pos);
+}
+
+#[test]
+fn test_lift_with_no_occupant_does_nothing() {
+    let button_pos = Position { i: 0, j: 0, k: 0 };
+    let lift_pos = Position { i: 0, j: 1, k: 0 };
+    let tiles = vec![
+        (button_pos, Tile::Button(Button::new(1))),
+        (
+            lift_pos,
+            Tile::Lift(Lift::new(VerticalDirection::Up, None, 1)),
+        ),
+    ];
+    let mut world = build_lift_world(2, 2, tiles, vec![button_pos]);
+
+    let events = world.step(&[Action::Trigger]).unwrap();
+
+    assert!(events.is_empty());
+    assert_eq!(world.agents_positions()[0], button_pos);
+}
+
+#[test]
+fn test_two_lifts_same_group_both_move() {
+    let button_pos = Position { i: 0, j: 0, k: 0 };
+    let lift_a = Position { i: 0, j: 1, k: 0 };
+    let dest_a = Position { i: 0, j: 1, k: 1 };
+    let lift_b = Position { i: 0, j: 2, k: 1 };
+    let dest_b = Position { i: 0, j: 2, k: 0 };
+
+    let tiles = vec![
+        (button_pos, Tile::Button(Button::new(9))),
+        (
+            lift_a,
+            Tile::Lift(Lift::new(VerticalDirection::Up, None, 9)),
+        ),
+        (
+            lift_b,
+            Tile::Lift(Lift::new(VerticalDirection::Down, None, 9)),
+        ),
+    ];
+    let mut world = build_lift_world(3, 2, tiles, vec![button_pos, lift_a, lift_b]);
+
+    world
+        .step(&[Action::Trigger, Action::Stay, Action::Stay])
+        .unwrap();
+
+    assert_eq!(world.agents_positions()[1], dest_a);
+    assert_eq!(world.agents_positions()[2], dest_b);
+}
+
+#[test]
+fn test_colliding_lift_destinations_revert() {
+    let button_pos = Position { i: 0, j: 1, k: 0 };
+    let lift_a = Position { i: 0, j: 0, k: 0 };
+    let lift_b = Position { i: 0, j: 0, k: 2 };
+
+    let tiles = vec![
+        (button_pos, Tile::Button(Button::new(3))),
+        (
+            lift_a,
+            Tile::Lift(Lift::new(VerticalDirection::Up, None, 3)),
+        ),
+        (
+            lift_b,
+            Tile::Lift(Lift::new(VerticalDirection::Down, None, 3)),
+        ),
+    ];
+    let mut world = build_lift_world(2, 3, tiles, vec![button_pos, lift_a, lift_b]);
+
+    let events = world
+        .step(&[Action::Trigger, Action::Stay, Action::Stay])
+        .unwrap();
+
+    // Both lifts targeted position (0, 0, 1): the conflict reverts both
+    // riders back to where they stood (on their respective lifts).
+    assert_eq!(world.agents_positions()[1], lift_a);
+    assert_eq!(world.agents_positions()[2], lift_b);
+    // Neither reverted move should be reported as a `LiftMoved` event.
+    assert!(
+        !events
+            .iter()
+            .any(|e| matches!(e, WorldEvent::LiftMoved { .. }))
+    );
+}
+
 #[test]
 fn test_beam_single_source() {
     let mut w = World::try_from(
@@ -809,7 +1030,7 @@ fn test_beam_single_source() {
     let src1 = w.source_at(pos(0, 0)).unwrap();
     let positions: Vec<Position> = w.beam(src1.laser_id()).unwrap().collect();
     assert_eq!(1, positions.len());
-    assert!(positions.contains(&Position { i: 0, j: 1 }));
+    assert!(positions.contains(&Position { i: 0, j: 1, k: 0 }));
 
     let src2 = w.source_at(pos(0, 2)).unwrap();
     let positions: Vec<Position> = w.beam(src2.laser_id()).unwrap().collect();
@@ -847,12 +1068,263 @@ fn test_beam_long() {
     assert_eq!(
         positions,
         vec![
-            Position { i: 0, j: 1 },
-            Position { i: 0, j: 2 },
-            Position { i: 0, j: 3 },
-            Position { i: 0, j: 4 },
+            Position { i: 0, j: 1, k: 0 },
+            Position { i: 0, j: 2, k: 0 },
+            Position { i: 0, j: 3, k: 0 },
+            Position { i: 0, j: 4, k: 0 },
         ]
     );
+}
+
+#[test]
+fn test_lift_destination_out_of_bounds_is_noop() {
+    let button_pos = Position { i: 0, j: 0, k: 0 };
+    let lift_pos = Position { i: 0, j: 1, k: 0 };
+    let tiles = vec![
+        (button_pos, Tile::Button(Button::new(1))),
+        (
+            lift_pos,
+            Tile::Lift(Lift::new(VerticalDirection::Up, None, 1)),
+        ),
+    ];
+    // A single layer: the lift's `Up` destination (k=1) is out of bounds.
+    let mut world = build_lift_world(2, 1, tiles, vec![button_pos, lift_pos]);
+
+    let events = world.step(&[Action::Trigger, Action::Stay]).unwrap();
+
+    assert!(events.is_empty());
+    assert_eq!(world.agents_positions()[1], lift_pos);
+}
+
+#[test]
+fn test_lift_destination_wall_is_noop() {
+    let button_pos = Position { i: 0, j: 0, k: 0 };
+    let lift_pos = Position { i: 0, j: 1, k: 0 };
+    let wall_pos = Position { i: 0, j: 1, k: 1 };
+    let tiles = vec![
+        (button_pos, Tile::Button(Button::new(1))),
+        (
+            lift_pos,
+            Tile::Lift(Lift::new(VerticalDirection::Up, None, 1)),
+        ),
+        (wall_pos, Tile::Wall),
+    ];
+    let mut world = build_lift_world(2, 2, tiles, vec![button_pos, lift_pos]);
+
+    world.step(&[Action::Trigger, Action::Stay]).unwrap();
+
+    assert_eq!(world.agents_positions()[1], lift_pos);
+}
+
+#[test]
+fn test_button_pulses_lift_up_moves_agent_to_higher_layer() {
+    let button_pos = Position { i: 0, j: 0, k: 0 };
+    let lift_pos = Position { i: 0, j: 1, k: 0 };
+    let dest_pos = Position { i: 0, j: 1, k: 1 };
+    let tiles = vec![
+        (button_pos, Tile::Button(Button::new(1))),
+        (
+            lift_pos,
+            Tile::Lift(Lift::new(VerticalDirection::Up, None, 1)),
+        ),
+    ];
+    let mut world = build_lift_world(2, 2, tiles, vec![button_pos, lift_pos]);
+
+    let events = world.step(&[Action::Trigger, Action::Stay]).unwrap();
+
+    assert_eq!(world.agents_positions()[0], button_pos);
+    assert_eq!(world.agents_positions()[1], dest_pos);
+    assert!(events.contains(&WorldEvent::LiftMoved {
+        agent_id: 1,
+        from: lift_pos,
+        to: dest_pos,
+    }));
+}
+
+#[test]
+fn test_button_pulses_lift_down_moves_agent_to_lower_layer() {
+    let button_pos = Position { i: 0, j: 0, k: 1 };
+    let lift_pos = Position { i: 0, j: 1, k: 1 };
+    let dest_pos = Position { i: 0, j: 1, k: 0 };
+    let tiles = vec![
+        (button_pos, Tile::Button(Button::new(1))),
+        (
+            lift_pos,
+            Tile::Lift(Lift::new(VerticalDirection::Down, None, 1)),
+        ),
+    ];
+    let mut world = build_lift_world(2, 2, tiles, vec![button_pos, lift_pos]);
+
+    world.step(&[Action::Trigger, Action::Stay]).unwrap();
+
+    assert_eq!(world.agents_positions()[0], button_pos);
+    assert_eq!(world.agents_positions()[1], dest_pos);
+}
+
+#[test]
+fn test_button_authorized_colour_blocks_other_agents() {
+    let button_pos = Position { i: 0, j: 0, k: 0 };
+    let lift_pos = Position { i: 0, j: 1, k: 0 };
+    let tiles = vec![
+        (button_pos, Tile::Button(Button::new(1).restricted_to(1))),
+        (
+            lift_pos,
+            Tile::Lift(Lift::new(VerticalDirection::Up, None, 1)),
+        ),
+    ];
+    // Agent 0 stands on the button, but it is restricted to agent 1.
+    let mut world = build_lift_world(2, 2, tiles, vec![button_pos, lift_pos]);
+
+    let events = world.step(&[Action::Trigger, Action::Stay]).unwrap();
+
+    assert!(events.is_empty());
+    assert_eq!(world.agents_positions()[0], button_pos);
+    // The lift was never pulsed, so its rider (agent 1) stays put.
+    assert_eq!(world.agents_positions()[1], lift_pos);
+}
+
+#[test]
+fn test_lift_authorized_colour_blocks_other_riders() {
+    let button_pos = Position { i: 0, j: 0, k: 0 };
+    let lift_pos = Position { i: 0, j: 1, k: 0 };
+    let tiles = vec![
+        (button_pos, Tile::Button(Button::new(5))),
+        (
+            lift_pos,
+            Tile::Lift(Lift::new(VerticalDirection::Up, Some(0), 5)),
+        ),
+    ];
+    // Agent 1 rides the lift, but it is restricted to agent 0.
+    let mut world = build_lift_world(2, 2, tiles, vec![button_pos, lift_pos]);
+
+    world.step(&[Action::Trigger, Action::Stay]).unwrap();
+
+    assert_eq!(world.agents_positions()[1], lift_pos);
+}
+
+#[test]
+fn test_lift_authorized_colour_allows_matching_rider() {
+    let lift_pos = Position { i: 0, j: 0, k: 0 };
+    let dest_pos = Position { i: 0, j: 0, k: 1 };
+    let button_pos = Position { i: 0, j: 1, k: 0 };
+    let tiles = vec![
+        (
+            lift_pos,
+            Tile::Lift(Lift::new(VerticalDirection::Up, Some(0), 5)),
+        ),
+        (button_pos, Tile::Button(Button::new(5))),
+    ];
+    // Agent 0 rides the lift (matches its authorized_colour); agent 1 triggers.
+    let mut world = build_lift_world(2, 2, tiles, vec![lift_pos, button_pos]);
+
+    world.step(&[Action::Stay, Action::Trigger]).unwrap();
+
+    assert_eq!(world.agents_positions()[0], dest_pos);
+    assert_eq!(world.agents_positions()[1], button_pos);
+}
+
+#[test]
+fn test_lift_authorization_admits_any_agent_of_the_colour() {
+    // Both agents are colour 0 and the lift admits colour 0, so the rider goes up
+    // even though its *id* (1) is not the authorized number. Under id-keyed
+    // authorization this rider would have been left in place.
+    let button_pos = Position { i: 0, j: 0, k: 0 };
+    let lift_pos = Position { i: 0, j: 1, k: 0 };
+    let dest_pos = Position { i: 0, j: 1, k: 1 };
+    let tiles = vec![
+        (button_pos, Tile::Button(Button::new(5))),
+        (
+            lift_pos,
+            Tile::Lift(Lift::new(VerticalDirection::Up, Some(0), 5)),
+        ),
+    ];
+    // Agent 0 (colour 0) triggers; agent 1 (also colour 0) rides.
+    let mut world =
+        build_lift_world_with_colours(2, 2, tiles, vec![button_pos, lift_pos], vec![0, 0]);
+
+    world.step(&[Action::Trigger, Action::Stay]).unwrap();
+
+    assert_eq!(world.agents_positions()[1], dest_pos);
+}
+
+#[test]
+fn test_lift_authorization_blocks_a_rider_of_another_colour() {
+    let button_pos = Position { i: 0, j: 0, k: 0 };
+    let lift_pos = Position { i: 0, j: 1, k: 0 };
+    let tiles = vec![
+        (button_pos, Tile::Button(Button::new(5))),
+        (
+            lift_pos,
+            Tile::Lift(Lift::new(VerticalDirection::Up, Some(1), 5)),
+        ),
+    ];
+    // The rider is colour 0 but the lift admits colour 1 only.
+    let mut world =
+        build_lift_world_with_colours(2, 2, tiles, vec![button_pos, lift_pos], vec![1, 0]);
+
+    world.step(&[Action::Trigger, Action::Stay]).unwrap();
+
+    assert_eq!(world.agents_positions()[1], lift_pos);
+}
+
+#[test]
+fn test_button_authorization_admits_any_agent_of_the_colour() {
+    // The button admits colour 1; the presser is agent id 0, which *has* colour 1.
+    // Id-keyed authorization would have rejected it.
+    let button_pos = Position { i: 0, j: 0, k: 0 };
+    let lift_pos = Position { i: 0, j: 1, k: 0 };
+    let dest_pos = Position { i: 0, j: 1, k: 1 };
+    let tiles = vec![
+        (button_pos, Tile::Button(Button::new(5).restricted_to(1))),
+        (
+            lift_pos,
+            Tile::Lift(Lift::new(VerticalDirection::Up, None, 5)),
+        ),
+    ];
+    let mut world =
+        build_lift_world_with_colours(2, 2, tiles, vec![button_pos, lift_pos], vec![1, 0]);
+
+    world.step(&[Action::Trigger, Action::Stay]).unwrap();
+
+    assert_eq!(world.agents_positions()[1], dest_pos);
+}
+
+#[test]
+fn test_button_authorization_blocks_an_agent_of_another_colour() {
+    let button_pos = Position { i: 0, j: 0, k: 0 };
+    let lift_pos = Position { i: 0, j: 1, k: 0 };
+    let tiles = vec![
+        (button_pos, Tile::Button(Button::new(5).restricted_to(1))),
+        (
+            lift_pos,
+            Tile::Lift(Lift::new(VerticalDirection::Up, None, 5)),
+        ),
+    ];
+    // The presser is agent id 1 - which *is* the authorized number - but its colour
+    // is 0, so the button admitting colour 1 must still reject it. Id-keyed
+    // authorization would have let this through.
+    let mut world =
+        build_lift_world_with_colours(2, 2, tiles, vec![lift_pos, button_pos], vec![0, 0]);
+
+    let events = world.step(&[Action::Stay, Action::Trigger]).unwrap();
+
+    assert!(events.is_empty());
+    // The lift was never pulsed, so its rider stays put.
+    assert_eq!(world.agents_positions()[0], lift_pos);
+}
+
+#[test]
+fn test_available_actions_trigger_only_on_button() {
+    let button_pos = Position::new2d(0, 0);
+    let floor_pos = Position::new2d(0, 1);
+    let tiles = vec![(button_pos, Tile::Button(Button::new(0)))];
+    let mut world = build_lift_world(3, 1, tiles, vec![button_pos, floor_pos]);
+    world.reset();
+
+    let available = world.available_actions();
+
+    assert!(available[0].contains(&Action::Trigger));
+    assert!(!available[1].contains(&Action::Trigger));
 }
 
 #[test]
@@ -883,7 +1355,7 @@ fn test_beam_agent_on_beam_tile() {
     .unwrap();
     w.reset();
     w.step(&[Action::North]).unwrap();
-    assert_eq!(w.agents_positions()[0], Position { i: 0, j: 1 });
+    assert_eq!(w.agents_positions()[0], Position { i: 0, j: 1, k: 0 });
 
     let first = w.source_at((0, 0).into()).unwrap().laser_id();
     let positions: Vec<Position> = w.beam(first).unwrap().collect();

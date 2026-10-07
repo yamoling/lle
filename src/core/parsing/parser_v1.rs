@@ -1,13 +1,17 @@
 use std::collections::BTreeMap;
 
-use crate::{Position, agent::Colour};
+use crate::{Grid, Position, agent::Colour};
 
-use super::{ParseError, laser_config::LaserConfig, world_config::WorldConfig};
+use super::{
+    ParseError, button_config::ButtonConfig, laser_config::LaserConfig, lift_config::LiftConfig,
+    world_config::WorldConfig,
+};
 
 #[derive(Default)]
 pub struct ParsingData {
     pub width: Option<usize>,
     pub height: usize,
+    pub layers: usize,
     pub gem_positions: Vec<Position>,
     /// Start positions grouped by colour, in reading order. `k` occurrences of `S<c>` declare `k`
     /// agents of colour `c`. Ordered by colour so that flattening yields colour-major agent ids
@@ -18,6 +22,8 @@ pub struct ParsingData {
     pub exit_positions: Vec<Position>,
     pub walls_positions: Vec<Position>,
     pub laser_configs: Vec<(Position, LaserConfig)>,
+    pub lift_configs: Vec<(Position, LiftConfig)>,
+    pub button_configs: Vec<(Position, ButtonConfig)>,
 }
 
 impl ParsingData {
@@ -28,6 +34,14 @@ impl ParsingData {
     pub fn add_laser_source(&mut self, pos: Position, config: LaserConfig) {
         self.laser_configs.push((pos, config));
         self.walls_positions.push(pos);
+    }
+
+    pub fn add_lift(&mut self, pos: Position, config: LiftConfig) {
+        self.lift_configs.push((pos, config));
+    }
+
+    pub fn add_button(&mut self, pos: Position, config: ButtonConfig) {
+        self.button_configs.push((pos, config));
     }
 
     /// Declare one agent of colour `colour` starting at `pos`. Repeating a token declares
@@ -60,20 +74,42 @@ impl ParsingData {
         self.laser_configs.len()
     }
 
-    pub fn add_row(&mut self, n_cols: usize, line: &str) -> Result<(), ParseError> {
+    fn increase_height(&mut self) {
+        self.height += 1;
+    }
+
+    pub fn add_row(&mut self, n_cols: usize, line: &str, row: usize) -> Result<(), ParseError> {
         if let Some(w) = self.width {
             if w != n_cols {
-                return Err(ParseError::InconsistentDimensions {
+                return Err(ParseError::Inconsistent2Dimensions {
                     row_str: line.to_string(),
                     expected_n_cols: w,
                     actual_n_cols: n_cols,
-                    row: self.height,
+                    row,
                 });
             }
         } else {
             self.width = Some(n_cols);
         }
-        self.height += 1;
+        Ok(())
+    }
+    pub fn add_layer(&mut self, hw: (usize, usize)) -> Result<(), ParseError> {
+        // TODO refactor
+        match (self.height, self.width) {
+            (h, Some(w)) => {
+                if hw != (h, w) {
+                    return Err(ParseError::Inconsistent3Dimensions {
+                        expected_n_dims: (h, w),
+                        actual_n_dims: hw,
+                        layer: self.layers, // dont realy care about the layer number in the error message
+                    });
+                }
+            }
+            _ => {
+                return Err(ParseError::EmptyWorld);
+            }
+        }
+        self.layers += 1;
         Ok(())
     }
 }
@@ -85,6 +121,7 @@ impl TryInto<WorldConfig> for ParsingData {
             return Err(ParseError::EmptyWorld);
         }
         let width = self.width.ok_or(ParseError::MissingWidth)?;
+        let layers = self.layers; //? need to be consistent with the default value of layers in ParsingData
         let colours = self.agent_colours();
         // One agent per start tile, ordered by (colour, reading order).
         let starts = self
@@ -96,12 +133,15 @@ impl TryInto<WorldConfig> for ParsingData {
         Ok(WorldConfig::new(
             width,
             self.height,
+            layers,
             self.gem_positions,
             starts,
             self.void_positions,
             self.exit_positions,
             self.walls_positions,
             self.laser_configs,
+            self.lift_configs,
+            self.button_configs,
             colours,
         ))
     }
@@ -114,7 +154,8 @@ impl TryInto<WorldConfig> for ParsingData {
 /// in reading order would come back with those agents swapped. Both cases return `Err(())`, and
 /// `WorldConfig::Display` falls back to TOML (see `.agents/plans/agent-colour-id.md` §3.4d).
 pub fn to_v1_string(config: &WorldConfig) -> Result<String, ()> {
-    let mut res = vec![vec![String::from(" . "); config.width()]; config.height()];
+    let mut res =
+        Grid::<String>::new(config.width(), config.height(), config.layers()).default_init();
     let mut previous_of_colour: std::collections::HashMap<usize, Position> =
         std::collections::HashMap::new();
     for (agent_num, pos) in config.random_starts().iter().enumerate() {
@@ -129,45 +170,58 @@ pub fn to_v1_string(config: &WorldConfig) -> Result<String, ()> {
         {
             return Err(());
         }
-        res[pos.i][pos.j] = format!("S{colour} ");
+        res.replace_at(&pos, format!("S{colour}"));
     }
 
     for pos in config.gems() {
-        res[pos.i][pos.j] = " G ".into();
+        res.replace_at(&pos, "G".into());
     }
     for pos in config.walls() {
-        res[pos.i][pos.j] = " @ ".into();
+        res.replace_at(&pos, "@".into());
     }
     for pos in config.exits() {
-        res[pos.i][pos.j] = " X ".into();
+        res.replace_at(&pos, "X".into());
     }
     for pos in config.voids() {
-        res[pos.i][pos.j] = " V ".into();
+        res.replace_at(&pos, "V".into());
     }
     for (pos, config) in config.sources() {
-        res[pos.i][pos.j] = config.to_string();
+        res.replace_at(&pos, config.to_string());
     }
-    Ok(res
-        .into_iter()
-        .map(|row| row.join(" "))
-        .collect::<Vec<String>>()
-        .join("\n"))
+    for (pos, config) in config.lifts() {
+        res.replace_at(&pos, config.to_string());
+    }
+    for (pos, config) in config.buttons() {
+        res.replace_at(&pos, config.to_string());
+    }
+    Ok((&res).into())
 }
 
 pub fn parse(world_str: &str) -> Result<WorldConfig, ParseError> {
     let mut data = ParsingData::default();
+
+    let mut layer = 0usize; // there must be at least one layer but the index of the first layer is 0
+    let mut row = 0usize;
+    let mut n_cols = 0usize;
     for line in world_str.lines() {
         let line = line.trim();
         if line.is_empty() {
             continue;
         }
+        if line.starts_with(';') {
+            data.add_layer((row, n_cols))?;
+            row = 0;
+            layer += 1;
+            continue;
+        }
         let tokens = line.split_whitespace();
-        let mut n_cols = 0usize;
+        n_cols = 0usize;
         for (col, token) in tokens.enumerate() {
             n_cols += 1;
             let pos = Position {
-                i: data.height,
+                i: row,
                 j: col,
+                k: layer,
             };
             match token.to_uppercase().chars().next().unwrap() {
                 '.' => {}
@@ -185,6 +239,14 @@ pub fn parse(world_str: &str) -> Result<WorldConfig, ParseError> {
                     let source_config = LaserConfig::from_str(token, data.n_lasers())?;
                     data.add_laser_source(pos, source_config);
                 }
+                'T' => {
+                    let lift_config = LiftConfig::from_str(token)?;
+                    data.add_lift(pos, lift_config);
+                }
+                'B' => {
+                    let button_config = ButtonConfig::from_str(token)?;
+                    data.add_button(pos, button_config);
+                }
                 _ => {
                     return Err(ParseError::InvalidTile {
                         tile_str: token.into(),
@@ -194,8 +256,13 @@ pub fn parse(world_str: &str) -> Result<WorldConfig, ParseError> {
                 }
             }
         }
-        data.add_row(n_cols, line)?;
+        data.add_row(n_cols, line, row)?;
+        if layer == 0 {
+            data.increase_height();
+        }
+        row += 1;
     }
+    data.add_layer((row, n_cols))?;
     data.try_into()
 }
 

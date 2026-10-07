@@ -105,8 +105,8 @@ def test_exits_opposite_edge():
         world = _build(gen, seed=seed)
         agent_rows = [p[0][0] for p in world.random_start_pos]
         agent_cols = [p[0][1] for p in world.random_start_pos]
-        exit_rows = [r for r, _ in world.exit_pos]
-        exit_cols = [c for _, c in world.exit_pos]
+        exit_rows = [r for r, _, _ in world.exit_pos]
+        exit_cols = [c for _, c, _ in world.exit_pos]
 
         # Agents all on same edge; exits all on opposite
         if all(c == 0 for c in agent_cols):  # left
@@ -126,8 +126,8 @@ def test_exits_opposite_cluster():
         world = _build(gen, seed=seed)
         agent_rows = [p[0][0] for p in world.random_start_pos]
         agent_cols = [p[0][1] for p in world.random_start_pos]
-        exit_rows = [r for r, _ in world.exit_pos]
-        exit_cols = [c for _, c in world.exit_pos]
+        exit_rows = [r for r, _, _ in world.exit_pos]
+        exit_cols = [c for _, c, _ in world.exit_pos]
         # Exits and agents must not overlap
         assert not set(zip(agent_rows, agent_cols)) & set(zip(exit_rows, exit_cols))
 

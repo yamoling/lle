@@ -1,4 +1,7 @@
-use crate::{ParseError, Position, tiles::Direction};
+use crate::{
+    ParseError, Position,
+    tiles::{CardinalDirection, Tile, VerticalDirection},
+};
 
 use super::parse;
 
@@ -10,7 +13,7 @@ fn test_multi_digit_start_agent_id() {
     // token numbering is a sparse colour space, not ten missing agents.
     assert_eq!(config.n_agents(), 1);
     assert_eq!(config.colours(), &vec![10]);
-    assert_eq!(config.random_starts()[0], vec![Position { i: 0, j: 0 }]);
+    assert_eq!(config.random_starts()[0], vec![Position::new2d(0, 0)]);
 }
 
 #[test]
@@ -19,7 +22,7 @@ fn test_multi_digit_laser_source_agent_id() {
     let (_, source) = &config.sources()[0];
 
     assert_eq!(source.agent_id, 10);
-    assert_eq!(source.direction, Direction::East);
+    assert_eq!(source.direction, CardinalDirection::East);
 }
 
 #[test]
@@ -47,17 +50,131 @@ fn test_multi_digit_agents_and_laser_sources_world() {
     assert_eq!(config.sources().len(), 14);
     for (agent_id, (source_pos, source)) in config.sources().iter().enumerate() {
         assert_eq!(source.agent_id, agent_id);
-        assert_eq!(source.direction, Direction::West);
-        assert_eq!(
-            *source_pos,
-            Position {
-                i: agent_id + 1,
-                j: 1
-            }
-        );
+        assert_eq!(source.direction, CardinalDirection::West);
+        assert_eq!(*source_pos, Position::new2d(agent_id + 1, 1));
     }
 
     config.into_world().unwrap();
+}
+
+#[test]
+fn test_parse_lift_and_button() {
+    let config = parse(
+        "
+        S0 .  TU0A1
+        .  B0 .
+        .  .  X
+        ",
+    )
+    .unwrap();
+    let world = config.into_world().unwrap();
+
+    match world.at(&Position { i: 0, j: 2, k: 0 }) {
+        Some(Tile::Lift(lift)) => {
+            assert_eq!(lift.direction(), VerticalDirection::Up);
+            assert_eq!(lift.group_id(), 0);
+            assert_eq!(lift.authorized_colour(), Some(1));
+        }
+        other => panic!("Expected a Lift tile, got {:?}", other),
+    }
+
+    match world.at(&Position { i: 1, j: 1, k: 0 }) {
+        Some(Tile::Button(button)) => {
+            assert_eq!(button.group_id(), 0);
+            assert_eq!(button.authorized_colour(), None);
+        }
+        other => panic!("Expected a Button tile, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_parse_lift_button_invalid_group_id() {
+    match parse(
+        "
+        S0 TUx
+        .  X
+        ",
+    ) {
+        Err(ParseError::InvalidGroupId { .. }) => {}
+        other => panic!("Expected ParseError::InvalidGroupId, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_lift_button_round_trip() {
+    let config = parse(
+        "
+        S0 .  TU0A1
+        .  B0 .
+        .  .  X
+        ",
+    )
+    .unwrap();
+    let as_string = super::to_v1_string(&config).unwrap();
+    let reparsed = parse(&as_string).unwrap();
+    let world = reparsed.into_world().unwrap();
+
+    match world.at(&Position { i: 0, j: 2, k: 0 }) {
+        Some(Tile::Lift(lift)) => {
+            assert_eq!(lift.direction(), VerticalDirection::Up);
+            assert_eq!(lift.group_id(), 0);
+            assert_eq!(lift.authorized_colour(), Some(1));
+        }
+        other => panic!("Expected a Lift tile, got {:?}", other),
+    }
+    match world.at(&Position { i: 1, j: 1, k: 0 }) {
+        Some(Tile::Button(button)) => {
+            assert_eq!(button.group_id(), 0);
+        }
+        other => panic!("Expected a Button tile, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_empty_string_returns_empty_world_not_panic() {
+    match parse("") {
+        Err(ParseError::EmptyWorld) => {}
+        other => panic!("Expected ParseError::EmptyWorld, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_leading_semicolon_returns_parse_error() {
+    match parse(";\nS0 X") {
+        Err(ParseError::EmptyWorld) => {}
+        other => panic!("Expected ParseError::EmptyWorld, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_doubled_semicolon_returns_parse_error() {
+    match parse("S0 X\n;\n;") {
+        Err(ParseError::Inconsistent3Dimensions { .. }) => {}
+        other => panic!(
+            "Expected ParseError::Inconsistent3Dimensions, got {:?}",
+            other
+        ),
+    }
+}
+
+#[test]
+fn test_row_length_mismatch_returns_inconsistent_2d() {
+    match parse("X S0 .\n. .") {
+        Err(ParseError::Inconsistent2Dimensions {
+            expected_n_cols,
+            actual_n_cols,
+            row,
+            ..
+        }) => {
+            assert_eq!(expected_n_cols, 3);
+            assert_eq!(actual_n_cols, 2);
+            assert_eq!(row, 1);
+        }
+        other => panic!(
+            "Expected ParseError::Inconsistent2Dimensions, got {:?}",
+            other
+        ),
+    }
 }
 
 #[test]

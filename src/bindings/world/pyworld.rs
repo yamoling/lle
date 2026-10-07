@@ -15,7 +15,7 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use crate::bindings::{
     pyagent::PyAgent,
     pyexceptions::{parse_error_to_exception, runtime_error_to_pyexception},
-    tiles::{PyGem, PyLaser, PyLaserSource},
+    tiles::{PyButton, PyGem, PyLaser, PyLaserSource, PyLift},
     world::{PyAction, PyPosition, PyWorldEvent, PyWorldState},
 };
 use crate::{Action, AgentId, Renderer, Tile, World};
@@ -60,6 +60,13 @@ pub struct PyWorld {
     /// The width of the world (in number of tiles).
     #[pyo3(get)]
     width: usize,
+    /// The layers of the world (in number of tiles).
+    #[pyo3(get)]
+    layers: usize,
+    /// The dimensions which is the combination of height, width and layers.
+    #[pyo3(get)]
+    world_dims: (usize, usize, usize),
+
     /// The number of gems in the world.
     #[pyo3(get)]
     n_gems: usize,
@@ -93,7 +100,7 @@ impl From<World> for PyWorld {
             random_start_pos: world
                 .possible_starts()
                 .into_iter()
-                .map(|p| p.into_iter().map(|p| p.as_ij()).collect())
+                .map(|p| p.into_iter().map(|p| p.into()).collect())
                 .collect(),
             wall_pos: world.walls().into_iter().map(|p| p.into()).collect(),
             void_pos: world
@@ -103,6 +110,8 @@ impl From<World> for PyWorld {
                 .collect(),
             height: world.height(),
             width: world.width(),
+            layers: world.layers(),
+            world_dims: (world.height(), world.width(), world.layers()),
             n_gems: world.n_gems(),
             n_agents: world.n_agents(),
             renderer,
@@ -361,6 +370,30 @@ impl PyWorld {
             .collect()
     }
 
+    /// Every lift tile in the world.
+    #[getter]
+    fn lifts(&self) -> Vec<PyLift> {
+        let arc_world = self.world.clone();
+        let world = self.world.lock().unwrap();
+        world
+            .lifts()
+            .iter()
+            .map(|(pos, lift)| PyLift::new(lift, *pos, arc_world.clone()))
+            .collect()
+    }
+
+    /// Every button tile in the world.
+    #[getter]
+    fn buttons(&self) -> Vec<PyButton> {
+        let arc_world = self.world.clone();
+        let world = self.world.lock().unwrap();
+        world
+            .buttons()
+            .iter()
+            .map(|(pos, button)| PyButton::new(button, *pos, arc_world.clone()))
+            .collect()
+    }
+
     /// Retrieve the laser source at the given position.
     /// Raises:
     ///  `PyIndexError`: if the position is out of bounds.
@@ -527,9 +560,9 @@ impl PyWorld {
         self.world.lock().unwrap().n_laser_colours()
     }
 
-    /// Renders the world as an image and returns it in a numpy array.
+    /// Renders the world as an RGB image and returns it in a numpy array.
     /// Returns:
-    ///     The image of the world as a numpy array of shape (height * 32, width * 32, 3) with type uint8.
+    ///     The image of the world as a numpy array of shape (height * 32, width * 32, 3).
     fn get_image<'a>(&self, py: Python<'a>) -> Bound<'a, PyArray3<u8>> {
         let dims = self.image_dimensions();
         let dims = (dims.1 as usize, dims.0 as usize, 3);
@@ -603,6 +636,8 @@ impl PyWorld {
         self.n_gems = world.n_gems();
         self.height = world.height();
         self.width = world.width();
+        self.layers = world.layers();
+        self.world_dims = (self.height, self.width, self.layers);
         self.exit_pos = world
             .exits_positions()
             .iter()
@@ -611,7 +646,7 @@ impl PyWorld {
         self.random_start_pos = world
             .possible_starts()
             .iter()
-            .map(|p| p.iter().map(|p| p.as_ij()).collect())
+            .map(|p| p.iter().map(|p| p.into()).collect())
             .collect();
         self.wall_pos = world.walls().iter().map(|p| (*p).into()).collect();
         self.void_pos = world.void_positions().iter().map(|p| (*p).into()).collect();
@@ -652,6 +687,8 @@ impl Clone for PyWorld {
             void_pos: self.void_pos.clone(),
             height: self.height,
             width: self.width,
+            layers: self.layers,
+            world_dims: self.world_dims,
             n_gems: self.n_gems,
             n_agents: self.n_agents,
             world: wrap_world(world),

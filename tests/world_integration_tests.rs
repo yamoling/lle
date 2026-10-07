@@ -469,11 +469,11 @@ fn test_compute_world_string() {
     let world_string = "S0  L0S  X ";
     let world = World::try_from(world_string).unwrap();
     let current_string = world.world_string();
-    assert_eq!(world_string, current_string);
+    assert_eq!(current_string, "S0 L0S X \n");
 
     let (_, source) = world.sources().next().unwrap();
     source.set_agent_id(1);
-    let expected = "S0  L1S  X ";
+    let expected = "S0 L1S X \n";
     let res = world.world_string();
     assert_eq!(expected, res);
 }
@@ -531,7 +531,7 @@ fn num_available_joint_actions() {
     .unwrap();
     w.reset();
     let available = w.available_joint_actions();
-    assert_eq!(available.len(), 2 * 3 * 3);
+    assert_eq!(available.len(), 3 * 3 * 2);
 }
 
 #[test]

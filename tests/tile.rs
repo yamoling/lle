@@ -1,13 +1,13 @@
 use std::rc::Rc;
 
 use lle::{
-    Agent, AgentId, Tile,
-    tiles::{Direction, Gem, Laser, LaserBeam, Void},
+    Agent, AgentId, Position, Tile,
+    tiles::{Button, CardinalDirection, Gem, Laser, LaserBeam, Lift, VerticalDirection, Void},
 };
 
 fn make_laser(agent_id: AgentId, length: usize) -> Laser {
     let wrapped = Tile::Floor { agent: None };
-    let beam = Rc::new(LaserBeam::new(length, agent_id, Direction::East, 0));
+    let beam = Rc::new(LaserBeam::new(length, agent_id, CardinalDirection::East, 0));
     Laser::new(wrapped, beam, 0)
 }
 
@@ -102,4 +102,58 @@ fn test_void_agent_dies() {
     assert!(agent.is_alive());
     void.enter(&mut agent);
     assert!(agent.is_dead());
+}
+
+#[test]
+fn test_button_basic() {
+    let mut agent = Agent::new(0, 0);
+    let mut tile = Tile::Button(Button::new(7));
+    assert!(tile.is_walkable());
+    assert!(!tile.is_occupied());
+
+    tile.enter(&mut agent);
+    assert_eq!(tile.agent(), Some(0));
+    assert!(tile.is_occupied());
+
+    if let Tile::Button(button) = &mut tile {
+        assert_eq!(button.group_id(), 7);
+        // The agent is colour 0 and the button is unrestricted, so any colour actuates it.
+        assert_eq!(button.actuate(agent.colour()), Some(7));
+    } else {
+        panic!();
+    }
+
+    tile.leave();
+    assert_eq!(tile.agent(), None);
+
+    tile.reset();
+    assert_eq!(tile.agent(), None);
+}
+
+#[test]
+fn test_lift_basic() {
+    let mut agent = Agent::new(0, 0);
+    let lift = Lift::new(VerticalDirection::Up, None, 2);
+    assert_eq!(lift.group_id(), 2);
+    assert_eq!(lift.direction(), VerticalDirection::Up);
+    assert_eq!(lift.authorized_colour(), None);
+    assert!(!lift.take_triggered()); // never notified yet
+
+    lift.notify();
+    assert!(lift.take_triggered()); // consumed...
+    assert!(!lift.take_triggered()); // ...and cleared
+
+    assert_eq!(
+        lift.destination(Position::new2d(0, 1)).unwrap(),
+        Position { i: 0, j: 1, k: 1 }
+    );
+
+    let mut tile = Tile::Lift(lift);
+    assert!(tile.is_walkable());
+    tile.enter(&mut agent);
+    assert_eq!(tile.agent(), Some(0));
+    tile.leave();
+    assert_eq!(tile.agent(), None);
+    tile.reset();
+    assert_eq!(tile.agent(), None);
 }
