@@ -2145,3 +2145,27 @@ fn formula_still_admits_one_agent_idling_on_its_exit_while_another_travels() {
         "only the all-agents-arrived state is early termination"
     );
 }
+
+#[test]
+fn test_generator_rejects_a_world_with_several_layers() {
+    let world = World::try_from("S0 . X\n;\n. . .").unwrap();
+    assert!(matches!(
+        ClauseGenerator::new(&world, 5),
+        Err(crate::solver::errors::SolverError::UnsupportedFeature { .. })
+    ));
+}
+
+#[test]
+fn test_generator_rejects_a_world_with_lifts() {
+    let world = World::try_from("S0 TU0 B0 X").unwrap();
+    assert!(matches!(
+        ClauseGenerator::new(&world, 5),
+        Err(crate::solver::errors::SolverError::UnsupportedFeature { feature: "lifts" })
+    ));
+}
+
+#[test]
+fn test_generator_accepts_a_single_layer_world_with_a_button_only() {
+    let world = World::try_from("S0 B0 X").unwrap();
+    assert!(ClauseGenerator::new(&world, 5).is_ok());
+}

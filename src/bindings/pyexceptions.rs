@@ -240,5 +240,10 @@ pub fn solver_error_to_exception(error: crate::solver::errors::SolverError) -> P
         } => PyValueError::new_err(format!(
             "Invalid parameter {value} for SolveMode::{variant}: {reason}"
         )),
+        crate::solver::errors::SolverError::UnsupportedFeature { feature } => {
+            exceptions::PyNotImplementedError::new_err(format!(
+                "The solver does not support {feature} yet."
+            ))
+        }
     }
 }
