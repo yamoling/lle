@@ -66,7 +66,7 @@ impl ClauseEngine {
             .ctx
             .laser_sources
             .iter()
-            .map(|source| source.agent_id)
+            .filter_map(|source| source.owner)
             .collect::<Vec<_>>();
         let patterns: Arc<[SequencePattern]> =
             enumerate_sequence_patterns(helper_ids, self.ctx.n_agents, length).into();
@@ -89,13 +89,13 @@ impl ClauseEngine {
                     continue;
                 }
                 for beneficiary in 0..self.ctx.n_agents {
-                    if beneficiary == source.agent_id {
+                    if source.owner == Some(beneficiary) {
                         continue;
                     }
                     let positions = self.ctx.relevant_positions_for_agent(beneficiary, t);
                     if laser_tiles.intersection(positions).next().is_some() {
                         arcs.insert(StaticHelpArc {
-                            helper: source.agent_id,
+                            helper: source.owner.expect("only owned beams have relevant tiles"),
                             beneficiary,
                         });
                     }
@@ -123,7 +123,7 @@ impl ClauseEngine {
         patterns
     }
 
-    /// Movement-only world-enforcing clauses for a single step `t`.
+    /// Movement world-enforcing clauses (agents and boxes) for a single step `t`.
     pub fn generate_movement_clauses(&mut self, t: usize) -> Vec<Clause> {
         self.ctx.update(t);
         let mut clauses = Vec::new();
@@ -134,6 +134,7 @@ impl ClauseEngine {
         clauses.extend(self.no_following_conflict(t));
         clauses.extend(self.stays_on_exit(t));
         clauses.extend(self.no_early_termination(t));
+        clauses.extend(self.generate_box_clauses(t));
         clauses
     }
 

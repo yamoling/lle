@@ -215,6 +215,340 @@ exits = [{ col = 4 }]
     }
 }
 
+// ---------------------------------------------------------------------------
+// Movable boxes: `[[boxes]]`
+// ---------------------------------------------------------------------------
+
+fn pos(i: usize, j: usize) -> Position {
+    Position::new2d(i, j)
+}
+
+/// Parses `toml` and returns the box positions, or the parse error.
+fn parse_boxes(toml: &str) -> Result<Vec<Position>, ParseError> {
+    World::try_from(toml).map(|w| w.boxes_positions())
+}
+
+#[test]
+fn test_toml_boxes() {
+    let toml = r#"
+world_string = """
+S0 . . X
+.  . . .
+"""
+[[boxes]]
+i = 1
+j = 1
+"#;
+    let world = World::try_from(toml).unwrap();
+    assert_eq!(world.n_boxes(), 1);
+    assert_eq!(world.boxes_positions(), vec![pos(1, 1)]);
+}
+
+#[test]
+fn test_toml_boxes_combine_with_the_world_string() {
+    let toml = r#"
+world_string = """
+S0 # . X
+.  . . .
+"""
+[[boxes]]
+i = 1
+j = 1
+"#;
+    let world = World::try_from(toml).unwrap();
+    assert_eq!(world.n_boxes(), 2);
+    let mut boxes = world.boxes_positions();
+    boxes.sort_by_key(|p| (p.i, p.j));
+    assert_eq!(boxes, vec![pos(0, 1), pos(1, 1)]);
+}
+
+#[test]
+fn test_toml_boxes_range_expansion() {
+    let toml = r#"
+world_string = """
+S0 . . X
+.  . . .
+"""
+[[boxes]]
+row = 1
+"#;
+    assert_eq!(parse_boxes(toml).unwrap().len(), 4);
+}
+
+/// `#` and `V` cannot share a cell in the v1 format, so TOML is the only route
+/// to an illegal box position. This is the test for `InvalidBoxPosition`.
+#[test]
+fn test_toml_box_on_a_void_is_rejected() {
+    let toml = r#"
+world_string = """
+S0 . V X
+.  . . .
+"""
+[[boxes]]
+i = 0
+j = 2
+"#;
+    match parse_boxes(toml) {
+        Err(ParseError::InvalidBoxPosition { position }) => assert_eq!(position, pos(0, 2)),
+        other => panic!("expected InvalidBoxPosition, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_toml_box_on_a_wall_is_rejected() {
+    let toml = r#"
+world_string = """
+S0 . @ X
+.  . . .
+"""
+[[boxes]]
+i = 0
+j = 2
+"#;
+    assert!(matches!(
+        parse_boxes(toml),
+        Err(ParseError::InvalidBoxPosition { .. })
+    ));
+}
+
+#[test]
+fn test_toml_box_on_a_laser_source_is_rejected() {
+    let toml = r#"
+world_string = """
+S0 . L0E X
+.  . .   .
+"""
+[[boxes]]
+i = 0
+j = 2
+"#;
+    match parse_boxes(toml) {
+        Err(ParseError::InvalidBoxPosition { position }) => assert_eq!(position, pos(0, 2)),
+        other => panic!("expected InvalidBoxPosition, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_toml_box_on_an_agent_start_is_rejected() {
+    let toml = r#"
+world_string = """
+S0 . . X
+.  . . .
+"""
+[[boxes]]
+i = 0
+j = 0
+"#;
+    match parse_boxes(toml) {
+        Err(ParseError::InvalidBoxPosition { position }) => assert_eq!(position, pos(0, 0)),
+        other => panic!("expected InvalidBoxPosition, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_toml_box_on_a_random_start_candidate_is_rejected() {
+    let toml = r#"
+world_string = """
+. . . X
+. . . .
+"""
+[[agents]]
+start_positions = [{ i = 0, j = 0 }, { i = 1, j = 1 }]
+
+[[boxes]]
+i = 1
+j = 1
+"#;
+    match parse_boxes(toml) {
+        Err(ParseError::InvalidBoxPosition { position }) => assert_eq!(position, pos(1, 1)),
+        other => panic!("expected InvalidBoxPosition, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_toml_box_duplicated_with_the_world_string_is_rejected() {
+    let toml = r#"
+world_string = """
+S0 # . X
+.  . . .
+"""
+[[boxes]]
+i = 0
+j = 1
+"#;
+    match parse_boxes(toml) {
+        Err(ParseError::InvalidBoxPosition { position }) => assert_eq!(position, pos(0, 1)),
+        other => panic!("expected InvalidBoxPosition, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_toml_box_duplicated_in_boxes_is_rejected() {
+    let toml = r#"
+world_string = """
+S0 . . X
+.  . . .
+"""
+[[boxes]]
+i = 1
+j = 1
+
+[[boxes]]
+i = 1
+j = 1
+"#;
+    assert!(matches!(
+        parse_boxes(toml),
+        Err(ParseError::InvalidBoxPosition { .. })
+    ));
+}
+
+#[test]
+fn test_toml_box_out_of_bounds_is_rejected() {
+    let toml = r#"
+world_string = """
+S0 . . X
+"""
+[[boxes]]
+i = 5
+j = 5
+"#;
+    assert!(parse_boxes(toml).is_err());
+}
+
+/// Plain TOML -> WorldConfig -> TOML -> WorldConfig keeps the boxes.
+#[test]
+fn test_toml_boxes_round_trip_through_toml_config() {
+    use super::TomlConfig;
+    let toml = r#"
+world_string = """
+S0 . . X
+.  . . .
+"""
+[[boxes]]
+i = 1
+j = 1
+
+[[boxes]]
+i = 0
+j = 2
+"#;
+    let config = parse(toml).unwrap();
+    assert_eq!(config.boxes().len(), 2);
+    let regenerated = TomlConfig::from(&config).to_toml_string();
+    let reparsed = parse(&regenerated).unwrap();
+    let mut boxes = reparsed.boxes().clone();
+    boxes.sort_by_key(|p| (p.i, p.j));
+    assert_eq!(boxes, vec![pos(0, 2), pos(1, 1)]);
+}
+
+/// Random starts make the v1 emission impossible, so `world_string()` falls back
+/// to TOML. The boxes must survive that fallback.
+#[test]
+fn test_boxes_survive_the_toml_fallback_of_world_string_random_starts() {
+    let toml = r#"
+world_string = """
+. . . X
+. . . .
+"""
+[[agents]]
+start_positions = [{ i = 0, j = 0 }, { i = 0, j = 1 }]
+
+[[boxes]]
+i = 1
+j = 1
+"#;
+    let world = World::try_from(toml).unwrap();
+    let string = world.world_string();
+    assert!(
+        string.contains("[[boxes]]"),
+        "expected TOML fallback: {string}"
+    );
+    let reloaded = World::try_from(string.as_str()).unwrap();
+    assert_eq!(reloaded.boxes_positions(), vec![pos(1, 1)]);
+    assert_eq!(reloaded.possible_starts(), world.possible_starts());
+}
+
+/// Two agents of the same colour declared out of reading order also force the
+/// TOML fallback (see `to_v1_string`).
+#[test]
+fn test_boxes_survive_the_toml_fallback_of_world_string_colour_order() {
+    let toml = r#"
+world_string = """
+S0 . . X
+S0 . . X
+"""
+[[agents]]
+start_positions = [{ i = 1, j = 0 }]
+
+[[agents]]
+start_positions = [{ i = 0, j = 0 }]
+
+[[boxes]]
+i = 0
+j = 2
+"#;
+    let world = World::try_from(toml).unwrap();
+    let string = world.world_string();
+    let reloaded = World::try_from(string.as_str()).unwrap();
+    assert_eq!(reloaded.boxes_positions(), vec![pos(0, 2)]);
+}
+
+#[test]
+fn test_toml_world_string_voids_survive() {
+    let toml = r#"
+world_string = """
+S0 . V X
+.  . . .
+"""
+[[boxes]]
+i = 1
+j = 1
+"#;
+    let world = World::try_from(toml).unwrap();
+    assert_eq!(world.void_positions(), vec![pos(0, 2)]);
+    assert_eq!(world.boxes_positions(), vec![pos(1, 1)]);
+}
+
+/// A box on a gem or an exit cannot be written in v1 (` # ` would erase the gem or exit), so
+/// `world_string()` must fall back to TOML and keep both the box and what lies under it.
+#[test]
+fn test_world_string_round_trip_keeps_a_gem_under_a_box() {
+    let toml = r#"
+world_string = """
+S0 G . X
+"""
+[[boxes]]
+i = 0
+j = 1
+"#;
+    let world = World::try_from(toml).unwrap();
+    assert_eq!(world.boxes_positions(), vec![pos(0, 1)]);
+    assert_eq!(world.gems_positions(), vec![pos(0, 1)]);
+    let restored = World::try_from(world.world_string()).unwrap();
+    assert_eq!(restored.gems_positions(), vec![pos(0, 1)]);
+    assert_eq!(restored.boxes_positions(), vec![pos(0, 1)]);
+    assert_eq!(restored.exits_positions(), world.exits_positions());
+}
+
+#[test]
+fn test_world_string_round_trip_keeps_an_exit_under_a_box() {
+    let toml = r#"
+world_string = """
+S0 X . X
+"""
+[[boxes]]
+i = 0
+j = 1
+"#;
+    let world = World::try_from(toml).unwrap();
+    assert_eq!(world.boxes_positions(), vec![pos(0, 1)]);
+    let restored = World::try_from(world.world_string()).unwrap();
+    assert_eq!(restored.exits_positions(), world.exits_positions());
+    assert_eq!(restored.exits_positions().len(), 2);
+    assert_eq!(restored.boxes_positions(), vec![pos(0, 1)]);
+}
+
 #[test]
 fn empty_world_string_returns_parse_error_not_panic() {
     match parse(r#"world_string = """#) {

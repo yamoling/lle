@@ -22,6 +22,8 @@ class WorldCharacterizer:
     """
 
     def __init__(self, world: World, t_max: int) -> None:
+        if world.n_boxes > 0:
+            raise NotImplementedError("Characterizing worlds with movable boxes is not supported yet")
         self.world = world
         self.t_max = t_max
         self._solver = solver.Solver(self.world, self.t_max)

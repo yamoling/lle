@@ -1036,3 +1036,26 @@ def test_all_shapes():
                 assert obs[agent_num].shape == observer.shape, (
                     f"{variant.name} shape is not consistent: announced {observer.shape} but returned {obs[agent_num].shape}"
                 )
+
+
+@pytest.mark.parametrize("state_type", ["layered", "layered-padded-1", "flattened", "partial3x3", "rgb-image"])
+def test_layered_state_types_refuse_to_reconstruct_a_box_world(state_type):
+    from lle import LLE
+
+    env = LLE.from_str("S0 # G X").state_type(state_type).build()
+    env.reset()
+    with pytest.raises(NotImplementedError):
+        env.set_state(env.get_state())
+
+
+@pytest.mark.parametrize("state_type", ["layered", "layered-padded-1"])
+def test_layered_state_types_still_round_trip_without_boxes(state_type):
+    from lle import LLE
+
+    env = LLE.from_str("S0 G X").state_type(state_type).build()
+    env.reset()
+    state = env.get_state()
+    env.set_state(state)
+    env.step(env.sample_action())
+    env.set_state(state)
+    assert env.world.agents_positions == [(0, 0)]

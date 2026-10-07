@@ -13,7 +13,7 @@ impl ClauseEngine {
             .ctx
             .laser_sources
             .iter()
-            .map(|source| source.agent_id)
+            .filter_map(|source| source.owner)
             .collect::<std::collections::HashSet<_>>()
             .len();
         let max_temporal_edges = n_helpers
@@ -83,9 +83,9 @@ impl ClauseEngine {
                 }
 
                 if !is_complete {
-                    let progress = self
-                        .pool
-                        .sequence_progress(length, pattern_index, prefix_len, t);
+                    let progress =
+                        self.pool
+                            .sequence_progress(length, pattern_index, prefix_len, t);
                     if let Some(previous_time) = previous_time.flatten() {
                         clauses.push(vec![-previous_time, progress]);
                     }

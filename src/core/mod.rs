@@ -1,3 +1,4 @@
+pub mod boxes;
 mod errors;
 mod event;
 mod levels;
@@ -6,6 +7,7 @@ pub mod tiles;
 mod world;
 mod world_state;
 
+pub use boxes::BoxId;
 pub use errors::RuntimeWorldError;
 pub use event::WorldEvent;
 pub use parsing::ParseError;

@@ -126,6 +126,14 @@ impl Renderer {
             };
             self.visit_button(button, &mut data);
         }
+        for (pos, present) in izip!(world.boxes_positions(), world.boxes_present()) {
+            if !present {
+                continue;
+            }
+            let x = pos.x() as u32 * TILE_SIZE;
+            let y = pos.y() as u32 * TILE_SIZE;
+            add_transparent_image(&mut frame_stack[pos.z() as usize], &sprites::BOX, x, y);
+        }
         for (agent, pos) in izip!(world.agents(), world.agents_positions()) {
             let x = pos.x() as u32 * TILE_SIZE;
             let y = pos.y() as u32 * TILE_SIZE;

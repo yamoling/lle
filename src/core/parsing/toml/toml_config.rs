@@ -27,6 +27,8 @@ pub struct TomlConfig {
     #[serde(default)]
     pub voids: Vec<PositionsConfig>,
     #[serde(default)]
+    pub boxes: Vec<PositionsConfig>,
+    #[serde(default)]
     pub lasers: Vec<TomlLaserConfig>,
     #[serde(default)]
     pub starts: Vec<PositionsConfig>,
@@ -103,6 +105,16 @@ impl TomlConfig {
         }
         for pos in config.gems() {
             self.gems.push(PositionsConfig::from(pos));
+        }
+
+        // Voids declared in the world string must be kept too: they are needed to validate
+        // the boxes and they are part of the world.
+        for pos in config.voids() {
+            self.voids.push(PositionsConfig::from(pos));
+        }
+
+        for pos in config.boxes() {
+            self.boxes.push(PositionsConfig::from(pos));
         }
         self.lasers.extend(
             config
@@ -228,6 +240,7 @@ impl TryInto<WorldConfig> for TomlConfig {
             compute_positions(&self.voids, width, height, layer)?,
             exit_positions,
             walls_positions,
+            compute_positions(&self.boxes, width, height, layer)?,
             source_configs,
             lift_configs,
             button_configs,
@@ -252,6 +265,7 @@ impl From<&WorldConfig> for TomlConfig {
         let gems = value.gems().iter().map(PositionsConfig::from).collect();
         let walls = value.walls().iter().map(PositionsConfig::from).collect();
         let voids = value.voids().iter().map(PositionsConfig::from).collect();
+        let boxes = value.boxes().iter().map(PositionsConfig::from).collect();
         let lasers = value
             .sources()
             .iter()
@@ -279,6 +293,7 @@ impl From<&WorldConfig> for TomlConfig {
             gems,
             walls,
             voids,
+            boxes,
             lasers,
             starts: vec![],
             lifts,

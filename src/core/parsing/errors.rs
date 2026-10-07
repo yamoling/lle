@@ -1,6 +1,6 @@
 use std::{error::Error, fmt::Display};
 
-use crate::agent::AgentId;
+use crate::{Position, agent::AgentId};
 
 #[derive(Debug)]
 pub enum ParseError {
@@ -87,6 +87,10 @@ pub enum ParseError {
         message: String,
     },
     NotV2,
+    /// A box starts on a wall, a void, a laser source, an agent start, or another box.
+    InvalidBoxPosition {
+        position: Position,
+    },
 }
 
 impl Display for ParseError {

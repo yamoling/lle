@@ -106,6 +106,17 @@ class World:
         The number of gems collected by the agents so far since the last reset.
         """
     @property
+    def n_boxes(self) -> builtins.int:
+        r"""
+        The number of movable boxes in the world.
+        """
+    @property
+    def boxes_positions(self) -> builtins.list[builtins.tuple[int, int, int]]:
+        r"""
+        The (i, j) position of each box, indexed by box id. A destroyed box keeps its
+        last position; check `WorldState.boxes_present` to tell them apart.
+        """
+    @property
     def agents_positions(self) -> builtins.list[builtins.tuple[int, int, int]]:
         r"""
         The (i, j) position of each agent.
@@ -375,9 +386,20 @@ class World:
 @typing.final
 class WorldEvent:
     @property
-    def event_type(self) -> EventType: ...
+    def event_type(self) -> EventType:
+        r"""
+        The kind of event.
+        """
     @property
-    def agent_id(self) -> builtins.int: ...
+    def agent_id(self) -> typing.Optional[builtins.int]:
+        r"""
+        The agent concerned by the event, or `None` for events that involve no agent (`BOX_DESTROYED`).
+        """
+    @property
+    def box_id(self) -> typing.Optional[builtins.int]:
+        r"""
+        The box concerned by the event, or `None` for events that involve no box.
+        """
     @property
     def from_position(self) -> typing.Optional[builtins.tuple[int, int, int]]:
         r"""
@@ -388,7 +410,7 @@ class WorldEvent:
         r"""
         The position the agent was relocated to. Only set for `LIFT_MOVED` events.
         """
-    def __new__(cls, event_type: EventType, agent_id: builtins.int, from_position: typing.Optional[builtins.tuple[int, int] | tuple[int, int, int]] = None, to_position: typing.Optional[builtins.tuple[int, int] | tuple[int, int, int]] = None) -> WorldEvent: ...
+    def __new__(cls, event_type: EventType, agent_id: typing.Optional[builtins.int] = None, box_id: typing.Optional[builtins.int] = None, from_position: typing.Optional[builtins.tuple[int, int] | tuple[int, int, int]] = None, to_position: typing.Optional[builtins.tuple[int, int] | tuple[int, int, int]] = None) -> WorldEvent: ...
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...
 
@@ -398,6 +420,7 @@ class WorldState:
      - The position of each agent.
      - Whether each gem has been collected.
      - Whether each agent is alive.
+     - The position of each movable box and whether it is still present (a box pushed onto a void tile is destroyed).
     ## Using `WorldState`s
     ```python
     from lle import WorldState, World
@@ -423,6 +446,7 @@ class WorldState:
     """
     POSITION_SIZE: builtins.int = 3
     AGENT_SIZE: builtins.int = 4
+    BOX_SIZE: builtins.int = 4
     @property
     def agents_positions(self) -> builtins.list[builtins.tuple[int, int, int]]:
         r"""
@@ -453,14 +477,50 @@ class WorldState:
         r"""
         The status of each agent.
         """
-    def __new__(cls, agents_positions: typing.Sequence[builtins.tuple[int, int] | tuple[int, int, int]], gems_collected: typing.Sequence[builtins.bool], agents_alive: typing.Optional[typing.Sequence[builtins.bool]] = None) -> WorldState: ...
-    def __init__(self, agents_positions: typing.Sequence[builtins.tuple[int, int] | tuple[int, int, int]], gems_collected: typing.Sequence[builtins.bool], agents_alive: typing.Optional[typing.Sequence[builtins.bool]] = None) -> None: ...
-    def as_array(self) -> numpy.typing.NDArray[numpy.float32]: ...
+    @property
+    def boxes_positions(self) -> builtins.list[builtins.tuple[int, int, int]]:
+        r"""
+        The position of each box, indexed by box id. A destroyed box keeps its last position.
+        """
+    @boxes_positions.setter
+    def boxes_positions(self, value: typing.Sequence[builtins.tuple[int, int] | tuple[int, int, int]]) -> None:
+        r"""
+        The position of each box, indexed by box id. A destroyed box keeps its last position.
+        """
+    @property
+    def boxes_present(self) -> builtins.list[builtins.bool]:
+        r"""
+        Whether each box is still present (`False` once it has been destroyed).
+        """
+    @boxes_present.setter
+    def boxes_present(self, value: typing.Sequence[builtins.bool]) -> None:
+        r"""
+        Whether each box is still present (`False` once it has been destroyed).
+        """
+    def __new__(cls, agents_positions: typing.Sequence[builtins.tuple[int, int] | tuple[int, int, int]], gems_collected: typing.Sequence[builtins.bool], agents_alive: typing.Optional[typing.Sequence[builtins.bool]] = None, boxes_positions: typing.Optional[typing.Sequence[builtins.tuple[int, int] | tuple[int, int, int]]] = None, boxes_present: typing.Optional[typing.Sequence[builtins.bool]] = None) -> WorldState: ...
+    def __init__(self, agents_positions: typing.Sequence[builtins.tuple[int, int] | tuple[int, int, int]], gems_collected: typing.Sequence[builtins.bool], agents_alive: typing.Optional[typing.Sequence[builtins.bool]] = None, boxes_positions: typing.Optional[typing.Sequence[builtins.tuple[int, int] | tuple[int, int, int]]] = None, boxes_present: typing.Optional[typing.Sequence[builtins.bool]] = None) -> None: ...
+    def as_array(self) -> numpy.typing.NDArray[numpy.float32]:
+        r"""
+        Flatten the state into a 1D array: the (i, j, k) position of each agent, the collection status
+        of each gem, the alive flag of each agent, then the (i, j, k) position of each box followed by
+        the presence flag of each box. Its length is `n_agents * 4 + n_gems + n_boxes * 4`.
+        """
     @staticmethod
-    def from_array(array: typing.Sequence[builtins.float], n_agents: builtins.int, n_gems: builtins.int) -> WorldState: ...
+    def from_array(array: typing.Sequence[builtins.float], n_agents: builtins.int, n_gems: builtins.int, n_boxes: builtins.int = 0) -> WorldState:
+        r"""
+        Rebuild a state from the array produced by `as_array`.
+        
+        Args:
+            array: The flat array.
+            n_agents: The number of agents in the world.
+            n_gems: The number of gems in the world.
+            n_boxes: The number of boxes in the world (defaults to 0).
+        Raises:
+            `ValueError`: if the array does not have a length of `n_agents * 4 + n_gems + n_boxes * 4`.
+        """
     def __deepcopy__(self, _memo: dict) -> WorldState: ...
-    def __getstate__(self) -> tuple[builtins.list[builtins.bool], builtins.list[builtins.tuple[int, int, int]], builtins.list[builtins.bool]]: ...
-    def __setstate__(self, state: tuple[typing.Sequence[builtins.bool], typing.Sequence[builtins.tuple[int, int] | tuple[int, int, int]], typing.Sequence[builtins.bool]]) -> None: ...
+    def __getstate__(self) -> tuple[builtins.list[builtins.bool], builtins.list[builtins.tuple[int, int, int]], builtins.list[builtins.bool], builtins.list[builtins.tuple[int, int, int]], builtins.list[builtins.bool]]: ...
+    def __setstate__(self, state: tuple[typing.Sequence[builtins.bool], typing.Sequence[builtins.tuple[int, int] | tuple[int, int, int]], typing.Sequence[builtins.bool], typing.Sequence[builtins.tuple[int, int] | tuple[int, int, int]], typing.Sequence[builtins.bool]]) -> None: ...
     def __getnewargs__(self) -> tuple[builtins.list[builtins.tuple[int, int, int]], builtins.list[builtins.bool], typing.Optional[builtins.list[builtins.bool]]]: ...
     def __repr__(self) -> builtins.str: ...
     def __hash__(self) -> builtins.int: ...
@@ -526,6 +586,7 @@ class EventType(enum.Enum):
     GEM_COLLECTED = ...
     AGENT_DIED = ...
     LIFT_MOVED = ...
+    BOX_DESTROYED = ...
 
     def __repr__(self) -> builtins.str: ...
     def __hash__(self) -> builtins.int: ...

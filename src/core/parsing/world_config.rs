@@ -23,6 +23,8 @@ pub struct WorldConfig {
     voids: Vec<Position>,
     exits: Vec<Position>,
     walls: Vec<Position>,
+    /// Initial positions of the movable boxes. Boxes are occupants, not tiles.
+    boxes: Vec<Position>,
     lasers: Vec<(Position, LaserConfig)>,
     lifts: Vec<(Position, LiftConfig)>,
     buttons: Vec<(Position, ButtonConfig)>,
@@ -41,6 +43,7 @@ impl WorldConfig {
         void_positions: Vec<Position>,
         exit_positions: Vec<Position>,
         walls_positions: Vec<Position>,
+        box_positions: Vec<Position>,
         source_configs: Vec<(Position, LaserConfig)>,
         lift_configs: Vec<(Position, LiftConfig)>,
         button_configs: Vec<(Position, ButtonConfig)>,
@@ -55,6 +58,7 @@ impl WorldConfig {
             voids: void_positions,
             exits: exit_positions,
             walls: walls_positions,
+            boxes: box_positions,
             lasers: source_configs,
             lifts: lift_configs,
             buttons: button_configs,
@@ -88,6 +92,10 @@ impl WorldConfig {
 
     pub fn walls(&self) -> &Vec<Position> {
         &self.walls
+    }
+
+    pub fn boxes(&self) -> &Vec<Position> {
+        &self.boxes
     }
 
     pub fn gems(&self) -> &Vec<Position> {
@@ -159,6 +167,7 @@ impl WorldConfig {
             self.voids,
             self.exits,
             self.walls,
+            self.boxes,
             source_positions,
             lasers_positions,
             lift_positions,
@@ -178,6 +187,22 @@ impl WorldConfig {
                 n_starts: self.n_agents(),
                 n_exits: self.exits.len(),
             });
+        }
+
+        // Boxes start on a free cell: no wall, void, laser source, agent start or other box.
+        for (k, pos) in self.boxes.iter().enumerate() {
+            let on_occupied_cell = self.walls.contains(pos)
+                || self.voids.contains(pos)
+                || self.lasers.iter().any(|(source, _)| source == pos)
+                || self
+                    .random_starts
+                    .iter()
+                    .flatten()
+                    .any(|start| start == pos)
+                || self.boxes[..k].contains(pos);
+            if on_occupied_cell {
+                return Err(ParseError::InvalidBoxPosition { position: *pos });
+            }
         }
 
         // // Check that there are no lasers with an agent ID that does not exist
@@ -281,6 +306,12 @@ impl WorldConfig {
                     {
                         is_blocked = true;
                     }
+                }
+                // A box standing in the beam blocks it from the very first
+                // reset, so the cells behind it are safe and their starts must
+                // not be pruned.
+                if self.boxes.contains(&pos) {
+                    is_blocked = true;
                 }
                 let wrapped = grid.pop(&pos);
                 let laser = Tile::Laser(Laser::new(wrapped, source.beam(), i));

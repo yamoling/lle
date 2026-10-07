@@ -11,6 +11,9 @@ pub enum WorldEvent {
     AgentDied {
         agent_id: AgentId,
     },
+    BoxDestroyed {
+        box_id: crate::core::boxes::BoxId,
+    },
     LiftMoved {
         agent_id: AgentId,
         from: Position,

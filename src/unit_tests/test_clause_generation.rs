@@ -171,6 +171,30 @@ fn test_position_validity_single_agent() {
     }
 }
 
+/// Every box is fixed at its start position at `t == 0`, like an agent.
+#[test]
+fn boxes_are_initialized_at_their_start_position() {
+    let world = World::try_from("S0 # . # X").expect("failed to parse world");
+    let mut generator = ClauseGenerator::new(&world, 4).unwrap();
+    let (clauses, _) = generator.generate(4, SolveMode::Standard, false);
+
+    for (box_id, start) in [(0, pos(0, 1)), (1, pos(0, 3))] {
+        let lit = generator
+            .literal(&VarKey::box_at(box_id, start, 0))
+            .expect("box variable at t = 0 must exist");
+        assert!(clauses.contains(&vec![lit]));
+    }
+}
+
+/// A world without boxes allocates no box variable.
+#[test]
+fn no_box_variable_without_boxes() {
+    let world = World::try_from("S0 . X").expect("failed to parse world");
+    let mut generator = ClauseGenerator::new(&world, 2).unwrap();
+    generator.generate(2, SolveMode::Standard, false);
+    assert!(!generator.exists(&VarKey::box_at(0, pos(0, 1), 0)));
+}
+
 #[test]
 fn possible_positions_multiple_agents() {
     let world = World::try_from(
@@ -487,10 +511,7 @@ fn test_gem_must_be_collected_clause_3gems() {
     // within the time window [1, 3] for gem 0 and [2, 4] for gem 1
     let t_min = [1, 2];
     let t_max = [3, 4];
-    let positions = [
-        Position { i: 0, j: 1, k: 0 },
-        Position { i: 0, j: 2, k: 0 },
-    ];
+    let positions = [Position { i: 0, j: 1, k: 0 }, Position { i: 0, j: 2, k: 0 }];
     for (i, gem_pos) in positions.into_iter().enumerate() {
         for tau in t_min[i]..=t_max[i] {
             if tau <= t_max[i] {
@@ -2123,4 +2144,28 @@ fn formula_still_admits_one_agent_idling_on_its_exit_while_another_travels() {
         admits(&generator, &clauses, &staggered),
         "only the all-agents-arrived state is early termination"
     );
+}
+
+#[test]
+fn test_generator_rejects_a_world_with_several_layers() {
+    let world = World::try_from("S0 . X\n;\n. . .").unwrap();
+    assert!(matches!(
+        ClauseGenerator::new(&world, 5),
+        Err(crate::solver::errors::SolverError::UnsupportedFeature { .. })
+    ));
+}
+
+#[test]
+fn test_generator_rejects_a_world_with_lifts() {
+    let world = World::try_from("S0 TU0 B0 X").unwrap();
+    assert!(matches!(
+        ClauseGenerator::new(&world, 5),
+        Err(crate::solver::errors::SolverError::UnsupportedFeature { feature: "lifts" })
+    ));
+}
+
+#[test]
+fn test_generator_accepts_a_single_layer_world_with_a_button_only() {
+    let world = World::try_from("S0 B0 X").unwrap();
+    assert!(ClauseGenerator::new(&world, 5).is_ok());
 }

@@ -234,6 +234,7 @@ class StateGenerator(ObservationGenerator):
         super().__init__(world)
         self.n_gems = world.n_gems
         self.n_agents = world.n_agents
+        self.n_boxes = world.n_boxes
         if normalize:
             self.dimensions = np.array([world.height, world.width, world.layers] * world.n_agents)
         else:
@@ -248,7 +249,7 @@ class StateGenerator(ObservationGenerator):
 
     def to_world_state(self, data):
         data[: self._world.n_agents * WorldState.POSITION_SIZE] = data[: self._world.n_agents * WorldState.POSITION_SIZE] * self.dimensions
-        return WorldState.from_array(data.tolist(), self.n_agents, self.n_gems)
+        return WorldState.from_array(data.tolist(), self.n_agents, self.n_gems, self.n_boxes)
 
     @property
     def obs_type(self) -> ObservationType:
@@ -256,8 +257,9 @@ class StateGenerator(ObservationGenerator):
 
     @property
     def shape(self):
-        """The full world state: (i, j, k) for each agent, each gem's collection status, and each agent's alive flag."""
-        return (self._world.n_agents * WorldState.AGENT_SIZE + self.n_gems,)
+        """The full world state: (i, j, k) for each agent, each gem's collection status, each agent's
+        alive flag, then (i, j, k) and a presence flag for each box. Box positions are not normalized."""
+        return (self._world.n_agents * WorldState.AGENT_SIZE + self.n_gems + self.n_boxes * WorldState.BOX_SIZE,)
 
     @property
     def unit_size(self) -> int:
@@ -385,7 +387,14 @@ class LayeredPadded(ObservationGenerator):
         """Reconstruct a world state from a layered observation.
 
         This assumes that all agents are alive.
+
+        Raises:
+            NotImplementedError: if the world has boxes, since the layered observation has no box layer.
         """
+        if self._world.n_boxes > 0:
+            raise NotImplementedError(
+                "Layered states cannot reconstruct box positions; use the 'state' state type for worlds with boxes"
+            )
         _, i, j, k = np.nonzero(data[self.A0 : self.A0 + self.n_colours])
         agents_positions = [(int(i[n]), int(j[n]), int(k[n])) for n in range(self._world.n_agents)]
         gems_collected = []

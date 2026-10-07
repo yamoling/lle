@@ -131,6 +131,9 @@ pub fn parse_error_to_exception(error: ParseError) -> PyErr {
         ParseError::PositionOutOfBounds { i, j, k } => {
             format!("Position ({i}, {j}, {k}) is out of the world's boundaries")
         }
+        ParseError::InvalidBoxPosition { position } => format!(
+            "A box cannot start at {position:?}: it must start on a free floor, gem, exit or laser tile (not a wall, void, laser source, agent start or another box)"
+        ),
         ParseError::MissingHeight => "Missing height in the world configuration file".into(),
         ParseError::MissingWidth => "Missing width in the world configuration file".into(),
         ParseError::MissingLayers => "Missing layers in the world configuration file".into(),
@@ -172,6 +175,11 @@ pub fn runtime_error_to_pyexception(error: RuntimeWorldError) -> PyErr {
         RuntimeWorldError::InvalidNumberOfGems { given, expected } => {
             InvalidWorldStateError::new_err(format!(
                 "Invalid number of gems: given {given}, expected {expected}",
+            ))
+        }
+        RuntimeWorldError::InvalidNumberOfBoxes { given, expected } => {
+            InvalidWorldStateError::new_err(format!(
+                "Invalid number of boxes: given {given}, expected {expected}",
             ))
         }
         RuntimeWorldError::InvalidAgentPosition { position, reason } => {
@@ -232,5 +240,10 @@ pub fn solver_error_to_exception(error: crate::solver::errors::SolverError) -> P
         } => PyValueError::new_err(format!(
             "Invalid parameter {value} for SolveMode::{variant}: {reason}"
         )),
+        crate::solver::errors::SolverError::UnsupportedFeature { feature } => {
+            exceptions::PyNotImplementedError::new_err(format!(
+                "The solver does not support {feature} yet."
+            ))
+        }
     }
 }

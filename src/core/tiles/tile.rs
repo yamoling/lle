@@ -6,6 +6,15 @@ use core::panic;
 
 use super::{Button, Gem, Laser, LaserSource, Lift, Void};
 
+/// What happens to a box that is pushed onto a tile.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BoxOutcome {
+    /// The box settles here.
+    Rests,
+    /// The box does not survive (a void) and is removed from the world.
+    Destroyed,
+}
+
 #[derive(Debug)]
 pub enum Tile {
     Gem(Gem),
@@ -63,6 +72,15 @@ impl Tile {
             Self::Gem(gem) => gem.leave(),
             Self::Lift(lift) => lift.leave(),
             Self::Button(button) => button.leave(),
+        }
+    }
+
+    /// Whether this tile is a void, looking through any laser beams crossing it.
+    pub fn is_void(&self) -> bool {
+        match self {
+            Self::Void(_) => true,
+            Self::Laser(laser) => laser.wrapped().is_void(),
+            _ => false,
         }
     }
 
@@ -164,6 +182,41 @@ impl Tile {
         .to_string()
     }
 
+    /// A box settles on this tile. Boxes are colour-blind: they block a beam of
+    /// any colour. Unlike agents, boxes never reach `enter`, so a box on a gem
+    /// does not collect it. Likewise, a box neither presses a button nor rides a
+    /// lift: both behave like a floor for boxes.
+    pub fn box_enter(&mut self) -> BoxOutcome {
+        match self {
+            Self::Void(_) => BoxOutcome::Destroyed,
+            Self::Laser(laser) => laser.box_enter(),
+            Self::Floor { .. }
+            | Self::Exit { .. }
+            | Self::Gem(_)
+            | Self::Lift(_)
+            | Self::Button(_) => BoxOutcome::Rests,
+            Self::Wall | Self::LaserSource(_) => {
+                panic!("A box cannot be pushed onto a wall or a laser source")
+            }
+        }
+    }
+
+    /// A box leaves this tile.
+    pub fn box_leave(&mut self) {
+        match self {
+            Self::Laser(laser) => laser.box_leave(),
+            Self::Floor { .. }
+            | Self::Exit { .. }
+            | Self::Gem(_)
+            | Self::Void(_)
+            | Self::Lift(_)
+            | Self::Button(_) => {}
+            Self::Wall | Self::LaserSource(_) => {
+                panic!("A box cannot leave a wall or a laser source")
+            }
+        }
+    }
+
     /// `colour` is the colour of the agent taking `Action::Trigger` on this tile,
     /// which is what a `Button`'s authorization is checked against.
     pub fn actuate(&mut self, colour: Colour) -> Option<usize> {
@@ -194,3 +247,7 @@ impl Grid<Tile> {
         Self { grid, ..self }
     }
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/test_box_tiles.rs"]
+mod test_box_tiles;

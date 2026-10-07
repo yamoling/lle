@@ -21,6 +21,7 @@ pub struct ParsingData {
     pub void_positions: Vec<Position>,
     pub exit_positions: Vec<Position>,
     pub walls_positions: Vec<Position>,
+    pub box_positions: Vec<Position>,
     pub laser_configs: Vec<(Position, LaserConfig)>,
     pub lift_configs: Vec<(Position, LiftConfig)>,
     pub button_configs: Vec<(Position, ButtonConfig)>,
@@ -60,6 +61,10 @@ impl ParsingData {
 
     pub fn add_gem(&mut self, pos: Position) {
         self.gem_positions.push(pos);
+    }
+
+    pub fn add_box(&mut self, pos: Position) {
+        self.box_positions.push(pos);
     }
 
     pub fn add_void(&mut self, pos: Position) {
@@ -139,6 +144,7 @@ impl TryInto<WorldConfig> for ParsingData {
             self.void_positions,
             self.exit_positions,
             self.walls_positions,
+            self.box_positions,
             self.laser_configs,
             self.lift_configs,
             self.button_configs,
@@ -154,6 +160,13 @@ impl TryInto<WorldConfig> for ParsingData {
 /// in reading order would come back with those agents swapped. Both cases return `Err(())`, and
 /// `WorldConfig::Display` falls back to TOML (see `.agents/plans/agent-colour-id.md` §3.4d).
 pub fn to_v1_string(config: &WorldConfig) -> Result<String, ()> {
+    if config
+        .boxes()
+        .iter()
+        .any(|b| config.gems().contains(b) || config.exits().contains(b))
+    {
+        return Err(());
+    }
     let mut res =
         Grid::<String>::new(config.width(), config.height(), config.layers()).default_init();
     let mut previous_of_colour: std::collections::HashMap<usize, Position> =
@@ -184,6 +197,9 @@ pub fn to_v1_string(config: &WorldConfig) -> Result<String, ()> {
     }
     for pos in config.voids() {
         res.replace_at(&pos, "V".into());
+    }
+    for pos in config.boxes() {
+        res.replace_at(&pos, "#".into());
     }
     for (pos, config) in config.sources() {
         res.replace_at(&pos, config.to_string());
@@ -229,6 +245,7 @@ pub fn parse(world_str: &str) -> Result<WorldConfig, ParseError> {
                 '@' => data.add_wall(pos),
                 'X' => data.add_exit(pos),
                 'V' => data.add_void(pos),
+                '#' => data.add_box(pos),
                 'S' => {
                     let colour = token[1..].parse().map_err(|_| ParseError::InvalidAgentId {
                         given_agent_id: token[1..].into(),

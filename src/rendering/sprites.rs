@@ -41,6 +41,12 @@ pub static VOID: LazyLock<RgbaImage> = LazyLock::new(|| {
         .to_rgba8()
 });
 
+pub static BOX: LazyLock<RgbaImage> = LazyLock::new(|| {
+    image::load_from_memory_with_format(BOX_BYTES, image::ImageFormat::Png)
+        .unwrap()
+        .to_rgba8()
+});
+
 fn load_single_rgba(bytes: &[u8]) -> RgbaImage {
     image::load_from_memory_with_format(bytes, image::ImageFormat::Png)
         .unwrap()
