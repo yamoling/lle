@@ -2,7 +2,7 @@ use strum::IntoEnumIterator;
 
 use crate::Position;
 use crate::solver::{Clause, clauses::ClauseEngine};
-use crate::tiles::Direction;
+use crate::tiles::CardinalDirection;
 
 use super::utils::{at_most_one, implies};
 
@@ -88,7 +88,7 @@ impl ClauseEngine {
                 if ctx.is_void(&q) {
                     continue;
                 }
-                for d in Direction::iter() {
+                for d in CardinalDirection::iter() {
                     let Some(p) = ctx.pusher_origin(q, d) else {
                         continue;
                     };
@@ -184,5 +184,5 @@ impl ClauseEngine {
 
 /// `x` and its four adjacent cells that lie inside the grid's non-negative quadrant.
 fn closed_neighbourhood(x: Position) -> impl Iterator<Item = Position> {
-    std::iter::once(x).chain(Direction::iter().filter_map(move |d| (x + d).ok()))
+    std::iter::once(x).chain(CardinalDirection::iter().filter_map(move |d| (x + d).ok()))
 }

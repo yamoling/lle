@@ -35,7 +35,11 @@ def test_time_reward():
     . .  . ."""
     ).build()
     env.reset()
+    # Trigger is only a legal action while standing on a Button, which this
+    # world does not have.
     for action in Action.variants():
+        if action == Action.TRIGGER:
+            continue
         reward = env.step([action.value]).reward
         assert reward == 0
 
@@ -448,5 +452,5 @@ def test_randomized_lasers_updates_static_observation_layer():
     for _ in range(50):
         env.reset()
         for source in env.world.laser_sources:
-            i, j = source.pos
-            assert generator.static_obs[generator.LASER_0 + source.agent_id, i, j] == -1.0
+            i, j, k = source.pos
+            assert generator.static_obs[generator.LASER_0 + source.agent_id, i, j, k] == -1.0

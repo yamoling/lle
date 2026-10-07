@@ -9,7 +9,7 @@ use crate::solver::{VarKey, errors::SolverError};
 use crate::{Action, Position};
 
 fn pos(i: usize, j: usize) -> Position {
-    Position { i, j }
+    Position { i, j, k: 0 }
 }
 
 /// Interdependence progress variables are keyed and reused by their semantic identity.

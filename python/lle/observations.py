@@ -16,7 +16,7 @@ import numpy.typing as npt
 
 from lle.world import World, WorldState
 
-from .types import AgentId, Position
+from .types import Colour, Position
 
 ObservationTypeLiteral = Literal[
     "layered",
@@ -64,7 +64,14 @@ class ObservationType(str, Enum):
     def from_str(s: ObservationTypeLiteral | str) -> "ObservationType":
         return ObservationType(s)
 
-    def get_observation_generator(self, world: World, padding_size: int = 0) -> "ObservationGenerator":
+    def get_observation_generator(self, world: World, padding_size: int = 0, n_groups: int | None = None) -> "ObservationGenerator":
+        """Build the generator for this preset.
+
+        `padding_size` reserves channels for agents that the world does not have,
+        and `n_groups` does the same for lift/button groups. Both exist to pin the
+        observation shape when a single network has to consume several maps: leave
+        `n_groups` at `None` to size the lift/button section after the world.
+        """
         match self:
             case ObservationType.NORMALIZED_STATE:
                 return StateGenerator(world, normalize=True)
@@ -73,27 +80,88 @@ class ObservationType(str, Enum):
             case ObservationType.RGB_IMAGE:
                 return RGBImage(world)
             case ObservationType.LAYERED:
-                return Layered(world)
+                return Layered(world, n_groups)
             case ObservationType.FLATTENED:
-                return FlattenedLayered(world)
+                return FlattenedLayered(world, n_groups)
             case ObservationType.PARTIAL_3x3:
-                return PartialGenerator(world, 3)
+                return PartialGenerator(world, 3, n_groups)
             case ObservationType.PARTIAL_5x5:
-                return PartialGenerator(world, 5)
+                return PartialGenerator(world, 5, n_groups)
             case ObservationType.PARTIAL_7x7:
-                return PartialGenerator(world, 7)
+                return PartialGenerator(world, 7, n_groups)
             case ObservationType.LAYERED_PADDED:
-                return LayeredPadded(world, padding_size)
+                return LayeredPadded(world, padding_size, n_groups)
             case ObservationType.LAYERED_PADDED_1AGENT:
-                return LayeredPadded(world, 1)
+                return LayeredPadded(world, 1, n_groups)
             case ObservationType.LAYERED_PADDED_2AGENTS:
-                return LayeredPadded(world, 2)
+                return LayeredPadded(world, 2, n_groups)
             case ObservationType.LAYERED_PADDED_3AGENTS:
-                return LayeredPadded(world, 3)
+                return LayeredPadded(world, 3, n_groups)
             case ObservationType.PERSPECTIVE:
-                return PerspectiveLayered(world)
+                return PerspectiveLayered(world, n_groups)
             case other:
                 raise ValueError(f"Unknown observation type: {other}")
+
+
+def _build_group_index(world: World) -> tuple[list[int], dict[int, int]]:
+    """Map the (possibly sparse) lift/button group ids onto dense channel indices.
+
+    Lifts and buttons share the index so that `LIFT_0 + g` and `BUTTON_0 + g`
+    designate the same group, which is exactly the button-pulses-lift relation.
+    """
+    group_ids = sorted({tile.group_id for tile in (*world.lifts, *world.buttons)})
+    return group_ids, {group_id: index for index, group_id in enumerate(group_ids)}
+
+
+def _resolve_n_groups(group_ids: list[int], n_groups: int | None) -> int:
+    """The number of lift/button group channels to reserve.
+
+    `None` sizes the section after the world it is given. An explicit value pins
+    it instead, so that maps with different group counts still yield the same
+    observation shape — the counterpart of `padding_size` for agents.
+    """
+    if n_groups is None:
+        return len(group_ids)
+    if n_groups < len(group_ids):
+        raise ValueError(f"n_groups={n_groups} is too small for a world with {len(group_ids)} lift/button groups")
+    return n_groups
+
+
+def _assert_world_fits(
+    new_world: World,
+    n_new_groups: int,
+    n_agents: int,
+    n_groups: int,
+    world_dims: tuple[int, ...] | None,
+):
+    """Reject a `set_world` target that would change the observation shape."""
+    if new_world.n_agents > n_agents:
+        raise ValueError(
+            f"The new world has {new_world.n_agents} agents but only {n_agents} channels are reserved. "
+            "Rebuild the generator, or reserve more room with `padding_size`."
+        )
+    if n_new_groups > n_groups:
+        raise ValueError(
+            f"The new world has {n_new_groups} lift/button groups but only {n_groups} are reserved. "
+            "Rebuild the generator, or reserve more room with `n_groups`."
+        )
+    new_dims = (new_world.height, new_world.width, new_world.layers)
+    if world_dims is not None and tuple(world_dims) != new_dims:
+        raise ValueError(f"The new world is {new_dims} but the generator is built for {tuple(world_dims)}.")
+
+
+def _authorized_colours(authorized_colour: Colour | None, n_colours: int) -> list[Colour]:
+    """The colours allowed to use a lift or button. `None` means all of them.
+
+    A colour at or above `n_colours` has no channel to go in, so it encodes as
+    nothing rather than aliasing into another colour's layer - the same rule the
+    laser band follows.
+    """
+    if authorized_colour is None:
+        return list(range(n_colours))
+    if authorized_colour < n_colours:
+        return [authorized_colour]
+    return []
 
 
 def require_unshared_colours(world: World, generator_name: str) -> None:
@@ -168,17 +236,19 @@ class StateGenerator(ObservationGenerator):
         self.n_agents = world.n_agents
         self.n_boxes = world.n_boxes
         if normalize:
-            self.dimensions = np.array([world.height, world.width] * world.n_agents)
+            self.dimensions = np.array([world.height, world.width, world.layers] * world.n_agents)
         else:
-            self.dimensions = np.array([1.0, 1.0] * world.n_agents)
+            self.dimensions = np.ones(world.n_agents * len(world.world_dims))
 
     def observe(self):
         state = self._world.get_state().as_array()
-        state[: self._world.n_agents * 2] = state[: self._world.n_agents * 2] / self.dimensions
+        state[: self._world.n_agents * WorldState.POSITION_SIZE] = (
+            state[: self._world.n_agents * WorldState.POSITION_SIZE] / self.dimensions
+        )
         return np.tile(state, reps=(self._world.n_agents, 1))
 
     def to_world_state(self, data):
-        data[: self._world.n_agents * 2] = data[: self._world.n_agents * 2] * self.dimensions
+        data[: self._world.n_agents * WorldState.POSITION_SIZE] = data[: self._world.n_agents * WorldState.POSITION_SIZE] * self.dimensions
         return WorldState.from_array(data.tolist(), self.n_agents, self.n_gems, self.n_boxes)
 
     @property
@@ -187,9 +257,9 @@ class StateGenerator(ObservationGenerator):
 
     @property
     def shape(self):
-        """The full world state: (i, j) for each agent, each gem's collection status, each agent's
-        alive flag, then (i, j) and a presence flag for each box. Box positions are not normalized."""
-        return (self._world.n_agents * 3 + self.n_gems + self.n_boxes * 3,)
+        """The full world state: (i, j, k) for each agent, each gem's collection status, each agent's
+        alive flag, then (i, j, k) and a presence flag for each box. Box positions are not normalized."""
+        return (self._world.n_agents * WorldState.AGENT_SIZE + self.n_gems + self.n_boxes * WorldState.BOX_SIZE,)
 
     @property
     def unit_size(self) -> int:
@@ -216,15 +286,17 @@ class RGBImage(ObservationGenerator):
 
 @dataclass
 class LayeredPadded(ObservationGenerator):
-    """Layered observations with an optional agent padding budget."""
+    """Layered observations with an optional agent and lift/button group budget."""
 
-    def __init__(self, world: World, padding_size: int, *, guard_shared_colours: bool = True):
+    def __init__(self, world: World, padding_size: int, n_groups: int | None = None, *, guard_shared_colours: bool = True):
         super().__init__(world)
         if guard_shared_colours:
             require_unshared_colours(world, type(self).__name__)
         self.width = world.width
         self.height = world.height
         self.n_agents = world.n_agents + padding_size
+        self.group_ids, self.group_index = _build_group_index(world)
+        self.n_groups = _resolve_n_groups(self.group_ids, n_groups)
         # One agent layer and one laser layer per colour. Sizing the bands by the colour space
         # rather than by `n_agents` is what keeps a laser colour above `n_agents` from aliasing
         # into the WALL band.
@@ -235,9 +307,32 @@ class LayeredPadded(ObservationGenerator):
         self.VOID = self.WALL + 1
         self.GEM = self.VOID + 1
         self.EXIT = self.GEM + 1
-        self._shape = (self.EXIT + 1, world.height, world.width)
+        # One channel per lift group (sign = direction), one per button group, and
+        # one per colour telling whether agents of that colour may use the
+        # lift/button below it. The whole section is absent when no group is reserved.
+        self.LIFT_0 = self.EXIT + 1
+        self.BUTTON_0 = self.LIFT_0 + self.n_groups
+        self.AUTH_0 = self.BUTTON_0 + self.n_groups
+        n_channels = self.AUTH_0 + (self.n_colours if self.n_groups > 0 else 0)
+        self._shape = (n_channels, world.height, world.width, world.layers)
         self.ordered_gem_pos = sorted(gem.pos for gem in world.gems)
 
+        self.static_obs = self._setup()
+
+    def set_world(self, new_world: World):
+        """Point the generator at another world and rebuild its static layers.
+
+        Raises `ValueError` when the new world would not produce the same
+        observation shape: a network whose input width silently changes
+        mid-training is a failure that has to be loud.
+        """
+        group_ids, group_index = _build_group_index(new_world)
+        _assert_world_fits(new_world, len(group_ids), self.n_agents, self.n_groups, self._shape[1:])
+        super().set_world(new_world)
+        self.group_ids, self.group_index = group_ids, group_index
+        self.width = new_world.width
+        self.height = new_world.height
+        self.ordered_gem_pos = sorted(gem.pos for gem in new_world.gems)
         self.static_obs = self._setup()
 
     def _setup(self):
@@ -246,22 +341,44 @@ class LayeredPadded(ObservationGenerator):
         `world.reset()`-adjacent events (e.g. `randomize_lasers`) or explicit topology edits
         (e.g. `world.exit_pos = ...`), both of which call `reset()` on this generator — see
         `ObservationGenerator.reset`. Recomputed there instead of on every `observe()` call.
+
+        Lift/button positions, groups and authorizations never change either, so they are
+        baked in here too.
         """
         obs = np.zeros(self._shape, dtype=np.float32)
-        for i, j in self._world.wall_pos:
-            obs[self.WALL, i, j] = 1.0
+        for i, j, k in self._world.wall_pos:
+            obs[self.WALL, i, j, k] = 1.0
 
-        for i, j in self._world.void_pos:
-            obs[self.VOID, i, j] = 1.0
+        for i, j, k in self._world.void_pos:
+            obs[self.VOID, i, j, k] = 1.0
 
-        for i, j in self._world.exit_pos:
-            obs[self.EXIT, i, j] = 1.0
+        # Neither the position of a lift/button nor its group or its authorized
+        # colour changes during an episode, so all of it can be baked into the
+        # static layers just like walls/voids.
+        for lift in self._world.lifts:
+            i, j, k = lift.pos
+            obs[self.LIFT_0 + self.group_index[lift.group_id], i, j, k] = 1.0 if lift.direction == "U" else -1.0
+            self._encode_authorization(obs, lift.authorized_colour, lift.pos)
+
+        for button in self._world.buttons:
+            i, j, k = button.pos
+            obs[self.BUTTON_0 + self.group_index[button.group_id], i, j, k] = 1.0
+            self._encode_authorization(obs, button.authorized_colour, button.pos)
+
+        for i, j, k in self._world.exit_pos:
+            obs[self.EXIT, i, j, k] = 1.0
 
         for source in self._world.laser_sources:
-            i, j = source.pos
-            obs[self.LASER_0 + source.colour, i, j] = -1.0
+            i, j, k = source.pos
+            obs[self.LASER_0 + source.colour, i, j, k] = -1.0
 
         return obs
+
+    def _encode_authorization(self, obs: npt.NDArray[np.float32], authorized_colour: Colour | None, pos: Position):
+        """Flag which colours may use the lift or button standing at `pos`."""
+        i, j, k = pos
+        for colour in _authorized_colours(authorized_colour, self.n_colours):
+            obs[self.AUTH_0 + colour, i, j, k] = 1.0
 
     def reset(self) -> None:
         self.static_obs = self._setup()
@@ -278,28 +395,29 @@ class LayeredPadded(ObservationGenerator):
             raise NotImplementedError(
                 "Layered states cannot reconstruct box positions; use the 'state' state type for worlds with boxes"
             )
-        _, i, j = np.nonzero(data[self.A0 : self.A0 + self.n_colours])
-        agents_positions = [(int(i[n]), int(j[n])) for n in range(self._world.n_agents)]
+        _, i, j, k = np.nonzero(data[self.A0 : self.A0 + self.n_colours])
+        agents_positions = [(int(i[n]), int(j[n]), int(k[n])) for n in range(self._world.n_agents)]
         gems_collected = []
-        for i, j in self.ordered_gem_pos:
-            gems_collected.append(bool(data[self.GEM, i, j] == 0.0))
+        # We need the gem positions to be ordered because they are initially stored in a hashmap
+        for i, j, k in self.ordered_gem_pos:
+            gems_collected.append(bool(data[self.GEM, i, j, k] == 0.0))
         return WorldState(agents_positions, gems_collected)
 
     def observe(self):
         obs = np.copy(self.static_obs)
         for laser in self._world.lasers:
-            i, j = laser.pos
+            i, j, k = laser.pos
             if laser.is_on:
-                obs[self.LASER_0 + laser.colour, i, j] = 1.0
+                obs[self.LASER_0 + laser.colour, i, j, k] = 1.0
         for gem in self._world.gems:
-            i, j = gem.pos
+            i, j, k = gem.pos
             if not gem.is_collected:
-                obs[self.GEM, i, j] = 1.0
+                obs[self.GEM, i, j, k] = 1.0
         # Every agent is stamped into its colour's layer. Two agents never share a cell, so
         # same-colour agents cannot overwrite each other.
-        for colour, (y, x) in zip(self._world.agent_colours, self._world.agents_positions):
-            obs[self.A0 + colour, y, x] = 1.0
-        return np.tile(obs, (self._world.n_agents, 1, 1, 1))
+        for colour, (y, x, z) in zip(self._world.agent_colours, self._world.agents_positions):
+            obs[self.A0 + colour, y, x, z] = 1.0
+        return np.tile(obs, (self._world.n_agents, 1, 1, 1, 1))
 
     @property
     def shape(self):
@@ -311,14 +429,14 @@ class LayeredPadded(ObservationGenerator):
 
 
 class Layered(LayeredPadded):
-    def __init__(self, world: World, *, guard_shared_colours: bool = True):
-        super().__init__(world, padding_size=0, guard_shared_colours=guard_shared_colours)
+    def __init__(self, world: World, n_groups: int | None = None, *, guard_shared_colours: bool = True):
+        super().__init__(world, padding_size=0, n_groups=n_groups, guard_shared_colours=guard_shared_colours)
 
 
 class FlattenedLayered(ObservationGenerator):
-    def __init__(self, world: World):
+    def __init__(self, world: World, n_groups: int | None = None):
         super().__init__(world)
-        self.layered = Layered(world)
+        self.layered = Layered(world, n_groups)
         size = 1
         for s in self.layered.shape:
             size = size * s
@@ -346,19 +464,40 @@ class FlattenedLayered(ObservationGenerator):
 
 
 class PartialGenerator(ObservationGenerator):
-    def __init__(self, world: World, square_size: int):
+    def __init__(self, world: World, square_size: int, n_groups: int | None = None):
         super().__init__(world)
         assert square_size % 2 == 1, "Can only use odd numbers for the square size"
         require_unshared_colours(world, type(self).__name__)
         self.size = square_size
+        self._center = self.size // 2
+        self.n_agents = world.n_agents
         # One layer per colour for the agents, one per colour for the lasers, walls, gems, exits
         self.n_colours = world.n_colours
-        self._shape = (self.n_colours * 2 + 3, self.size, self.size)
-        self._center = self.size // 2
+        self.group_ids, self.group_index = _build_group_index(world)
+        self.n_groups = _resolve_n_groups(self.group_ids, n_groups)
+        # Each agent, walls, each laser, gems, exits, then the lift/button section:
+        # one channel per lift group (sign = direction), one per button group and
+        # one per colour for the authorizations. Absent when no group is reserved.
         self.WALL = self.n_colours
         self.LASER_0 = self.WALL + 1
         self.GEM = self.LASER_0 + self.n_colours
         self.EXIT = self.GEM + 1
+        self.LIFT_0 = self.EXIT + 1
+        self.BUTTON_0 = self.LIFT_0 + self.n_groups
+        self.AUTH_0 = self.BUTTON_0 + self.n_groups
+        n_channels = self.AUTH_0 + (self.n_colours if self.n_groups > 0 else 0)
+        self._shape = (n_channels, self.size, self.size)
+
+    def set_world(self, new_world: World):
+        """Point the generator at another world, refusing one that would reshape it.
+
+        The window size is fixed, so unlike `LayeredPadded` the map dimensions are
+        free to change; only the agent and group budgets have to hold.
+        """
+        group_ids, group_index = _build_group_index(new_world)
+        _assert_world_fits(new_world, len(group_ids), self.n_agents, self.n_groups, None)
+        super().set_world(new_world)
+        self.group_ids, self.group_index = group_ids, group_index
 
     @property
     def shape(self) -> tuple[int, int, int]:
@@ -371,10 +510,25 @@ class PartialGenerator(ObservationGenerator):
     def encode_layer(self, layer: npt.NDArray[np.float32], origin: Position, positions: Sequence[Position], fill_value: float = 1.0):
         if len(positions) == 0:
             return
-        for i, j in positions:
+        for i, j, k in positions:
+            # The window is a 2D slice centred on the agent: tiles sitting on
+            # another floor must not be projected onto it.
+            if k != origin[2]:
+                continue
             i, j = i - origin[0] + self._center, j - origin[1] + self._center
             if 0 <= i < self.size and 0 <= j < self.size:
                 layer[i, j] = fill_value
+
+    def _encode_authorization(
+        self,
+        obs: npt.NDArray[np.float32],
+        origin: Position,
+        authorized_colour: Colour | None,
+        pos: Position,
+    ):
+        """Flag which colours may use the lift or button standing at `pos`."""
+        for colour in _authorized_colours(authorized_colour, self.n_colours):
+            self.encode_layer(obs[self.AUTH_0 + colour], origin, [pos])
 
     def observe(self) -> npt.NDArray[np.float32]:
         obs = np.zeros((self._world.n_agents, *self._shape), dtype=np.float32)
@@ -396,11 +550,24 @@ class PartialGenerator(ObservationGenerator):
             # Laser sources
             for source in self._world.laser_sources:
                 self.encode_layer(obs[a, self.LASER_0 + source.colour], agent_pos, [source.pos], fill_value=-1.0)
+            # Lifts: one channel per group, direction encoded as the sign
+            for lift in self._world.lifts:
+                self.encode_layer(
+                    obs[a, self.LIFT_0 + self.group_index[lift.group_id]],
+                    agent_pos,
+                    [lift.pos],
+                    fill_value=1.0 if lift.direction == "U" else -1.0,
+                )
+                self._encode_authorization(obs[a], agent_pos, lift.authorized_colour, lift.pos)
+            # Buttons: one channel per group
+            for button in self._world.buttons:
+                self.encode_layer(obs[a, self.BUTTON_0 + self.group_index[button.group_id]], agent_pos, [button.pos])
+                self._encode_authorization(obs[a], agent_pos, button.authorized_colour, button.pos)
         return obs
 
-    def _get_lasers_positions(self) -> dict[AgentId, list[Position]]:
+    def _get_lasers_positions(self) -> dict[Colour, list[Position]]:
         """Beam tiles that are currently on, grouped by colour."""
-        laser_positions = dict[AgentId, list[Position]]()
+        laser_positions = dict[Colour, list[Position]]()
         for laser in self._world.lasers:
             if laser.is_on:
                 lasers = laser_positions.get(laser.colour, [])
@@ -422,24 +589,34 @@ class PerspectiveLayered(ObservationGenerator):
     - there is one agent layer and one laser layer per colour, and every agent is stamped into
       its colour's layer, exactly as lasers already were;
     - the observing agent's colour is transposed with colour 0, so an agent always sees itself
-      as colour 0 regardless of the colour it was assigned.
+      as colour 0 regardless of the colour it was assigned;
+    - it also carries the lift/button group section, like `LayeredPadded`. The `AUTH_0` band is
+      per-colour, like the agent and laser bands, so it is colour-permuted along with them: an
+      agent always finds its own lift/button authorization in `AUTH_0`.
     """
 
-    def __init__(self, world: World):
+    def __init__(self, world: World, n_groups: int | None = None):
         super().__init__(world)
         self.height = world.height
         self.width = world.width
         self.n_colours = world.n_colours
+        self.n_agents = world.n_agents
+        self.group_ids, self.group_index = _build_group_index(world)
+        self.n_groups = _resolve_n_groups(self.group_ids, n_groups)
         self.A0 = 0
         self.LASER_0 = self.A0 + self.n_colours
         self.WALL = self.LASER_0 + self.n_colours
         self.VOID = self.WALL + 1
         self.GEM = self.VOID + 1
         self.EXIT = self.GEM + 1
-        self._shape = (self.EXIT + 1, 2 * world.height - 1, 2 * world.width - 1)
+        self.LIFT_0 = self.EXIT + 1
+        self.BUTTON_0 = self.LIFT_0 + self.n_groups
+        self.AUTH_0 = self.BUTTON_0 + self.n_groups
+        n_channels = self.AUTH_0 + (self.n_colours if self.n_groups > 0 else 0)
+        self._shape = (n_channels, 2 * world.height - 1, 2 * world.width - 1, world.layers)
         # The map-sized view this one shifts and permutes. It is built unguarded on purpose:
         # sharing a colour is exactly the case this generator exists to handle.
-        self._layered = Layered(world, guard_shared_colours=False)
+        self._layered = Layered(world, n_groups, guard_shared_colours=False)
 
     @property
     def shape(self):
@@ -463,17 +640,25 @@ class PerspectiveLayered(ObservationGenerator):
         # Everything outside the map is a wall; the map window is cleared per agent below.
         obs[:, self.WALL] = 1.0
         colours = self._world.agent_colours
-        for agent_num, (i, j) in enumerate(self._world.agents_positions):
+        for agent_num, (i, j, _) in enumerate(self._world.agents_positions):
             di, dj = self.height - 1 - i, self.width - 1 - j
             window = self._permute_colours(world_view, colours[agent_num])
-            obs[agent_num, :, di : di + self.height, dj : dj + self.width] = window
+            obs[agent_num, :, di : di + self.height, dj : dj + self.width, :] = window
         return obs
 
-    def _permute_colours(self, world_view: npt.NDArray[np.float32], colour: int):
-        """Swap `colour` into slot 0 of both the agent band and the laser band."""
+    def _permute_colours(self, world_view: npt.NDArray[np.float32], colour: Colour):
+        """Swap `colour` into slot 0 of every colour-indexed band.
+
+        That is the agent band, the laser band, and - when the world reserves any
+        lift/button group - the authorization band, so an observer reads its own
+        authorization out of `AUTH_0` whatever colour it was assigned.
+        """
         if colour == 0:
             return world_view
         permuted = np.copy(world_view)
-        for band in (self.A0, self.LASER_0):
+        bands = [self.A0, self.LASER_0]
+        if self.n_groups > 0:
+            bands.append(self.AUTH_0)
+        for band in bands:
             permuted[[band, band + colour]] = permuted[[band + colour, band]]
         return permuted

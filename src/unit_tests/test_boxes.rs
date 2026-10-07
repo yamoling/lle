@@ -1,11 +1,11 @@
 use crate::{Position, core::boxes::Boxes};
 
 fn pos(i: usize, j: usize) -> Position {
-    Position { i, j }
+    Position::new2d(i, j)
 }
 
 fn two_boxes() -> Boxes {
-    Boxes::new(vec![pos(0, 0), pos(1, 1)], 3, 3)
+    Boxes::new(vec![pos(0, 0), pos(1, 1)], 3, 3, 1)
 }
 
 #[test]
@@ -71,7 +71,7 @@ fn test_restore_sets_an_arbitrary_consistent_state() {
 
 #[test]
 fn test_id_at_returns_none_for_position_outside_grid() {
-    let boxes = Boxes::new(vec![pos(1, 0)], 3, 3);
+    let boxes = Boxes::new(vec![pos(1, 0)], 3, 3, 1);
     // Grid is 3x3, so valid indices are 0-2 for both i and j
     // Box is at (1,0), flat index 3
     // pos(0,3) would naively map to flat index 0*3+3=3 (aliasing to (1,0))

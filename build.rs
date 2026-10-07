@@ -168,6 +168,21 @@ fn include_sprites_in_binary() {
     res.push_str(&format!(
         "pub const BOX_BYTES: &[u8] = include_bytes!(r#\"{cwd}/{RESOURCES}/box.png\"#);\n",
     ));
+    res.push_str(&format!(
+        "pub const LIFT_UP_BYTES: &[u8] = include_bytes!(r#\"{cwd}/{RESOURCES}/lift_up.png\"#);\n",
+    ));
+    res.push_str(&format!(
+        "pub const LIFT_DOWN_BYTES: &[u8] = include_bytes!(r#\"{cwd}/{RESOURCES}/lift_down.png\"#);\n",
+    ));
+    res.push_str(&format!(
+        "pub const BUTTON_IDLE_BYTES: &[u8] = include_bytes!(r#\"{cwd}/{RESOURCES}/button_idle.png\"#);\n",
+    ));
+    res.push_str(&format!(
+        "pub const BUTTON_PRESSED_BYTES: &[u8] = include_bytes!(r#\"{cwd}/{RESOURCES}/button_pressed.png\"#);\n",
+    ));
+    res.push_str(&format!(
+        "pub const AGENT_LOCK_BYTES: &[u8] = include_bytes!(r#\"{cwd}/{RESOURCES}/agent_lock.png\"#);\n",
+    ));
     let dest_path = out_dir.join("constants.rs");
     fs::write(dest_path, res).unwrap();
 }

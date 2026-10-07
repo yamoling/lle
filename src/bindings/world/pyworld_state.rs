@@ -64,13 +64,22 @@ pub struct PyWorldState {
 #[gen_stub_pymethods]
 #[pymethods]
 impl PyWorldState {
+    #[classattr]
+    const POSITION_SIZE: usize = 3; // i, j, and k
+
+    #[classattr]
+    const AGENT_SIZE: usize = PyWorldState::POSITION_SIZE + 1; // 3 for position and 1 for alive status
+
+    #[classattr]
+    const BOX_SIZE: usize = PyWorldState::POSITION_SIZE + 1; // 3 for position and 1 for presence
+
     #[new]
     #[pyo3(signature = (agents_positions, gems_collected, agents_alive=None, boxes_positions=None, boxes_present=None))]
     pub fn new(
-        agents_positions: Vec<(usize, usize)>,
+        agents_positions: Vec<PyPosition>,
         gems_collected: Vec<bool>,
         agents_alive: Option<Vec<bool>>,
-        boxes_positions: Option<Vec<(usize, usize)>>,
+        boxes_positions: Option<Vec<PyPosition>>,
         boxes_present: Option<Vec<bool>>,
     ) -> Self {
         let agents_alive = agents_alive.unwrap_or_else(|| vec![true; agents_positions.len()]);
@@ -88,10 +97,10 @@ impl PyWorldState {
     #[pyo3(signature = (agents_positions, gems_collected, agents_alive=None, boxes_positions=None, boxes_present=None))]
     fn __init__(
         &mut self,
-        agents_positions: Vec<(usize, usize)>,
+        agents_positions: Vec<PyPosition>,
         gems_collected: Vec<bool>,
         agents_alive: Option<Vec<bool>>,
-        boxes_positions: Option<Vec<(usize, usize)>>,
+        boxes_positions: Option<Vec<PyPosition>>,
         boxes_present: Option<Vec<bool>>,
     ) {
         let agents_alive = agents_alive.unwrap_or_else(|| vec![true; agents_positions.len()]);
@@ -104,17 +113,18 @@ impl PyWorldState {
         self.boxes_present = boxes_present;
     }
 
-    /// Flatten the state into a 1D array: the (i, j) position of each agent, the collection status
-    /// of each gem, the alive flag of each agent, then the (i, j) position of each box followed by
-    /// the presence flag of each box. Its length is `n_agents * 3 + n_gems + n_boxes * 3`.
+    /// Flatten the state into a 1D array: the (i, j, k) position of each agent, the collection status
+    /// of each gem, the alive flag of each agent, then the (i, j, k) position of each box followed by
+    /// the presence flag of each box. Its length is `n_agents * 4 + n_gems + n_boxes * 4`.
     fn as_array<'a>(&self, py: Python<'a>) -> Bound<'a, PyArray1<f32>> {
-        let len = self.agents_positions.len() * 3
+        let len = self.agents_positions.len() * Self::AGENT_SIZE
             + self.gems_collected.len()
-            + self.boxes_positions.len() * 3;
+            + self.boxes_positions.len() * Self::BOX_SIZE;
         let mut res = Vec::with_capacity(len);
-        for (i, j) in &self.agents_positions {
-            res.push(*i as f32);
-            res.push(*j as f32);
+        for pos in &self.agents_positions {
+            res.push(pos.0 as f32);
+            res.push(pos.1 as f32);
+            res.push(pos.2 as f32);
         }
         for is_collected in &self.gems_collected {
             if *is_collected {
@@ -130,9 +140,10 @@ impl PyWorldState {
                 res.push(0.0);
             }
         }
-        for (i, j) in &self.boxes_positions {
-            res.push(*i as f32);
-            res.push(*j as f32);
+        for pos in &self.boxes_positions {
+            res.push(pos.0 as f32);
+            res.push(pos.1 as f32);
+            res.push(pos.2 as f32);
         }
         for present in &self.boxes_present {
             res.push(if *present { 1.0 } else { 0.0 });
@@ -148,7 +159,7 @@ impl PyWorldState {
     ///     n_gems: The number of gems in the world.
     ///     n_boxes: The number of boxes in the world (defaults to 0).
     /// Raises:
-    ///     `ValueError`: if the array does not have a length of `n_agents * 3 + n_gems + n_boxes * 3`.
+    ///     `ValueError`: if the array does not have a length of `n_agents * 4 + n_gems + n_boxes * 4`.
     #[staticmethod]
     #[pyo3(signature = (array, n_agents, n_gems, n_boxes=0))]
     fn from_array(
@@ -157,7 +168,7 @@ impl PyWorldState {
         n_gems: usize,
         n_boxes: usize,
     ) -> PyResult<Self> {
-        let expected_len = n_agents * 3 + n_gems + n_boxes * 3;
+        let expected_len = n_agents * Self::AGENT_SIZE + n_gems + n_boxes * Self::BOX_SIZE;
         if array.len() != expected_len {
             return Err(exceptions::PyValueError::new_err(format!(
                 "The array must have a length of {expected_len}.",
@@ -166,30 +177,36 @@ impl PyWorldState {
 
         let mut agents_positions = Vec::with_capacity(n_agents);
         for i in 0..n_agents {
-            agents_positions.push((array[i * 2] as usize, array[i * 2 + 1] as usize));
+            agents_positions.push(PyPosition(
+                array[i * Self::POSITION_SIZE] as usize,
+                array[i * Self::POSITION_SIZE + 1] as usize,
+                array[i * Self::POSITION_SIZE + 2] as usize,
+            ));
         }
         let mut gems_collected = Vec::with_capacity(n_gems);
         for i in 0..n_gems {
-            let is_collected = array[n_agents * 2 + i] == 1.0;
+            let is_collected = array[n_agents * Self::POSITION_SIZE + i] == 1.0;
             gems_collected.push(is_collected);
         }
         let mut agents_alive = Vec::with_capacity(n_agents);
         for i in 0..n_agents {
-            let is_alive = array[n_agents * 2 + n_gems + i] == 1.0;
+            let is_alive = array[n_agents * Self::POSITION_SIZE + n_gems + i] == 1.0;
             agents_alive.push(is_alive);
         }
 
-        let boxes_start = n_agents * 3 + n_gems;
+        let boxes_start = n_agents * Self::AGENT_SIZE + n_gems;
         let mut boxes_positions = Vec::with_capacity(n_boxes);
         for i in 0..n_boxes {
-            boxes_positions.push((
-                array[boxes_start + i * 2] as usize,
-                array[boxes_start + i * 2 + 1] as usize,
+            let offset = boxes_start + i * Self::POSITION_SIZE;
+            boxes_positions.push(PyPosition(
+                array[offset] as usize,
+                array[offset + 1] as usize,
+                array[offset + 2] as usize,
             ));
         }
         let mut boxes_present = Vec::with_capacity(n_boxes);
         for i in 0..n_boxes {
-            boxes_present.push(array[boxes_start + n_boxes * 2 + i] == 1.0);
+            boxes_present.push(array[boxes_start + n_boxes * Self::POSITION_SIZE + i] == 1.0);
         }
 
         Ok(Self {

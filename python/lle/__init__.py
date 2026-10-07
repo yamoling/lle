@@ -210,7 +210,7 @@ from .env import LLE
 from .generator import generate, GeneratorBuilder
 from .observations import ObservationType
 from .solver import solve
-from .types import AgentId, LaserId, Position
+from .types import AgentId, Colour, LaserId, Position
 from .world import Action, EventType, World, WorldEvent, WorldState
 from .characterization import is_cooperative, characterize, is_asymmetric, is_sequential, is_convergent, is_divergent
 from . import tiles, exceptions, world, agent, env, generator, characterization, solver, observations
@@ -224,6 +224,7 @@ level = LLE.level
 
 __all__ = [
     "AgentId",
+    "Colour",
     "LaserId",
     "Position",
     "world",

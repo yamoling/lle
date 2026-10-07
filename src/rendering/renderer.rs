@@ -3,8 +3,9 @@ use itertools::izip;
 
 use super::{BLACK, GRID_GREY, sprites};
 use crate::{
+    agent::Colour,
     core::World,
-    tiles::{Direction, Gem, Laser, LaserSource, Tile},
+    tiles::{Button, CardinalDirection, Gem, Laser, LaserSource, Lift, Tile, VerticalDirection},
 };
 
 use super::{BACKGROUND_GREY, TILE_SIZE};
@@ -15,11 +16,24 @@ pub struct VisitorData<'a> {
     frame: &'a mut RgbImage,
 }
 
+#[derive(Clone, Copy)]
+pub enum PanelFmt {
+    /// The panels are displayed in a grid format, with each panel representing a layer of the world. The panels are arranged in a single row, with the first panel representing the bottom layer and the last panel representing the top layer.
+    Grid(usize, usize),
+    /// The panels are displayed in a stacked format, with each panel representing a layer of the world. The panels are arranged on top of each other, with the first panel representing the bottom layer and the last panel representing the top layer.
+    VStack,
+    /// The panels are displayed in a horizontal format, with each panel representing a layer of the world. The panels are arranged in a single column, with the first panel representing the bottom layer and the last panel representing the top layer.
+    HStack,
+}
+
+///The Renderer struct is responsible for rendering the world as an image. It has a static frame which contains the floor, walls, laser sources, start and exit tiles. The dynamic elements such as lasers, gems and agents are rendered on top of the static frame in the update method.
+/// The addition of vector of RgbImage allows us to have a separate static frame for each layer of the world, give us the ability to render each layer independently and then diplay them in any ways that we want.
 #[derive(Clone)]
 pub struct Renderer {
-    static_frame: RgbImage,
+    static_frame: Vec<RgbImage>,
     pixel_width: u32,
     pixel_height: u32,
+    panel_fmt: PanelFmt,
 }
 
 impl Renderer {
@@ -27,9 +41,10 @@ impl Renderer {
         let pixel_width = core.width() as u32 * TILE_SIZE + 1;
         let pixel_height = core.height() as u32 * TILE_SIZE + 1;
         let mut renderer = Self {
-            static_frame: image::RgbImage::new(pixel_width, pixel_height),
+            static_frame: vec![image::RgbImage::new(pixel_width, pixel_height); core.layers()],
             pixel_width,
             pixel_height,
+            panel_fmt: PanelFmt::VStack,
         };
         renderer.static_rendering(core);
         renderer
@@ -38,12 +53,15 @@ impl Renderer {
     /// Draw the floor, walls, laser sources, start and exit tiles.
     fn static_rendering(&mut self, world: &World) {
         // Floor
-        self.static_frame.fill(BACKGROUND_GREY.0[0]);
+        self.static_frame.iter_mut().for_each(|frame| {
+            frame.fill(BACKGROUND_GREY.0[0]);
+        });
         // Walls
         for pos in world.walls() {
             let x = pos.x() as u32 * TILE_SIZE;
             let y = pos.y() as u32 * TILE_SIZE;
-            self.static_frame
+            let z = pos.z() as usize;
+            self.static_frame[z]
                 .copy_from(&(*sprites::WALL), x, y)
                 .unwrap();
         }
@@ -52,14 +70,15 @@ impl Renderer {
         for pos in world.exits_positions() {
             let x = pos.x() as u32 * TILE_SIZE;
             let y = pos.y() as u32 * TILE_SIZE;
+            let z = pos.z() as usize;
             draw_rectangle(
-                &mut self.static_frame,
-                x + 1,
-                y + 1,
-                TILE_SIZE - 1,
-                TILE_SIZE - 1,
+                &mut self.static_frame[z],
+                x,
+                y,
+                TILE_SIZE,
+                TILE_SIZE,
                 BLACK,
-                2,
+                3,
             );
         }
 
@@ -67,18 +86,19 @@ impl Renderer {
         for pos in world.void_positions() {
             let x = pos.x() as u32 * TILE_SIZE;
             let y = pos.y() as u32 * TILE_SIZE;
+            let z = pos.z() as usize;
             // copy the void image to the static one
-            add_transparent_image(&mut self.static_frame, &sprites::VOID, x, y);
+            add_transparent_image(&mut self.static_frame[z], &sprites::VOID, x, y);
         }
     }
 
     pub fn update(&self, world: &World) -> RgbImage {
-        let mut frame = self.static_frame.clone();
+        let mut frame_stack = self.static_frame.clone();
         for (pos, laser) in world.lasers() {
             let mut data = VisitorData {
                 x: pos.x() as u32 * TILE_SIZE,
                 y: pos.y() as u32 * TILE_SIZE,
-                frame: &mut frame,
+                frame: &mut frame_stack[pos.z() as usize],
             };
             self.draw_laser(laser, &mut data);
         }
@@ -86,9 +106,25 @@ impl Renderer {
             let mut data = VisitorData {
                 x: pos.x() as u32 * TILE_SIZE,
                 y: pos.y() as u32 * TILE_SIZE,
-                frame: &mut frame,
+                frame: &mut frame_stack[pos.z() as usize],
             };
             self.draw_gem(gem, &mut data);
+        }
+        for (pos, lift) in world.lifts() {
+            let mut data = VisitorData {
+                x: pos.x() as u32 * TILE_SIZE,
+                y: pos.y() as u32 * TILE_SIZE,
+                frame: &mut frame_stack[pos.z() as usize],
+            };
+            self.visit_lift(lift, &mut data);
+        }
+        for (pos, button) in world.buttons() {
+            let mut data = VisitorData {
+                x: pos.x() as u32 * TILE_SIZE,
+                y: pos.y() as u32 * TILE_SIZE,
+                frame: &mut frame_stack[pos.z() as usize],
+            };
+            self.visit_button(button, &mut data);
         }
         for (pos, present) in izip!(world.boxes_positions(), world.boxes_present()) {
             if !present {
@@ -96,31 +132,81 @@ impl Renderer {
             }
             let x = pos.x() as u32 * TILE_SIZE;
             let y = pos.y() as u32 * TILE_SIZE;
-            add_transparent_image(&mut frame, &sprites::BOX, x, y);
+            add_transparent_image(&mut frame_stack[pos.z() as usize], &sprites::BOX, x, y);
         }
         for (agent, pos) in izip!(world.agents(), world.agents_positions()) {
             let x = pos.x() as u32 * TILE_SIZE;
             let y = pos.y() as u32 * TILE_SIZE;
-            add_transparent_image(&mut frame, sprites::agent(agent.colour()), x, y);
+            add_transparent_image(
+                &mut frame_stack[pos.z() as usize],
+                sprites::agent(agent.colour()),
+                x,
+                y,
+            );
         }
         for (pos, source) in world.sources() {
             let mut data = VisitorData {
                 x: pos.x() as u32 * TILE_SIZE,
                 y: pos.y() as u32 * TILE_SIZE,
-                frame: &mut frame,
+                frame: &mut frame_stack[pos.z() as usize],
             };
             self.draw_laser_source(source, &mut data);
         }
-        draw_grid(&mut frame);
-        frame
+        frame_stack.iter_mut().for_each(|frame| {
+            draw_grid(frame);
+        });
+        return self.concate_single_image(frame_stack);
     }
 
+    fn concate_single_image(&self, frame_stack: Vec<RgbImage>) -> RgbImage {
+        let (resized_width, resized_height) = match self.panel_fmt {
+            PanelFmt::Grid(_, _) => todo!(),
+            PanelFmt::VStack => (
+                self.pixel_width,
+                self.pixel_height * frame_stack.len() as u32 + frame_stack.len() as u32 - 1,
+            ),
+            PanelFmt::HStack => (
+                self.pixel_width * frame_stack.len() as u32 + frame_stack.len() as u32 - 1,
+                self.pixel_height,
+            ),
+        };
+        let mut panel = RgbImage::new(resized_width, resized_height);
+        for (i, frame) in frame_stack.iter().enumerate() {
+            let (x_offset, y_offset) = match self.panel_fmt {
+                PanelFmt::Grid(_, _) => todo!(),
+                PanelFmt::VStack => (0, i as u32 * (self.pixel_height + 1)),
+                PanelFmt::HStack => (i as u32 * (self.pixel_width + 1), 0),
+            };
+            panel.copy_from(frame, x_offset, y_offset).unwrap();
+        }
+        panel
+    }
     pub fn pixel_width(&self) -> u32 {
-        self.pixel_width
+        self.pixel_width * self.stack_width() + self.stack_width() - 1 // stack_width - 1 is the spacing between panels
     }
 
     pub fn pixel_height(&self) -> u32 {
-        self.pixel_height
+        self.pixel_height * self.stack_height() + self.stack_height() - 1 // stack_height - 1 is the spacing between panels
+    }
+
+    fn stack_width(&self) -> u32 {
+        match self.panel_fmt {
+            PanelFmt::Grid(cols, _) => cols as u32,
+            PanelFmt::VStack => 1,
+            PanelFmt::HStack => self.static_frame.len() as u32,
+        }
+    }
+
+    fn stack_height(&self) -> u32 {
+        match self.panel_fmt {
+            PanelFmt::Grid(_, rows) => rows as u32,
+            PanelFmt::VStack => self.static_frame.len() as u32, // ask yannick
+            PanelFmt::HStack => 1,
+        }
+    }
+
+    pub fn set_panel_fmt(&mut self, fmt: PanelFmt) {
+        self.panel_fmt = fmt;
     }
 }
 
@@ -175,6 +261,85 @@ fn draw_rectangle(
         .unwrap();
 }
 
+/// Corner offset (in pixels) at which the ~14px `AGENT_LOCK` badge is drawn
+/// within a 32px tile, keeping it fully inside the tile with a small margin.
+const BADGE_OFFSET: u32 = TILE_SIZE - 14 - 2;
+
+/// Recolor a white-on-transparent mask sprite by multiplying its RGB channels
+/// by `color`, preserving per-pixel alpha. Used for `Lift`/`Button` sprites,
+/// whose `group_id` is unbounded (unlike the 4 fixed agent colors), so their
+/// color can't be baked into a fixed set of sprite files the way
+/// `sprites::AGENTS` is.
+fn tint_image(sprite: &RgbaImage, color: Rgb<u8>) -> RgbaImage {
+    RgbaImage::from_fn(sprite.width(), sprite.height(), |x, y| {
+        let p = sprite.get_pixel(x, y).0;
+        image::Rgba([
+            (p[0] as u32 * color.0[0] as u32 / 255) as u8,
+            (p[1] as u32 * color.0[1] as u32 / 255) as u8,
+            (p[2] as u32 * color.0[2] as u32 / 255) as u8,
+            p[3],
+        ])
+    })
+}
+
+/// Badge tints for the lift/button restriction badge, indexed by `Colour`.
+///
+/// Each entry is the flat accent colour of the matching `agents/<c>.png` sprite,
+/// so a badge is tinted like the agents it authorizes. Sprite 11 is neutral and
+/// has no accent, so it falls through to `AGENT_COLOR_FALLBACK` along with every
+/// colour past the numbered sprites - `S10` declares colour 10, and a colour has
+/// no upper bound, so index this through `agent_color` and never directly.
+const AGENT_COLORS: [Rgb<u8>; 11] = [
+    Rgb([203, 52, 52]),  // 0  red
+    Rgb([203, 178, 52]), // 1  yellow
+    Rgb([52, 203, 77]),  // 2  green
+    Rgb([51, 38, 190]),  // 3  blue
+    Rgb([203, 52, 148]), // 4  magenta
+    Rgb([203, 122, 52]), // 5  orange
+    Rgb([140, 52, 203]), // 6  purple
+    Rgb([52, 190, 203]), // 7  cyan
+    Rgb([126, 73, 32]),  // 8  brown
+    Rgb([148, 203, 52]), // 9  lime
+    Rgb([52, 203, 173]), // 10 teal
+];
+
+/// Badge tint for a colour past the numbered sprites. Those colours all share
+/// one fallback agent sprite, so their badges share one fallback tint.
+const AGENT_COLOR_FALLBACK: Rgb<u8> = Rgb([150, 150, 150]);
+
+/// The badge tint for `colour`, falling back instead of panicking when the
+/// colour runs past the table - the same contract as `sprites::agent`.
+fn agent_color(colour: Colour) -> Rgb<u8> {
+    *AGENT_COLORS.get(colour).unwrap_or(&AGENT_COLOR_FALLBACK)
+}
+
+/// A deterministic, visually distinct color for a given `group_id`, obtained by
+/// rotating the hue by the golden angle each time so consecutive group ids don't
+/// look alike.
+fn group_color(group_id: usize) -> Rgb<u8> {
+    let hue = (group_id as f32 * 137.508) % 360.0;
+    hsv_to_rgb(hue, 0.65, 0.9)
+}
+
+fn hsv_to_rgb(h: f32, s: f32, v: f32) -> Rgb<u8> {
+    let c = v * s;
+    let x = c * (1.0 - ((h / 60.0) % 2.0 - 1.0).abs());
+    let m = v - c;
+    let (r, g, b) = match h as u32 {
+        0..=59 => (c, x, 0.0),
+        60..=119 => (x, c, 0.0),
+        120..=179 => (0.0, c, x),
+        180..=239 => (0.0, x, c),
+        240..=299 => (x, 0.0, c),
+        _ => (c, 0.0, x),
+    };
+    Rgb([
+        (((r + m) * 255.0).round()) as u8,
+        (((g + m) * 255.0).round()) as u8,
+        (((b + m) * 255.0).round()) as u8,
+    ])
+}
+
 impl Renderer {
     /// Draw whichever tile sits at this cell, dispatching on its variant.
     fn draw_tile(&self, tile: &Tile, data: &mut VisitorData) {
@@ -196,8 +361,12 @@ impl Renderer {
         if laser.is_on() {
             let colour = laser.colour();
             let laser_sprite = match laser.direction() {
-                Direction::North | Direction::South => sprites::vertical_laser(colour),
-                Direction::East | Direction::West => sprites::horizontal_laser(colour),
+                CardinalDirection::North | CardinalDirection::South => {
+                    sprites::vertical_laser(colour)
+                }
+                CardinalDirection::East | CardinalDirection::West => {
+                    sprites::horizontal_laser(colour)
+                }
             };
             add_transparent_image(data.frame, laser_sprite, data.x, data.y);
         }
@@ -208,12 +377,49 @@ impl Renderer {
     fn draw_laser_source(&self, source: &LaserSource, data: &mut VisitorData) {
         let colour = source.colour();
         let source_sprite = match source.direction() {
-            Direction::North => sprites::laser_source_north(colour),
-            Direction::East => sprites::laser_source_east(colour),
-            Direction::South => sprites::laser_source_south(colour),
-            Direction::West => sprites::laser_source_west(colour),
+            CardinalDirection::North => sprites::laser_source_north(colour),
+            CardinalDirection::East => sprites::laser_source_east(colour),
+            CardinalDirection::South => sprites::laser_source_south(colour),
+            CardinalDirection::West => sprites::laser_source_west(colour),
         };
         data.frame.copy_from(source_sprite, data.x, data.y).unwrap();
+    }
+
+    fn visit_lift(&self, lift: &Lift, data: &mut VisitorData) {
+        let sprite = match lift.direction() {
+            VerticalDirection::Up => &*sprites::LIFT_UP,
+            VerticalDirection::Down => &*sprites::LIFT_DOWN,
+        };
+        let tinted = tint_image(sprite, group_color(lift.group_id()));
+        add_transparent_image(data.frame, &tinted, data.x, data.y);
+        if let Some(colour) = lift.authorized_colour() {
+            let badge = tint_image(&sprites::AGENT_LOCK, agent_color(colour));
+            add_transparent_image(
+                data.frame,
+                &badge,
+                data.x + BADGE_OFFSET,
+                data.y + BADGE_OFFSET,
+            );
+        }
+    }
+
+    fn visit_button(&self, button: &Button, data: &mut VisitorData) {
+        let sprite = if button.agent().is_some() {
+            &*sprites::BUTTON_PRESSED
+        } else {
+            &*sprites::BUTTON_IDLE
+        };
+        let tinted = tint_image(sprite, group_color(button.group_id()));
+        add_transparent_image(data.frame, &tinted, data.x, data.y);
+        if let Some(colour) = button.authorized_colour() {
+            let badge = tint_image(&sprites::AGENT_LOCK, agent_color(colour));
+            add_transparent_image(
+                data.frame,
+                &badge,
+                data.x + BADGE_OFFSET,
+                data.y + BADGE_OFFSET,
+            );
+        }
     }
 }
 

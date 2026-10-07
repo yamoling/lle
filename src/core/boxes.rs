@@ -12,29 +12,36 @@ pub struct Boxes {
     positions: Vec<Position>,
     present: Vec<bool>,
     initial_positions: Vec<Position>,
-    /// Flat `height * width` occupancy index. `None` where no *present* box is.
+    /// Flat `layers * height * width` occupancy index. `None` where no *present* box is.
     occupancy: Vec<Option<BoxId>>,
     width: usize,
     height: usize,
+    layers: usize,
 }
 
 impl Boxes {
-    pub fn new(initial_positions: Vec<Position>, width: usize, height: usize) -> Self {
+    pub fn new(
+        initial_positions: Vec<Position>,
+        width: usize,
+        height: usize,
+        layers: usize,
+    ) -> Self {
         let n = initial_positions.len();
         let mut boxes = Self {
             positions: initial_positions.clone(),
             present: vec![true; n],
             initial_positions,
-            occupancy: vec![None; width * height],
+            occupancy: vec![None; width * height * layers],
             width,
             height,
+            layers,
         };
         boxes.reindex();
         boxes
     }
 
     fn index(&self, pos: Position) -> usize {
-        pos.i * self.width + pos.j
+        (pos.k * self.height + pos.i) * self.width + pos.j
     }
 
     fn reindex(&mut self) {
@@ -76,7 +83,7 @@ impl Boxes {
 
     /// The present box occupying `pos`, if any.
     pub fn id_at(&self, pos: Position) -> Option<BoxId> {
-        if pos.i >= self.height || pos.j >= self.width {
+        if pos.i >= self.height || pos.j >= self.width || pos.k >= self.layers {
             return None;
         }
         self.occupancy[self.index(pos)]

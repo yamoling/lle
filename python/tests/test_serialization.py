@@ -99,7 +99,7 @@ def test_world_state_boxes_take_part_in_equality():
 def test_world_state_array_round_trip_with_boxes():
     state = WorldState([(0, 1)], [True], [True], [(0, 2)], [True])
     array = state.as_array().tolist()
-    assert len(array) == 1 * 3 + 1 + 1 * 3
+    assert len(array) == 1 * WorldState.AGENT_SIZE + 1 + 1 * WorldState.BOX_SIZE
     assert WorldState.from_array(array, n_agents=1, n_gems=1, n_boxes=1) == state
 
 

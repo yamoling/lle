@@ -2,11 +2,16 @@ use std::rc::Rc;
 
 use crate::{
     agent::Colour,
-    tiles::{BoxOutcome, Direction, Gem, Laser, LaserBeam, Tile, Void},
+    tiles::{BoxOutcome, CardinalDirection, Gem, Laser, LaserBeam, Tile, Void},
 };
 
 fn beam(size: usize) -> Rc<LaserBeam> {
-    Rc::new(LaserBeam::new(size, 0 as Colour, Direction::East, 0))
+    Rc::new(LaserBeam::new(
+        size,
+        0 as Colour,
+        CardinalDirection::East,
+        0,
+    ))
 }
 
 #[test]
