@@ -38,11 +38,13 @@ impl ClauseEngine {
         let ctx = ConstraintContext::new(world, t_max);
         Self {
             exits: PositionSet::from_positions(
+                world.layers(),
                 world.height(),
                 world.width(),
                 world.exits_positions().into_iter(),
             ),
             gems: PositionSet::from_positions(
+                world.layers(),
                 world.height(),
                 world.width(),
                 world.gems_positions().into_iter(),

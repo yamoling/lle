@@ -8,7 +8,7 @@ fn pos(i: usize, j: usize) -> Position {
 
 #[test]
 fn test_empty() {
-    let set = PositionSet::empty(3, 3);
+    let set = PositionSet::empty(1, 3, 3);
     assert!(set.is_empty());
     assert_eq!(set.iter().count(), 0);
     assert!(!set.contains(&pos(0, 0)));
@@ -16,7 +16,7 @@ fn test_empty() {
 
 #[test]
 fn test_singleton() {
-    let set = PositionSet::singleton(3, 3, pos(1, 2));
+    let set = PositionSet::singleton(1, 3, 3, pos(1, 2));
     assert!(!set.is_empty());
     assert!(set.contains(&pos(1, 2)));
     assert!(!set.contains(&pos(0, 0)));
@@ -25,7 +25,7 @@ fn test_singleton() {
 
 #[test]
 fn test_insert_and_contains() {
-    let mut set = PositionSet::empty(4, 4);
+    let mut set = PositionSet::empty(1, 4, 4);
     set.insert(pos(0, 0));
     set.insert(pos(3, 3));
     set.insert(pos(2, 1));
@@ -39,7 +39,7 @@ fn test_insert_and_contains() {
 
 #[test]
 fn test_remove() {
-    let mut set = PositionSet::empty(4, 4);
+    let mut set = PositionSet::empty(1, 4, 4);
     set.insert(pos(1, 1));
     set.insert(pos(2, 2));
     assert!(set.contains(&pos(1, 1)));
@@ -55,7 +55,7 @@ fn test_remove() {
 
 #[test]
 fn test_iter_matches_inserted_positions() {
-    let mut set = PositionSet::empty(5, 5);
+    let mut set = PositionSet::empty(1, 5, 5);
     let inserted: Vec<Position> = vec![pos(0, 0), pos(0, 4), pos(2, 2), pos(4, 4), pos(3, 1)];
     for p in &inserted {
         set.insert(*p);
@@ -68,7 +68,7 @@ fn test_iter_matches_inserted_positions() {
 
 #[test]
 fn test_into_iter_owned() {
-    let mut set = PositionSet::empty(3, 3);
+    let mut set = PositionSet::empty(1, 3, 3);
     set.insert(pos(0, 1));
     set.insert(pos(2, 2));
 
@@ -79,7 +79,7 @@ fn test_into_iter_owned() {
 
 #[test]
 fn test_iter_by_reference() {
-    let mut set = PositionSet::empty(3, 3);
+    let mut set = PositionSet::empty(1, 3, 3);
     set.insert(pos(1, 1));
 
     let collected: Vec<Position> = (&set).into_iter().collect();
@@ -90,8 +90,8 @@ fn test_iter_by_reference() {
 
 #[test]
 fn test_intersect_with() {
-    let mut a = PositionSet::empty(4, 4);
-    let mut b = PositionSet::empty(4, 4);
+    let mut a = PositionSet::empty(1, 4, 4);
+    let mut b = PositionSet::empty(1, 4, 4);
 
     a.insert(pos(0, 0));
     a.insert(pos(1, 1));
@@ -111,8 +111,8 @@ fn test_intersect_with() {
 
 #[test]
 fn test_intersect_with_disjoint_yields_empty() {
-    let mut a = PositionSet::empty(4, 4);
-    let mut b = PositionSet::empty(4, 4);
+    let mut a = PositionSet::empty(1, 4, 4);
+    let mut b = PositionSet::empty(1, 4, 4);
 
     a.insert(pos(0, 0));
     b.insert(pos(1, 1));
@@ -123,8 +123,8 @@ fn test_intersect_with_disjoint_yields_empty() {
 
 #[test]
 fn test_subtract() {
-    let mut a = PositionSet::empty(4, 4);
-    let mut b = PositionSet::empty(4, 4);
+    let mut a = PositionSet::empty(1, 4, 4);
+    let mut b = PositionSet::empty(1, 4, 4);
 
     a.insert(pos(0, 0));
     a.insert(pos(1, 1));
@@ -142,8 +142,8 @@ fn test_subtract() {
 
 #[test]
 fn test_lazy_intersection() {
-    let mut a = PositionSet::empty(4, 4);
-    let mut b = PositionSet::empty(4, 4);
+    let mut a = PositionSet::empty(1, 4, 4);
+    let mut b = PositionSet::empty(1, 4, 4);
 
     a.insert(pos(0, 0));
     a.insert(pos(1, 1));
@@ -167,7 +167,7 @@ fn test_positions_spanning_multiple_words() {
     // 10x10 grid -> 100 bits, spans across multiple u64 words (64 bits each).
     let height = 10;
     let width = 10;
-    let mut set = PositionSet::empty(height, width);
+    let mut set = PositionSet::empty(1, height, width);
 
     let mut expected = HashSet::new();
     for i in 0..height {
@@ -193,8 +193,8 @@ fn test_positions_spanning_multiple_words() {
 
 #[test]
 fn test_union_with() {
-    let mut a = PositionSet::empty(4, 4);
-    let mut b = PositionSet::empty(4, 4);
+    let mut a = PositionSet::empty(1, 4, 4);
+    let mut b = PositionSet::empty(1, 4, 4);
 
     a.insert(pos(0, 0));
     a.insert(pos(1, 1));
@@ -212,8 +212,8 @@ fn test_union_with() {
 
 #[test]
 fn test_union_with_disjoint() {
-    let mut a = PositionSet::empty(4, 4);
-    let mut b = PositionSet::empty(4, 4);
+    let mut a = PositionSet::empty(1, 4, 4);
+    let mut b = PositionSet::empty(1, 4, 4);
 
     a.insert(pos(0, 0));
     b.insert(pos(3, 3));
@@ -227,8 +227,8 @@ fn test_union_with_disjoint() {
 
 #[test]
 fn test_union_with_empty() {
-    let mut a = PositionSet::empty(4, 4);
-    let b = PositionSet::empty(4, 4);
+    let mut a = PositionSet::empty(1, 4, 4);
+    let b = PositionSet::empty(1, 4, 4);
 
     a.insert(pos(1, 2));
     a.union_with(&b);
@@ -239,7 +239,7 @@ fn test_union_with_empty() {
 
 #[test]
 fn test_union_with_self_equivalent() {
-    let mut a = PositionSet::empty(4, 4);
+    let mut a = PositionSet::empty(1, 4, 4);
     a.insert(pos(0, 0));
     a.insert(pos(2, 3));
     let b = a.clone();
@@ -255,8 +255,8 @@ fn test_union_with_self_equivalent() {
 fn test_union_with_spanning_multiple_words() {
     let height = 10;
     let width = 10;
-    let mut a = PositionSet::empty(height, width);
-    let mut b = PositionSet::empty(height, width);
+    let mut a = PositionSet::empty(1, height, width);
+    let mut b = PositionSet::empty(1, height, width);
     let mut expected = HashSet::new();
 
     for i in 0..height {
@@ -281,7 +281,7 @@ fn test_union_with_spanning_multiple_words() {
 
 #[test]
 fn set_size() {
-    let mut set = PositionSet::empty(10, 10);
+    let mut set = PositionSet::empty(1, 10, 10);
     let mut size = 0;
     for i in 0..10 {
         for j in 0..10 {
@@ -291,4 +291,14 @@ fn set_size() {
         }
     }
     assert_eq!(size, set.size());
+}
+
+#[test]
+fn test_layers_are_kept_apart() {
+    let lower = Position { i: 1, j: 2, k: 0 };
+    let upper = Position { i: 1, j: 2, k: 1 };
+    let set = PositionSet::singleton(2, 3, 4, upper);
+    assert!(set.contains(&upper));
+    assert!(!set.contains(&lower));
+    assert_eq!(set.iter().collect::<Vec<_>>(), vec![upper]);
 }

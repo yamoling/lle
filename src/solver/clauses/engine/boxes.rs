@@ -96,7 +96,7 @@ impl ClauseEngine {
                     for agent in 0..ctx.n_agents {
                         if !ctx.relevant_positions_for_agent(agent, t - 1).contains(&p)
                             || !ctx.relevant_positions_for_agent(agent, t).contains(&q)
-                            || !ctx.neighbours[p.i][p.j].contains(&q)
+                            || !ctx.neighbours[p.k][p.i][p.j].contains(&q)
                         {
                             continue;
                         }
