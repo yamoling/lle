@@ -88,6 +88,24 @@ pub struct LaserSourceInfo {
     pub path: Vec<Position>,
 }
 
+/// One lift's relevant info for constraint generation. Only lifts whose destination an agent can
+/// stand on are kept: the others never move anyone.
+pub struct LiftInfo {
+    pub pos: Position,
+    pub dest: Position,
+    pub group: usize,
+    /// Agents whose colour may ride this lift.
+    pub riders: Vec<usize>,
+}
+
+/// One button's relevant info for constraint generation.
+pub struct ButtonInfo {
+    pub pos: Position,
+    pub group: usize,
+    /// Agents whose colour may press this button.
+    pub pressers: Vec<usize>,
+}
+
 /// Data shared across all constraint-generation routines.
 /// Built once per `(world, t_max)` pair. Data is computed on-demand and cached for efficiency.
 pub struct ConstraintContext {
@@ -100,6 +118,8 @@ pub struct ConstraintContext {
     pub predecessors: Vec<Vec<Vec<NeighbourList>>>,
     pub solution_lower_bound: usize,
     pub laser_sources: Vec<LaserSourceInfo>,
+    pub lifts: Vec<LiftInfo>,
+    pub buttons: Vec<ButtonInfo>,
     exits: PositionSet,
     layers: usize,
     height: usize,
@@ -182,14 +202,51 @@ impl ConstraintContext {
                 predecessors[succ.k][succ.i][succ.j].push(pos);
             }
         }
-        let exit_distance = compute_exit_distance(&exits, &predecessors);
+
+        let agent_colours = world.agent_colours();
+        let allowed = |colour: Option<usize>| -> Vec<usize> {
+            (0..n_agents)
+                .filter(|&agent| colour.is_none_or(|c| c == agent_colours[agent]))
+                .collect()
+        };
+        let lifts: Vec<LiftInfo> = world
+            .lifts()
+            .into_iter()
+            .filter_map(|(pos, lift)| {
+                let dest = lift.destination(pos).ok()?;
+                valid_positions.contains(&dest).then(|| LiftInfo {
+                    pos,
+                    dest,
+                    group: lift.group_id(),
+                    riders: allowed(lift.authorized_colour()),
+                })
+            })
+            .collect();
+        let buttons = world
+            .buttons()
+            .into_iter()
+            .map(|(pos, button)| ButtonInfo {
+                pos,
+                group: button.group_id(),
+                pressers: allowed(button.authorized_colour()),
+            })
+            .collect();
+        // An agent standing on a lift or walking onto it can be lifted in the same step.
+        let mut lift_predecessors: HashMap<Position, Vec<Position>> = HashMap::new();
+        for lift in &lifts {
+            let (k, i, j) = (lift.pos.k, lift.pos.i, lift.pos.j);
+            lift_predecessors
+                .entry(lift.dest)
+                .or_default()
+                .extend(predecessors[k][i][j].iter());
+        }
+        let exit_distance = compute_exit_distance(&exits, &predecessors, &lift_predecessors);
         let solution_lower_bound = start_pos
             .iter()
             .map(|p| exit_distance.get(p).copied().unwrap_or(0))
             .max()
             .unwrap_or(0);
 
-        let agent_colours = world.agent_colours();
         let mut laser_sources = Vec::new();
         for (pos, source) in world.sources() {
             let d = source.direction();
@@ -262,6 +319,8 @@ impl ConstraintContext {
             predecessors,
             solution_lower_bound,
             laser_sources,
+            lifts,
+            buttons,
             exits,
             layers,
             height,
@@ -313,9 +372,22 @@ impl ConstraintContext {
                 PositionSet::singleton(self.layers, self.height, self.width, self.start_pos[agent])
             } else {
                 let mut reachable = PositionSet::empty(self.layers, self.height, self.width);
-                for pos in &self.relevant_positions[agent][t - 1] {
+                let previous = &self.relevant_positions[agent][t - 1];
+                for pos in previous {
                     for n in &self.neighbours[pos.k][pos.i][pos.j] {
                         reachable.insert(n);
+                    }
+                }
+                for lift in self
+                    .lifts
+                    .iter()
+                    .filter(|lift| lift.riders.contains(&agent))
+                {
+                    if self
+                        .lift_entries(lift)
+                        .any(|entry| previous.contains(&entry))
+                    {
+                        reachable.insert(lift.dest);
                     }
                 }
                 reachable
@@ -550,6 +622,12 @@ impl ConstraintContext {
             })
     }
 
+    /// Positions from which an agent is on `lift` once the walking part of a step is over: the
+    /// lift itself and every cell walking onto it.
+    pub fn lift_entries(&self, lift: &LiftInfo) -> impl Iterator<Item = Position> + '_ {
+        self.predecessors[lift.pos.k][lift.pos.i][lift.pos.j].iter()
+    }
+
     pub fn n_boxes(&self) -> usize {
         self.box_start_pos.len()
     }
@@ -645,12 +723,21 @@ fn grid_positions(layers: usize, height: usize, width: usize) -> impl Iterator<I
 fn compute_exit_distance(
     exits: &PositionSet,
     predecessors: &[Vec<Vec<NeighbourList>>],
+    lift_predecessors: &HashMap<Position, Vec<Position>>,
 ) -> HashMap<Position, usize> {
     let mut dist: HashMap<Position, usize> = exits.iter().map(|p| (p, 0)).collect();
     let mut frontier: VecDeque<Position> = exits.iter().collect();
     while let Some(current) = frontier.pop_front() {
         let current_dist = dist[&current];
-        for pred in &predecessors[current.k][current.i][current.j] {
+        let lifted_from = lift_predecessors
+            .get(&current)
+            .into_iter()
+            .flatten()
+            .copied();
+        for pred in predecessors[current.k][current.i][current.j]
+            .iter()
+            .chain(lifted_from)
+        {
             dist.entry(pred).or_insert_with(|| {
                 frontier.push_back(pred);
                 current_dist + 1

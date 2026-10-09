@@ -789,3 +789,31 @@ fn test_neighbours_stay_on_their_layer() {
     );
     assert!(!ctx.neighbours[0][0][1].contains(&upper));
 }
+
+#[test]
+fn test_lift_makes_an_upper_exit_reachable() {
+    let world = World::try_from("S0 TU0 B0\n;\n. . X").unwrap();
+    let mut ctx = ConstraintContext::new(&world, 5);
+    let lift_dest = Position { i: 0, j: 1, k: 1 };
+    // Walking onto the lift and riding it happen in the same step.
+    assert_eq!(ctx.get_exit_distance(&pos(0, 0)), 2);
+    assert!(ctx.relevant_positions_for_agent(0, 1).contains(&lift_dest));
+}
+
+#[test]
+fn test_lift_and_button_colours_restrict_agents() {
+    let world = World::try_from("S0 S1 TU0A1 B0A0\n;\n. X X .").unwrap();
+    let ctx = ConstraintContext::new(&world, 5);
+    assert_eq!(ctx.lifts.len(), 1);
+    assert_eq!(ctx.lifts[0].riders, vec![1]);
+    assert_eq!(ctx.lifts[0].dest, Position { i: 0, j: 2, k: 1 });
+    assert_eq!(ctx.buttons[0].pressers, vec![0]);
+    assert_eq!(ctx.buttons[0].group, 0);
+}
+
+#[test]
+fn test_lift_onto_a_wall_is_dropped() {
+    let world = World::try_from("S0 TU0 X\n;\n. @ .").unwrap();
+    let ctx = ConstraintContext::new(&world, 5);
+    assert!(ctx.lifts.is_empty());
+}
