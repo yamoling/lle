@@ -4,7 +4,7 @@ use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use crate::{
-    Position, Tile, World,
+    Position, World,
     agent::{AgentId, Colour},
     bindings::PyPosition,
     tiles::Button,
@@ -51,11 +51,8 @@ impl PyButton {
     #[getter]
     pub fn agent(&self) -> Option<AgentId> {
         let world = &mut self.world.lock().unwrap();
-        let tile = inner(world, self.pos.into()).unwrap();
-        match tile {
-            Tile::Button(button) => button.agent(),
-            _ => None,
-        }
+        // `Tile::agent` also sees through the laser beams covering the tile.
+        inner(world, self.pos.into()).unwrap().agent()
     }
 
     pub fn __str__(&self) -> String {
