@@ -2340,3 +2340,49 @@ fn formula_rejects_walking_onto_a_lift_through_an_active_beam() {
     assert!(trajectory_literals(&generator, &trajectory).is_some());
     assert!(!admits(&generator, &clauses, &trajectory));
 }
+
+#[test]
+fn formula_admits_landing_on_a_lift_pulsed_in_the_same_step() {
+    // Agent 0 is lifted onto a lift of group 1 while agent 3 presses button 1 to lift agent 2: a
+    // lift moves an agent once per step, so agent 0 stays there and rides it at the next press.
+    let world =
+        "S0 TU0 B0 S1 X\n. . . . X\n;\n. TU1 B1 TU1 S2\n. X S3 . .\n;\nX X . X .\n. . . . .";
+    let mut generator = build(world, 7);
+    let (clauses, _) = generator.generate(5, SolveMode::Standard, false);
+    let trajectory = vec![
+        vec![
+            at3(0, 0, 0),
+            at3(0, 0, 0),
+            at3(0, 1, 1),
+            at3(0, 1, 2),
+            at3(0, 1, 2),
+            at3(0, 1, 2),
+        ],
+        vec![
+            at3(0, 3, 0),
+            at3(0, 2, 0),
+            at3(0, 2, 0),
+            at3(0, 3, 0),
+            at3(0, 4, 0),
+            at3(0, 4, 0),
+        ],
+        vec![
+            at3(0, 4, 1),
+            at3(0, 4, 1),
+            at3(0, 3, 2),
+            at3(0, 3, 2),
+            at3(0, 3, 2),
+            at3(0, 3, 2),
+        ],
+        vec![
+            at3(1, 2, 1),
+            at3(0, 2, 1),
+            at3(0, 2, 1),
+            at3(0, 2, 1),
+            at3(1, 2, 1),
+            at3(1, 1, 1),
+        ],
+    ];
+    assert!(trajectory_literals(&generator, &trajectory).is_some());
+    assert!(admits(&generator, &clauses, &trajectory));
+}

@@ -25,8 +25,8 @@ impl ClauseEngine {
             return Vec::new();
         }
         let mut clauses = self.button_presses(t);
-        clauses.extend(self.forced_lifts(t));
         clauses.extend(self.lift_moves(t));
+        clauses.extend(self.forced_lifts(t));
         clauses.extend(self.walk_pass_lasers(t));
         clauses
     }
@@ -170,10 +170,12 @@ impl ClauseEngine {
         clauses
     }
 
-    /// A pulsed lift never keeps an allowed agent: it either walked away or was lifted.
+    /// A pulsed lift never keeps an allowed agent: it either walked away or was lifted, unless
+    /// another lift brought it there in this very step (a lift moves an agent once per step).
     ///
     /// This also covers every case where the world cancels the lift (a box or another agent on
-    /// its destination): the solver may not rely on them.
+    /// its destination): the solver may not rely on them. Runs after [`Self::lift_moves`], which
+    /// creates the `Lifted` variables.
     fn forced_lifts(&mut self, t: usize) -> Vec<Clause> {
         let ctx = &self.ctx;
         let pool = &mut self.pool;
@@ -191,7 +193,21 @@ impl ClauseEngine {
                         .relevant_positions_for_agent(agent, t)
                         .contains(&lift.pos)
                     {
-                        clauses.push(implies(pressed, -pool.agent(agent, lift.pos, t)));
+                        let landed = ctx
+                            .lifts
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, other)| other.dest == lift.pos)
+                            .filter_map(|(other, _)| {
+                                pool.get(&VarKey::Lifted {
+                                    agent_id: agent,
+                                    lift: other,
+                                    t: t - 1,
+                                })
+                            })
+                            .collect::<Vec<_>>();
+                        let stays = pool.agent(agent, lift.pos, t);
+                        clauses.push([-pressed, -stays].into_iter().chain(landed).collect());
                     }
                 }
             }
