@@ -1,10 +1,10 @@
 use std::collections::HashSet;
 
-use crate::Position;
 use crate::World;
 use crate::solver::Clause;
 use crate::solver::Literal;
 use crate::solver::clauses::ClauseEngine;
+use crate::{Action, Position};
 
 use crate::solver::{ClauseGenerator, SolveMode, VarKey};
 use rstest::rstest;
@@ -2168,4 +2168,21 @@ fn test_generator_rejects_a_world_with_lifts() {
 fn test_generator_accepts_a_single_layer_world_with_a_button_only() {
     let world = World::try_from("S0 B0 X").unwrap();
     assert!(ClauseGenerator::new(&world, 5).is_ok());
+}
+
+#[test]
+fn decode_plan_turns_a_pressed_button_into_a_trigger() {
+    let mut generator = build("S0 B0 X", 3);
+    generator.generate(2, SolveMode::Standard, false);
+    let model: Vec<Literal> = [
+        VarKey::agent(0, pos(0, 0), 0),
+        VarKey::agent(0, pos(0, 1), 1),
+        VarKey::agent(0, pos(0, 1), 2),
+        VarKey::Button { button: 0, t: 1 },
+    ]
+    .iter()
+    .map(|key| generator.literal(key).expect("variable should exist"))
+    .collect();
+    let plan = generator.decode_plan(&model, 2).unwrap();
+    assert_eq!(plan, vec![vec![Action::East], vec![Action::Trigger]]);
 }
