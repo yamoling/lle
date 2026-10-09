@@ -2319,3 +2319,33 @@ S0 # . S1 X",
     assert!(!get_laser(&world, pos(0, 2)).is_on());
     assert!(!get_laser(&world, pos(0, 3)).is_on());
 }
+
+#[test]
+fn test_lift_under_a_laser_beam_moves_its_rider() {
+    // Agent 0 blocks its own beam on the lift; once lifted, the beam reopens.
+    let mut world =
+        World::try_from("L0E TU0 . . X\nS0 . B0 S1 X\n;\n. . X . .\n. . . . .").unwrap();
+    world.reset();
+    world.step(&[Action::East, Action::West]).unwrap();
+    world.step(&[Action::North, Action::Stay]).unwrap();
+    let events = world.step(&[Action::Stay, Action::Trigger]).unwrap();
+    let dest = Position { i: 0, j: 1, k: 1 };
+    assert_eq!(world.agents_positions()[0], dest);
+    assert!(events.contains(&WorldEvent::LiftMoved {
+        agent_id: 0,
+        from: Position { i: 0, j: 1, k: 0 },
+        to: dest,
+    }));
+    assert!(get_laser(&world, Position { i: 0, j: 2, k: 0 }).is_on());
+}
+
+#[test]
+fn test_button_under_a_laser_beam_can_be_pressed() {
+    // Agent 1 stands on the button under its own beam.
+    let mut world = World::try_from("S0 TU0 B0 S1 L1W X\n;\nX . . . . .").unwrap();
+    world.reset();
+    world.step(&[Action::East, Action::West]).unwrap();
+    assert!(world.available_actions()[1].contains(&Action::Trigger));
+    world.step(&[Action::Stay, Action::Trigger]).unwrap();
+    assert_eq!(world.agents_positions()[0], Position { i: 0, j: 1, k: 1 });
+}

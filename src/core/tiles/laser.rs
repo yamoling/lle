@@ -124,6 +124,10 @@ impl Laser {
         &self.wrapped
     }
 
+    pub fn wrapped_mut(&mut self) -> &mut Tile {
+        &mut self.wrapped
+    }
+
     pub fn gem(&self) -> Option<&Gem> {
         match self.wrapped.as_ref() {
             Tile::Gem(gem) => Some(gem),
