@@ -2146,22 +2146,37 @@ fn formula_still_admits_one_agent_idling_on_its_exit_while_another_travels() {
     );
 }
 
-#[test]
-fn test_generator_rejects_a_world_with_several_layers() {
-    let world = World::try_from("S0 . X\n;\n. . .").unwrap();
-    assert!(matches!(
-        ClauseGenerator::new(&world, 5),
-        Err(crate::solver::errors::SolverError::UnsupportedFeature { .. })
-    ));
+/// Agent 1 presses the button while agent 0 walks onto the lift and rides it in the same step,
+/// landing on the cell agent 2 is leaving.
+const LIFT_WORLD: &str = "S0 TU0 B0 S1 X\n;\nX S2 . . X";
+
+fn at(j: usize, k: usize) -> Position {
+    Position { i: 0, j, k }
 }
 
 #[test]
-fn test_generator_rejects_a_world_with_lifts() {
-    let world = World::try_from("S0 TU0 B0 X").unwrap();
-    assert!(matches!(
-        ClauseGenerator::new(&world, 5),
-        Err(crate::solver::errors::SolverError::UnsupportedFeature { feature: "lifts" })
-    ));
+fn formula_admits_riding_a_lift_onto_a_cell_being_left() {
+    let mut generator = build(LIFT_WORLD, 6);
+    let (clauses, _) = generator.generate(4, SolveMode::Standard, false);
+    let trajectory = vec![
+        vec![at(0, 0), at(0, 0), at(1, 1), at(0, 1), at(0, 1)],
+        vec![at(3, 0), at(2, 0), at(2, 0), at(3, 0), at(4, 0)],
+        vec![at(1, 1), at(1, 1), at(2, 1), at(3, 1), at(4, 1)],
+    ];
+    assert!(admits(&generator, &clauses, &trajectory));
+}
+
+#[test]
+fn formula_rejects_a_lift_nobody_pressed() {
+    let mut generator = build(LIFT_WORLD, 6);
+    let (clauses, _) = generator.generate(4, SolveMode::Standard, false);
+    let trajectory = vec![
+        vec![at(0, 0), at(0, 0), at(1, 1), at(0, 1), at(0, 1)],
+        vec![at(3, 0), at(3, 0), at(3, 0), at(3, 0), at(4, 0)],
+        vec![at(1, 1), at(1, 1), at(2, 1), at(3, 1), at(4, 1)],
+    ];
+    assert!(trajectory_literals(&generator, &trajectory).is_some());
+    assert!(!admits(&generator, &clauses, &trajectory));
 }
 
 #[test]

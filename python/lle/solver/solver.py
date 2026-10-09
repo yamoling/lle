@@ -21,9 +21,14 @@ def _parse_mode(mode: SolveModeLiteral | str | SolveMode) -> SolveMode:
 
 
 def _check_mode_supported(world: World, mode: SolveMode):
-    """Raise `NotImplementedError` for cooperation modes on worlds with movable boxes."""
-    if world.n_boxes > 0 and mode != SolveMode.standard():
+    """Raise `NotImplementedError` for cooperation modes on worlds with movable boxes or lifts."""
+    if mode == SolveMode.standard():
+        return
+    if world.n_boxes > 0:
         raise NotImplementedError(f"Solve mode {mode.value!r} is not supported yet on worlds with movable boxes")
+    if len(world.lifts) > 0:
+        # Cooperation is only tracked through lasers: pressing a button for a rider is not.
+        raise NotImplementedError(f"Solve mode {mode.value!r} is not supported yet on worlds with lifts")
 
 
 class Solver:
