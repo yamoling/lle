@@ -35,6 +35,19 @@ pub enum VarKey {
         agent_id: AgentId,
         t: usize,
     },
+    /// Whether button `button` (index in `ConstraintContext::buttons`) is pressed during the step
+    /// from `t` to `t + 1`.
+    Button {
+        button: usize,
+        t: usize,
+    },
+    /// Whether the specified agent is lifted by `lift` (index in `ConstraintContext::lifts`)
+    /// during the step from `t` to `t + 1`.
+    Lifted {
+        agent_id: AgentId,
+        lift: usize,
+        t: usize,
+    },
     /// Whether `helper` is helping `beneficiary` at time step `t`.
     Help {
         helper: AgentId,
@@ -164,6 +177,14 @@ impl VarPool {
 
     pub fn laser(&mut self, laser_id: usize, pos: Position, t: usize) -> Literal {
         self.id(VarKey::Laser { laser_id, pos, t })
+    }
+
+    pub fn button(&mut self, button: usize, t: usize) -> Literal {
+        self.id(VarKey::Button { button, t })
+    }
+
+    pub fn lifted(&mut self, agent_id: AgentId, lift: usize, t: usize) -> Literal {
+        self.id(VarKey::Lifted { agent_id, lift, t })
     }
 
     pub fn help(&mut self, helper: AgentId, beneficiary: AgentId, t: usize) -> Literal {
