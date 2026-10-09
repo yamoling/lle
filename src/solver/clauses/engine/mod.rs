@@ -7,6 +7,7 @@ mod divergence;
 mod gems;
 mod interdependence;
 mod lasers;
+mod lifts;
 mod movement;
 mod pairwise_help;
 mod sequences;

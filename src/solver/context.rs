@@ -88,8 +88,8 @@ pub struct LaserSourceInfo {
     pub path: Vec<Position>,
 }
 
-/// One lift's relevant info for constraint generation. Only lifts whose destination an agent can
-/// stand on are kept: the others never move anyone.
+/// One lift's relevant info for constraint generation. Only lifts whose destination is walkable
+/// are kept: the others never move anyone.
 pub struct LiftInfo {
     pub pos: Position,
     pub dest: Position,
@@ -214,7 +214,8 @@ impl ConstraintContext {
             .into_iter()
             .filter_map(|(pos, lift)| {
                 let dest = lift.destination(pos).ok()?;
-                valid_positions.contains(&dest).then(|| LiftInfo {
+                // Voids included: lifting an agent onto one kills it, which is not a no-op.
+                world.at(&dest)?.is_walkable().then(|| LiftInfo {
                     pos,
                     dest,
                     group: lift.group_id(),
@@ -397,8 +398,14 @@ impl ConstraintContext {
             // The no-following-conflict rule forbids agent A from being at start_B at t=1
             // because B was there at t=0 (implies(-a_cur, -b_prev) ⇒ ¬A here when B was here).
             if t == 1 {
+                // A lift may still move the agent there, as `no_following_conflict` allows.
                 for (other, &start) in self.start_pos.iter().enumerate() {
-                    if other != agent {
+                    if other != agent
+                        && !self
+                            .lifts
+                            .iter()
+                            .any(|lift| lift.dest == start && lift.riders.contains(&agent))
+                    {
                         result.remove(&start);
                     }
                 }

@@ -131,6 +131,7 @@ impl ClauseEngine {
         let mut clauses = Vec::new();
         clauses.extend(self.initialization(t));
         clauses.extend(self.exactly_one_position(t));
+        clauses.extend(self.generate_lift_clauses(t));
         clauses.extend(self.time_wise_adjacency(t));
         clauses.extend(self.no_overlap(t));
         clauses.extend(self.no_following_conflict(t));

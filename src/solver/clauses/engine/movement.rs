@@ -43,7 +43,8 @@ impl ClauseEngine {
         clauses
     }
 
-    /// If an agent is at `(x, y)` at time `t`, it must have been in an adjacent cell at `t - 1`.
+    /// If an agent is at `(x, y)` at time `t`, it must have been in an adjacent cell at `t - 1`,
+    /// or have been lifted there.
     pub(super) fn time_wise_adjacency(&mut self, t: usize) -> Vec<Clause> {
         if t == 0 {
             return Vec::new();
@@ -58,6 +59,7 @@ impl ClauseEngine {
                 for prev in prev_positions {
                     clause.push(self.pool.agent(agent, prev, t - 1));
                 }
+                clause.extend(self.lifted_into(agent, pos, t));
                 clauses.push(clause);
             }
         }
@@ -80,6 +82,9 @@ impl ClauseEngine {
     }
 
     /// Prevent two agents from swapping positions (vertex-following conflicts).
+    ///
+    /// A lift may move an agent onto a cell another agent is leaving, as the world only checks
+    /// lift destinations after the walking part of the step.
     pub(super) fn no_following_conflict(&mut self, t: usize) -> Vec<Clause> {
         if t == 0 || self.ctx.n_agents == 0 {
             return Vec::new();
@@ -91,14 +96,18 @@ impl ClauseEngine {
             for pos in prev_c1.intersection(&cur_c2) {
                 let a2 = self.pool.agent(c2, pos, t);
                 let a1_prev = self.pool.agent(c1, pos, t - 1);
-                clauses.push(implies(a2, -a1_prev));
+                let mut clause = implies(a2, -a1_prev);
+                clause.extend(self.lifted_into(c2, pos, t));
+                clauses.push(clause);
             }
             let cur_c1 = self.ctx.relevant_positions(t, &[c1]);
             let prev_c2 = self.ctx.relevant_positions(t - 1, &[c2]);
             for pos in cur_c1.intersection(&prev_c2) {
                 let a1 = self.pool.agent(c1, pos, t);
                 let a2_prev = self.pool.agent(c2, pos, t - 1);
-                clauses.push(implies(a1, -a2_prev));
+                let mut clause = implies(a1, -a2_prev);
+                clause.extend(self.lifted_into(c1, pos, t));
+                clauses.push(clause);
             }
         }
         clauses
