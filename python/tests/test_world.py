@@ -970,3 +970,14 @@ def test_state_round_trip_restores_a_destroyed_box():
     assert world.boxes_positions == [(0, 1)]
     world.set_state(destroyed)
     assert world.get_state().boxes_present == [False]
+
+
+def test_set_state_after_a_death_restores_a_beam_blocker():
+    # Agent 0 blocks its own beam to protect agent 1: it must do so again once restored.
+    world = World("L0E S0 V S1 X X")
+    world.reset()
+    initial = world.get_state()
+    world.step([Action.EAST, Action.STAY])
+    assert not any(agent.is_alive for agent in world.agents)
+    world.set_state(initial)
+    assert world.get_state() == initial

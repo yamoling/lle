@@ -939,6 +939,11 @@ impl World {
         self.boxes
             .restore(&state.boxes_positions, &state.boxes_present);
         self.settle_boxes();
+        // Revive the agents before they pre-enter: a dead agent does not block its own beam, so
+        // an agent that died in the current state would otherwise leave it on.
+        for agent in &mut self.agents {
+            agent.reset();
+        }
         for (pos, agent) in izip!(&state.agents_positions, &self.agents) {
             if let Err(error) = self.grid.at_mut(pos).pre_enter(agent) {
                 let reason = match error {

@@ -2349,3 +2349,16 @@ fn test_button_under_a_laser_beam_can_be_pressed() {
     world.step(&[Action::Stay, Action::Trigger]).unwrap();
     assert_eq!(world.agents_positions()[0], Position { i: 0, j: 1, k: 1 });
 }
+
+#[test]
+fn test_set_state_after_a_death_restores_a_beam_blocker() {
+    // Agent 0 blocks its own beam to protect agent 1. Once both died, restoring the initial state
+    // must let agent 0 block the beam again.
+    let mut world = World::try_from("L0E S0 V S1 X X").unwrap();
+    world.reset();
+    let initial = world.get_state();
+    world.step(&[Action::East, Action::Stay]).unwrap();
+    assert!(world.agents().iter().all(|agent| !agent.is_alive()));
+    world.set_state(&initial).unwrap();
+    assert_eq!(world.get_state(), initial);
+}
