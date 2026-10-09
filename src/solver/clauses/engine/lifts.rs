@@ -1,7 +1,10 @@
 use std::iter::once;
 
+use strum::IntoEnumIterator;
+
 use crate::Position;
 use crate::solver::{Clause, Literal, VarKey, clauses::ClauseEngine};
+use crate::tiles::CardinalDirection;
 
 use super::utils::implies;
 
@@ -150,17 +153,41 @@ impl ClauseEngine {
                         clauses.push(implies(lifted, -pool.box_at(box_id, lift.pos, t)));
                     }
                 }
-                // The world never lifts onto a box, and the box clauses would otherwise read the
-                // lifted agent as entering (hence pushing) the box on its destination.
-                // shortcut: also forbids pushing a box off the lift and riding it in the same
-                // step, since `box_push` only models pushers that end the step on the box's cell;
-                // model that push if such plans matter.
+                // The world never lifts onto a box: one still on the destination after the walking
+                // part of the step was either there before or pushed off by an agent ending there.
                 for box_id in 0..ctx.n_boxes() {
-                    let box_positions = ctx.relevant_positions_for_box(box_id, t - 1);
-                    for cell in [lift.dest, lift.pos] {
-                        if box_positions.contains(&cell) {
-                            clauses.push(implies(lifted, -pool.box_at(box_id, cell, t - 1)));
+                    if ctx
+                        .relevant_positions_for_box(box_id, t - 1)
+                        .contains(&lift.dest)
+                    {
+                        clauses.push(implies(lifted, -pool.box_at(box_id, lift.dest, t - 1)));
+                    }
+                }
+                // A rider walking onto a box on the lift pushes it, as in `box_push`.
+                for d in CardinalDirection::iter() {
+                    let Some(p) = ctx.pusher_origin(lift.pos, d) else {
+                        continue;
+                    };
+                    if !entries.contains(&p) {
+                        continue;
+                    }
+                    let destination = ctx.push_destination(lift.pos, d);
+                    for box_id in 0..ctx.n_boxes() {
+                        if !ctx
+                            .relevant_positions_for_box(box_id, t - 1)
+                            .contains(&lift.pos)
+                        {
+                            continue;
                         }
+                        let mut clause = vec![
+                            -pool.agent(agent, p, t - 1),
+                            -lifted,
+                            -pool.box_at(box_id, lift.pos, t - 1),
+                        ];
+                        if let Some(r) = destination {
+                            clause.push(pool.box_at(box_id, r, t));
+                        }
+                        clauses.push(clause);
                     }
                 }
             }

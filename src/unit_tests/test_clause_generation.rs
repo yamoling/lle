@@ -2281,3 +2281,29 @@ fn formula_rejects_walking_onto_a_lift_another_agent_is_entering() {
     assert!(trajectory_literals(&generator, &trajectory).is_some());
     assert!(!admits(&generator, &clauses, &trajectory));
 }
+
+#[test]
+fn formula_admits_pushing_a_box_off_a_lift_and_riding_it() {
+    // Agent 0 pushes the box onto the lift, then walks onto the lift, pushing the box further, and
+    // rides it in the same step while agent 1 presses the button.
+    let world = "S0 # TU0 . .\n. . B0 S1 X\n;\n. . X . .\n. . . . .";
+    let mut generator = build(world, 6);
+    let (clauses, _) = generator.generate(4, SolveMode::Standard, false);
+    let trajectory = vec![
+        vec![
+            at3(0, 0, 0),
+            at3(0, 1, 0),
+            at3(0, 2, 1),
+            at3(0, 2, 1),
+            at3(0, 2, 1),
+        ],
+        vec![
+            at3(1, 3, 0),
+            at3(1, 2, 0),
+            at3(1, 2, 0),
+            at3(1, 3, 0),
+            at3(1, 4, 0),
+        ],
+    ];
+    assert!(admits(&generator, &clauses, &trajectory));
+}

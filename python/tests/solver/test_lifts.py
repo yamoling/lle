@@ -46,6 +46,21 @@ def test_lift_refuses_a_rider_of_another_colour():
     assert all(lle.solve(World(world), 10, path_length=n) is None for n in range(1, 11))
 
 
+def test_solve_pushes_a_box_off_a_lift_and_rides_it():
+    # Agent 0 pushes the box onto the lift, then pushes it off while riding the lift up.
+    world = """
+    S0 # TU0 .  .
+    .  . B0  S1 X
+    ;
+    .  . X   .  .
+    .  . .   .  .
+    """
+    assert lle.solve(World(world), 8, path_length=3) is None
+    plan = lle.solve(World(world), 8, path_length=4)
+    assert plan is not None
+    assert_plan_is_valid(world, plan)
+
+
 def test_solve_world_with_layers_and_no_lift():
     world = "S0 . X\n;\n. . ."
     plan = lle.solve(World(world), 5, path_length=2)
