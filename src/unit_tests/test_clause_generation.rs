@@ -2307,3 +2307,36 @@ fn formula_admits_pushing_a_box_off_a_lift_and_riding_it() {
     ];
     assert!(admits(&generator, &clauses, &trajectory));
 }
+
+#[test]
+fn formula_rejects_walking_onto_a_lift_through_an_active_beam() {
+    // Agent 1 walks onto the lift, the first tile of beam 0, and would only leave it by riding the
+    // lift: the beam kills it before the lift moves.
+    let world = "L0E TU0 B0 . X\nS0 . S1 . .\n;\n. X . . .\n. . . . .";
+    let mut generator = build(world, 9);
+    let (clauses, _) = generator.generate(7, SolveMode::Standard, false);
+    let trajectory = vec![
+        vec![
+            at3(1, 0, 0),
+            at3(1, 1, 0),
+            at3(0, 1, 0),
+            at3(0, 1, 0),
+            at3(0, 2, 0),
+            at3(0, 2, 0),
+            at3(0, 3, 0),
+            at3(0, 4, 0),
+        ],
+        vec![
+            at3(1, 2, 0),
+            at3(1, 2, 0),
+            at3(0, 2, 0),
+            at3(1, 2, 0),
+            at3(1, 1, 0),
+            at3(0, 1, 1),
+            at3(0, 1, 1),
+            at3(0, 1, 1),
+        ],
+    ];
+    assert!(trajectory_literals(&generator, &trajectory).is_some());
+    assert!(!admits(&generator, &clauses, &trajectory));
+}

@@ -1,9 +1,14 @@
+use std::collections::{HashMap, HashSet};
 use std::iter::once;
 
 use strum::IntoEnumIterator;
 
 use crate::Position;
-use crate::solver::{Clause, Literal, VarKey, clauses::ClauseEngine};
+use crate::solver::context::ConstraintContext;
+use crate::solver::{
+    Clause, Literal, VarKey,
+    clauses::{ClauseEngine, VarPool},
+};
 use crate::tiles::CardinalDirection;
 
 use super::utils::implies;
@@ -22,6 +27,113 @@ impl ClauseEngine {
         let mut clauses = self.button_presses(t);
         clauses.extend(self.forced_lifts(t));
         clauses.extend(self.lift_moves(t));
+        clauses.extend(self.walk_pass_lasers(t));
+        clauses
+    }
+
+    /// Lasers between the walking part of the step and the lifts: a lifted agent is then still on
+    /// its lift, so it neither blocks the beams of its destination nor is safe from the beams of
+    /// its lift yet. Only the beams crossing a lift or a lift destination can differ from their
+    /// state at `t`, which the laser clauses already constrain.
+    fn walk_pass_lasers(&mut self, t: usize) -> Vec<Clause> {
+        let ctx = &self.ctx;
+        let pool = &mut self.pool;
+        // (agent, lift, literal) for every agent that may be lifted in this step.
+        let lifted: Vec<(usize, usize, Literal)> = ctx
+            .lifts
+            .iter()
+            .enumerate()
+            .flat_map(|(l, lift)| lift.riders.iter().map(move |&agent| (agent, l)))
+            .filter_map(|(agent, l)| {
+                let key = VarKey::Lifted {
+                    agent_id: agent,
+                    lift: l,
+                    t: t - 1,
+                };
+                pool.get(&key).map(|lit| (agent, l, lit))
+            })
+            .collect();
+        if lifted.is_empty() {
+            return Vec::new();
+        }
+        let moved: HashSet<Position> = lifted
+            .iter()
+            .flat_map(|&(_, l, _)| [ctx.lifts[l].pos, ctx.lifts[l].dest])
+            .collect();
+        let mut clauses = Vec::new();
+        let mut occupancy = HashMap::new();
+        for source in &ctx.laser_sources {
+            if !source.path.iter().any(|pos| moved.contains(pos)) {
+                continue;
+            }
+            // Same chain as `beam_activation`, with the walk-pass occupancy of the owner.
+            let mut active = Vec::with_capacity(source.path.len());
+            let mut prev_active: Option<Literal> = None;
+            for &pos in &source.path {
+                let mut blockers: Vec<Literal> = source
+                    .owner
+                    .and_then(|owner| {
+                        walk_occupancy(
+                            ctx,
+                            pool,
+                            &lifted,
+                            &moved,
+                            &mut occupancy,
+                            &mut clauses,
+                            owner,
+                            pos,
+                            t,
+                        )
+                    })
+                    .into_iter()
+                    .collect();
+                for box_id in 0..ctx.n_boxes() {
+                    if !ctx.is_void(&pos)
+                        && ctx.relevant_positions_for_box(box_id, t).contains(&pos)
+                    {
+                        blockers.push(pool.box_at(box_id, pos, t));
+                    }
+                }
+                if !blockers.is_empty() {
+                    let lit = pool.aux();
+                    let mut activation = Vec::with_capacity(blockers.len() + 2);
+                    if let Some(prev) = prev_active {
+                        clauses.push(implies(lit, prev));
+                        activation.push(-prev);
+                    }
+                    for &blocker in &blockers {
+                        clauses.push(implies(lit, -blocker));
+                    }
+                    activation.extend(blockers);
+                    activation.push(lit);
+                    clauses.push(activation);
+                    prev_active = Some(lit);
+                }
+                // `None` before any blocker: a constant-active tile.
+                active.push(prev_active);
+            }
+            for agent in (0..ctx.n_agents).filter(|&agent| Some(agent) != source.owner) {
+                for (&pos, &lit) in source.path.iter().zip(&active) {
+                    let Some(here) = walk_occupancy(
+                        ctx,
+                        pool,
+                        &lifted,
+                        &moved,
+                        &mut occupancy,
+                        &mut clauses,
+                        agent,
+                        pos,
+                        t,
+                    ) else {
+                        continue;
+                    };
+                    clauses.push(match lit {
+                        Some(lit) => vec![-here, -lit],
+                        None => vec![-here],
+                    });
+                }
+            }
+        }
         clauses
     }
 
@@ -211,4 +323,60 @@ impl ClauseEngine {
             })
             .collect()
     }
+}
+
+/// The literal of `agent` standing on `pos` once the walking part of the step to `t` is over, or
+/// `None` if it cannot. It differs from `agent(agent, pos, t)` only on lifts and their
+/// destinations, where an auxiliary variable `w <-> (agent(pos, t) & !lifted_into) | lifted_from`
+/// is defined once and cached in `occupancy`.
+#[allow(clippy::too_many_arguments)]
+fn walk_occupancy(
+    ctx: &ConstraintContext,
+    pool: &mut VarPool,
+    lifted: &[(usize, usize, Literal)],
+    moved: &HashSet<Position>,
+    occupancy: &mut HashMap<(usize, Position), Option<Literal>>,
+    clauses: &mut Vec<Clause>,
+    agent: usize,
+    pos: Position,
+    t: usize,
+) -> Option<Literal> {
+    let at = ctx
+        .relevant_positions_for_agent(agent, t)
+        .contains(&pos)
+        .then(|| pool.agent(agent, pos, t));
+    if !moved.contains(&pos) {
+        return at;
+    }
+    if let Some(&cached) = occupancy.get(&(agent, pos)) {
+        return cached;
+    }
+    let mine = lifted.iter().filter(|&&(a, _, _)| a == agent);
+    let into: Vec<Literal> = mine
+        .clone()
+        .filter(|&&(_, l, _)| ctx.lifts[l].dest == pos)
+        .map(|&(_, _, lit)| lit)
+        .collect();
+    let from: Vec<Literal> = mine
+        .filter(|&&(_, l, _)| ctx.lifts[l].pos == pos)
+        .map(|&(_, _, lit)| lit)
+        .collect();
+    let result = if into.is_empty() && from.is_empty() {
+        at
+    } else {
+        let w = pool.aux();
+        for &f in &from {
+            clauses.push(implies(f, w));
+        }
+        if let Some(at) = at {
+            clauses.push([-at, w].into_iter().chain(into.iter().copied()).collect());
+        }
+        clauses.push(once(-w).chain(at).chain(from.iter().copied()).collect());
+        for &i in &into {
+            clauses.push([-w, -i].into_iter().chain(from.iter().copied()).collect());
+        }
+        Some(w)
+    };
+    occupancy.insert((agent, pos), result);
+    result
 }
