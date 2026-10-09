@@ -222,6 +222,7 @@ impl Tile {
     pub fn actuate(&mut self, colour: Colour) -> Option<usize> {
         match self {
             Self::Button(button) => button.actuate(colour),
+            Self::Laser(laser) => laser.wrapped_mut().actuate(colour),
             _ => None,
         }
     }
@@ -232,7 +233,16 @@ impl Tile {
     pub fn is_triggerable(&self) -> bool {
         match self {
             Self::Button(_) => true,
+            Self::Laser(laser) => laser.wrapped().is_triggerable(),
             _ => false,
+        }
+    }
+
+    /// The tile under every laser beam crossing this one.
+    pub fn innermost(&self) -> &Tile {
+        match self {
+            Self::Laser(laser) => laser.wrapped().innermost(),
+            tile => tile,
         }
     }
 }

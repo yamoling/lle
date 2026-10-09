@@ -1,10 +1,10 @@
 use std::collections::HashSet;
 
-use crate::Position;
 use crate::World;
 use crate::solver::Clause;
 use crate::solver::Literal;
 use crate::solver::clauses::ClauseEngine;
+use crate::{Action, Position};
 
 use crate::solver::{ClauseGenerator, SolveMode, VarKey};
 use rstest::rstest;
@@ -2146,26 +2146,243 @@ fn formula_still_admits_one_agent_idling_on_its_exit_while_another_travels() {
     );
 }
 
-#[test]
-fn test_generator_rejects_a_world_with_several_layers() {
-    let world = World::try_from("S0 . X\n;\n. . .").unwrap();
-    assert!(matches!(
-        ClauseGenerator::new(&world, 5),
-        Err(crate::solver::errors::SolverError::UnsupportedFeature { .. })
-    ));
+/// Agent 1 presses the button while agent 0 walks onto the lift and rides it in the same step,
+/// landing on the cell agent 2 is leaving.
+const LIFT_WORLD: &str = "S0 TU0 B0 S1 X\n;\nX S2 . . X";
+
+fn at(j: usize, k: usize) -> Position {
+    Position { i: 0, j, k }
 }
 
 #[test]
-fn test_generator_rejects_a_world_with_lifts() {
-    let world = World::try_from("S0 TU0 B0 X").unwrap();
-    assert!(matches!(
-        ClauseGenerator::new(&world, 5),
-        Err(crate::solver::errors::SolverError::UnsupportedFeature { feature: "lifts" })
-    ));
+fn formula_admits_riding_a_lift_onto_a_cell_being_left() {
+    let mut generator = build(LIFT_WORLD, 6);
+    let (clauses, _) = generator.generate(4, SolveMode::Standard, false);
+    let trajectory = vec![
+        vec![at(0, 0), at(0, 0), at(1, 1), at(0, 1), at(0, 1)],
+        vec![at(3, 0), at(2, 0), at(2, 0), at(3, 0), at(4, 0)],
+        vec![at(1, 1), at(1, 1), at(2, 1), at(3, 1), at(4, 1)],
+    ];
+    assert!(admits(&generator, &clauses, &trajectory));
+}
+
+#[test]
+fn formula_rejects_a_lift_nobody_pressed() {
+    let mut generator = build(LIFT_WORLD, 6);
+    let (clauses, _) = generator.generate(4, SolveMode::Standard, false);
+    let trajectory = vec![
+        vec![at(0, 0), at(0, 0), at(1, 1), at(0, 1), at(0, 1)],
+        vec![at(3, 0), at(3, 0), at(3, 0), at(3, 0), at(4, 0)],
+        vec![at(1, 1), at(1, 1), at(2, 1), at(3, 1), at(4, 1)],
+    ];
+    assert!(trajectory_literals(&generator, &trajectory).is_some());
+    assert!(!admits(&generator, &clauses, &trajectory));
 }
 
 #[test]
 fn test_generator_accepts_a_single_layer_world_with_a_button_only() {
     let world = World::try_from("S0 B0 X").unwrap();
     assert!(ClauseGenerator::new(&world, 5).is_ok());
+}
+
+#[test]
+fn decode_plan_turns_a_pressed_button_into_a_trigger() {
+    let mut generator = build("S0 B0 X", 3);
+    generator.generate(2, SolveMode::Standard, false);
+    let model: Vec<Literal> = [
+        VarKey::agent(0, pos(0, 0), 0),
+        VarKey::agent(0, pos(0, 1), 1),
+        VarKey::agent(0, pos(0, 1), 2),
+        VarKey::Button { button: 0, t: 1 },
+    ]
+    .iter()
+    .map(|key| generator.literal(key).expect("variable should exist"))
+    .collect();
+    let plan = generator.decode_plan(&model, 2).unwrap();
+    assert_eq!(plan, vec![vec![Action::East], vec![Action::Trigger]]);
+}
+
+/// Agent 0 rides the lift at `(0, 1, 0)` while agent 1 presses the button; agent 2 walks around.
+const CROWDED_LIFT_WORLD: &str = "S0 TU0 B0 S1 X\n. S2 . . X\n;\nX . . . .\n. . . . .";
+
+fn at3(i: usize, j: usize, k: usize) -> Position {
+    Position { i, j, k }
+}
+
+#[test]
+fn formula_rejects_walking_onto_a_lift_another_agent_is_leaving() {
+    let mut generator = build(CROWDED_LIFT_WORLD, 8);
+    let (clauses, _) = generator.generate(5, SolveMode::Standard, false);
+    let trajectory = vec![
+        vec![
+            at3(0, 0, 0),
+            at3(0, 0, 0),
+            at3(0, 1, 1),
+            at3(0, 0, 1),
+            at3(0, 0, 1),
+            at3(0, 0, 1),
+        ],
+        vec![
+            at3(0, 3, 0),
+            at3(0, 2, 0),
+            at3(0, 2, 0),
+            at3(0, 3, 0),
+            at3(0, 4, 0),
+            at3(0, 4, 0),
+        ],
+        vec![
+            at3(1, 1, 0),
+            at3(0, 1, 0),
+            at3(1, 1, 0),
+            at3(1, 2, 0),
+            at3(1, 3, 0),
+            at3(1, 4, 0),
+        ],
+    ];
+    assert!(trajectory_literals(&generator, &trajectory).is_some());
+    assert!(!admits(&generator, &clauses, &trajectory));
+}
+
+#[test]
+fn formula_rejects_walking_onto_a_lift_another_agent_is_entering() {
+    // Agent 2 may not ride, so the pulse does not force it off the lift.
+    let world = "S0 TU0A0 B0 S1 X\n. S2 . . X\n;\nX . . . .\n. . . . .";
+    let mut generator = build(world, 8);
+    let (clauses, _) = generator.generate(6, SolveMode::Standard, false);
+    let trajectory = vec![
+        vec![
+            at3(0, 0, 0),
+            at3(0, 0, 0),
+            at3(0, 1, 1),
+            at3(0, 0, 1),
+            at3(0, 0, 1),
+            at3(0, 0, 1),
+            at3(0, 0, 1),
+        ],
+        vec![
+            at3(0, 3, 0),
+            at3(0, 2, 0),
+            at3(0, 2, 0),
+            at3(0, 3, 0),
+            at3(0, 4, 0),
+            at3(0, 4, 0),
+            at3(0, 4, 0),
+        ],
+        vec![
+            at3(1, 1, 0),
+            at3(1, 1, 0),
+            at3(0, 1, 0),
+            at3(1, 1, 0),
+            at3(1, 2, 0),
+            at3(1, 3, 0),
+            at3(1, 4, 0),
+        ],
+    ];
+    assert!(trajectory_literals(&generator, &trajectory).is_some());
+    assert!(!admits(&generator, &clauses, &trajectory));
+}
+
+#[test]
+fn formula_admits_pushing_a_box_off_a_lift_and_riding_it() {
+    // Agent 0 pushes the box onto the lift, then walks onto the lift, pushing the box further, and
+    // rides it in the same step while agent 1 presses the button.
+    let world = "S0 # TU0 . .\n. . B0 S1 X\n;\n. . X . .\n. . . . .";
+    let mut generator = build(world, 6);
+    let (clauses, _) = generator.generate(4, SolveMode::Standard, false);
+    let trajectory = vec![
+        vec![
+            at3(0, 0, 0),
+            at3(0, 1, 0),
+            at3(0, 2, 1),
+            at3(0, 2, 1),
+            at3(0, 2, 1),
+        ],
+        vec![
+            at3(1, 3, 0),
+            at3(1, 2, 0),
+            at3(1, 2, 0),
+            at3(1, 3, 0),
+            at3(1, 4, 0),
+        ],
+    ];
+    assert!(admits(&generator, &clauses, &trajectory));
+}
+
+#[test]
+fn formula_rejects_walking_onto_a_lift_through_an_active_beam() {
+    // Agent 1 walks onto the lift, the first tile of beam 0, and would only leave it by riding the
+    // lift: the beam kills it before the lift moves.
+    let world = "L0E TU0 B0 . X\nS0 . S1 . .\n;\n. X . . .\n. . . . .";
+    let mut generator = build(world, 9);
+    let (clauses, _) = generator.generate(7, SolveMode::Standard, false);
+    let trajectory = vec![
+        vec![
+            at3(1, 0, 0),
+            at3(1, 1, 0),
+            at3(0, 1, 0),
+            at3(0, 1, 0),
+            at3(0, 2, 0),
+            at3(0, 2, 0),
+            at3(0, 3, 0),
+            at3(0, 4, 0),
+        ],
+        vec![
+            at3(1, 2, 0),
+            at3(1, 2, 0),
+            at3(0, 2, 0),
+            at3(1, 2, 0),
+            at3(1, 1, 0),
+            at3(0, 1, 1),
+            at3(0, 1, 1),
+            at3(0, 1, 1),
+        ],
+    ];
+    assert!(trajectory_literals(&generator, &trajectory).is_some());
+    assert!(!admits(&generator, &clauses, &trajectory));
+}
+
+#[test]
+fn formula_admits_landing_on_a_lift_pulsed_in_the_same_step() {
+    // Agent 0 is lifted onto a lift of group 1 while agent 3 presses button 1 to lift agent 2: a
+    // lift moves an agent once per step, so agent 0 stays there and rides it at the next press.
+    let world =
+        "S0 TU0 B0 S1 X\n. . . . X\n;\n. TU1 B1 TU1 S2\n. X S3 . .\n;\nX X . X .\n. . . . .";
+    let mut generator = build(world, 7);
+    let (clauses, _) = generator.generate(5, SolveMode::Standard, false);
+    let trajectory = vec![
+        vec![
+            at3(0, 0, 0),
+            at3(0, 0, 0),
+            at3(0, 1, 1),
+            at3(0, 1, 2),
+            at3(0, 1, 2),
+            at3(0, 1, 2),
+        ],
+        vec![
+            at3(0, 3, 0),
+            at3(0, 2, 0),
+            at3(0, 2, 0),
+            at3(0, 3, 0),
+            at3(0, 4, 0),
+            at3(0, 4, 0),
+        ],
+        vec![
+            at3(0, 4, 1),
+            at3(0, 4, 1),
+            at3(0, 3, 2),
+            at3(0, 3, 2),
+            at3(0, 3, 2),
+            at3(0, 3, 2),
+        ],
+        vec![
+            at3(1, 2, 1),
+            at3(0, 2, 1),
+            at3(0, 2, 1),
+            at3(0, 2, 1),
+            at3(1, 2, 1),
+            at3(1, 1, 1),
+        ],
+    ];
+    assert!(trajectory_literals(&generator, &trajectory).is_some());
+    assert!(admits(&generator, &clauses, &trajectory));
 }

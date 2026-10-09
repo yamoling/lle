@@ -46,15 +46,6 @@ impl ClauseGenerator {
     /// The encoding treats a laser colour as its single owning agent, so colour sharing is a
     /// checked precondition rather than a supported case (`.agents/plans/agent-colour-id.md` §2).
     pub fn new(world: &World, t_max: usize) -> Result<Self, SolverError> {
-        // The encoding is flat: it ignores layers, lifts and `Action::Trigger`.
-        if world.layers() > 1 {
-            return Err(SolverError::UnsupportedFeature {
-                feature: "worlds with several layers",
-            });
-        }
-        if !world.lifts().is_empty() {
-            return Err(SolverError::UnsupportedFeature { feature: "lifts" });
-        }
         let mut agents_by_colour: std::collections::BTreeMap<usize, Vec<usize>> =
             Default::default();
         for (agent_id, colour) in world.agent_colours().into_iter().enumerate() {

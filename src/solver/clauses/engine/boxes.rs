@@ -1,7 +1,7 @@
 use strum::IntoEnumIterator;
 
 use crate::Position;
-use crate::solver::{Clause, clauses::ClauseEngine};
+use crate::solver::{Clause, VarKey, clauses::ClauseEngine};
 use crate::tiles::CardinalDirection;
 
 use super::utils::{at_most_one, implies};
@@ -49,7 +49,8 @@ impl ClauseEngine {
         clauses
     }
 
-    /// A box on a non-void cell stays there unless an agent enters its cell.
+    /// A box on a non-void cell stays there unless an agent enters its cell, possibly riding a
+    /// lift away from it in the same step (see `lift_moves`).
     fn box_inertia(&mut self, t: usize) -> Vec<Clause> {
         if t == 0 {
             return Vec::new();
@@ -66,6 +67,15 @@ impl ClauseEngine {
                 for agent in 0..ctx.n_agents {
                     if ctx.relevant_positions_for_agent(agent, t).contains(&q) {
                         clause.push(pool.agent(agent, q, t));
+                    }
+                }
+                for (l, lift) in ctx.lifts.iter().enumerate().filter(|(_, l)| l.pos == q) {
+                    for &agent_id in &lift.riders {
+                        clause.extend(pool.get(&VarKey::Lifted {
+                            agent_id,
+                            lift: l,
+                            t: t - 1,
+                        }));
                     }
                 }
                 clauses.push(clause);
@@ -96,7 +106,7 @@ impl ClauseEngine {
                     for agent in 0..ctx.n_agents {
                         if !ctx.relevant_positions_for_agent(agent, t - 1).contains(&p)
                             || !ctx.relevant_positions_for_agent(agent, t).contains(&q)
-                            || !ctx.neighbours[p.i][p.j].contains(&q)
+                            || !ctx.neighbours[p.k][p.i][p.j].contains(&q)
                         {
                             continue;
                         }

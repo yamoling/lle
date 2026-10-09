@@ -1,9 +1,6 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use crate::solver::Clause;
-#[cfg(test)]
-use crate::solver::VarKey;
 use crate::solver::clauses::VarPool;
 use crate::solver::context::ConstraintContext;
 use crate::solver::errors::SolverError;
@@ -12,6 +9,7 @@ use crate::solver::interdependence::{
 };
 use crate::solver::position_set::PositionSet;
 use crate::solver::sequences::{SequencePattern, enumerate_sequence_patterns};
+use crate::solver::{Clause, VarKey};
 use crate::{Action, World};
 
 /// Mutable substrate shared by every clause-producing routine.
@@ -38,11 +36,13 @@ impl ClauseEngine {
         let ctx = ConstraintContext::new(world, t_max);
         Self {
             exits: PositionSet::from_positions(
+                world.layers(),
                 world.height(),
                 world.width(),
                 world.exits_positions().into_iter(),
             ),
             gems: PositionSet::from_positions(
+                world.layers(),
                 world.height(),
                 world.width(),
                 world.gems_positions().into_iter(),
@@ -129,6 +129,7 @@ impl ClauseEngine {
         let mut clauses = Vec::new();
         clauses.extend(self.initialization(t));
         clauses.extend(self.exactly_one_position(t));
+        clauses.extend(self.generate_lift_clauses(t));
         clauses.extend(self.time_wise_adjacency(t));
         clauses.extend(self.no_overlap(t));
         clauses.extend(self.no_following_conflict(t));
@@ -172,13 +173,34 @@ impl ClauseEngine {
         clauses
     }
 
-    #[inline]
+    /// Decode a SAT model into a joint action plan of length `t_end`. Positions alone cannot tell
+    /// `Trigger` from `Stay`, so the agent standing on a pressed button triggers it.
     pub fn decode_plan(
         &self,
         literals: &[i32],
         t_end: usize,
     ) -> Result<Vec<Vec<Action>>, SolverError> {
-        self.pool.decode_plan(literals, t_end)
+        let mut plan = self.pool.decode_plan(literals, t_end)?;
+        let model: HashSet<i32> = literals.iter().copied().filter(|&l| l > 0).collect();
+        for &literal in &model {
+            let Some(VarKey::Button { button, t }) = self.pool.key(literal) else {
+                continue;
+            };
+            if t >= t_end {
+                continue;
+            }
+            let pos = self.ctx.buttons[button].pos;
+            for (agent, action) in plan[t].iter_mut().enumerate() {
+                if self
+                    .pool
+                    .get(&VarKey::agent(agent, pos, t))
+                    .is_some_and(|on_button| model.contains(&on_button))
+                {
+                    *action = Action::Trigger;
+                }
+            }
+        }
+        Ok(plan)
     }
 
     #[inline]

@@ -314,7 +314,8 @@ impl World {
     pub fn lifts(&self) -> Vec<(Position, &Lift)> {
         self.lift_positions
             .iter()
-            .map(|pos| match self.grid.at(pos) {
+            // Lifts can be wrapped into lasers.
+            .map(|pos| match self.grid.at(pos).innermost() {
                 Tile::Lift(lift) => (pos.clone(), lift),
                 _ => unreachable!(),
             })
@@ -324,7 +325,8 @@ impl World {
     pub fn buttons(&self) -> Vec<(Position, &Button)> {
         self.button_positions
             .iter()
-            .map(|pos| match self.grid.at(pos) {
+            // Buttons can be wrapped into lasers.
+            .map(|pos| match self.grid.at(pos).innermost() {
                 Tile::Button(button) => (pos.clone(), button),
                 _ => unreachable!(),
             })
