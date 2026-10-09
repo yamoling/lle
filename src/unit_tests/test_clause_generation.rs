@@ -2201,3 +2201,83 @@ fn decode_plan_turns_a_pressed_button_into_a_trigger() {
     let plan = generator.decode_plan(&model, 2).unwrap();
     assert_eq!(plan, vec![vec![Action::East], vec![Action::Trigger]]);
 }
+
+/// Agent 0 rides the lift at `(0, 1, 0)` while agent 1 presses the button; agent 2 walks around.
+const CROWDED_LIFT_WORLD: &str = "S0 TU0 B0 S1 X\n. S2 . . X\n;\nX . . . .\n. . . . .";
+
+fn at3(i: usize, j: usize, k: usize) -> Position {
+    Position { i, j, k }
+}
+
+#[test]
+fn formula_rejects_walking_onto_a_lift_another_agent_is_leaving() {
+    let mut generator = build(CROWDED_LIFT_WORLD, 8);
+    let (clauses, _) = generator.generate(5, SolveMode::Standard, false);
+    let trajectory = vec![
+        vec![
+            at3(0, 0, 0),
+            at3(0, 0, 0),
+            at3(0, 1, 1),
+            at3(0, 0, 1),
+            at3(0, 0, 1),
+            at3(0, 0, 1),
+        ],
+        vec![
+            at3(0, 3, 0),
+            at3(0, 2, 0),
+            at3(0, 2, 0),
+            at3(0, 3, 0),
+            at3(0, 4, 0),
+            at3(0, 4, 0),
+        ],
+        vec![
+            at3(1, 1, 0),
+            at3(0, 1, 0),
+            at3(1, 1, 0),
+            at3(1, 2, 0),
+            at3(1, 3, 0),
+            at3(1, 4, 0),
+        ],
+    ];
+    assert!(trajectory_literals(&generator, &trajectory).is_some());
+    assert!(!admits(&generator, &clauses, &trajectory));
+}
+
+#[test]
+fn formula_rejects_walking_onto_a_lift_another_agent_is_entering() {
+    // Agent 2 may not ride, so the pulse does not force it off the lift.
+    let world = "S0 TU0A0 B0 S1 X\n. S2 . . X\n;\nX . . . .\n. . . . .";
+    let mut generator = build(world, 8);
+    let (clauses, _) = generator.generate(6, SolveMode::Standard, false);
+    let trajectory = vec![
+        vec![
+            at3(0, 0, 0),
+            at3(0, 0, 0),
+            at3(0, 1, 1),
+            at3(0, 0, 1),
+            at3(0, 0, 1),
+            at3(0, 0, 1),
+            at3(0, 0, 1),
+        ],
+        vec![
+            at3(0, 3, 0),
+            at3(0, 2, 0),
+            at3(0, 2, 0),
+            at3(0, 3, 0),
+            at3(0, 4, 0),
+            at3(0, 4, 0),
+            at3(0, 4, 0),
+        ],
+        vec![
+            at3(1, 1, 0),
+            at3(1, 1, 0),
+            at3(0, 1, 0),
+            at3(1, 1, 0),
+            at3(1, 2, 0),
+            at3(1, 3, 0),
+            at3(1, 4, 0),
+        ],
+    ];
+    assert!(trajectory_literals(&generator, &trajectory).is_some());
+    assert!(!admits(&generator, &clauses, &trajectory));
+}

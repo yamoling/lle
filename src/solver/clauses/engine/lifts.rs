@@ -129,6 +129,27 @@ impl ClauseEngine {
                         .collect(),
                 );
                 clauses.push(once(-lifted).chain(pulses.iter().copied()).collect());
+                // The rider is on the lift once the walking part of the step is over, even when it
+                // walked onto it: no other agent may leave or enter the lift in that step, and no
+                // box may be pushed onto it.
+                for other in (0..ctx.n_agents).filter(|&other| other != agent) {
+                    for step in [t - 1, t] {
+                        if ctx
+                            .relevant_positions_for_agent(other, step)
+                            .contains(&lift.pos)
+                        {
+                            clauses.push(implies(lifted, -pool.agent(other, lift.pos, step)));
+                        }
+                    }
+                }
+                for box_id in 0..ctx.n_boxes() {
+                    if ctx
+                        .relevant_positions_for_box(box_id, t)
+                        .contains(&lift.pos)
+                    {
+                        clauses.push(implies(lifted, -pool.box_at(box_id, lift.pos, t)));
+                    }
+                }
                 // The world never lifts onto a box, and the box clauses would otherwise read the
                 // lifted agent as entering (hence pushing) the box on its destination.
                 // shortcut: also forbids pushing a box off the lift and riding it in the same
