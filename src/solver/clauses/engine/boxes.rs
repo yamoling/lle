@@ -1,9 +1,10 @@
 use strum::IntoEnumIterator;
 
 use crate::Position;
-use crate::solver::{Clause, VarKey, clauses::ClauseEngine};
+use crate::solver::{Clause, clauses::ClauseEngine};
 use crate::tiles::CardinalDirection;
 
+use super::lifts::lifted_literals;
 use super::utils::{at_most_one, implies};
 
 /// Box constraints. `N[x]` denotes `x` and its four adjacent cells.
@@ -69,15 +70,9 @@ impl ClauseEngine {
                         clause.push(pool.agent(agent, q, t));
                     }
                 }
-                for (l, lift) in ctx.lifts.iter().enumerate().filter(|(_, l)| l.pos == q) {
-                    for &agent_id in &lift.riders {
-                        clause.extend(pool.get(&VarKey::Lifted {
-                            agent_id,
-                            lift: l,
-                            t: t - 1,
-                        }));
-                    }
-                }
+                clause.extend(
+                    lifted_literals(ctx, pool, t, |lift| lift.pos == q).map(|(_, _, lit)| lit),
+                );
                 clauses.push(clause);
             }
         }

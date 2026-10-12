@@ -4,7 +4,7 @@ use std::iter::once;
 use strum::IntoEnumIterator;
 
 use crate::Position;
-use crate::solver::context::ConstraintContext;
+use crate::solver::context::{ConstraintContext, LiftInfo};
 use crate::solver::{
     Clause, Literal, VarKey,
     clauses::{ClauseEngine, VarPool},
@@ -38,21 +38,7 @@ impl ClauseEngine {
     fn walk_pass_lasers(&mut self, t: usize) -> Vec<Clause> {
         let ctx = &self.ctx;
         let pool = &mut self.pool;
-        // (agent, lift, literal) for every agent that may be lifted in this step.
-        let lifted: Vec<(usize, usize, Literal)> = ctx
-            .lifts
-            .iter()
-            .enumerate()
-            .flat_map(|(l, lift)| lift.riders.iter().map(move |&agent| (agent, l)))
-            .filter_map(|(agent, l)| {
-                let key = VarKey::Lifted {
-                    agent_id: agent,
-                    lift: l,
-                    t: t - 1,
-                };
-                pool.get(&key).map(|lit| (agent, l, lit))
-            })
-            .collect();
+        let lifted: Vec<_> = lifted_literals(ctx, pool, t, |_| true).collect();
         if lifted.is_empty() {
             return Vec::new();
         }
@@ -193,19 +179,11 @@ impl ClauseEngine {
                         .relevant_positions_for_agent(agent, t)
                         .contains(&lift.pos)
                     {
-                        let landed = ctx
-                            .lifts
-                            .iter()
-                            .enumerate()
-                            .filter(|(_, other)| other.dest == lift.pos)
-                            .filter_map(|(other, _)| {
-                                pool.get(&VarKey::Lifted {
-                                    agent_id: agent,
-                                    lift: other,
-                                    t: t - 1,
-                                })
-                            })
-                            .collect::<Vec<_>>();
+                        let landed: Vec<_> =
+                            lifted_literals(ctx, pool, t, |other| other.dest == lift.pos)
+                                .filter(|&(a, _, _)| a == agent)
+                                .map(|(_, _, lit)| lit)
+                                .collect();
                         let stays = pool.agent(agent, lift.pos, t);
                         clauses.push([-pressed, -stays].into_iter().chain(landed).collect());
                     }
@@ -325,20 +303,35 @@ impl ClauseEngine {
 
     /// The `Lifted` literals bringing `agent` onto `pos` during the step from `t - 1` to `t`.
     pub(super) fn lifted_into(&self, agent: usize, pos: Position, t: usize) -> Vec<Literal> {
-        self.ctx
-            .lifts
-            .iter()
-            .enumerate()
-            .filter(|(_, lift)| lift.dest == pos)
-            .filter_map(|(lift, _)| {
-                self.pool.get(&VarKey::Lifted {
-                    agent_id: agent,
-                    lift,
-                    t: t - 1,
-                })
-            })
+        lifted_literals(&self.ctx, &self.pool, t, |lift| lift.dest == pos)
+            .filter(|&(a, _, _)| a == agent)
+            .map(|(_, _, lit)| lit)
             .collect()
     }
+}
+
+/// `(agent, lift, literal)` for every existing `Lifted` variable of the step from `t - 1` to `t`
+/// whose lift matches `on`. Every clause reading `Lifted` variables must go through this, so that
+/// they all agree on which liftings can happen.
+pub(super) fn lifted_literals<'a>(
+    ctx: &'a ConstraintContext,
+    pool: &'a VarPool,
+    t: usize,
+    on: impl Fn(&LiftInfo) -> bool + 'a,
+) -> impl Iterator<Item = (usize, usize, Literal)> + 'a {
+    ctx.lifts
+        .iter()
+        .enumerate()
+        .filter(move |(_, lift)| on(lift))
+        .flat_map(|(l, lift)| lift.riders.iter().map(move |&agent| (agent, l)))
+        .filter_map(move |(agent, l)| {
+            let key = VarKey::Lifted {
+                agent_id: agent,
+                lift: l,
+                t: t - 1,
+            };
+            pool.get(&key).map(|lit| (agent, l, lit))
+        })
 }
 
 /// The literal of `agent` standing on `pos` once the walking part of the step to `t` is over, or
