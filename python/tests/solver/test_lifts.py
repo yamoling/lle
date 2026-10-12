@@ -392,6 +392,78 @@ CASES = [
         shortest=8,
         trigger=True,
     ),
+    Case(
+        # Agent 2 must not push a box onto the lift in the step agent 0 rides it.
+        "box-pushed-onto-a-lift-being-ridden",
+        """
+        .  .  #  TU0 @
+        S0 .  #  S2  X
+        ;
+        .  .  S1 .   .
+        B0 .  X  X   #
+        """,
+        shortest=7,
+        trigger=True,
+    ),
+    Case(
+        # Agent 0 alone reaches the ground exit by t = 3, but agent 2 takes it later, so agent 0
+        # may keep the upper exit it was lifted onto.
+        "exit-taken-later-by-another-agent",
+        """
+        .  #  TU0 X
+        .  S0 .   .
+        .  S2 .   .
+        ;
+        .  .  X   X
+        B0 .  TD0 .
+        S1 .  .   .
+        """,
+        shortest=6,
+        trigger=True,
+    ),
+    Case(
+        # Agent 1 starts on the button, so agent 0 rides at the very first step, onto agent 2's
+        # start which agent 2 leaves in that step.
+        "ride-at-the-first-step",
+        """
+world_string = \"\"\"
+.  TU0 B0 X
+@  @   @  @
+;
+@  .   .  X
+@  X   .  .
+\"\"\"
+[[agents]]
+start_positions = [{i = 0, j = 0, k = 0}]
+[[agents]]
+start_positions = [{i = 0, j = 2, k = 0}]
+[[agents]]
+start_positions = [{i = 0, j = 1, k = 1}]
+""",
+        shortest=2,
+        trigger=True,
+    ),
+    Case(
+        # Same, with the rider's id above the id of the agent leaving the destination.
+        "ride-at-the-first-step-reversed",
+        """
+world_string = \"\"\"
+.  TU0 B0 X
+@  @   @  @
+;
+@  .   .  X
+@  X   .  .
+\"\"\"
+[[agents]]
+start_positions = [{i = 0, j = 1, k = 1}]
+[[agents]]
+start_positions = [{i = 0, j = 2, k = 0}]
+[[agents]]
+start_positions = [{i = 0, j = 0, k = 0}]
+""",
+        shortest=2,
+        trigger=True,
+    ),
 ]
 
 
