@@ -817,3 +817,17 @@ fn test_lift_onto_a_wall_is_dropped() {
     let ctx = ConstraintContext::new(&world, 5);
     assert!(ctx.lifts.is_empty());
 }
+
+/// An exit only one agent can reach *so far* may still be taken by another agent later: here agent
+/// 0 alone reaches `(0, 3, 0)` by `t = 3`, but agent 2 reaches it at `t = 4`, so agent 0 may still
+/// stand on the exit it was lifted onto at `t = 2`.
+#[test]
+fn test_forced_exit_holds_over_the_whole_horizon() {
+    let world =
+        World::try_from(". # TU0 X\n. S0 . .\n. S2 . .\n;\n. . X X\nB0 . TD0 .\nS1 . . .").unwrap();
+    let mut ctx = ConstraintContext::new(&world, 9);
+    ctx.update(3);
+    let upper_exit = Position { i: 0, j: 2, k: 1 };
+    assert!(ctx.relevant_positions_for_agent(0, 2).contains(&upper_exit));
+    assert!(ctx.relevant_positions_for_agent(0, 3).contains(&upper_exit));
+}

@@ -160,6 +160,10 @@ pub struct ConstraintContext {
     /// the beam is constant-active and the non-owner dies. This is pre-computed once and applied at
     /// every time step during `update_relevant_positions`.
     forbidden_first_beam_tiles: Vec<PositionSet>,
+
+    /// `forced_exits[agent]` = the exit `agent` must end on, if it is the only agent that can
+    /// reach some exit within the horizon (see [`Self::update_forced_exit_relevance`]).
+    forced_exits: Vec<Option<Position>>,
 }
 
 impl ConstraintContext {
@@ -282,6 +286,16 @@ impl ConstraintContext {
             }
         }
 
+        let forced_exits = forced_exits(
+            &exits,
+            &start_pos,
+            &neighbours,
+            &predecessors,
+            &lifts,
+            &forbidden_first_beam_tiles,
+            t_max,
+        );
+
         // Bucket positions by their exact distance to the nearest exit (capped at `t_max`,
         // since farther positions can never be exit-reachable within the horizon).
         let mut distance_buckets = vec![PositionSet::empty(layers, height, width); t_max + 1];
@@ -336,6 +350,7 @@ impl ConstraintContext {
             relevant_box_positions,
             forbidden_first_beam_tiles,
             relevant_laser_paths,
+            forced_exits,
         }
     }
 
@@ -526,45 +541,19 @@ impl ConstraintContext {
         })
     }
 
-    /// Remove exit positions that are incompatible with uniquely forced exit assignments.
+    /// Remove from each agent's relevant positions at `t` the exits other than its forced exit.
     ///
     /// When there are exactly as many exits as agents, every exit tile must be occupied in any
-    /// satisfying objective state because all agents must end on distinct exits. If an exit is
-    /// reachable by exactly one agent at a timestep, and that agent is not the sole candidate for
-    /// any other exit, then the agent is forced to use that exit and cannot have previously stopped
-    /// on another exit.
+    /// satisfying objective state because all agents must end on distinct exits. An exit that only
+    /// one agent can reach within the horizon is therefore that agent's final position, and exits
+    /// being absorbing, that agent never stops on another exit.
     fn update_forced_exit_relevance(&mut self, t: usize) {
-        if self.exits.size() != self.n_agents {
-            return;
-        }
-
-        let mut forced_exit_by_agent = vec![None; self.n_agents];
-        let mut unique_exit_count_by_agent = vec![0; self.n_agents];
-
-        for exit in &self.exits {
-            let mut unique_agent = None;
-            let mut n_reachable_agents = 0;
-            for agent in 0..self.n_agents {
-                if self.relevant_positions[agent][t].contains(&exit) {
-                    unique_agent = Some(agent);
-                    n_reachable_agents += 1;
-                }
-            }
-            if n_reachable_agents == 1 {
-                let agent = unique_agent.expect("unique reachable exit must have an agent");
-                forced_exit_by_agent[agent] = Some(exit);
-                unique_exit_count_by_agent[agent] += 1;
-            }
-        }
-
-        for agent in 0..self.n_agents {
-            if unique_exit_count_by_agent[agent] != 1 {
+        for (agent, forced_exit) in self.forced_exits.iter().enumerate() {
+            let Some(forced_exit) = forced_exit else {
                 continue;
-            }
-            let forced_exit = forced_exit_by_agent[agent]
-                .expect("agent with one uniquely reachable exit must have a forced exit");
+            };
             for exit in &self.exits {
-                if exit != forced_exit {
+                if exit != *forced_exit {
                     self.relevant_positions[agent][t].remove(&exit);
                 }
             }
@@ -718,6 +707,71 @@ fn compute_relevant_laser_path(
         }
     }
     result
+}
+
+/// The exit each agent must end on: one that no other agent can reach within `t_max` steps, when
+/// there are as many exits as agents. An agent that is the only one able to reach several exits
+/// gets none (the world is then unsolvable, which the solver finds by itself).
+///
+/// Uniqueness must hold over the whole horizon, not at one time step: an exit only one agent can
+/// reach by `t` may still be taken later by another agent.
+fn forced_exits(
+    exits: &PositionSet,
+    start_pos: &[Position],
+    neighbours: &[Vec<Vec<NeighbourList>>],
+    predecessors: &[Vec<Vec<NeighbourList>>],
+    lifts: &[LiftInfo],
+    forbidden_first_beam_tiles: &[PositionSet],
+    t_max: usize,
+) -> Vec<Option<Position>> {
+    let n_agents = start_pos.len();
+    if exits.size() != n_agents {
+        return vec![None; n_agents];
+    }
+    let reach: Vec<HashSet<Position>> = (0..n_agents)
+        .map(|agent| {
+            // Over-approximates every `relevant_positions[agent][t]`: walking and lift moves,
+            // avoiding only the cells this agent can never stand on.
+            let forbidden = &forbidden_first_beam_tiles[agent];
+            let mut seen = HashSet::from([start_pos[agent]]);
+            let mut frontier = vec![start_pos[agent]];
+            for _ in 0..t_max {
+                let mut next = Vec::new();
+                for pos in frontier {
+                    let walked = neighbours[pos.k][pos.i][pos.j].iter();
+                    let lifted = lifts
+                        .iter()
+                        .filter(|lift| {
+                            lift.riders.contains(&agent)
+                                && predecessors[lift.pos.k][lift.pos.i][lift.pos.j].contains(&pos)
+                        })
+                        .map(|lift| lift.dest);
+                    for succ in walked.chain(lifted) {
+                        if !forbidden.contains(&succ) && seen.insert(succ) {
+                            next.push(succ);
+                        }
+                    }
+                }
+                frontier = next;
+            }
+            seen
+        })
+        .collect();
+    let mut forced = vec![None; n_agents];
+    let mut n_unique = vec![0; n_agents];
+    for exit in exits {
+        let mut reaching = (0..n_agents).filter(|&agent| reach[agent].contains(&exit));
+        if let (Some(agent), None) = (reaching.next(), reaching.next()) {
+            forced[agent] = Some(exit);
+            n_unique[agent] += 1;
+        }
+    }
+    for (agent, count) in n_unique.into_iter().enumerate() {
+        if count != 1 {
+            forced[agent] = None;
+        }
+    }
+    forced
 }
 
 /// Every `(i, j, k)` position of a `layers x height x width` grid.
