@@ -137,12 +137,6 @@ fn test_lift_basic() {
     assert_eq!(lift.group_id(), 2);
     assert_eq!(lift.direction(), VerticalDirection::Up);
     assert_eq!(lift.authorized_colour(), None);
-    assert!(!lift.take_triggered()); // never notified yet
-
-    lift.notify();
-    assert!(lift.take_triggered()); // consumed...
-    assert!(!lift.take_triggered()); // ...and cleared
-
     assert_eq!(
         lift.destination(Position::new2d(0, 1)).unwrap(),
         Position { i: 0, j: 1, k: 1 }

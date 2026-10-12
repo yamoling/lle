@@ -610,23 +610,14 @@ impl World {
         triggered_groups
     }
 
-    /// Pulse every `Lift` sharing one of `group_ids`.
-    fn notify_lift_groups(&self, group_ids: &[usize]) {
-        for (_, lift) in self.lifts() {
-            if group_ids.contains(&lift.group_id()) {
-                lift.notify();
-            }
-        }
-    }
-
-    /// Consume every lift's pulse flag and compute the (agent, destination)
-    /// relocation it causes, if any. A lift with no occupant, an
-    /// out-of-bounds destination, a non-walkable destination, or a destination
-    /// occupied by a box simply does nothing this tick.
-    fn resolve_lift_moves(&self) -> Vec<(AgentId, Position)> {
+    /// The (agent, destination) relocation caused by every lift of the pulsed
+    /// `group_ids`, if any. A lift with no occupant, an out-of-bounds
+    /// destination, a non-walkable destination, or a destination occupied by a
+    /// box simply does nothing this tick.
+    fn resolve_lift_moves(&self, group_ids: &[usize]) -> Vec<(AgentId, Position)> {
         let mut moves = vec![];
         for (pos, lift) in self.lifts() {
-            if !lift.take_triggered() {
+            if !group_ids.contains(&lift.group_id()) {
                 continue;
             }
             let Some(agent_id) = lift.agent() else {
@@ -716,8 +707,7 @@ impl World {
         // Lifts never push boxes: `resolve_lift_moves` refuses a destination
         // occupied by a box.
         if !triggered_groups.is_empty() {
-            self.notify_lift_groups(&triggered_groups);
-            let lift_moves = self.resolve_lift_moves();
+            let lift_moves = self.resolve_lift_moves(&triggered_groups);
             if !lift_moves.is_empty() {
                 let mut second_pass_positions = self.agents_positions.clone();
                 for (agent_id, dest) in &lift_moves {
