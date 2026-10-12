@@ -10,8 +10,10 @@ _AGENTS = [(0, 0)]
 _EXITS = [(4, 4)]
 
 
-def _layout(lasers, *, walls=(), agents=_AGENTS, exits=_EXITS):
-    return CandidateLayout(5, 5, agents=list(agents), exits=list(exits), gems=[], walls=list(walls), lasers=list(lasers))
+def _layout(lasers, *, walls=(), agents=_AGENTS, exits=_EXITS, boxes=()):
+    return CandidateLayout(
+        5, 5, agents=list(agents), exits=list(exits), gems=[], walls=list(walls), lasers=list(lasers), boxes=list(boxes)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -124,3 +126,22 @@ def test_two_valid_lasers():
         ]
     )
     assert layout.is_geometry_valid()
+
+
+# ---------------------------------------------------------------------------
+# Boxes
+# ---------------------------------------------------------------------------
+def test_reject_box_in_grid_corner():
+    assert not _layout(lasers=[], boxes=[(0, 4)]).is_geometry_valid()
+
+
+def test_reject_box_in_wall_corner():
+    assert not _layout(lasers=[], walls=[(1, 2), (2, 1)], boxes=[(2, 2)]).is_geometry_valid()
+
+
+def test_reject_box_wedged_by_laser_source():
+    assert not _layout(lasers=[(0, (2, 0), Direction.EAST)], walls=[(0, 1)], boxes=[(1, 0)]).is_geometry_valid()
+
+
+def test_accept_box_on_edge_pushable_along_it():
+    assert _layout(lasers=[], boxes=[(0, 2)]).is_geometry_valid()
