@@ -74,6 +74,18 @@ Before dispatching on the mode, `ClauseGenerator::generate` checks whether _P_ c
 
 When those necessary conditions fail, _P_ is impossible, the `No*` restriction is tautologically satisfied, and the mode is normalized to `Standard`: the query returns the usual movement, laser, objective and gem clauses without filling the cooperation buffers or allocating cooperation variables. These are only *necessary* conditions — finer impossibility that depends on beam reachability or on `t_max` is left to the geometric pruning of the `ClauseEngine`, which never materializes a `Help` variable for an unrealizable help event.
 
+### Boxes
+
+`Box(b, x, t)` states that box $b$ is on cell $x$ at time $t$. Like agents, a box only gets variables on the cells it can actually reach (`relevant_box_positions`): its start cell, then any cell an agent could push it to. A box is pushed when an agent walks onto its cell, and moves one cell further in the same direction. The box clauses (`generate_box_clauses`) are part of the movement clauses:
+
+- **Adjacency:** a box on $x$ at $t$ was on $x$ or a neighbour of $x$ at $t - 1$, never on a void. This is what destroys a box pushed into a void: it has no possible position afterwards.
+- **Inertia:** a box on a non-void cell stays there unless an agent enters its cell (or walks onto it and is lifted away in the same step).
+- **Push:** an agent stepping from $q - d$ onto the box's cell $q$ moves the box to $q + d$. This is impossible when $q + d$ cannot hold a box (wall, laser source, outside the grid).
+- **No overlap:** two boxes, or an agent and a box, never share a cell, a void included.
+- **No following:** a box cannot be pushed onto a cell an agent is leaving.
+
+A box on a non-void beam tile blocks the beam, whatever its colour: `beam_activation` counts boxes as blockers next to the beam's owner.
+
 ### Lifts and buttons
 
 The encoding follows `World::step`, which resolves a step in three passes: every agent walks (pushing boxes), every agent taking `Trigger` on a button it may press pulses the lifts of the button's group, then every pulsed lift moves the agent standing on it, if that agent may ride it, one layer up or down. Two variables describe the step from $t$ to $t + 1$: `Button(b, t)` (button $b$ is pressed) and `Lifted(i, L, t)` (agent $i$ is lifted by lift $L$). `Lifted` variables only exist for the agents whose colour may ride $L$, and are created in `lift_moves`; every clause that reads them goes through `lifted_literals`.
