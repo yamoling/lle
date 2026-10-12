@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import random
 
+import lle
 import pytest
 from lle.exceptions import ParsingError
 from lle.generator import generate
@@ -59,6 +60,33 @@ def test_builder_places_requested_gems_on_free_cells():
     )
     assert len(gem_positions) == 5
     assert not gem_positions & occupied_positions
+
+
+def test_builder_places_requested_boxes_on_free_cells():
+    world = generate(width=8, height=8, n_agents=2).gems(2).boxes(3).lasers(1).walls(4).build(seed=0)
+
+    box_positions = set(world.boxes_positions)
+    occupied_positions = (
+        {start[0] for start in world.random_start_pos}
+        | set(world.exit_pos)
+        | set(world.wall_pos)
+        | {source.pos for source in world.laser_sources}
+        | {gem.pos for gem in world.gems}
+    )
+    assert world.n_boxes == 3
+    assert len(box_positions) == 3
+    assert not box_positions & occupied_positions
+
+
+def test_cooperative_filter_with_boxes():
+    world = generate(width=5, height=5, n_agents=2).boxes(2).lasers(1).cooperative().cap(10).build(seed=0)
+    assert world.n_boxes == 2
+    assert lle.is_cooperative(world, 10)
+
+
+def test_error_gems_and_boxes_exceed_free_cells():
+    with pytest.raises(ValueError, match=r"gems \+ boxes"):
+        WorldGenerator(width=2, height=2, n_agents=1, n_gems=1, n_boxes=2, n_walls=0)
 
 
 # ---------------------------------------------------------------------------

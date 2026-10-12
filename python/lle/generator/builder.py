@@ -78,8 +78,9 @@ class GeneratorBuilder:
         self._exits: ExitsMode = "random"
         self._layout_explicit = False
 
-        # Gems
+        # Gems and boxes
         self._n_gems = 0
+        self._n_boxes = 0
 
         # Lasers
         self._n_lasers: int | Literal["auto"] = "auto"
@@ -154,6 +155,15 @@ class GeneratorBuilder:
     def gems(self, n: int) -> GeneratorBuilder:
         """Place exactly `n` gems on distinct free cells."""
         self._n_gems = n
+        return self
+
+    def boxes(self, n: int) -> GeneratorBuilder:
+        """Place exactly `n` movable boxes on distinct free cells.
+
+        A box blocks lasers of any colour, but pushing one is never help: boxes can only let agents
+        avoid cooperation, never force it.
+        """
+        self._n_boxes = n
         return self
 
     def lasers(
@@ -386,6 +396,7 @@ class GeneratorBuilder:
             exits=exits,
             n_lasers=n_lasers,
             n_gems=self._n_gems,
+            n_boxes=self._n_boxes,
             laser_placement=placement,
             laser_span=self._laser_span,
             n_walls=self._n_walls,

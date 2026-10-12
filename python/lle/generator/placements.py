@@ -261,19 +261,19 @@ def _exits_as_opposite_cluster(
 # ---------------------------------------------------------------------------
 
 
-def place_gems(
-    n_gems: int,
+def place_on_free_cells(
+    n: int,
     reserved: set[Position],
     height: int,
     width: int,
     rng: random.Random,
 ) -> tuple[list[Position], set[Position]]:
-    """Place gems on unreserved cells and reserve their positions."""
+    """Pick `n` unreserved cells (for gems or boxes) and reserve them."""
     free = [(r, c) for r in range(height) for c in range(width) if (r, c) not in reserved]
-    if len(free) < n_gems:
+    if len(free) < n:
         raise LayoutRetry()
-    gems = rng.sample(free, n_gems)
-    return gems, reserved | set(gems)
+    cells = rng.sample(free, n)
+    return cells, reserved | set(cells)
 
 
 # ---------------------------------------------------------------------------

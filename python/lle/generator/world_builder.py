@@ -75,6 +75,12 @@ class WorldBuilder:
         self._grid[pos[0]][pos[1]] = "G"
         return self
 
+    def add_box(self, pos: Position) -> "WorldBuilder":
+        self._check_bounds(pos)
+        self._check_free(pos)
+        self._grid[pos[0]][pos[1]] = "#"
+        return self
+
     def add_laser(self, agent_id: int, pos: Position, direction: Direction) -> "WorldBuilder":
         self._check_bounds(pos)
         self._check_free(pos)

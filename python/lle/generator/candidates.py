@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from lle.tiles import Direction
 from lle.types import Position
@@ -23,6 +23,7 @@ class CandidateLayout:
     gems: list[tuple[int, int]]
     walls: list[tuple[int, int]]
     lasers: list[tuple[int, tuple[int, int], Direction]]  # (owner, pos, dir)
+    boxes: list[tuple[int, int]] = field(default_factory=list)
 
     def is_geometry_valid(self):
         """Whether the sampled positions form a layout that can be turned into a `World`.
