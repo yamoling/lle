@@ -80,8 +80,9 @@ print(step.reward)
 `lle.solve(world, t_max, path_length="auto")` creates a solver with episode horizon `t_max` and
 finds a joint plan of exactly `path_length` steps. When `path_length` is `"auto"` (the default), it
 uses `t_max`. This solving is performed via a SAT solver, which supports boxes, lifts, buttons and several floors.
-Other solving modes than the standard one (e.g. `mode="no-cooperation"`) are not supported yet on
-worlds with boxes or lifts, and raise `NotImplementedError`.
+In the other solving modes (e.g. `mode="no-cooperation"`), an agent helps another one by blocking
+the beam it stands on, or by pressing a button that lifts it. Pushing a box is never help: an agent
+standing on a beam blocked by a box upstream is not helped by the beam's colour agent.
 More details about the solver can be found in the `lle.solver` module.
 
 ```python

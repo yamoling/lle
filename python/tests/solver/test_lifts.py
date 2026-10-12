@@ -11,6 +11,7 @@ from dataclasses import dataclass
 import lle
 import pytest
 from lle import Action, EventType, World
+from lle.characterization import profile_plan
 from lle.solver import Solver
 
 MAX_LENGTH = 10
@@ -1277,11 +1278,18 @@ def test_solve_world_with_layers_and_no_lift():
     check(Case("layers-without-lift", world, shortest=2))
 
 
-def test_cooperation_modes_raise_on_world_with_lifts():
-    with pytest.raises(NotImplementedError, match="lifts"):
-        lle.solve(World(CASES[0].map), 10, mode="no-cooperation")
+# Agent 1 can only leave through the lift, which only agent 0 can pulse.
+LIFTED_BY_OTHER = """
+S1 TU0A1 @ B0A0 S0 X
+;
+X  .     @ @    @  @
+"""
 
 
-def test_characterize_raises_on_world_with_lifts():
-    with pytest.raises(NotImplementedError, match="lifts"):
-        lle.characterize(World(CASES[0].map), 10)
+def test_lifting_another_agent_is_help():
+    world = World(LIFTED_BY_OTHER)
+    plan = lle.solve(world, 10, path_length=4)
+    assert plan is not None
+    assert (0, 1) in profile_plan(world, plan).graph.flattened_edges()
+    assert lle.solve(world, 10, mode="no-cooperation") is None
+    assert lle.is_cooperative(world, 10)

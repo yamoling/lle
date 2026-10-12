@@ -22,10 +22,6 @@ class WorldCharacterizer:
     """
 
     def __init__(self, world: World, t_max: int) -> None:
-        if world.n_boxes > 0:
-            raise NotImplementedError("Characterizing worlds with movable boxes is not supported yet")
-        if len(world.lifts) > 0:
-            raise NotImplementedError("Characterizing worlds with lifts is not supported yet")
         self.world = world
         self.t_max = t_max
         self._solver = solver.Solver(self.world, self.t_max)
@@ -35,11 +31,6 @@ class WorldCharacterizer:
         # same directed relation, so they must not share a cache.
         self._is_divergent_cache = MonotoneCache()
         self._interdependence_cache = dict[int, bool]()
-
-    @cached_property
-    def n_laser_colours(self) -> int:
-        """Number of distinct agent colours that own a laser source."""
-        return len({source.agent_id for source in self.world.laser_sources})
 
     @cached_property
     def _shortest_path_profile(self):
@@ -70,8 +61,6 @@ class WorldCharacterizer:
         """
         path = self.shortest_path
         if path is None:
-            return False
-        if self.n_laser_colours == 0:
             return False
         profile = self._shortest_path_profile
         assert profile is not None

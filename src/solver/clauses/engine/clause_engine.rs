@@ -62,26 +62,59 @@ impl ClauseEngine {
         if let Some(patterns) = self.sequence_patterns.get(&length) {
             return Arc::clone(patterns);
         }
-        let helper_ids = self
-            .ctx
-            .laser_sources
-            .iter()
-            .filter_map(|source| source.owner)
-            .collect::<Vec<_>>();
+        let helper_ids = self.potential_helpers();
         let patterns: Arc<[SequencePattern]> =
             enumerate_sequence_patterns(helper_ids, self.ctx.n_agents, length).into();
         self.sequence_patterns.insert(length, Arc::clone(&patterns));
         patterns
     }
 
+    /// Every agent that can help someone: the laser owners and the agents that can press a button
+    /// lifting another agent. Ignores reachability.
+    pub fn potential_helpers(&self) -> Vec<usize> {
+        let mut helpers: Vec<usize> = self
+            .ctx
+            .laser_sources
+            .iter()
+            .filter_map(|source| source.owner)
+            .chain(self.lift_help_arcs().map(|arc| arc.helper))
+            .collect();
+        helpers.sort_unstable();
+        helpers.dedup();
+        helpers
+    }
+
+    /// `helper → beneficiary` for every button `helper` may press that pulses a lift
+    /// `beneficiary` may ride. Ignores reachability.
+    fn lift_help_arcs(&self) -> impl Iterator<Item = StaticHelpArc> + '_ {
+        self.ctx.buttons.iter().flat_map(move |button| {
+            self.ctx
+                .lifts
+                .iter()
+                .filter(move |lift| lift.group == button.group)
+                .flat_map(move |lift| {
+                    button.pressers.iter().flat_map(move |&helper| {
+                        lift.riders
+                            .iter()
+                            .filter(move |&&beneficiary| beneficiary != helper)
+                            .map(move |&beneficiary| StaticHelpArc {
+                                helper,
+                                beneficiary,
+                            })
+                    })
+                })
+        })
+    }
+
     /// Return every directed help relationship that can physically occur within `t_max`.
     ///
-    /// An arc is retained only if, at some time, the beneficiary can occupy a relevant beam tile
-    /// that the helper can make safe by blocking upstream. This is the same geometric criterion used
-    /// to materialize `Help` variables, evaluated over the complete configured horizon.
+    /// A laser arc is retained only if, at some time, the beneficiary can occupy a relevant beam
+    /// tile that the helper can make safe by blocking upstream. This is the same geometric criterion
+    /// used to materialize `Help` variables, evaluated over the complete configured horizon. Lift
+    /// arcs are kept whenever the helper may press a button lifting the beneficiary.
     pub fn potential_help_arcs(&mut self) -> Vec<StaticHelpArc> {
         self.ctx.update(self.ctx.t_max);
-        let mut arcs = std::collections::HashSet::new();
+        let mut arcs: HashSet<StaticHelpArc> = self.lift_help_arcs().collect();
         for source in &self.ctx.laser_sources {
             for t in 0..=self.ctx.t_max {
                 let laser_tiles = self.ctx.relevant_laser_tiles(source.laser_id, t);

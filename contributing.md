@@ -70,9 +70,13 @@ To characterize a world, the solver must not only find _a_ solution but also pro
 
 #### Feasibility shortcuts
 
-Before dispatching on the mode, `ClauseGenerator::generate` checks whether _P_ can occur at all in the world layout. The check is deliberately cheap and horizon-independent: it only counts agents, laser sources and distinct laser colours (which are agent IDs, so they also count the agents able to act as helpers). For instance, a sequence of help edges needs two laser-owning helpers, and fully coupled cooperation needs every agent to own a laser.
+Before dispatching on the mode, `ClauseGenerator::generate` checks whether _P_ can occur at all in the world layout. The check is deliberately cheap and horizon-independent: it only counts agents and potential helpers: the laser owners and the agents that may press a button pulsing a lift another agent may ride. For instance, a sequence of help edges needs two helpers, and fully coupled cooperation needs every agent to be one.
 
 When those necessary conditions fail, _P_ is impossible, the `No*` restriction is tautologically satisfied, and the mode is normalized to `Standard`: the query returns the usual movement, laser, objective and gem clauses without filling the cooperation buffers or allocating cooperation variables. These are only *necessary* conditions — finer impossibility that depends on beam reachability or on `t_max` is left to the geometric pruning of the `ClauseEngine`, which never materializes a `Help` variable for an unrealizable help event.
+
+#### Help events
+
+`Help(h, b, t)` holds when, at `t`, `b` stands on a beam of `h` with no box upstream on that beam (so `h` must be the one blocking it), or when `h` pressed a button whose group lifted `b` during the step from `t - 1` to `t`. Pushing a box is never cooperation: a beam blocked by a box is not help, whoever pushed the box. `NoCooperation` assumes every `Help` variable false, and the Python trajectory analyser (`lle.characterization.plan`) detects the same events.
 
 ### Boxes
 

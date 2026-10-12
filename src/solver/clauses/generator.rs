@@ -58,9 +58,10 @@ impl ClauseGenerator {
             });
         }
         let capacity = t_max + 1;
+        let engine = ClauseEngine::new(world, t_max);
         Ok(Self {
-            layout: LayoutFacts::new(world),
-            engine: ClauseEngine::new(world, t_max),
+            layout: LayoutFacts::new(world, &engine),
+            engine,
             movements: StepBuffer::new(ClauseEngine::generate_movement_clauses, capacity),
             lasers: StepBuffer::new(ClauseEngine::generate_laser_clauses, capacity),
             help: StepBuffer::new(ClauseEngine::generate_help_clauses, capacity),

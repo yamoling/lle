@@ -35,7 +35,7 @@ pub(super) enum HorizonFamily {
 pub(super) enum ModeAssumptions {
     /// The mode restricts nothing through assumptions.
     None,
-    /// One literal per agent position that would stand in someone else's beam.
+    /// The negation of every `help(h, b, t)` variable.
     NoCooperation,
     /// The negation of the global asymmetry flag for the requested horizon.
     NoAsymmetry,
@@ -75,11 +75,7 @@ impl ModeRequirements {
                 help: false,
                 ..cooperation_support
             },
-            // Beams are covered by the assumptions, which are strictly stronger than the laser
-            // clauses for every agent but the beam owner.
             SolveMode::NoCooperation => Self {
-                lasers: false,
-                help: false,
                 assumptions: ModeAssumptions::NoCooperation,
                 ..cooperation_support
             },

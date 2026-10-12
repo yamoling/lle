@@ -1,4 +1,3 @@
-mod assumptions;
 mod boxes;
 mod clause_engine;
 mod convergence;

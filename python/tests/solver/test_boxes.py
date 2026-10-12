@@ -215,9 +215,6 @@ def test_box_case(case: BoxCase):
 
 
 @pytest.mark.parametrize("mode", ["no-cooperation", "no-mutual", "no-sequence"])
-def test_cooperation_modes_are_not_supported_with_boxes(mode: str):
+def test_cooperation_modes_are_supported_with_boxes(mode: str):
     solver = Solver(World("S0 # . .\n@ @ X @"), T_MAX)
-    with pytest.raises(NotImplementedError, match="movable boxes"):
-        solver.solve(mode=mode)
-    with pytest.raises(NotImplementedError, match="movable boxes"):
-        solver.find_shortest(mode=mode)
+    assert solver.find_shortest(mode=mode) is not None

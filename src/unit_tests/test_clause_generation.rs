@@ -668,45 +668,36 @@ fn test_no_step_on_active_laser_binary_clause() {
     }
 }
 
-/// Assert that every reachable downstream beam-tile variable for agent 1 is forbidden by a unit
-/// clause or an assumption across the generated horizon.
+/// Assert that every reachable beam-tile variable of a non-owner is forbidden, either by a unit
+/// clause (constant-active tile) or because it implies a `Help` variable assumed to be false.
 fn assert_no_cooperation_does_not_generate_beam_positions(
     cg: &ClauseGenerator,
     world: &World,
     clauses: Vec<Clause>,
     assumptions: Vec<Literal>,
 ) {
-    let clause_literals: HashSet<i32> = clauses.into_iter().flatten().map(|l| l.abs()).collect();
-    // 1) Check that no laser variable is present in the formula
-    for (pos, laser) in world.lasers() {
-        for t in 0..=cg.t_max() {
-            let key = VarKey::Laser {
-                laser_id: laser.laser_id(),
-                pos,
-                t,
-            };
-            if let Some(lit) = cg.literal(&key) {
-                assert!(
-                    !clause_literals.contains(&lit),
-                    "{key:?} (literal={lit}) should not be among the clause literals"
-                );
-            }
-        }
-    }
-    // 2) Verify that all agents are assumed not to walk on any foreign colour laser tile
     for agent_id in 0..world.n_agents() {
         for (pos, laser) in world.lasers() {
-            if agent_id == laser.agent_id() {
+            let owner = laser.agent_id();
+            if agent_id == owner {
                 continue;
             }
             for t in 0..=cg.t_max() {
                 let key = VarKey::Agent { agent_id, pos, t };
-                if let Some(lit) = cg.literal(&key) {
-                    assert!(
-                        assumptions.contains(&-lit),
-                        "{key:?} (literal={lit}) should be assumed to be false"
-                    );
-                }
+                let Some(lit) = cg.literal(&key) else {
+                    continue;
+                };
+                let forbidden = clauses.contains(&vec![-lit])
+                    || cg
+                        .literal(&VarKey::Help {
+                            helper: owner,
+                            beneficiary: agent_id,
+                            t,
+                        })
+                        .is_some_and(|help| {
+                            assumptions.contains(&-help) && clauses.contains(&vec![-lit, help])
+                        });
+                assert!(forbidden, "{key:?} (literal={lit}) should be forbidden");
             }
         }
     }

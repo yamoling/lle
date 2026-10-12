@@ -22,9 +22,14 @@ exists when, at state index `t`:
 > this and returns `SolverError::SharedColour` otherwise; generalizing the taxonomy to colour
 > groups is deliberately out of scope.
 
-1. a laser beam of colour `helper` is enabled;
-2. agent `helper` stands on one of its own beam tiles, blocking that beam; and
-3. another agent, `beneficiary`, stands on a tile of that same beam without dying.
+- **laser help:**
+  1. a laser beam of colour `helper` is enabled;
+  2. agent `helper` stands on one of its own beam tiles, blocking that beam; and
+  3. another agent, `beneficiary`, stands on a tile of that same beam without dying, with no box
+     upstream of it on that beam. A beam blocked by a box is never help: pushing a box is not
+     cooperation.
+- **lift help:** during the step from `t - 1` to `t`, agent `helper` takes `TRIGGER` on a button it
+  may press, and a lift of the button's group moves another agent, `beneficiary`.
 
 The trajectory analyser records these events as `DependencyEdge(helper, beneficiary, t)` in `TemporalDependencyGraph`. The graph keeps both:
 
