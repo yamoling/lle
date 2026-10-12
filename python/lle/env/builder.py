@@ -80,11 +80,21 @@ class Builder:
         gamma: float = 0.99,
         reward_value: float = 0.5,
         lasers_to_reward: Optional[Sequence[tiles.LaserSource | Position]] = None,
-        with_extras: bool = True,
+        with_extras: bool | Literal["individual", "joint"] = True,
     ):
         """
         Add Potential-Based Reward Shaping such that crossing the given lasers (all by default) gives a reward.
+
+        `with_extras` controls the laser subgoal extras:
+        - `True` or `"individual"`: each agent receives whether it has crossed each laser (size `n_lasers`).
+        - `"joint"`: each agent receives the flattened `(n_agents, n_lasers)` matrix of every agent's progress
+          (size `n_agents * n_lasers`, row-major, agent by agent).
+        - `False`: no extras.
+
+        @ai-edited
         """
+        if with_extras not in (True, False, "individual", "joint"):
+            raise ValueError(f"Invalid value for with_extras: {with_extras!r}")
         if lasers_to_reward is None:
             sources = self._world.laser_sources
         else:
@@ -98,7 +108,7 @@ class Builder:
                     case other:
                         raise ValueError(f"Invalid laser source: {other}")
         if with_extras:
-            self.add_extras(LaserSubgoal(self._world, sources))
+            self.add_extras(LaserSubgoal(self._world, sources, joint=with_extras == "joint"))
         self._env_name = f"{self._env_name}-PBRS"
         self._reward_strategy = PotentialShapedLLE(
             self._reward_strategy,
