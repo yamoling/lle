@@ -33,7 +33,7 @@ fn assert_invalid(toml_str: &str) {
     let (idx, validator) = schema_validator();
     let value = toml_to_json_value(toml_str);
     assert!(
-        !validator.validate(&value, idx).is_ok(),
+        validator.validate(&value, idx).is_err(),
         "TOML should be invalid according to schema but was accepted"
     );
 }

@@ -6,7 +6,7 @@ use crate::{ParseError, Position};
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(untagged)]
 pub enum PositionsConfig {
-    IJK {
+    Ijk {
         i: usize,
         j: usize,
         k: usize,
@@ -48,7 +48,7 @@ impl PositionsConfig {
         layers: usize,
     ) -> Result<Vec<Position>, ParseError> {
         match self {
-            Self::IJK { i, j, k } => {
+            Self::Ijk { i, j, k } => {
                 if *i >= height || *j >= width || *k >= layers {
                     return Err(ParseError::PositionOutOfBounds {
                         i: *i,
@@ -141,7 +141,7 @@ impl PositionsConfig {
 
 impl From<&Position> for PositionsConfig {
     fn from(pos: &Position) -> Self {
-        Self::IJK {
+        Self::Ijk {
             i: pos.i,
             j: pos.j,
             k: pos.k,

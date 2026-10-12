@@ -174,9 +174,9 @@ impl TryFrom<char> for CardinalDirection {
     }
 }
 
-impl Into<&str> for CardinalDirection {
-    fn into(self) -> &'static str {
-        match self {
+impl From<CardinalDirection> for &str {
+    fn from(val: CardinalDirection) -> Self {
+        match val {
             CardinalDirection::North => "N",
             CardinalDirection::East => "E",
             CardinalDirection::South => "S",
@@ -260,9 +260,9 @@ impl TryFrom<char> for VerticalDirection {
     }
 }
 
-impl Into<&str> for VerticalDirection {
-    fn into(self) -> &'static str {
-        match self {
+impl From<VerticalDirection> for &str {
+    fn from(val: VerticalDirection) -> Self {
+        match val {
             VerticalDirection::Up => "U",
             VerticalDirection::Down => "D",
         }

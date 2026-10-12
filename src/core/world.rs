@@ -316,7 +316,7 @@ impl World {
             .iter()
             // Lifts can be wrapped into lasers.
             .map(|pos| match self.grid.at(pos).innermost() {
-                Tile::Lift(lift) => (pos.clone(), lift),
+                Tile::Lift(lift) => (*pos, lift),
                 _ => unreachable!(),
             })
             .collect()
@@ -327,7 +327,7 @@ impl World {
             .iter()
             // Buttons can be wrapped into lasers.
             .map(|pos| match self.grid.at(pos).innermost() {
-                Tile::Button(button) => (pos.clone(), button),
+                Tile::Button(button) => (*pos, button),
                 _ => unreachable!(),
             })
             .collect()
@@ -534,7 +534,7 @@ impl World {
     /// tiles work was transferred into Grid in multi-floor branch
     pub fn tiles(&self) -> Vec<(Position, &Tile)> {
         let mut res = vec![];
-        res.extend(self.grid.iter().map(|(pos, tile)| (pos.clone(), tile))); //? .clone is maybe not useful need review
+        res.extend(self.grid.iter()); //? .clone is maybe not useful need review
         res
     }
 
@@ -599,12 +599,11 @@ impl World {
 
         let mut triggered_groups = vec![];
         for (colour, pos) in triggers {
-            if let Some(tile) = self.at_mut(&pos) {
-                if let Some(group_id) = tile.actuate(colour) {
-                    if !triggered_groups.contains(&group_id) {
-                        triggered_groups.push(group_id);
-                    }
-                }
+            if let Some(tile) = self.at_mut(&pos)
+                && let Some(group_id) = tile.actuate(colour)
+                && !triggered_groups.contains(&group_id)
+            {
+                triggered_groups.push(group_id);
             }
         }
         triggered_groups

@@ -38,18 +38,20 @@ impl ButtonConfig {
         })
     }
 
-    pub fn to_string(&self) -> String {
-        match self.authorized_colour {
-            Some(colour) => format!("B{}A{}", self.group_id, colour),
-            None => format!("B{}", self.group_id),
-        }
-    }
-
     pub fn build(&self) -> Button {
         let button = Button::new(self.group_id);
         match self.authorized_colour {
             Some(colour) => button.restricted_to(colour),
             None => button,
+        }
+    }
+}
+
+impl std::fmt::Display for ButtonConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.authorized_colour {
+            Some(colour) => write!(f, "B{}A{}", self.group_id, colour),
+            None => write!(f, "B{}", self.group_id),
         }
     }
 }

@@ -48,7 +48,7 @@ impl Renderer {
         for pos in world.walls() {
             let x = pos.x() as u32 * TILE_SIZE;
             let y = pos.y() as u32 * TILE_SIZE;
-            let z = pos.z() as usize;
+            let z = pos.z();
             self.static_frame[z]
                 .copy_from(&(*sprites::WALL), x, y)
                 .unwrap();
@@ -58,7 +58,7 @@ impl Renderer {
         for pos in world.exits_positions() {
             let x = pos.x() as u32 * TILE_SIZE;
             let y = pos.y() as u32 * TILE_SIZE;
-            let z = pos.z() as usize;
+            let z = pos.z();
             draw_rectangle(
                 &mut self.static_frame[z],
                 x,
@@ -74,7 +74,7 @@ impl Renderer {
         for pos in world.void_positions() {
             let x = pos.x() as u32 * TILE_SIZE;
             let y = pos.y() as u32 * TILE_SIZE;
-            let z = pos.z() as usize;
+            let z = pos.z();
             // copy the void image to the static one
             add_transparent_image(&mut self.static_frame[z], &sprites::VOID, x, y);
         }
@@ -86,7 +86,7 @@ impl Renderer {
             let mut data = VisitorData {
                 x: pos.x() as u32 * TILE_SIZE,
                 y: pos.y() as u32 * TILE_SIZE,
-                frame: &mut frame_stack[pos.z() as usize],
+                frame: &mut frame_stack[pos.z()],
             };
             self.draw_laser(laser, &mut data);
         }
@@ -94,7 +94,7 @@ impl Renderer {
             let mut data = VisitorData {
                 x: pos.x() as u32 * TILE_SIZE,
                 y: pos.y() as u32 * TILE_SIZE,
-                frame: &mut frame_stack[pos.z() as usize],
+                frame: &mut frame_stack[pos.z()],
             };
             self.draw_gem(gem, &mut data);
         }
@@ -102,7 +102,7 @@ impl Renderer {
             let mut data = VisitorData {
                 x: pos.x() as u32 * TILE_SIZE,
                 y: pos.y() as u32 * TILE_SIZE,
-                frame: &mut frame_stack[pos.z() as usize],
+                frame: &mut frame_stack[pos.z()],
             };
             self.visit_lift(lift, &mut data);
         }
@@ -110,7 +110,7 @@ impl Renderer {
             let mut data = VisitorData {
                 x: pos.x() as u32 * TILE_SIZE,
                 y: pos.y() as u32 * TILE_SIZE,
-                frame: &mut frame_stack[pos.z() as usize],
+                frame: &mut frame_stack[pos.z()],
             };
             self.visit_button(button, &mut data);
         }
@@ -120,13 +120,13 @@ impl Renderer {
             }
             let x = pos.x() as u32 * TILE_SIZE;
             let y = pos.y() as u32 * TILE_SIZE;
-            add_transparent_image(&mut frame_stack[pos.z() as usize], &sprites::BOX, x, y);
+            add_transparent_image(&mut frame_stack[pos.z()], &sprites::BOX, x, y);
         }
         for (agent, pos) in izip!(world.agents(), world.agents_positions()) {
             let x = pos.x() as u32 * TILE_SIZE;
             let y = pos.y() as u32 * TILE_SIZE;
             add_transparent_image(
-                &mut frame_stack[pos.z() as usize],
+                &mut frame_stack[pos.z()],
                 sprites::agent(agent.colour()),
                 x,
                 y,
@@ -136,14 +136,14 @@ impl Renderer {
             let mut data = VisitorData {
                 x: pos.x() as u32 * TILE_SIZE,
                 y: pos.y() as u32 * TILE_SIZE,
-                frame: &mut frame_stack[pos.z() as usize],
+                frame: &mut frame_stack[pos.z()],
             };
             self.draw_laser_source(source, &mut data);
         }
         frame_stack.iter_mut().for_each(|frame| {
             draw_grid(frame);
         });
-        return self.concate_single_image(frame_stack);
+        self.concate_single_image(frame_stack)
     }
 
     /// Stack the layers vertically, bottom layer first, one pixel apart.

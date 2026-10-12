@@ -196,10 +196,7 @@ impl TryInto<WorldConfig> for TomlConfig {
             Some(h) => h,
             None => return Err(ParseError::EmptyWorld),
         };
-        let layer = match self.layers {
-            Some(l) => l,
-            None => 1, // if layers is not specified, we assume there is only one layer
-        };
+        let layer = self.layers.unwrap_or(1);
         let starts_positions = compute_positions(&self.starts, width, height, layer)?;
         let walls_positions = compute_positions(&self.walls, width, height, layer)?;
         let exit_positions = compute_positions(&self.exits, width, height, layer)?;

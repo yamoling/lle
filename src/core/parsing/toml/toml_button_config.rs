@@ -19,11 +19,11 @@ impl TomlButtonConfig {
     }
 }
 
-impl Into<ButtonConfig> for &TomlButtonConfig {
-    fn into(self) -> ButtonConfig {
+impl From<&TomlButtonConfig> for ButtonConfig {
+    fn from(val: &TomlButtonConfig) -> Self {
         ButtonConfig {
-            group_id: self.group_id,
-            authorized_colour: self.authorized_colour,
+            group_id: val.group_id,
+            authorized_colour: val.authorized_colour,
         }
     }
 }

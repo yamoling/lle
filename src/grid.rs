@@ -139,7 +139,7 @@ impl<'a, T> Iterator for GridIterator<'a, T> {
     type Item = (Position, &'a T);
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some(cell) = self.grid.next() {
+        for cell in self.grid.by_ref() {
             let idx = self.current;
             self.current += 1;
             if let Some(value) = cell.as_ref() {
@@ -171,7 +171,7 @@ impl<'a, T> Iterator for MutableGridIterator<'a, T> {
 
     //get a mutable reference item of the Some(element) (skip in case of None)
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some(cell) = self.grid.next() {
+        for cell in self.grid.by_ref() {
             let idx = self.current;
             self.current += 1;
             if let Some(value) = cell.as_mut() {
@@ -201,19 +201,19 @@ impl Grid<String> {
     }
 }
 
-impl Into<String> for &Grid<String> {
+impl From<&Grid<String>> for String {
     // note that for loop are here due to the vector not totaly consistent and order are not correctly done if using .iter or .fold methode
-    fn into(self) -> String {
+    fn from(val: &Grid<String>) -> Self {
         let mut output = String::new();
-        for k in 0..self.layers {
-            for i in 0..self.height {
-                for j in 0..self.width {
+        for k in 0..val.layers {
+            for i in 0..val.height {
+                for j in 0..val.width {
                     let pos = Position { i, j, k };
-                    output.push_str(&format!("{} ", self.at(&pos)));
+                    output.push_str(&format!("{} ", val.at(&pos)));
                 }
                 output.push('\n');
             }
-            if k < self.layers - 1 {
+            if k < val.layers - 1 {
                 output.push_str(";\n");
             }
         }
@@ -253,7 +253,7 @@ mod tests {
     fn test_grid_index() {
         let grid = Grid::<String>::new(10, 10, 3).default_init();
         let pos = Position { i: 2, j: 3, k: 1 };
-        assert_eq!(grid.index(&pos), Some(1 * 10 * 10 + 3 * 10 + 2));
+        assert_eq!(grid.index(&pos), Some(10 * 10 + 3 * 10 + 2));
         let out_of_bounds_pos = Position { i: 10, j: 3, k: 1 };
         assert_eq!(grid.index(&out_of_bounds_pos), None);
     }

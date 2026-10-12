@@ -187,28 +187,28 @@ pub fn to_v1_string(config: &WorldConfig) -> Result<String, ()> {
     }
 
     for pos in config.gems() {
-        res.replace_at(&pos, "G".into());
+        res.replace_at(pos, "G".into());
     }
     for pos in config.walls() {
-        res.replace_at(&pos, "@".into());
+        res.replace_at(pos, "@".into());
     }
     for pos in config.exits() {
-        res.replace_at(&pos, "X".into());
+        res.replace_at(pos, "X".into());
     }
     for pos in config.voids() {
-        res.replace_at(&pos, "V".into());
+        res.replace_at(pos, "V".into());
     }
     for pos in config.boxes() {
-        res.replace_at(&pos, "#".into());
+        res.replace_at(pos, "#".into());
     }
     for (pos, config) in config.sources() {
-        res.replace_at(&pos, config.to_string());
+        res.replace_at(pos, config.to_string());
     }
     for (pos, config) in config.lifts() {
-        res.replace_at(&pos, config.to_string());
+        res.replace_at(pos, config.to_string());
     }
     for (pos, config) in config.buttons() {
-        res.replace_at(&pos, config.to_string());
+        res.replace_at(pos, config.to_string());
     }
     Ok((&res).into())
 }

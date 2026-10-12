@@ -12,6 +12,16 @@ pub struct LiftConfig {
     pub authorized_colour: Option<Colour>,
 }
 
+impl std::fmt::Display for LiftConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let direction = self.direction.to_file_string();
+        match self.authorized_colour {
+            Some(colour) => write!(f, "T{}{}A{}", direction, self.group_id, colour),
+            None => write!(f, "T{}{}", direction, self.group_id),
+        }
+    }
+}
+
 impl LiftConfig {
     /// Parses a token of the form `T<dir><group_id>` optionally followed by
     /// `A<colour>` to restrict the lift to agents of one colour, e.g. `T2U0` or
@@ -49,18 +59,6 @@ impl LiftConfig {
             group_id,
             authorized_colour,
         })
-    }
-
-    pub fn to_string(&self) -> String {
-        match self.authorized_colour {
-            Some(colour) => format!(
-                "T{}{}A{}",
-                self.direction.to_file_string(),
-                self.group_id,
-                colour
-            ),
-            None => format!("T{}{}", self.direction.to_file_string(), self.group_id),
-        }
     }
 
     pub fn build(&self) -> Lift {

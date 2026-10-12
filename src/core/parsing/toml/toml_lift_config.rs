@@ -24,12 +24,12 @@ impl TomlLiftConfig {
     }
 }
 
-impl Into<LiftConfig> for &TomlLiftConfig {
-    fn into(self) -> LiftConfig {
+impl From<&TomlLiftConfig> for LiftConfig {
+    fn from(val: &TomlLiftConfig) -> Self {
         LiftConfig {
-            direction: self.direction,
-            authorized_colour: self.authorized_colour,
-            group_id: self.group_id,
+            direction: val.direction,
+            authorized_colour: val.authorized_colour,
+            group_id: val.group_id,
         }
     }
 }
