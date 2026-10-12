@@ -234,9 +234,7 @@ class WorldGenerator:
         )
         gems, reserved = place_on_free_cells(self.n_gems, reserved | set(walls), self.height, self.width, self._rng)
         boxes, _ = place_on_free_cells(self.n_boxes, reserved, self.height, self.width, self._rng)
-        layout = CandidateLayout(
-            self.height, self.width, agents=agents, exits=exits, gems=gems, walls=walls, lasers=lasers, boxes=boxes
-        )
+        layout = CandidateLayout(self.height, self.width, agents=agents, exits=exits, gems=gems, walls=walls, lasers=lasers, boxes=boxes)
         if not layout.is_geometry_valid():
             raise LayoutRetry()
         return layout
