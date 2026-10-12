@@ -333,14 +333,6 @@ impl World {
             .collect()
     }
 
-    pub fn n_lifts(&self) -> usize {
-        self.lift_positions.len()
-    }
-
-    pub fn n_buttons(&self) -> usize {
-        self.button_positions.len()
-    }
-
     pub fn lasers(&self) -> Vec<(Position, &Laser)> {
         let mut lasers = vec![];
         for pos in &self.lasers_positions {
@@ -489,44 +481,6 @@ impl World {
 
     pub fn void_positions(&self) -> Vec<Position> {
         self.void_positions.clone()
-    }
-
-    /// Iterator over all the possible states of the World.
-    /// NOT YET TESTED
-    pub fn all_states(
-        &'_ self,
-        restrict_to_alive_agents: bool,
-    ) -> impl Iterator<Item = WorldState> + '_ {
-        let agents_positions = self
-            .get_state_space()
-            .into_iter()
-            .map(|(i, j, k)| Position { i, j, k })
-            .filter(|pos| !self.wall_positions.contains(pos))
-            .combinations(self.n_agents()); //TODO: need to add layers support
-
-        let collection_status = (0..self.n_gems())
-            .map(|_| vec![true, false])
-            .multi_cartesian_product();
-
-        let alive_status = match restrict_to_alive_agents {
-            true => vec![true],
-            false => vec![true, false],
-        }
-        .into_iter()
-        .combinations(self.n_agents());
-
-        agents_positions
-            .cartesian_product(collection_status)
-            .cartesian_product(alive_status)
-            .map(
-                |((agents_positions, gems_collected), agents_alive)| WorldState {
-                    agents_positions,
-                    gems_collected,
-                    agents_alive,
-                    boxes_positions: self.boxes.initial_positions().clone(),
-                    boxes_present: vec![true; self.n_boxes()],
-                },
-            )
     }
 
     /// Recomputes `self.available_actions` in place, reusing the previous call's `Vec<Action>`
@@ -1015,14 +969,6 @@ impl World {
         let mut world_str = String::new();
         reader.read_to_string(&mut world_str).unwrap();
         World::try_from(world_str)
-    }
-
-    fn get_state_space(&self) -> Vec<(usize, usize, usize)> {
-        vec![(0..self.height), (0..self.width), (0..self.layers)]
-            .into_iter()
-            .multi_cartesian_product()
-            .map(|v| (v[0], v[1], v[2]))
-            .collect_vec() // Added overhead but more readable for future modifications
     }
 }
 

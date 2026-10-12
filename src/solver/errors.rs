@@ -41,11 +41,6 @@ pub enum SolverError {
         value: usize,
         reason: String,
     },
-    /// The world uses a mechanic the SAT encoding does not model yet (e.g. lifts or several
-    /// layers), so any plan it returned would be unsound.
-    UnsupportedFeature {
-        feature: &'static str,
-    },
 }
 
 impl Display for SolverError {
@@ -84,9 +79,6 @@ impl Display for SolverError {
                 f,
                 "Invalid parameter {value} for SolveMode::{variant}: {reason}"
             ),
-            SolverError::UnsupportedFeature { feature } => {
-                write!(f, "The solver does not support {feature} yet.")
-            }
         }
     }
 }

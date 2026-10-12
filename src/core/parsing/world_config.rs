@@ -119,40 +119,6 @@ impl WorldConfig {
         &self.colours
     }
 
-    /// Whether two agents share a colour, which the solver forbids and the non-perspective
-    /// observations refuse to represent.
-    pub fn has_shared_colours(&self) -> bool {
-        let mut seen = HashSet::new();
-        !self.colours.iter().all(|c| seen.insert(c))
-    }
-
-    pub fn add_random_starts(&mut self, starts: Vec<Vec<Position>>) {
-        for (i, start) in starts.into_iter().enumerate() {
-            let start = self.filter_positions(start, &self.walls);
-            while i >= self.random_starts.len() {
-                self.random_starts.push(vec![]);
-            }
-            self.random_starts[i].extend(start);
-        }
-    }
-
-    pub fn add_exits(&mut self, exits: Vec<Position>) {
-        let exits = self.filter_positions(exits, &self.walls);
-        self.exits.extend(exits);
-    }
-
-    pub fn add_gems(&mut self, gems: Vec<Position>) {
-        let gems = self.filter_positions(gems, &self.walls);
-        self.gems.extend(gems);
-    }
-
-    fn filter_positions(&self, positions: Vec<Position>, forbidden: &[Position]) -> Vec<Position> {
-        positions
-            .into_iter()
-            .filter(|pos| !forbidden.contains(pos))
-            .collect()
-    }
-
     pub fn into_world(mut self) -> Result<World, ParseError> {
         self.pre_validate()?;
         let (grid, lasers_positions) = self.make_grid();

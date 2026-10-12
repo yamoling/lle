@@ -16,16 +16,6 @@ pub struct VisitorData<'a> {
     frame: &'a mut RgbImage,
 }
 
-#[derive(Clone, Copy)]
-pub enum PanelFmt {
-    /// The panels are displayed in a grid format, with each panel representing a layer of the world. The panels are arranged in a single row, with the first panel representing the bottom layer and the last panel representing the top layer.
-    Grid(usize, usize),
-    /// The panels are displayed in a stacked format, with each panel representing a layer of the world. The panels are arranged on top of each other, with the first panel representing the bottom layer and the last panel representing the top layer.
-    VStack,
-    /// The panels are displayed in a horizontal format, with each panel representing a layer of the world. The panels are arranged in a single column, with the first panel representing the bottom layer and the last panel representing the top layer.
-    HStack,
-}
-
 ///The Renderer struct is responsible for rendering the world as an image. It has a static frame which contains the floor, walls, laser sources, start and exit tiles. The dynamic elements such as lasers, gems and agents are rendered on top of the static frame in the update method.
 /// The addition of vector of RgbImage allows us to have a separate static frame for each layer of the world, give us the ability to render each layer independently and then diplay them in any ways that we want.
 #[derive(Clone)]
@@ -33,7 +23,6 @@ pub struct Renderer {
     static_frame: Vec<RgbImage>,
     pixel_width: u32,
     pixel_height: u32,
-    panel_fmt: PanelFmt,
 }
 
 impl Renderer {
@@ -44,7 +33,6 @@ impl Renderer {
             static_frame: vec![image::RgbImage::new(pixel_width, pixel_height); core.layers()],
             pixel_width,
             pixel_height,
-            panel_fmt: PanelFmt::VStack,
         };
         renderer.static_rendering(core);
         renderer
@@ -158,55 +146,23 @@ impl Renderer {
         return self.concate_single_image(frame_stack);
     }
 
+    /// Stack the layers vertically, bottom layer first, one pixel apart.
     fn concate_single_image(&self, frame_stack: Vec<RgbImage>) -> RgbImage {
-        let (resized_width, resized_height) = match self.panel_fmt {
-            PanelFmt::Grid(_, _) => todo!(),
-            PanelFmt::VStack => (
-                self.pixel_width,
-                self.pixel_height * frame_stack.len() as u32 + frame_stack.len() as u32 - 1,
-            ),
-            PanelFmt::HStack => (
-                self.pixel_width * frame_stack.len() as u32 + frame_stack.len() as u32 - 1,
-                self.pixel_height,
-            ),
-        };
-        let mut panel = RgbImage::new(resized_width, resized_height);
+        let mut panel = RgbImage::new(self.pixel_width(), self.pixel_height());
         for (i, frame) in frame_stack.iter().enumerate() {
-            let (x_offset, y_offset) = match self.panel_fmt {
-                PanelFmt::Grid(_, _) => todo!(),
-                PanelFmt::VStack => (0, i as u32 * (self.pixel_height + 1)),
-                PanelFmt::HStack => (i as u32 * (self.pixel_width + 1), 0),
-            };
-            panel.copy_from(frame, x_offset, y_offset).unwrap();
+            let y_offset = i as u32 * (self.pixel_height + 1);
+            panel.copy_from(frame, 0, y_offset).unwrap();
         }
         panel
     }
+
     pub fn pixel_width(&self) -> u32 {
-        self.pixel_width * self.stack_width() + self.stack_width() - 1 // stack_width - 1 is the spacing between panels
+        self.pixel_width
     }
 
     pub fn pixel_height(&self) -> u32 {
-        self.pixel_height * self.stack_height() + self.stack_height() - 1 // stack_height - 1 is the spacing between panels
-    }
-
-    fn stack_width(&self) -> u32 {
-        match self.panel_fmt {
-            PanelFmt::Grid(cols, _) => cols as u32,
-            PanelFmt::VStack => 1,
-            PanelFmt::HStack => self.static_frame.len() as u32,
-        }
-    }
-
-    fn stack_height(&self) -> u32 {
-        match self.panel_fmt {
-            PanelFmt::Grid(_, rows) => rows as u32,
-            PanelFmt::VStack => self.static_frame.len() as u32, // ask yannick
-            PanelFmt::HStack => 1,
-        }
-    }
-
-    pub fn set_panel_fmt(&mut self, fmt: PanelFmt) {
-        self.panel_fmt = fmt;
+        let layers = self.static_frame.len() as u32;
+        self.pixel_height * layers + layers - 1
     }
 }
 

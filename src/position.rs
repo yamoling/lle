@@ -19,16 +19,8 @@ impl Position {
         Self { i, j, k: 0 }
     }
 
-    pub fn as_xyz(&self) -> (usize, usize, usize) {
-        (self.j, self.k, self.i)
-    }
-
     pub fn as_ijk(&self) -> (usize, usize, usize) {
         (self.i, self.j, self.k)
-    }
-
-    pub fn as_ij(&self) -> (usize, usize) {
-        (self.i, self.j)
     }
 
     pub fn x(&self) -> usize {
