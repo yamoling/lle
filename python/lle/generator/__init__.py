@@ -79,6 +79,7 @@ def generate(width: int = 10, height: int = 10, n_agents: int = 3, t_max: int | 
     - Layout: `random()`, `lanes()`, `clustered()`, or fine-grained
       `starts(...)` / `exits(...)`.
     - Gems, boxes, lasers, and walls: `gems(...)`, `boxes(...)`, `lasers(...)`, `walls(...)`.
+    - Layers: `layers(n, ...)`, `start_layers(...)`, `layer(k, ...)` for levels linked by lifts.
     - Behaviour: `solvable()` (default), `independent()`, `cooperative(...)`,
       `sequential(...)`, `convergent(...)`, `divergent(...)`, `mutual(...)`, or
       `require(filter)`.
