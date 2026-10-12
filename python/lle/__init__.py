@@ -43,6 +43,24 @@ world.step([Action.EAST])
 print(world.boxes_positions)   # [(0, 2)]
 ```
 
+A world can have several floors: in a map string, a line starting with `;` starts the next
+floor, and every floor has the same size. Agents change floors with lifts. When an agent takes
+the `TRIGGER` action on a button, every lift of the button's group moves the agent standing on it
+one floor up (`TU`) or down (`TD`). Lifts and buttons can be restricted to one colour.
+```python
+from lle import Action, World
+
+world = World('''
+S0 TU0 B0 S1 X
+;
+X  .   .  .  .
+''')
+world.reset()
+world.step([Action.EAST, Action.WEST])     # agent 0 onto the lift, agent 1 onto the button
+world.step([Action.STAY, Action.TRIGGER])  # agent 1 presses: agent 0 goes one floor up
+print(world.agents_positions)  # [(0, 1, 1), (0, 2, 0)]
+```
+
 ## High-level `LLE`
 Use `LLE` when you want a ready-to-use MARL environment with multiple types of observations (partial, full, 1d, 3d, ...).
 The usual workflow is `lle.level(...)`, `lle.from_str(...)`, or `lle.from_file(...)`, followed by
@@ -61,8 +79,9 @@ print(step.reward)
 ## Solving a world
 `lle.solve(world, t_max, path_length="auto")` creates a solver with episode horizon `t_max` and
 finds a joint plan of exactly `path_length` steps. When `path_length` is `"auto"` (the default), it
-uses `t_max`. This solving is performed via a SAT solver.
-The solver does not currently support worlds with boxes and will raise `NotImplementedError`.
+uses `t_max`. This solving is performed via a SAT solver, which supports boxes, lifts, buttons and several floors.
+Other solving modes than the standard one (e.g. `mode="no-cooperation"`) are not supported yet on
+worlds with boxes or lifts, and raise `NotImplementedError`.
 More details about the solver can be found in the `lle.solver` module.
 
 ```python
@@ -78,6 +97,7 @@ for joint_action in plan:
 The cooperation requirements of a world can be characterized by calling `lle.characterize(world, t_max)`,
 which returns a `WorldCharacterizer` that can be queried to determine the intrinsic cooperative properties
 of the world (i.e. every solution to the world within `t_max` steps has these properties).
+Worlds with boxes or lifts cannot be characterized yet.
 
 Helper functions such as `lle.is_cooperative`, `lle.is_interdependent(k)`, `lle.is_convergent(world, k=2)` or `lle.is_divergent(world, k=2)` can also be used. Note that if multiple properties
 should be checked, it is more efficient to use `lle.characterize` and query the `WorldCharacterizer` because it
@@ -133,6 +153,9 @@ separate tiles.
 | `S<n>` | Start | Yes | Start position of agent `n`. |
 | `L<n><d>` | Laser source | No | Source of a laser of colour `n` (a number) beaming toward the direction `d` (N, S, E, W). |
 | `V` | Void | Yes | A void tile. The agent dies if it walks on it |
+| `T<d><g>` | Lift | Yes | A lift of group `g` (a number) that moves the agent standing on it one floor up (`d` = `U`) or down (`d` = `D`) when a button of group `g` is pressed. `T<d><g>A<c>` only moves agents of colour `c`. |
+| `B<g>` | Button | Yes | A button of group `g`. Taking the `TRIGGER` action on it moves every lift of group `g`. `B<g>A<c>` can only be pressed by agents of colour `c`. |
+| `;` | Floor separator | - | A line starting with `;` starts the next floor. |
 
 For instance, the following map string yields the image shown below.
 
@@ -147,7 +170,8 @@ G  . . . X
 
 TOML maps are useful when you want richer placement rules, such as random start
 positions. Positions can be specified as a list of positions `{i, j}` or as rectangles `{i_min, i_max, j_min, j_max}`,
-and the `world_string` field can be used to define the map as discussed above. The full list of authorized
+and the `world_string` field can be used to define the map as discussed above. Lifts and buttons
+can also be placed with the `lifts` and `buttons` keys. The full list of authorized
 keys is defined by the JSON schema as shown in the below example.
 
 ```toml

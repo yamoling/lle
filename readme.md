@@ -12,6 +12,7 @@ In LLE, agents start on start tiles, collect gems, and finish by reaching exit t
 - 🤝 **Coordination-critical** — lasers can force agents to actively help each other to reach the exit.
 - 🎚️ **Two levels of abstraction** — a high-level `LLE` MARL environment, or a low-level `World` for full control over maps, states, and steps.
 - 🗺️ **Custom maps** — write a map as a one-line string or a richer TOML file, or use the 6 built-in levels.
+- 🛗 **Boxes, lifts & floors** — push boxes to block lasers, and press buttons to lift agents between floors.
 - 🟰 **SAT Solver** — retrieve solutions to LLE worlds using a SAT-based solver.
 - 🧪 **World analysis** — analyse the characteristics of a World: does it require cooperation or not? If so, what kind of cooperation?
 - 🐣 **Procedural world generation** — generate worlds according to your requirements (cooperative, independent, mutually cooperative, ...)
