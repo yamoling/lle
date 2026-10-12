@@ -1,6 +1,7 @@
+use std::iter::once;
+
 use strum::IntoEnumIterator;
 
-use crate::Position;
 use crate::solver::{Clause, clauses::ClauseEngine};
 use crate::tiles::CardinalDirection;
 
@@ -39,7 +40,8 @@ impl ClauseEngine {
             let previous = ctx.relevant_positions_for_box(box_id, t - 1);
             for x in ctx.relevant_positions_for_box(box_id, t) {
                 let mut clause = vec![-pool.box_at(box_id, x, t)];
-                for x_prev in closed_neighbourhood(x) {
+                let pushed_from = CardinalDirection::iter().filter_map(|d| ctx.pusher_origin(x, d));
+                for x_prev in once(x).chain(pushed_from) {
                     if previous.contains(&x_prev) && !ctx.is_void(&x_prev) {
                         clause.push(pool.box_at(box_id, x_prev, t - 1));
                     }
@@ -185,9 +187,4 @@ impl ClauseEngine {
         }
         clauses
     }
-}
-
-/// `x` and its four adjacent cells that lie inside the grid's non-negative quadrant.
-fn closed_neighbourhood(x: Position) -> impl Iterator<Item = Position> {
-    std::iter::once(x).chain(CardinalDirection::iter().filter_map(move |d| (x + d).ok()))
 }

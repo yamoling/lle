@@ -2377,3 +2377,32 @@ fn formula_admits_landing_on_a_lift_pulsed_in_the_same_step() {
     assert!(trajectory_literals(&generator, &trajectory).is_some());
     assert!(admits(&generator, &clauses, &trajectory));
 }
+
+/// Box predecessors stay inside the grid: a box on the last column must not read a cell past it,
+/// which would alias the first cell of the next row (or overflow the bitset on the last row).
+#[test]
+fn test_boxes_on_the_grid_border_generate_clauses() {
+    let world = World::try_from(
+        "
+        . . X . . . . .
+        @ . . . G . . @
+        X . . . . . . .
+        . @ L1S . # . . .
+        . . # . . . . .
+        . . . . . . . .
+        @ S0 . . . S1 . .
+        . . . G . . . #
+        ",
+    )
+    .unwrap();
+    let mut cg = ClauseGenerator::new(&world, 12).unwrap();
+    cg.generate(12, SolveMode::Standard, false);
+    for lit in 1..=cg.n_vars() as i32 {
+        if let Some(VarKey::Box { pos, .. }) = cg.key(lit) {
+            assert!(
+                pos.i < 8 && pos.j < 8,
+                "box variable outside the grid: {pos:?}"
+            );
+        }
+    }
+}
