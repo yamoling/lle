@@ -313,10 +313,12 @@ fn test_no_overlap_binary_exclusion_clause() {
 
 // ─── no_following_conflict ───────────────────────────────────────────────────
 
-/// Agent 1 must not enter a cell that agent 0 just vacated (swap prohibition).
-/// Encoded as `[-a1@pos@t, -a0@pos@(t-1)]`.
+/// Neither agent may enter the other agent's previous cell, even without a swap.
+/// The exclusion clause applies in both directions.
+///
+/// @ai-edited
 #[test]
-fn test_no_following_conflict_encodes_swap_prohibition() {
+fn test_no_following_conflict_encodes_both_directions() {
     // S0 at (0,0), S1 at (0,1).
     // Opt 2: (0,0) is S0's start, so agent 1 cannot be there at t=1 — the variable is pruned.
     let mut cg = build("S0 S1 X X", 5);
@@ -328,21 +330,21 @@ fn test_no_following_conflict_encodes_swap_prohibition() {
         "agent(1, (0,0), 1) should be pruned by Opt 2"
     );
 
-    // The no-following-conflict clause still applies at t=2: if agent 1 is at (0,0) at t=2
-    // (reached from (0,1) at t=1), then agent 0 was NOT at (0,0) at t=1.
-    let a0_t1 = cg
-        .literal(&VarKey::agent(0, pos(0, 0), 1))
-        .expect("agent 0 at (0,0) t=1");
-    let a1_t2 = cg
-        .literal(&VarKey::agent(1, pos(0, 0), 2))
-        .expect("agent 1 at (0,0) t=2");
     let clauses = cg.generate(2, SolveMode::Standard, false).0;
-    assert!(
-        clauses
-            .iter()
-            .any(|c| c.len() == 2 && c.contains(&-a1_t2) && c.contains(&-a0_t1)),
-        "no-following-conflict clause [-a1@(0,0)@2, -a0@(0,0)@1] must exist"
-    );
+    for (previous_agent, current_agent, position) in [(0, 1, pos(0, 0)), (1, 0, pos(0, 1))] {
+        let previous = cg
+            .literal(&VarKey::agent(previous_agent, position, 1))
+            .expect("previous position at t=1");
+        let current = cg
+            .literal(&VarKey::agent(current_agent, position, 2))
+            .expect("current position at t=2");
+        assert!(
+            clauses
+                .iter()
+                .any(|c| c.len() == 2 && c.contains(&-current) && c.contains(&-previous)),
+            "agent {current_agent} must not enter agent {previous_agent}'s previous cell {position:?}"
+        );
+    }
 }
 
 // ─── stays_on_exit ───────────────────────────────────────────────────────────

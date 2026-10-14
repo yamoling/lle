@@ -82,26 +82,23 @@ impl ClauseEngine {
         clauses
     }
 
-    /// Prevent two agents from swapping positions (vertex-following conflicts).
+    /// Prevent an agent from entering another agent's cell from the previous time step.
+    /// This also forbids swaps, which are following conflicts in both directions.
     pub(super) fn no_following_conflict(&mut self, t: usize) -> Vec<Clause> {
-        if t == 0 || self.ctx.n_agents == 0 {
+        if t == 0 {
             return Vec::new();
         }
         let mut clauses = Vec::new();
-        for (c1, c2) in (0..self.ctx.n_agents).tuple_combinations() {
-            let prev_c1 = self.ctx.relevant_positions(t - 1, &[c1]);
-            let cur_c2 = self.ctx.relevant_positions(t, &[c2]);
-            for pos in prev_c1.intersection(&cur_c2) {
-                let a2 = self.pool.agent(c2, pos, t);
-                let a1_prev = self.pool.agent(c1, pos, t - 1);
-                clauses.push(implies(a2, -a1_prev));
-            }
-            let cur_c1 = self.ctx.relevant_positions(t, &[c1]);
-            let prev_c2 = self.ctx.relevant_positions(t - 1, &[c2]);
-            for pos in cur_c1.intersection(&prev_c2) {
-                let a1 = self.pool.agent(c1, pos, t);
-                let a2_prev = self.pool.agent(c2, pos, t - 1);
-                clauses.push(implies(a1, -a2_prev));
+        for (previous_agent, current_agent) in (0..self.ctx.n_agents)
+            .cartesian_product(0..self.ctx.n_agents)
+            .filter(|(previous, current)| previous != current)
+        {
+            let previous_positions = self.ctx.relevant_positions(t - 1, &[previous_agent]);
+            let current_positions = self.ctx.relevant_positions(t, &[current_agent]);
+            for pos in previous_positions.intersection(&current_positions) {
+                let current = self.pool.agent(current_agent, pos, t);
+                let previous = self.pool.agent(previous_agent, pos, t - 1);
+                clauses.push(implies(current, -previous));
             }
         }
         clauses
