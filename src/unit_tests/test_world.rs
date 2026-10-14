@@ -2552,16 +2552,35 @@ fn test_set_state_rejects_a_wrong_number_of_levers() {
     let mut world = World::try_from("S0 H0 TU0 . X\n;\n. . . . X").unwrap();
     world.reset();
     let state = WorldState {
-        levers_on: vec![],
+        levers_on: vec![true, false],
         ..world.get_state()
     };
     match world.set_state(&state) {
         Err(RuntimeWorldError::InvalidNumberOfLevers { given, expected }) => {
-            assert_eq!(given, 0);
+            assert_eq!(given, 2);
             assert_eq!(expected, 1);
         }
         other => panic!("expected InvalidNumberOfLevers, got {other:?}"),
     }
+}
+
+/// A state without lever information (e.g. `WorldState::from_array`) switches every lever off.
+#[test]
+fn test_set_state_without_levers_switches_them_off() {
+    let mut world = World::try_from("S0 H0 TU0 . X\n;\n. . . . X").unwrap();
+    world.reset();
+    let on = WorldState {
+        levers_on: vec![true],
+        ..world.get_state()
+    };
+    world.set_state(&on).unwrap();
+    assert_eq!(world.get_state().levers_on, vec![true]);
+    let without_levers = WorldState {
+        levers_on: vec![],
+        ..world.get_state()
+    };
+    world.set_state(&without_levers).unwrap();
+    assert_eq!(world.get_state().levers_on, vec![false]);
 }
 
 #[test]

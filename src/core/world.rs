@@ -913,7 +913,10 @@ impl World {
         }
     }
 
-    /// Restore the world's agents and gems to an explicitly supplied state.
+    /// Restore the world's agents, gems, boxes and levers to an explicitly supplied state.
+    ///
+    /// An empty `levers_on` switches every lever off: states built without lever information
+    /// (e.g. `WorldState::from_array`) stay usable on worlds with levers.
     pub fn set_state(&mut self, state: &WorldState) -> Result<Vec<WorldEvent>, RuntimeWorldError> {
         if state.gems_collected.len() != self.n_gems() {
             return Err(RuntimeWorldError::InvalidNumberOfGems {
@@ -941,6 +944,16 @@ impl World {
             }
         }
         self.validate_boxes(state)?;
+        let all_off;
+        let state = if state.levers_on.is_empty() && self.n_levers() > 0 {
+            all_off = WorldState {
+                levers_on: vec![false; self.n_levers()],
+                ..state.clone()
+            };
+            &all_off
+        } else {
+            state
+        };
         if state.levers_on.len() != self.n_levers() {
             return Err(RuntimeWorldError::InvalidNumberOfLevers {
                 given: state.levers_on.len(),

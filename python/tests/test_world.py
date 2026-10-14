@@ -1,6 +1,7 @@
 from copy import deepcopy
 from threading import Thread
 
+import lle
 import pytest
 from lle import Action, EventType, Position, World, WorldState
 from lle.exceptions import InvalidActionError, InvalidWorldStateError, ParsingError
@@ -1016,8 +1017,11 @@ def test_lever_state_round_trip():
     assert not world.levers[0].is_on
     world.set_state(on)
     assert world.levers[0].is_on
+    # A state without lever information switches every lever off.
+    world.set_state(WorldState(on.agents_positions, on.gems_collected, on.agents_alive))
+    assert not world.levers[0].is_on
     with pytest.raises(InvalidWorldStateError):
-        world.set_state(WorldState(on.agents_positions, on.gems_collected, on.agents_alive))
+        world.set_state(WorldState(on.agents_positions, on.gems_collected, on.agents_alive, levers_on=[True, False]))
 
 
 def test_pressure_plate_pulses_without_trigger():
@@ -1046,3 +1050,9 @@ def test_world_state_pickles_levers_on():
     restored = pickle.loads(pickle.dumps(state))
     assert restored.levers_on == [True, False]
     assert restored == state
+
+
+def test_state_env_round_trips_on_a_world_with_a_lever():
+    env = lle.from_str("S0 TU0 H0 S1 X\n;\nX . . . .").state_type("state").build()
+    env.reset()
+    env.set_state(env.get_state())
