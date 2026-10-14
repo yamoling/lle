@@ -242,6 +242,33 @@ def test_step_info_reports_death_metrics_for_each_agent():
     }
 
 
+def test_step_info_reports_joint_exit():
+    env = LLE.from_str(
+        """
+    S0 X
+    S1 X
+    """
+    ).build()
+    env.reset()
+    assert env.step([Action.EAST.value, Action.STAY.value]).info["joint_exit"] == 0
+    step = env.step([Action.STAY.value, Action.EAST.value])
+    assert step.done
+    assert step.info["joint_exit"] == 1
+
+
+def test_step_info_joint_exit_is_zero_on_death():
+    env = LLE.from_str(
+        """
+    S0 L0S X
+    S1  .  X
+    """
+    ).build()
+    env.reset()
+    step = env.step([Action.STAY.value, Action.EAST.value])
+    assert step.done
+    assert step.info["joint_exit"] == 0
+
+
 def test_reward_collect_and_death():
     env = LLE.from_str(
         """

@@ -3,6 +3,7 @@ from typing import get_args
 import numpy as np
 import pytest
 from lle import LLE, Action, ObservationType, World
+from lle.env import LaserSubgoal
 from lle.observations import Layered, ObservationTypeLiteral, PartialGenerator, PerspectiveLayered
 
 
@@ -443,9 +444,7 @@ def test_perspective_matches_layered_modulo_translation_and_colour_swap():
             colour = world.agents[observer].colour
             expected = np.copy(layered_obs[observer])
             expected[[generator.A0, generator.A0 + colour]] = expected[[generator.A0 + colour, generator.A0]]
-            expected[[generator.LASER_0, generator.LASER_0 + colour]] = expected[
-                [generator.LASER_0 + colour, generator.LASER_0]
-            ]
+            expected[[generator.LASER_0, generator.LASER_0 + colour]] = expected[[generator.LASER_0 + colour, generator.LASER_0]]
             di, dj = world.height - 1 - i, world.width - 1 - j
             window = perspective_obs[observer][:, di : di + world.height, dj : dj + world.width]
             np.testing.assert_array_equal(window, expected)
@@ -573,6 +572,92 @@ def test_pbrs_subgoals_extras_two_lasers_two_agents():
     _perform_tests_two_agents(env)
     env.reset()
     _perform_tests_two_agents(env)
+
+
+def test_pbrs_individual_extras_equals_true():
+    layout = """
+        S0  S1 X  X
+        .   .  . L0W
+        .   .  . L1W"""
+    env = LLE.from_str(layout).pbrs(with_extras="individual").build()
+    assert env.extras_shape == (2,)
+    _perform_tests_two_agents(env)
+
+
+def test_pbrs_no_extras():
+    env = (
+        LLE.from_str("""
+                       S0  S1 X  X
+                       .   .  . L0W
+                       .   .  . L1W""")
+        .pbrs(with_extras=False)
+        .build()
+    )
+    assert env.extras_shape == (0,)
+
+
+def test_pbrs_invalid_extras():
+    with pytest.raises(ValueError):
+        LLE.from_str("S0 X\n. L0W").pbrs(with_extras="invalid")  # type: ignore
+
+
+def test_pbrs_joint_extras_one_agent():
+    env = (
+        LLE.from_str("""
+                       S0  X
+                       .  L0W""")
+        .pbrs(with_extras="joint")
+        .build()
+    )
+    assert env.extras_shape == (1,)
+    obs, _ = env.reset()
+    assert np.all(obs.extras == 0.0)
+    obs = env.step([Action.SOUTH.value]).obs
+    assert np.array_equal(obs.extras, [[1.0]])
+
+
+def _perform_tests_joint_two_agents(env: LLE):
+    # 2 agents x 2 lasers, flattened row-major: [a0l0, a0l1, a1l0, a1l1]
+    assert env.extras_shape == (4,)
+
+    obs, _ = env.reset()
+    assert obs.extras.shape == (2, 4)
+    assert np.all(obs.extras == 0.0)
+
+    obs = env.step([Action.SOUTH.value, Action.STAY.value]).obs
+    expected = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+    assert np.array_equal(obs.extras, np.tile(expected, (2, 1)))
+
+    obs = env.step([Action.NORTH.value, Action.STAY.value]).obs
+    assert np.array_equal(obs.extras, np.tile(expected, (2, 1)))
+
+    step = env.step([Action.STAY.value, Action.SOUTH.value])
+    assert step.done
+    expected = np.array([1.0, 0.0, 1.0, 0.0], dtype=np.float32)
+    assert np.array_equal(step.obs.extras, np.tile(expected, (2, 1)))
+
+
+def test_pbrs_joint_extras_two_lasers_two_agents():
+    env = (
+        LLE.from_str("""
+                       S0  S1 X  X
+                       .   .  . L0W
+                       .   .  . L1W""")
+        .pbrs(with_extras="joint")
+        .build()
+    )
+    _perform_tests_joint_two_agents(env)
+    env.reset()
+    _perform_tests_joint_two_agents(env)
+
+
+def test_laser_subgoal_joint_meanings():
+    world = World("S0 S1 X X\n. . . L0W\n. . . L1W")
+    generator = LaserSubgoal(world, joint=True)
+    assert generator.size == 4
+    assert len(generator.meanings) == 4
+    assert generator.meanings[0].startswith("Agent 0")
+    assert generator.meanings[2].startswith("Agent 1")
 
 
 def test_extras_subgoals_extras_two_lasers_two_agents():

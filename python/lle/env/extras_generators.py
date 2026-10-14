@@ -75,27 +75,41 @@ class MultiGenerator(ExtraGenerator):
 class LaserSubgoal(ExtraGenerator):
     """
     Generates extras that indicate whether the agents have reached each laser, which are subgoals of the environment.
+
+    In individual mode (default), each agent receives its own vector of size `n_sources`.
+    In joint mode, each agent receives the flattened `(n_agents, n_sources)` matrix of every agent's progress.
     """
 
-    def __init__(self, world: World, sources: Sequence[tiles.LaserSource] | None = None):
+    def __init__(self, world: World, sources: Sequence[tiles.LaserSource] | None = None, joint: bool = False):
         """
         ## Parameters
         - **world**: The world.
         - **sources**: The laser sources to consider. If `None`, all laser sources in the world are considered.
+        - **joint**: If `True`, every agent receives the flattened subgoal matrix of all agents (row-major, agent by agent).
+
+        @ai-edited
         """
         self.world = world
+        self.joint = joint
         if sources is None:
             sources = world.laser_sources
-        super().__init__(len(sources), [f"Source {source.laser_id} at {source.pos}" for source in sources])
+        meanings = [f"Source {source.laser_id} at {source.pos}" for source in sources]
+        if joint:
+            meanings = [f"Agent {agent} - {meaning}" for agent in range(world.n_agents) for meaning in meanings]
+        super().__init__(len(meanings), meanings)
         self.pos_to_reward = [set(laser.pos for laser in get_lasers_of(world, source)) for source in sources]
         self.agents_pos_reached = np.full((world.n_agents, len(sources)), False, dtype=np.bool)
 
     def compute(self):
+        """@ai-edited"""
         for agent, agent_pos in enumerate(self.world.agents_positions):
             for source, pos_to_reward in enumerate(self.pos_to_reward):
                 if agent_pos in pos_to_reward:
                     self.agents_pos_reached[agent, source] = True
-        return self.agents_pos_reached.astype(np.float32)
+        reached = self.agents_pos_reached.astype(np.float32)
+        if self.joint:
+            return np.tile(reached.flatten(), (self.world.n_agents, 1))
+        return reached
 
     def reset(self):
         self.agents_pos_reached.fill(False)

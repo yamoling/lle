@@ -184,6 +184,7 @@ class LLE(DiscreteMARLEnv):
             info={
                 "gems_collected": self.world.gems_collected,
                 "exit_rate": self.n_arrived / self.n_agents,
+                "joint_exit": int(self.n_arrived == self.n_agents),
                 **metrics,
             },
         )
