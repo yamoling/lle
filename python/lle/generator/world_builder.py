@@ -101,6 +101,20 @@ class WorldBuilder:
         self._grid[pos[0]][pos[1]] = f"B{group}" + ("" if colour is None else f"A{colour}")
         return self
 
+    def add_lever(self, pos: Position, group: int, colour: int | None = None) -> "WorldBuilder":
+        """A lever toggling the lifts of `group` on or off, restricted to `colour` if given."""
+        self._check_bounds(pos)
+        self._check_free(pos)
+        self._grid[pos[0]][pos[1]] = f"H{group}" + ("" if colour is None else f"A{colour}")
+        return self
+
+    def add_plate(self, pos: Position, group: int, colour: int | None = None) -> "WorldBuilder":
+        """A pressure plate pulsing the lifts of `group`, restricted to `colour` if given."""
+        self._check_bounds(pos)
+        self._check_free(pos)
+        self._grid[pos[0]][pos[1]] = f"P{group}" + ("" if colour is None else f"A{colour}")
+        return self
+
     def to_str(self):
         return "\n".join(" ".join(row) for row in self._grid)
 

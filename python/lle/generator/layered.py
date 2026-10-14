@@ -1,12 +1,13 @@
-"""Multi-layer world generation: layers linked by lifts and buttons.
+"""Multi-layer world generation: layers linked by lifts and their actuators (buttons, levers and
+pressure plates).
 
 A level is generated in three stages (see `docs/superpowers/specs/2026-10-12-layer-generator-design.md`):
 
-1. **Skeleton.** Random journeys over the layers decide the lifts, their landing cells, the buttons,
-   the starts and the exits of every layer at once, since a lift constrains two layers.
+1. **Skeleton.** Random journeys over the layers decide the lifts, their landing cells, the
+   actuators, the starts and the exits of every layer at once, since a lift constrains two layers.
 2. **Layers.** Each layer is filled with walls, lasers, gems and boxes by the single-layer
    placement, then checked by a BFS: every visit of the layer can reach where its journey goes next,
-   and every lift has a presser who can reach one of its buttons.
+   and every lift has an agent who can reach one of its actuators.
 3. **Level.** The layers are stacked and the whole-level constraint is checked by the solver. The
    shortest plan must also visit every layer.
 """
@@ -29,6 +30,10 @@ from .world_filter import Constraint
 
 # Tries before giving up on a skeleton (journeys visiting every layer, free cells for lifts).
 SKELETON_TRIES = 50
+
+ActuatorKind = Literal["button", "lever", "plate"]
+ActuatorChoice = Literal["button", "lever", "plate", "random"]
+ACTUATOR_KINDS: tuple[ActuatorKind, ...] = ("button", "lever", "plate")
 # Fills of one layer before drawing a new skeleton.
 LAYER_TRIES = 20
 
@@ -43,6 +48,8 @@ class LayerConfig:
     laser_span: int | Literal["any", "across"]
     n_gems: int
     n_boxes: int
+    actuators: tuple[ActuatorChoice, ...] = ("button",)
+    """The actuators of every lift leaving this layer, one per entry; `"random"` draws a kind."""
 
 
 @dataclass
@@ -60,7 +67,8 @@ class Lift:
 
 
 @dataclass
-class Button:
+class Actuator:
+    kind: ActuatorKind
     layer: int
     pos: Position
     group: int
@@ -83,7 +91,7 @@ class Skeleton:
     starts: list[Position]
     exits: list[tuple[int, Position]]
     lifts: dict[tuple[int, bool], Lift]
-    buttons: list[Button]
+    actuators: list[Actuator]
     visits: list[Visit]
 
     def reserved(self, layer: int):
@@ -91,7 +99,7 @@ class Skeleton:
         cells = {pos for agent, pos in enumerate(self.starts) if self.journeys[agent][0] == layer}
         cells |= {pos for k, pos in self.exits if k == layer}
         cells |= {lift.pos for lift in self.lifts.values() if layer in (lift.layer, lift.landing)}
-        cells |= {button.pos for button in self.buttons if button.layer == layer}
+        cells |= {actuator.pos for actuator in self.actuators if actuator.layer == layer}
         return cells
 
     def visitors(self, layer: int):
@@ -126,7 +134,7 @@ class LayeredGenerator(WorldGenerator):
         start_layers: Sequence[int] | Literal["random"] = "random",
         max_changes: int | None = None,
         extra_exits: int = 0,
-        cross_layer_buttons: bool = False,
+        cross_layer_actuators: bool = False,
         restricted_lifts: float = 0.0,
         constraint: Constraint | None = None,
     ):
@@ -146,6 +154,8 @@ class LayeredGenerator(WorldGenerator):
         for k, cfg in enumerate(layers):
             if cfg.n_lasers > n_agents:
                 raise ValueError(f"Layer {k}: lasers must be <= agents (one source per colour). Got {cfg.n_lasers}")
+            if not cfg.actuators or any(kind not in (*ACTUATOR_KINDS, "random") for kind in cfg.actuators):
+                raise ValueError(f"Layer {k}: actuators must be a non-empty list of {(*ACTUATOR_KINDS, 'random')}. Got {cfg.actuators}")
         self.width, self.height = width, height
         self.agents = n_agents
         self.n_layers = n_layers
@@ -153,7 +163,7 @@ class LayeredGenerator(WorldGenerator):
         self.start_layers = start_layers
         self.max_changes = n_layers if max_changes is None else max_changes
         self.extra_exits = extra_exits
-        self.cross_layer_buttons = cross_layer_buttons
+        self.cross_layer_actuators = cross_layer_actuators
         self.restricted_lifts = restricted_lifts
         self.constraint = constraint
         self._rng = random.Random()
@@ -203,26 +213,30 @@ class LayeredGenerator(WorldGenerator):
                 else:
                     visits.append(Visit(agent, k, begin, exits[agent][1]))
 
-        buttons = []
+        actuators = []
         for lift in lifts.values():
-            layers = [lift.layer, lift.landing] if self.cross_layer_buttons else [lift.layer]
+            kinds = [rng.choice(ACTUATOR_KINDS) if kind == "random" else kind for kind in self.layer_configs[lift.layer].actuators]
+            # A copy on the landing layer lets an agent who already rode the lift activate it for the others.
+            layers = [lift.layer, lift.landing] if self.cross_layer_actuators else [lift.layer]
             for k in layers:
-                buttons.append(Button(k, self._free_cell(used, k), lift.group))
-        skeleton = Skeleton(journeys, starts, exits, lifts, buttons, visits)
+                for kind in kinds:
+                    actuators.append(Actuator(kind, k, self._free_cell(used, k), lift.group))
+        skeleton = Skeleton(journeys, starts, exits, lifts, actuators, visits)
         self._restrict_colours(skeleton)
         return skeleton
 
     def _restrict_colours(self, skeleton: Skeleton):
-        """Restrict some lifts to their single rider, and their buttons to a possible presser."""
+        """Restrict some lifts to their single rider, and their actuators to another agent visiting
+        the actuator's layer."""
         for lift in skeleton.lifts.values():
             if len(lift.riders) != 1 or self._rng.random() >= self.restricted_lifts:
                 continue
             (lift.colour,) = lift.riders
-            for button in skeleton.buttons:
-                if button.group == lift.group:
-                    pressers = sorted(skeleton.visitors(button.layer) - lift.riders)
+            for actuator in skeleton.actuators:
+                if actuator.group == lift.group:
+                    pressers = sorted(skeleton.visitors(actuator.layer) - lift.riders)
                     if pressers:
-                        button.colour = self._rng.choice(pressers)
+                        actuator.colour = self._rng.choice(pressers)
 
     # ------------------------------------------------------------------
     # Layers
@@ -232,7 +246,7 @@ class LayeredGenerator(WorldGenerator):
         cfg = self.layer_configs[k]
         rng = self._rng
         reserved = skeleton.reserved(k)
-        # Beams never cover a reserved cell, so they never cross a lift, a landing or a button.
+        # Beams never cover a reserved cell, so they never cross a lift, a landing or an actuator.
         lasers, reserved = place_lasers(
             cfg.n_lasers, "free", cfg.laser_span, self.agents, self.height, self.width, rng, reserved, PlacementCtx()
         )
@@ -281,16 +295,20 @@ class LayeredGenerator(WorldGenerator):
         visits = [visit for visit in skeleton.visits if visit.layer == k]
         if not all(reachable(visit.begin, visit.target) for visit in visits):
             return False
-        # Every lift leaving or reaching this layer through one of its buttons needs a presser here
-        # (an agent not riding it), or among several riders who can take turns.
+
+        # Every lift with actuators on this layer needs an agent here who can activate one of them. A
+        # button or a plate holds its agent, who cannot ride at the same time: it needs an agent not
+        # riding the lift, or several riders taking turns. A lever keeps pulsing once switched on, so
+        # a rider may switch it on and ride.
+        def can_activate(agent: int, lift: Lift, actuator: Actuator):
+            if actuator.kind != "lever" and agent in lift.riders and len(lift.riders) == 1:
+                return False
+            return actuator.colour in (None, agent)
+
         for lift in skeleton.lifts.values():
-            buttons = [b for b in skeleton.buttons if b.group == lift.group and b.layer == k]
-            if not buttons:
-                continue
-            if not any(
-                (visit.agent not in lift.riders or len(lift.riders) > 1)
-                and any(b.colour in (None, visit.agent) and reachable(visit.begin, b.pos) for b in buttons)
-                for visit in visits
+            actuators = [a for a in skeleton.actuators if a.group == lift.group and a.layer == k]
+            if actuators and not any(
+                can_activate(visit.agent, lift, a) and reachable(visit.begin, a.pos) for visit in visits for a in actuators
             ):
                 return False
         return True
@@ -310,9 +328,10 @@ class LayeredGenerator(WorldGenerator):
             for lift in skeleton.lifts.values():
                 if lift.layer == k:
                     b.add_lift(lift.pos, lift.up, lift.group, lift.colour)
-            for button in skeleton.buttons:
-                if button.layer == k:
-                    b.add_button(button.pos, button.group, button.colour)
+            for actuator in skeleton.actuators:
+                if actuator.layer == k:
+                    add = {"button": b.add_button, "lever": b.add_lever, "plate": b.add_plate}[actuator.kind]
+                    add(actuator.pos, actuator.group, actuator.colour)
             for pos in layout.walls:
                 b.add_wall(pos)
             for pos in layout.gems:

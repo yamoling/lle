@@ -32,11 +32,11 @@ from __future__ import annotations
 import math
 import random
 from dataclasses import replace
-from typing import Iterator, Literal, Sequence, overload
+from typing import Any, Iterator, Literal, Sequence, overload
 
 from ..world import World
 from .generator import WorldGenerator
-from .layered import LayerConfig, LayeredGenerator
+from .layered import ActuatorChoice, LayerConfig, LayeredGenerator
 from .world_filter import (
     Asymmetric,
     Constraint,
@@ -102,9 +102,10 @@ class GeneratorBuilder:
         self._start_layers: list[int] | Literal["random"] = "random"
         self._max_layer_changes: int | None = None
         self._extra_exits = 0
-        self._cross_layer_buttons = False
+        self._cross_layer_actuators = False
+        self._actuators: tuple[ActuatorChoice, ...] = ("button",)
         self._restricted_lifts = 0.0
-        self._layer_overrides: dict[int, dict[str, int | Literal["auto"]]] = {}
+        self._layer_overrides: dict[int, dict[str, Any]] = {}
 
         # An automatic horizon grows with the number of layers, see `_make_layered_generator`.
         self._auto_t_max = t_max == "auto"
@@ -221,31 +222,47 @@ class GeneratorBuilder:
         *,
         max_changes: int | None = None,
         extra_exits: int = 0,
-        cross_layer_buttons: bool = False,
+        cross_layer_actuators: bool = False,
         restricted_lifts: float = 0.0,
     ) -> GeneratorBuilder:
-        """Generate `n` layers linked by lifts and buttons, layer 0 being the bottom one.
+        """Generate `n` layers linked by lifts, layer 0 being the bottom one.
 
         Every agent follows a random journey through the layers, one layer up or down at a time,
-        and the lifts, buttons and exits are placed along the journeys. The other settings
-        (`lasers`, `walls`, `gems`, `boxes`) apply to every layer; `layer()` overrides them for one
-        layer. Filters (`solvable()`, `cooperative()`, ...) apply to the whole level, whose shortest
-        plan must also visit every layer. Only the random layout is supported.
+        and the lifts, their actuators (see `actuators()`) and the exits are placed along the
+        journeys. The other settings (`lasers`, `walls`, `gems`, `boxes`, `actuators`) apply to every
+        layer; `layer()` overrides them for one layer. Filters (`solvable()`, `cooperative()`, ...)
+        apply to the whole level, whose shortest plan must also visit every layer. Only the random
+        layout is supported.
 
         - `max_changes`: most layer changes in one journey (default: `n`).
         - `extra_exits`: exits added on random layers on top of one exit per agent.
-        - `cross_layer_buttons`: also put a lift's button on the layer it lands on, so that an agent
-          who already rode it can press for the others.
+        - `cross_layer_actuators`: also put a copy of a lift's actuators on the layer it lands on, so
+          that an agent who already rode it can activate it for the others.
         - `restricted_lifts`: probability that a lift with a single rider only accepts the colour of
-          that rider (its buttons then only accept the colour of a possible presser).
+          that rider (its actuators then only accept the colour of another agent visiting their layer).
         """
         if n < 1:
             raise ValueError(f"layers requires n >= 1, got {n}")
         self._n_layers = n
         self._max_layer_changes = max_changes
         self._extra_exits = extra_exits
-        self._cross_layer_buttons = cross_layer_buttons
+        self._cross_layer_actuators = cross_layer_actuators
         self._restricted_lifts = restricted_lifts
+        return self
+
+    def actuators(self, *kinds: ActuatorChoice) -> GeneratorBuilder:
+        """The actuators of every lift (requires `layers()`), one per kind given: `"button"` (the
+        default), `"lever"`, `"plate"` (pressure plate), or `"random"` to draw a kind for each lift.
+
+        Giving several kinds puts several actuators on each lift, any of which moves it:
+        `actuators("lever", "button")` gives every lift a lever and a button. `layer(k, actuators=...)`
+        overrides them for the lifts leaving layer `k`.
+
+        ```python
+        lle.generate(width=6, height=6, n_agents=3).layers(3).actuators("random").layer(0, actuators=["plate"])
+        ```
+        """
+        self._actuators = kinds
         return self
 
     def start_layers(self, layers: Sequence[int] | Literal["random"]) -> GeneratorBuilder:
@@ -261,9 +278,11 @@ class GeneratorBuilder:
         walls: int | Literal["auto"] | None = None,
         gems: int | None = None,
         boxes: int | None = None,
+        actuators: Sequence[ActuatorChoice] | None = None,
     ) -> GeneratorBuilder:
-        """Override the number of lasers, walls, gems or boxes of layer `k` (requires `layers()`)."""
-        overrides = {"lasers": lasers, "walls": walls, "gems": gems, "boxes": boxes}
+        """Override the number of lasers, walls, gems or boxes of layer `k`, or the actuators of the
+        lifts leaving it (see `actuators()`). Requires `layers()`."""
+        overrides = {"lasers": lasers, "walls": walls, "gems": gems, "boxes": boxes, "actuators": actuators}
         self._layer_overrides.setdefault(k, {}).update({key: v for key, v in overrides.items() if v is not None})
         return self
 
@@ -501,6 +520,7 @@ class GeneratorBuilder:
                     laser_span=self._laser_span,
                     n_gems=int(overrides.get("gems", self._n_gems)),
                     n_boxes=int(overrides.get("boxes", self._n_boxes)),
+                    actuators=tuple(overrides.get("actuators", self._actuators)),
                 )
             )
         return LayeredGenerator(
@@ -512,7 +532,7 @@ class GeneratorBuilder:
             start_layers=self._start_layers,
             max_changes=self._max_layer_changes,
             extra_exits=self._extra_exits,
-            cross_layer_buttons=self._cross_layer_buttons,
+            cross_layer_actuators=self._cross_layer_actuators,
             restricted_lifts=self._restricted_lifts,
             constraint=constraint,
         )

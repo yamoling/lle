@@ -25,6 +25,13 @@ def main():
     parser.add_argument("--lasers", type=int, default=1, help="Lasers per layer (default: 1).")
     parser.add_argument("--walls", type=int, default=3, help="Walls per layer (default: 3).")
     parser.add_argument("--boxes", type=int, default=0, help="Boxes per layer (default: 0).")
+    parser.add_argument(
+        "--actuators",
+        nargs="+",
+        default=["button"],
+        choices=["button", "lever", "plate", "random"],
+        help="Actuators of every lift, one per kind (default: button).",
+    )
     parser.add_argument("--restricted-lifts", type=float, default=0.5, help="Probability that a lift only takes its rider.")
     parser.add_argument("--cooperative", action="store_true", help="Only keep levels that require cooperation.")
     parser.add_argument("--seed", type=int, default=0)
@@ -36,6 +43,7 @@ def main():
     builder = (
         lle.generate(width=args.size, height=args.size, n_agents=args.agents)
         .layers(args.layers, restricted_lifts=args.restricted_lifts)
+        .actuators(*args.actuators)
         .lasers(args.lasers)
         .walls(args.walls)
         .boxes(args.boxes)
