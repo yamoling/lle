@@ -101,3 +101,12 @@ The encoding follows `World::step`, which resolves a step in three passes: every
 - **Boxes:** the world never lifts onto a box, and a rider walking onto a box on its lift pushes it like `box_push` would.
 
 Reachability (`ConstraintContext`) includes the lift moves, both in the exit distances and in the per-agent relevant positions, so that cells only reachable by lift are not pruned. `python/tests/solver/test_lifts.py` checks the solver on tricky worlds against the shortest plan length found by an exhaustive search over `World`.
+
+### Levers and pressure plates
+
+Two other actuators pulse the lifts of their group, next to buttons, with the same colour restriction. In `World::step`, the pulsed groups are gathered after the walk pass, in `pulsed_groups`:
+
+- a **lever** (`H<g>`) is toggled by `Trigger`. While it is on, it pulses its group at every step, from the step it is switched on until the step it is switched off (excluded). Its on/off flag is the only actuator state that persists, so it is part of `WorldState` (`levers_on`);
+- a **pressure plate** (`P<g>`) pulses its group at every step an authorized agent stands on it after the walk pass. It is not triggerable.
+
+The solver does not encode them yet: `ClauseGenerator::new` rejects such worlds with `SolverError::UnsupportedFeature`.
