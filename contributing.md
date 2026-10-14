@@ -76,7 +76,7 @@ When those necessary conditions fail, _P_ is impossible, the `No*` restriction i
 
 #### Help events
 
-`Help(h, b, t)` holds when, at `t`, `b` stands on a beam of `h` with no box upstream on that beam (so `h` must be the one blocking it), or when `h` pressed a button whose group lifted `b` during the step from `t - 1` to `t`. Pushing a box is never cooperation: a beam blocked by a box is not help, whoever pushed the box. `NoCooperation` assumes every `Help` variable false, and the Python trajectory analyser (`lle.characterization.plan`) detects the same events.
+`Help(h, b, t)` holds when, at `t`, `b` stands on a beam of `h` with no box upstream on that beam (so `h` must be the one blocking it), or when a lift lifted `b` during the step from `t - 1` to `t` and `h` is credited for an actuator that pulsed its group: `h` pressed the button, stands on the pressure plate, or is the last agent who toggled the lever (`LeverOwner`), which is on. Pushing a box is never cooperation: a beam blocked by a box is not help, whoever pushed the box. `NoCooperation` assumes every `Help` variable false, and the Python trajectory analyser (`lle.characterization.plan`) detects the same events.
 
 ### Boxes
 
@@ -90,14 +90,17 @@ When those necessary conditions fail, _P_ is impossible, the `No*` restriction i
 
 A box on a non-void beam tile blocks the beam, whatever its colour: `beam_activation` counts boxes as blockers next to the beam's owner.
 
-### Lifts and buttons
+### Lifts, buttons, levers and pressure plates
 
-The encoding follows `World::step`, which resolves a step in three passes: every agent walks (pushing boxes), every agent taking `Trigger` on a button it may press pulses the lifts of the button's group, then every pulsed lift moves the agent standing on it, if that agent may ride it, one layer up or down. Two variables describe the step from $t$ to $t + 1$: `Button(b, t)` (button $b$ is pressed) and `Lifted(i, L, t)` (agent $i$ is lifted by lift $L$). `Lifted` variables only exist for the agents whose colour may ride $L$, and are created in `lift_moves`; every clause that reads them goes through `lifted_literals`.
+The encoding follows `World::step`, which resolves a step in three passes: every agent walks (pushing boxes), then the groups are pulsed (every agent taking `Trigger` presses the button or toggles the lever it stands on; a group is pulsed by a pressed button, a lever that is on, or a pressure plate with an allowed agent on it), then every pulsed lift moves the agent standing on it, if that agent may ride it, one layer up or down. These variables describe the step from $t$ to $t + 1$: `Button(b, t)` (button $b$ is pressed), `Toggle(l, t)` (lever $l$ is toggled), `Pulse(g, t)` (group $g$ is pulsed) and `Lifted(i, L, t)` (agent $i$ is lifted by lift $L$). `Lifted` variables only exist for the agents whose colour may ride $L$, and are created in `lift_moves`; every clause that reads them goes through `lifted_literals`.
 
-- **Press:** a pressed button has an agent allowed to press it on it, and that agent stays there.
+- **Pulse:** `Pulse(g, t)` is the disjunction of the group's pressed buttons, of its levers that are on at $t + 1$ (a lever pulses in the very step it is switched on, and no longer in the step it is switched off), and of its plates occupied after the walk. A plate's occupancy is `Agent(i, p, t + 1)`, unless a lift may bring $i$ onto the plate: then an `OnPlate` variable excludes that lift. The lift clauses below only read `Pulse`.
+- **Lever state:** `LeverOn(l, t + 1)` is `LeverOn(l, t)` xor `Toggle(l, t)`; levers start off, so no variable exists before the first possible toggle. A toggle needs an allowed agent on the lever, who stays there, like a press.
+
+- **Press:** a pressed button or a toggled lever has an agent allowed to activate it on it, and that agent stays there.
 - **Lift move:** a lifted agent stood on its lift or walked onto it at $t$ (both happen in one step), one button of the lift's group is pressed, and the agent is on the lift's destination at $t + 1$. Time-wise adjacency and the following conflict accept a lifted agent as an extra way to enter a cell.
 - **Forced lift:** a pulsed lift never keeps an agent it may ride, unless another lift brought that agent there in this very step (a lift moves an agent once per step). This also forbids relying on the cases where the world cancels a lift (a box or another agent on the destination).
-- **The rider is on the lift between the walk and the lift pass,** even when it walked onto it: no other agent may leave or enter the lift in that step, no box may be pushed onto it, and lasers are checked in that intermediate state too (`walk_pass_lasers`), where a lifted agent blocks the beams of its lift and not those of its destination.
+- **The rider is on the lift between the walk and the lift pass,** even when it walked onto it: no other agent may leave or walk onto the lift in that step (another lift of the group may still bring an agent onto it, swapping their riders), no box may be pushed onto it, and lasers are checked in that intermediate state too (`walk_pass_lasers`), where a lifted agent blocks the beams of its lift and not those of its destination.
 - **Boxes:** the world never lifts onto a box, and a rider walking onto a box on its lift pushes it like `box_push` would.
 
 Reachability (`ConstraintContext`) includes the lift moves, both in the exit distances and in the per-agent relevant positions, so that cells only reachable by lift are not pruned. `python/tests/solver/test_lifts.py` checks the solver on tricky worlds against the shortest plan length found by an exhaustive search over `World`.

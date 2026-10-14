@@ -84,10 +84,16 @@ impl ClauseEngine {
         helpers
     }
 
-    /// `helper → beneficiary` for every button `helper` may press that pulses a lift
-    /// `beneficiary` may ride. Ignores reachability.
+    /// `helper → beneficiary` for every button, lever or pressure plate `helper` may activate that
+    /// pulses a lift `beneficiary` may ride. Ignores reachability.
     fn lift_help_arcs(&self) -> impl Iterator<Item = StaticHelpArc> + '_ {
-        self.ctx.buttons.iter().flat_map(move |button| {
+        let actuators = self
+            .ctx
+            .buttons
+            .iter()
+            .chain(&self.ctx.levers)
+            .chain(&self.ctx.plates);
+        actuators.flat_map(move |button| {
             self.ctx
                 .lifts
                 .iter()
@@ -207,7 +213,8 @@ impl ClauseEngine {
     }
 
     /// Decode a SAT model into a joint action plan of length `t_end`. Positions alone cannot tell
-    /// `Trigger` from `Stay`, so the agent standing on a pressed button triggers it.
+    /// `Trigger` from `Stay`, so the agent standing on a pressed button or a toggled lever triggers
+    /// it. Pressure plates need no action.
     pub fn decode_plan(
         &self,
         literals: &[i32],
@@ -216,13 +223,14 @@ impl ClauseEngine {
         let mut plan = self.pool.decode_plan(literals, t_end)?;
         let model: HashSet<i32> = literals.iter().copied().filter(|&l| l > 0).collect();
         for &literal in &model {
-            let Some(VarKey::Button { button, t }) = self.pool.key(literal) else {
-                continue;
+            let (pos, t) = match self.pool.key(literal) {
+                Some(VarKey::Button { button, t }) => (self.ctx.buttons[button].pos, t),
+                Some(VarKey::Toggle { lever, t }) => (self.ctx.levers[lever].pos, t),
+                _ => continue,
             };
             if t >= t_end {
                 continue;
             }
-            let pos = self.ctx.buttons[button].pos;
             for (agent, action) in plan[t].iter_mut().enumerate() {
                 if self
                     .pool

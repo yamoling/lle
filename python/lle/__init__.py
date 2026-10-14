@@ -68,7 +68,7 @@ Two other actuators pulse lifts, and all three can be mixed in one world:
   `TRIGGER` action.
 
 Like buttons, both can be restricted to one colour. Whether each lever is on is part of the
-`WorldState` (`levers_on`). The solver does not support levers and pressure plates yet.
+`WorldState` (`levers_on`).
 ```python
 from lle import Action, World
 

@@ -28,8 +28,10 @@ exists when, at state index `t`:
   3. another agent, `beneficiary`, stands on a tile of that same beam without dying, with no box
      upstream of it on that beam. A beam blocked by a box is never help: pushing a box is not
      cooperation.
-- **lift help:** during the step from `t - 1` to `t`, agent `helper` takes `TRIGGER` on a button it
-  may press, and a lift of the button's group moves another agent, `beneficiary`.
+- **lift help:** during the step from `t - 1` to `t`, a lift moves `beneficiary`, and `helper` is
+  credited for an actuator that pulsed the lift's group: it takes `TRIGGER` on the button, stands
+  on the pressure plate, or is the last agent who toggled the lever, which is on. A lever switched
+  on by its own rider is never help.
 
 The trajectory analyser records these events as `DependencyEdge(helper, beneficiary, t)` in `TemporalDependencyGraph`. The graph keeps both:
 

@@ -9,13 +9,7 @@ impl ClauseEngine {
     /// transitions are materialized only when their help literals and predecessor prefixes exist.
     pub fn generate_sequence_clauses(&mut self, t: usize, length: usize) -> Vec<Clause> {
         self.ctx.update(t);
-        let n_helpers = self
-            .ctx
-            .laser_sources
-            .iter()
-            .filter_map(|source| source.owner)
-            .collect::<std::collections::HashSet<_>>()
-            .len();
+        let n_helpers = self.potential_helpers().len();
         let max_temporal_edges = n_helpers
             .saturating_mul(self.ctx.n_agents.saturating_sub(1))
             .saturating_mul(self.ctx.t_max + 1);

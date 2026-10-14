@@ -15,8 +15,9 @@ impl ClauseEngine {
     /// - **laser help:** the beneficiary stands on one of the helper's laser beam tiles with no box
     ///   upstream on that beam, an occupancy that is only survivable when the helper blocks the beam
     ///   (enforced by the laser clauses, not here). A beam blocked by a box is never help;
-    /// - **lift help:** during the step from `t - 1` to `t`, the helper pressed a button that lifted
-    ///   the beneficiary.
+    /// - **lift help:** during the step from `t - 1` to `t`, a lift lifted the beneficiary and the
+    ///   helper is credited for an actuator that pulsed its group: it pressed the button, stands on
+    ///   the pressure plate, or is the last agent who toggled the lever (which is on).
     ///
     /// ```text
     /// help(helper, beneficiary, t) <=> OR_events event
@@ -28,7 +29,7 @@ impl ClauseEngine {
     /// emitted.
     pub fn generate_help_clauses(&mut self, t: usize) -> Vec<Clause> {
         self.ctx.update(t);
-        let mut clauses = vec![];
+        let mut clauses = self.lever_owners(t);
         // "Some box stands upstream of this beam tile", per source and beam tile.
         let box_upstream: Vec<Vec<Option<Literal>>> = (0..self.ctx.laser_sources.len())
             .map(|s| self.box_upstream(s, t, &mut clauses))
@@ -94,6 +95,38 @@ impl ClauseEngine {
                             ));
                         }
                     }
+                    for p in 0..self.ctx.plates.len() {
+                        let plate = &self.ctx.plates[p];
+                        if plate.group != lift.group || !plate.pressers.contains(&helper) {
+                            continue;
+                        }
+                        // Allocated by the lift clauses of step `t` (`ClauseEngine::plate_on`).
+                        let on_plate = self
+                            .pool
+                            .get(&VarKey::OnPlate {
+                                plate: p,
+                                agent_id: helper,
+                                t,
+                            })
+                            .or_else(|| self.pool.get(&VarKey::agent(helper, plate.pos, t)));
+                        if let Some(on_plate) = on_plate {
+                            events.push(and(&mut self.pool, &[lifted, on_plate], &mut clauses));
+                        }
+                    }
+                    for (l, lever) in self.ctx.levers.iter().enumerate() {
+                        if lever.group != lift.group || !lever.pressers.contains(&helper) {
+                            continue;
+                        }
+                        let on = self.pool.get(&VarKey::LeverOn { lever: l, t });
+                        let owner = self.pool.get(&VarKey::LeverOwner {
+                            lever: l,
+                            agent_id: helper,
+                            t,
+                        });
+                        if let (Some(on), Some(owner)) = (on, owner) {
+                            events.push(and(&mut self.pool, &[lifted, on, owner], &mut clauses));
+                        }
+                    }
                 }
             }
             // No possible event: the help event is impossible, so create nothing
@@ -113,6 +146,52 @@ impl ClauseEngine {
             clause.push(-help);
             clause.extend(events);
             clauses.push(clause);
+        }
+        clauses
+    }
+
+    /// `owner(l, i, t) <-> (toggle(l, t - 1) & agent(i, pos, t - 1)) | (owner(l, i, t - 1) & !toggle(l, t - 1))`:
+    /// the last agent who toggled lever `l` by `t`. Nobody owns a lever before its first toggle.
+    fn lever_owners(&mut self, t: usize) -> Vec<Clause> {
+        let mut clauses = Vec::new();
+        if t == 0 {
+            return clauses;
+        }
+        for l in 0..self.ctx.levers.len() {
+            let pos = self.ctx.levers[l].pos;
+            let toggle = self.pool.get(&VarKey::Toggle { lever: l, t: t - 1 });
+            for agent in self.ctx.levers[l].pressers.clone() {
+                let previous = self.pool.get(&VarKey::LeverOwner {
+                    lever: l,
+                    agent_id: agent,
+                    t: t - 1,
+                });
+                let on_lever = self.pool.get(&VarKey::agent(agent, pos, t - 1));
+                let toggled_by = match (toggle, on_lever) {
+                    (Some(toggle), Some(on_lever)) => {
+                        Some(and(&mut self.pool, &[toggle, on_lever], &mut clauses))
+                    }
+                    _ => None,
+                };
+                let kept = match (previous, toggle) {
+                    (Some(previous), Some(toggle)) => {
+                        Some(and(&mut self.pool, &[previous, -toggle], &mut clauses))
+                    }
+                    (previous, None) => previous,
+                    (None, Some(_)) => None,
+                };
+                let reasons: Vec<Literal> = toggled_by.into_iter().chain(kept).collect();
+                if reasons.is_empty() {
+                    continue;
+                }
+                let owner = self.pool.id(VarKey::LeverOwner {
+                    lever: l,
+                    agent_id: agent,
+                    t,
+                });
+                clauses.push(once(-owner).chain(reasons.iter().copied()).collect());
+                clauses.extend(reasons.into_iter().map(|reason| implies(reason, owner)));
+            }
         }
         clauses
     }

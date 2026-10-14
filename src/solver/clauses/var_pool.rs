@@ -41,6 +41,37 @@ pub enum VarKey {
         button: usize,
         t: usize,
     },
+    /// Whether the lifts of `group` are pulsed during the step from `t` to `t + 1`, by a pressed
+    /// button, a lever that is on or an occupied pressure plate.
+    Pulse {
+        group: usize,
+        t: usize,
+    },
+    /// Whether `lever` (index in `ConstraintContext::levers`) is toggled during the step from `t`
+    /// to `t + 1`.
+    Toggle {
+        lever: usize,
+        t: usize,
+    },
+    /// Whether `lever` is on at `t`, i.e. after the toggles of the step from `t - 1` to `t`.
+    /// Levers start off, so no variable exists at `t == 0`.
+    LeverOn {
+        lever: usize,
+        t: usize,
+    },
+    /// Whether `agent` is the last agent who toggled `lever` by `t`.
+    LeverOwner {
+        lever: usize,
+        agent_id: AgentId,
+        t: usize,
+    },
+    /// Whether `agent` stands on `plate` after the walk of the step from `t - 1` to `t`. Only
+    /// allocated when a lift may bring the agent onto the plate, otherwise `agent(pos, t)` is used.
+    OnPlate {
+        plate: usize,
+        agent_id: AgentId,
+        t: usize,
+    },
     /// Whether the specified agent is lifted by `lift` (index in `ConstraintContext::lifts`)
     /// during the step from `t` to `t + 1`.
     Lifted {
@@ -135,7 +166,7 @@ impl VarPool {
         Self::default()
     }
 
-    fn id(&mut self, key: VarKey) -> Literal {
+    pub fn id(&mut self, key: VarKey) -> Literal {
         if let Some(&id) = self.ids.get(&key) {
             return id;
         }
@@ -177,10 +208,6 @@ impl VarPool {
 
     pub fn laser(&mut self, laser_id: usize, pos: Position, t: usize) -> Literal {
         self.id(VarKey::Laser { laser_id, pos, t })
-    }
-
-    pub fn button(&mut self, button: usize, t: usize) -> Literal {
-        self.id(VarKey::Button { button, t })
     }
 
     pub fn lifted(&mut self, agent_id: AgentId, lift: usize, t: usize) -> Literal {

@@ -98,11 +98,11 @@ pub struct LiftInfo {
     pub riders: Vec<usize>,
 }
 
-/// One button's relevant info for constraint generation.
+/// One actuator's (button, lever or pressure plate) relevant info for constraint generation.
 pub struct ButtonInfo {
     pub pos: Position,
     pub group: usize,
-    /// Agents whose colour may press this button.
+    /// Agents whose colour may activate this actuator.
     pub pressers: Vec<usize>,
 }
 
@@ -120,6 +120,8 @@ pub struct ConstraintContext {
     pub laser_sources: Vec<LaserSourceInfo>,
     pub lifts: Vec<LiftInfo>,
     pub buttons: Vec<ButtonInfo>,
+    pub levers: Vec<ButtonInfo>,
+    pub plates: Vec<ButtonInfo>,
     exits: PositionSet,
     layers: usize,
     height: usize,
@@ -236,6 +238,24 @@ impl ConstraintContext {
                 pressers: allowed(button.authorized_colour()),
             })
             .collect();
+        let levers = world
+            .levers()
+            .into_iter()
+            .map(|(pos, lever)| ButtonInfo {
+                pos,
+                group: lever.group_id(),
+                pressers: allowed(lever.authorized_colour()),
+            })
+            .collect();
+        let plates = world
+            .pressure_plates()
+            .into_iter()
+            .map(|(pos, plate)| ButtonInfo {
+                pos,
+                group: plate.group_id(),
+                pressers: allowed(plate.authorized_colour()),
+            })
+            .collect();
         // An agent standing on a lift or walking onto it can be lifted in the same step.
         let mut lift_predecessors: HashMap<Position, Vec<Position>> = HashMap::new();
         for lift in &lifts {
@@ -336,6 +356,8 @@ impl ConstraintContext {
             laser_sources,
             lifts,
             buttons,
+            levers,
+            plates,
             exits,
             layers,
             height,

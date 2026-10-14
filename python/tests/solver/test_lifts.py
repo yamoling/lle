@@ -1295,7 +1295,47 @@ def test_lifting_another_agent_is_help():
     assert lle.is_cooperative(world, 10)
 
 
-@pytest.mark.parametrize("world_str", ["S0 TU0 H0 S1 X\n;\nX . . . .", "S0 TU0 P0 S1 X\n;\nX . . . ."])
-def test_solver_rejects_levers_and_pressure_plates(world_str: str):
-    with pytest.raises(NotImplementedError):
-        lle.solve(World(world_str), 10)
+# Agent 0 must ride the lift; the actuator next to it is the only way to pulse it.
+ACTUATOR_WORLDS = {
+    "button": "S0 TU0 B0 S1 X\n;\nX . . . .",
+    "plate": "S0 TU0 P0 S1 X\n;\nX . . . .",
+    "lever": "S0 TU0 H0 S1 X\n;\nX . . . .",
+    "lever-of-agent-1": "S0 TU0 H0A1 S1 X\n;\nX . . . .",
+}
+
+
+@pytest.mark.parametrize("name", ACTUATOR_WORLDS)
+def test_solves_worlds_with_actuators(name: str):
+    plan = lle.solve(World(ACTUATOR_WORLDS[name]), 12)
+    assert plan is not None
+    assert_plan_is_valid(ACTUATOR_WORLDS[name], plan, collect_gems=False)
+
+
+@pytest.mark.parametrize("name", ["button", "plate", "lever-of-agent-1"])
+def test_actuator_pressed_by_another_agent_is_help(name: str):
+    assert lle.solve(World(ACTUATOR_WORLDS[name]), 12, mode="no-cooperation") is None
+    assert lle.is_cooperative(World(ACTUATOR_WORLDS[name]), 12)
+
+
+def test_lever_toggled_by_its_own_rider_is_not_help():
+    # A lever keeps pulsing once switched on: agent 0 can switch it on, then ride the lift alone.
+    plan = lle.solve(World(ACTUATOR_WORLDS["lever"]), 12, mode="no-cooperation")
+    assert plan is not None
+    assert_plan_is_valid(ACTUATOR_WORLDS["lever"], plan, collect_gems=False)
+    assert profile_plan(World(ACTUATOR_WORLDS["lever"]), plan).graph.is_empty
+
+
+def test_lift_presses_can_form_a_sequence():
+    # Agent 0 lifts agent 1, who then lifts agent 2: no laser, yet a sequence of two help events.
+    world = "S1 TU0A1 B0 S0 X\n;\nS2 TU1A2 B1 . X\n;\n. X . . ."
+    assert lle.solve(World(world), 12) is not None
+    assert lle.solve(World(world), 12, mode="no-sequence") is None
+
+
+# Two lifts of one group point at each other: one pulse swaps their riders (agents 0 and 2).
+SWAP_MAP = ". . TU1\nTU0 L2S B0A0\nS0 X TU0\n;\n{actuator} X TD1\n. X S2\n. . S1"
+
+
+@pytest.mark.parametrize(("actuator", "shortest"), [("P1", 7), ("B1", 8)])
+def test_lifts_of_one_group_swap_their_riders(actuator: str, shortest: int):
+    check(Case(f"swap-{actuator}", SWAP_MAP.format(actuator=actuator), shortest=shortest))

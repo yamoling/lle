@@ -13,10 +13,10 @@ use crate::tiles::CardinalDirection;
 
 use super::utils::implies;
 
-/// Lift clauses, following `World::step`: an agent pressing a button stays on it, and a pressed
-/// button pulses every lift of its group, which moves the allowed agent standing on it once the
-/// walking part of the step is over. Step `t` encodes the presses and lifts of the step from
-/// `t - 1` to `t`.
+/// Lift clauses, following `World::step`: after the walk, the agents taking `Trigger` press the
+/// buttons and toggle the levers they stand on, then every group pulsed by a pressed button, a
+/// lever that is on or an occupied pressure plate moves the allowed agent standing on each of its
+/// lifts. Step `t` encodes the presses and lifts of the step from `t - 1` to `t`.
 impl ClauseEngine {
     /// Every lift-related clause for step `t`. Must run before the clauses that read the
     /// `Lifted` variables through [`Self::lifted_into`].
@@ -24,8 +24,11 @@ impl ClauseEngine {
         if t == 0 {
             return Vec::new();
         }
-        let mut clauses = self.button_presses(t);
+        let mut clauses = self.triggers(t);
+        clauses.extend(self.lever_states(t));
+        clauses.extend(self.pulses(t));
         clauses.extend(self.lift_moves(t));
+        clauses.extend(self.plate_occupancy(t));
         clauses.extend(self.forced_lifts(t));
         clauses.extend(self.walk_pass_lasers(t));
         clauses
@@ -123,35 +126,171 @@ impl ClauseEngine {
         clauses
     }
 
-    /// A pressed button has an allowed agent on it, and that agent stays there.
-    fn button_presses(&mut self, t: usize) -> Vec<Clause> {
+    /// A pressed button or a toggled lever has an allowed agent on it, who takes `Trigger` and so
+    /// stays there.
+    fn triggers(&mut self, t: usize) -> Vec<Clause> {
         let ctx = &self.ctx;
         let pool = &mut self.pool;
         let mut clauses = Vec::new();
-        for (b, button) in ctx.buttons.iter().enumerate() {
-            let pressers: Vec<usize> = button
+        let buttons = ctx.buttons.iter().enumerate().map(|(b, button)| {
+            let key = VarKey::Button {
+                button: b,
+                t: t - 1,
+            };
+            (key, button)
+        });
+        let levers = ctx.levers.iter().enumerate().map(|(l, lever)| {
+            let key = VarKey::Toggle { lever: l, t: t - 1 };
+            (key, lever)
+        });
+        for (key, actuator) in buttons.chain(levers) {
+            let pressers: Vec<usize> = actuator
                 .pressers
                 .iter()
                 .copied()
                 .filter(|&agent| {
                     ctx.relevant_positions_for_agent(agent, t - 1)
-                        .contains(&button.pos)
+                        .contains(&actuator.pos)
                         && ctx
                             .relevant_positions_for_agent(agent, t)
-                            .contains(&button.pos)
+                            .contains(&actuator.pos)
                 })
                 .collect();
             if pressers.is_empty() {
                 continue;
             }
-            let pressed = pool.button(b, t - 1);
+            let pressed = pool.id(key);
             let mut someone_on_it = vec![-pressed];
             for agent in pressers {
-                let before = pool.agent(agent, button.pos, t - 1);
+                let before = pool.agent(agent, actuator.pos, t - 1);
                 someone_on_it.push(before);
-                clauses.push(vec![-pressed, -before, pool.agent(agent, button.pos, t)]);
+                clauses.push(vec![-pressed, -before, pool.agent(agent, actuator.pos, t)]);
             }
             clauses.push(someone_on_it);
+        }
+        clauses
+    }
+
+    /// `on(l, t) <-> on(l, t - 1) xor toggle(l, t - 1)`. Levers start off: no `LeverOn` variable
+    /// exists until a toggle is possible.
+    fn lever_states(&mut self, t: usize) -> Vec<Clause> {
+        let mut clauses = Vec::new();
+        for l in 0..self.ctx.levers.len() {
+            let previous = self.pool.get(&VarKey::LeverOn { lever: l, t: t - 1 });
+            let toggle = self.pool.get(&VarKey::Toggle { lever: l, t: t - 1 });
+            if previous.is_none() && toggle.is_none() {
+                continue;
+            }
+            let on = self.pool.id(VarKey::LeverOn { lever: l, t });
+            match (previous, toggle) {
+                (Some(p), Some(x)) => clauses.extend([
+                    vec![-on, p, x],
+                    vec![-on, -p, -x],
+                    vec![on, -p, x],
+                    vec![on, p, -x],
+                ]),
+                (Some(same), None) | (None, Some(same)) => {
+                    clauses.extend([implies(on, same), implies(same, on)])
+                }
+                (None, None) => unreachable!(),
+            }
+        }
+        clauses
+    }
+
+    /// `pulse(g, t - 1) <-> OR(pressed buttons, levers on at t, occupied plates)` for every group
+    /// that has a lift. A lever pulses in the very step it is switched on, and no longer in the
+    /// step it is switched off; a plate pulses when an allowed agent is on it after the walk.
+    fn pulses(&mut self, t: usize) -> Vec<Clause> {
+        let mut clauses = Vec::new();
+        let mut groups: Vec<usize> = self.ctx.lifts.iter().map(|lift| lift.group).collect();
+        groups.sort_unstable();
+        groups.dedup();
+        for group in groups {
+            let mut activators = Vec::new();
+            for (b, button) in self.ctx.buttons.iter().enumerate() {
+                if button.group == group {
+                    activators.extend(self.pool.get(&VarKey::Button {
+                        button: b,
+                        t: t - 1,
+                    }));
+                }
+            }
+            for (l, lever) in self.ctx.levers.iter().enumerate() {
+                if lever.group == group {
+                    activators.extend(self.pool.get(&VarKey::LeverOn { lever: l, t }));
+                }
+            }
+            for p in 0..self.ctx.plates.len() {
+                if self.ctx.plates[p].group == group {
+                    for agent in self.ctx.plates[p].pressers.clone() {
+                        activators.extend(self.plate_on(p, agent, t));
+                    }
+                }
+            }
+            if activators.is_empty() {
+                continue;
+            }
+            let pulse = self.pool.id(VarKey::Pulse { group, t: t - 1 });
+            clauses.push(once(-pulse).chain(activators.iter().copied()).collect());
+            clauses.extend(
+                activators
+                    .into_iter()
+                    .map(|activator| implies(activator, pulse)),
+            );
+        }
+        clauses
+    }
+
+    /// The literal of `agent` standing on plate `p` after the walk of the step to `t`, or `None` if
+    /// it cannot. It is `agent(pos, t)`, unless a lift may bring the agent onto the plate: then an
+    /// `OnPlate` variable is used, defined by [`Self::plate_occupancy`] once the lifts exist.
+    pub(super) fn plate_on(&mut self, p: usize, agent: usize, t: usize) -> Option<Literal> {
+        let pos = self.ctx.plates[p].pos;
+        if !self
+            .ctx
+            .relevant_positions_for_agent(agent, t)
+            .contains(&pos)
+        {
+            return None;
+        }
+        let liftable = self
+            .ctx
+            .lifts
+            .iter()
+            .any(|lift| lift.dest == pos && lift.riders.contains(&agent));
+        Some(if liftable {
+            self.pool.id(VarKey::OnPlate {
+                plate: p,
+                agent_id: agent,
+                t,
+            })
+        } else {
+            self.pool.agent(agent, pos, t)
+        })
+    }
+
+    /// `on_plate(p, i, t) <-> agent(i, pos, t) & !lifted_into(i, pos, t)`: an agent a lift brings
+    /// onto a plate is not on it during the walk.
+    fn plate_occupancy(&mut self, t: usize) -> Vec<Clause> {
+        let mut clauses = Vec::new();
+        for (p, plate) in self.ctx.plates.iter().enumerate() {
+            for &agent in &plate.pressers {
+                let Some(on) = self.pool.get(&VarKey::OnPlate {
+                    plate: p,
+                    agent_id: agent,
+                    t,
+                }) else {
+                    continue;
+                };
+                let at = self.pool.agent(agent, plate.pos, t);
+                let lifted = self.lifted_into(agent, plate.pos, t);
+                clauses.push(implies(on, at));
+                for &l in &lifted {
+                    clauses.push(implies(on, -l));
+                }
+                clauses.push([-at, on].into_iter().chain(lifted).collect());
+            }
         }
         clauses
     }
@@ -166,51 +305,45 @@ impl ClauseEngine {
         let ctx = &self.ctx;
         let pool = &mut self.pool;
         let mut clauses = Vec::new();
-        for (b, button) in ctx.buttons.iter().enumerate() {
-            let Some(pressed) = pool.get(&VarKey::Button {
-                button: b,
+        for lift in &ctx.lifts {
+            let Some(pulse) = pool.get(&VarKey::Pulse {
+                group: lift.group,
                 t: t - 1,
             }) else {
                 continue;
             };
-            for lift in ctx.lifts.iter().filter(|lift| lift.group == button.group) {
-                for &agent in &lift.riders {
-                    if ctx
-                        .relevant_positions_for_agent(agent, t)
-                        .contains(&lift.pos)
-                    {
-                        let landed: Vec<_> =
-                            lifted_literals(ctx, pool, t, |other| other.dest == lift.pos)
-                                .filter(|&(a, _, _)| a == agent)
-                                .map(|(_, _, lit)| lit)
-                                .collect();
-                        let stays = pool.agent(agent, lift.pos, t);
-                        clauses.push([-pressed, -stays].into_iter().chain(landed).collect());
-                    }
+            for &agent in &lift.riders {
+                if ctx
+                    .relevant_positions_for_agent(agent, t)
+                    .contains(&lift.pos)
+                {
+                    let landed: Vec<_> =
+                        lifted_literals(ctx, pool, t, |other| other.dest == lift.pos)
+                            .filter(|&(a, _, _)| a == agent)
+                            .map(|(_, _, lit)| lit)
+                            .collect();
+                    let stays = pool.agent(agent, lift.pos, t);
+                    clauses.push([-pulse, -stays].into_iter().chain(landed).collect());
                 }
             }
         }
         clauses
     }
 
-    /// A lifted agent stood on its lift or walked onto it, one of the lift's buttons was pressed,
-    /// and the agent lands on the lift's destination.
+    /// A lifted agent stood on its lift or walked onto it, the lift's group was pulsed, and the
+    /// agent lands on the lift's destination.
     fn lift_moves(&mut self, t: usize) -> Vec<Clause> {
         let ctx = &self.ctx;
         let pool = &mut self.pool;
         let mut clauses = Vec::new();
+        let mut arrivals = Vec::new();
         for (l, lift) in ctx.lifts.iter().enumerate() {
-            let pulses: Vec<Literal> = ctx
-                .buttons
-                .iter()
-                .enumerate()
-                .filter(|(_, button)| button.group == lift.group)
-                .filter_map(|(b, _)| {
-                    pool.get(&VarKey::Button {
-                        button: b,
-                        t: t - 1,
-                    })
+            let pulses: Vec<Literal> = pool
+                .get(&VarKey::Pulse {
+                    group: lift.group,
+                    t: t - 1,
                 })
+                .into_iter()
                 .collect();
             if pulses.is_empty() {
                 continue;
@@ -240,15 +373,20 @@ impl ClauseEngine {
                 clauses.push(once(-lifted).chain(pulses.iter().copied()).collect());
                 // The rider is on the lift once the walking part of the step is over, even when it
                 // walked onto it: no other agent may leave or enter the lift in that step, and no
-                // box may be pushed onto it.
+                // box may be pushed onto it. Another lift may still bring an agent onto it (two
+                // lifts of one group swapping their riders), see `arrivals` below.
                 for other in (0..ctx.n_agents).filter(|&other| other != agent) {
-                    for step in [t - 1, t] {
-                        if ctx
-                            .relevant_positions_for_agent(other, step)
-                            .contains(&lift.pos)
-                        {
-                            clauses.push(implies(lifted, -pool.agent(other, lift.pos, step)));
-                        }
+                    if ctx
+                        .relevant_positions_for_agent(other, t - 1)
+                        .contains(&lift.pos)
+                    {
+                        clauses.push(implies(lifted, -pool.agent(other, lift.pos, t - 1)));
+                    }
+                    if ctx
+                        .relevant_positions_for_agent(other, t)
+                        .contains(&lift.pos)
+                    {
+                        arrivals.push((lifted, other, lift.pos));
                     }
                 }
                 for box_id in 0..ctx.n_boxes() {
@@ -297,6 +435,16 @@ impl ClauseEngine {
                     }
                 }
             }
+        }
+        // Emitted once every `Lifted` variable of the step exists.
+        for (lifted, other, pos) in arrivals {
+            let mut clause = vec![-lifted, -pool.agent(other, pos, t)];
+            clause.extend(
+                lifted_literals(ctx, pool, t, |lift| lift.dest == pos)
+                    .filter(|&(a, _, _)| a == other)
+                    .map(|(_, _, lit)| lit),
+            );
+            clauses.push(clause);
         }
         clauses
     }

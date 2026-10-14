@@ -46,16 +46,6 @@ impl ClauseGenerator {
     /// The encoding treats a laser colour as its single owning agent, so colour sharing is a
     /// checked precondition rather than a supported case (`.agents/plans/agent-colour-id.md` §2).
     pub fn new(world: &World, t_max: usize) -> Result<Self, SolverError> {
-        // Only buttons are encoded: a lever's persistent state and a plate's passive
-        // pulse are not, so a plan found on such a world would be unsound.
-        if !world.levers().is_empty() {
-            return Err(SolverError::UnsupportedFeature { feature: "levers" });
-        }
-        if !world.pressure_plates().is_empty() {
-            return Err(SolverError::UnsupportedFeature {
-                feature: "pressure plates",
-            });
-        }
         let mut agents_by_colour: std::collections::BTreeMap<usize, Vec<usize>> =
             Default::default();
         for (agent_id, colour) in world.agent_colours().into_iter().enumerate() {

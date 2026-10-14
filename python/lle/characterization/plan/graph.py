@@ -106,11 +106,12 @@ class TemporalCooperationGraph:
         if reset:
             world.reset()
         edges = [DependencyEdge(helper, beneficiary, 0) for helper, beneficiary in detect_dependencies(world)]
+        lever_owners = {}
         for t, joint_action in enumerate(plan, start=1):
             events = world.step(joint_action)
             if isinstance(joint_action, Action):
                 joint_action = [joint_action]
-            for helper, beneficiary in detect_dependencies(world) | detect_lift_help(world, joint_action, events):
+            for helper, beneficiary in detect_dependencies(world) | detect_lift_help(world, joint_action, events, lever_owners):
                 edges.append(DependencyEdge(helper, beneficiary, t))
         return TemporalCooperationGraph(edges)
 
