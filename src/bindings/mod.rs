@@ -1,18 +1,16 @@
 use pyo3::prelude::*;
 use pyo3_stub_gen::define_stub_info_gatherer;
-
 mod pyagent;
 mod pyexceptions;
 mod solver;
 mod tiles;
 mod utils;
 mod world;
-
 pub use pyexceptions::{
     InvalidActionError, InvalidLevelError, InvalidWorldStateError, ParsingError,
 };
 pub use solver::{PyClauseGenerator, PySolveMode};
-pub use tiles::{PyLaser, PyLaserSource};
+pub use tiles::{PyButton, PyLaser, PyLaserSource, PyLift};
 pub use world::{PyAction, PyEventType, PyPosition, PyWorld, PyWorldEvent, PyWorldState};
 
 #[pymodule]
@@ -22,6 +20,8 @@ mod lle {
     #[pymodule]
     mod tiles {
         #[pymodule_export]
+        use super::super::tiles::PyButton;
+        #[pymodule_export]
         use super::super::tiles::PyDirection;
         #[pymodule_export]
         use super::super::tiles::PyGem;
@@ -29,6 +29,8 @@ mod lle {
         use super::super::tiles::PyLaser;
         #[pymodule_export]
         use super::super::tiles::PyLaserSource;
+        #[pymodule_export]
+        use super::super::tiles::PyLift;
     }
 
     #[pymodule]
@@ -55,6 +57,8 @@ mod lle {
         use super::super::world::PyAction;
         #[pymodule_export]
         use super::super::world::PyEventType;
+        #[pymodule_export]
+        use super::super::world::PyPosition;
         #[pymodule_export]
         use super::super::world::PyWorld;
         #[pymodule_export]

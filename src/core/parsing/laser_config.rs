@@ -2,14 +2,14 @@ use std::rc::Rc;
 
 use crate::{
     AgentId,
-    tiles::{Direction, LaserBeam, LaserId, LaserSource},
+    tiles::{CardinalDirection, LaserBeam, LaserId, LaserSource},
 };
 
 use super::ParseError;
 
 #[derive(Debug)]
 pub struct LaserConfig {
-    pub direction: Direction,
+    pub direction: CardinalDirection,
     pub agent_id: AgentId,
     pub laser_id: LaserId,
 }
@@ -17,7 +17,7 @@ pub struct LaserConfig {
 impl LaserConfig {
     /// Note there is no "TryFrom" implementation for LaserSource because we need the laser_id.
     pub fn from_str(value: &str, laser_id: LaserId) -> Result<LaserConfig, ParseError> {
-        let direction = Direction::try_from(value.chars().last().unwrap()).unwrap();
+        let direction = CardinalDirection::try_from(value.chars().last().unwrap()).unwrap();
         let agent_id_str = &value[1..value.len() - 1];
         let agent_id = match agent_id_str.parse::<AgentId>() {
             Ok(agent_id) => agent_id,

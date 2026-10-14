@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from lle.tiles import Direction
 from lle.types import Position
@@ -23,12 +23,17 @@ class CandidateLayout:
     gems: list[tuple[int, int]]
     walls: list[tuple[int, int]]
     lasers: list[tuple[int, tuple[int, int], Direction]]  # (owner, pos, dir)
+    boxes: list[tuple[int, int]] = field(default_factory=list)
 
     def is_geometry_valid(self):
         """Whether the sampled positions form a layout that can be turned into a `World`.
 
         A beam may cover neither an exit nor an agent start: the world string writes one token per
         cell, so a beam tile drawn over `S<id>` or `X` erases it and the world fails to parse.
+
+        Every box must be movable: along at least one axis, both neighbours are inside the grid and
+        neither a wall nor a laser source (one for the pusher, the other for the box). A box in a
+        corner of the grid or of walls would only be a wall.
         """
         wall_set = set(self.walls)
         laser_set = {pos for _, pos, _ in self.lasers}
@@ -43,4 +48,12 @@ class CandidateLayout:
             all_beam.update(tiles)
         if blocked & all_beam:
             return False
-        return True
+        fixed = wall_set | laser_set
+        return all(self._is_movable(box, fixed) for box in self.boxes)
+
+    def _is_movable(self, box: Position, fixed: set[Position]):
+        def free(i: int, j: int):
+            return 0 <= i < self.height and 0 <= j < self.width and (i, j) not in fixed
+
+        i, j = box
+        return (free(i - 1, j) and free(i + 1, j)) or (free(i, j - 1) and free(i, j + 1))

@@ -1,17 +1,17 @@
 use std::collections::HashSet;
 
-use crate::Position;
 use crate::World;
 use crate::solver::Clause;
 use crate::solver::Literal;
 use crate::solver::clauses::ClauseEngine;
+use crate::{Action, Position};
 
 use crate::solver::{ClauseGenerator, SolveMode, VarKey};
 use rstest::rstest;
 use rstest_reuse::{self, apply, template};
 
 fn pos(i: usize, j: usize) -> Position {
-    Position { i, j }
+    Position { i, j, k: 0 }
 }
 
 fn build(map: &str, t_max: usize) -> ClauseGenerator {
@@ -169,6 +169,30 @@ fn test_position_validity_single_agent() {
     for t in 2..=4 {
         assert!(generator.exists(&VarKey::agent(0, pos(0, 2), t)));
     }
+}
+
+/// Every box is fixed at its start position at `t == 0`, like an agent.
+#[test]
+fn boxes_are_initialized_at_their_start_position() {
+    let world = World::try_from("S0 # . # X").expect("failed to parse world");
+    let mut generator = ClauseGenerator::new(&world, 4).unwrap();
+    let (clauses, _) = generator.generate(4, SolveMode::Standard, false);
+
+    for (box_id, start) in [(0, pos(0, 1)), (1, pos(0, 3))] {
+        let lit = generator
+            .literal(&VarKey::box_at(box_id, start, 0))
+            .expect("box variable at t = 0 must exist");
+        assert!(clauses.contains(&vec![lit]));
+    }
+}
+
+/// A world without boxes allocates no box variable.
+#[test]
+fn no_box_variable_without_boxes() {
+    let world = World::try_from("S0 . X").expect("failed to parse world");
+    let mut generator = ClauseGenerator::new(&world, 2).unwrap();
+    generator.generate(2, SolveMode::Standard, false);
+    assert!(!generator.exists(&VarKey::box_at(0, pos(0, 1), 0)));
 }
 
 #[test]
@@ -489,7 +513,7 @@ fn test_gem_must_be_collected_clause_3gems() {
     // within the time window [1, 3] for gem 0 and [2, 4] for gem 1
     let t_min = [1, 2];
     let t_max = [3, 4];
-    let positions = [Position { i: 0, j: 1 }, Position { i: 0, j: 2 }];
+    let positions = [Position { i: 0, j: 1, k: 0 }, Position { i: 0, j: 2, k: 0 }];
     for (i, gem_pos) in positions.into_iter().enumerate() {
         for tau in t_min[i]..=t_max[i] {
             if tau <= t_max[i] {
@@ -506,7 +530,7 @@ fn test_gem_must_be_collected_clause_3gems() {
         );
     }
     // Check gem 2 at (3,2): only accessible by agent 1 within the time window [2, 4]
-    let gem_pos = Position { i: 3, j: 2 };
+    let gem_pos = Position { i: 3, j: 2, k: 0 };
     for tau in 2..=4 {
         let err_message = format!("literal agent=1, pos={gem_pos:?}, t={tau} should exist");
         let lit = cg
@@ -646,45 +670,36 @@ fn test_no_step_on_active_laser_binary_clause() {
     }
 }
 
-/// Assert that every reachable downstream beam-tile variable for agent 1 is forbidden by a unit
-/// clause or an assumption across the generated horizon.
+/// Assert that every reachable beam-tile variable of a non-owner is forbidden, either by a unit
+/// clause (constant-active tile) or because it implies a `Help` variable assumed to be false.
 fn assert_no_cooperation_does_not_generate_beam_positions(
     cg: &ClauseGenerator,
     world: &World,
     clauses: Vec<Clause>,
     assumptions: Vec<Literal>,
 ) {
-    let clause_literals: HashSet<i32> = clauses.into_iter().flatten().map(|l| l.abs()).collect();
-    // 1) Check that no laser variable is present in the formula
-    for (pos, laser) in world.lasers() {
-        for t in 0..=cg.t_max() {
-            let key = VarKey::Laser {
-                laser_id: laser.laser_id(),
-                pos,
-                t,
-            };
-            if let Some(lit) = cg.literal(&key) {
-                assert!(
-                    !clause_literals.contains(&lit),
-                    "{key:?} (literal={lit}) should not be among the clause literals"
-                );
-            }
-        }
-    }
-    // 2) Verify that all agents are assumed not to walk on any foreign colour laser tile
     for agent_id in 0..world.n_agents() {
         for (pos, laser) in world.lasers() {
-            if agent_id == laser.agent_id() {
+            let owner = laser.agent_id();
+            if agent_id == owner {
                 continue;
             }
             for t in 0..=cg.t_max() {
                 let key = VarKey::Agent { agent_id, pos, t };
-                if let Some(lit) = cg.literal(&key) {
-                    assert!(
-                        assumptions.contains(&-lit),
-                        "{key:?} (literal={lit}) should be assumed to be false"
-                    );
-                }
+                let Some(lit) = cg.literal(&key) else {
+                    continue;
+                };
+                let forbidden = clauses.contains(&vec![-lit])
+                    || cg
+                        .literal(&VarKey::Help {
+                            helper: owner,
+                            beneficiary: agent_id,
+                            t,
+                        })
+                        .is_some_and(|help| {
+                            assumptions.contains(&-help) && clauses.contains(&vec![-lit, help])
+                        });
+                assert!(forbidden, "{key:?} (literal={lit}) should be forbidden");
             }
         }
     }
@@ -2122,4 +2137,274 @@ fn formula_still_admits_one_agent_idling_on_its_exit_while_another_travels() {
         admits(&generator, &clauses, &staggered),
         "only the all-agents-arrived state is early termination"
     );
+}
+
+/// Agent 1 presses the button while agent 0 walks onto the lift and rides it in the same step,
+/// landing on the cell agent 2 is leaving.
+const LIFT_WORLD: &str = "S0 TU0 B0 S1 X\n;\nX S2 . . X";
+
+fn at(j: usize, k: usize) -> Position {
+    Position { i: 0, j, k }
+}
+
+#[test]
+fn formula_admits_riding_a_lift_onto_a_cell_being_left() {
+    let mut generator = build(LIFT_WORLD, 6);
+    let (clauses, _) = generator.generate(4, SolveMode::Standard, false);
+    let trajectory = vec![
+        vec![at(0, 0), at(0, 0), at(1, 1), at(0, 1), at(0, 1)],
+        vec![at(3, 0), at(2, 0), at(2, 0), at(3, 0), at(4, 0)],
+        vec![at(1, 1), at(1, 1), at(2, 1), at(3, 1), at(4, 1)],
+    ];
+    assert!(admits(&generator, &clauses, &trajectory));
+}
+
+#[test]
+fn formula_rejects_a_lift_nobody_pressed() {
+    let mut generator = build(LIFT_WORLD, 6);
+    let (clauses, _) = generator.generate(4, SolveMode::Standard, false);
+    let trajectory = vec![
+        vec![at(0, 0), at(0, 0), at(1, 1), at(0, 1), at(0, 1)],
+        vec![at(3, 0), at(3, 0), at(3, 0), at(3, 0), at(4, 0)],
+        vec![at(1, 1), at(1, 1), at(2, 1), at(3, 1), at(4, 1)],
+    ];
+    assert!(trajectory_literals(&generator, &trajectory).is_some());
+    assert!(!admits(&generator, &clauses, &trajectory));
+}
+
+#[test]
+fn test_generator_accepts_a_single_layer_world_with_a_button_only() {
+    let world = World::try_from("S0 B0 X").unwrap();
+    assert!(ClauseGenerator::new(&world, 5).is_ok());
+}
+
+#[test]
+fn decode_plan_turns_a_pressed_button_into_a_trigger() {
+    let mut generator = build("S0 B0 X", 3);
+    generator.generate(2, SolveMode::Standard, false);
+    let model: Vec<Literal> = [
+        VarKey::agent(0, pos(0, 0), 0),
+        VarKey::agent(0, pos(0, 1), 1),
+        VarKey::agent(0, pos(0, 1), 2),
+        VarKey::Button { button: 0, t: 1 },
+    ]
+    .iter()
+    .map(|key| generator.literal(key).expect("variable should exist"))
+    .collect();
+    let plan = generator.decode_plan(&model, 2).unwrap();
+    assert_eq!(plan, vec![vec![Action::East], vec![Action::Trigger]]);
+}
+
+/// Agent 0 rides the lift at `(0, 1, 0)` while agent 1 presses the button; agent 2 walks around.
+const CROWDED_LIFT_WORLD: &str = "S0 TU0 B0 S1 X\n. S2 . . X\n;\nX . . . .\n. . . . .";
+
+fn at3(i: usize, j: usize, k: usize) -> Position {
+    Position { i, j, k }
+}
+
+#[test]
+fn formula_rejects_walking_onto_a_lift_another_agent_is_leaving() {
+    let mut generator = build(CROWDED_LIFT_WORLD, 8);
+    let (clauses, _) = generator.generate(5, SolveMode::Standard, false);
+    let trajectory = vec![
+        vec![
+            at3(0, 0, 0),
+            at3(0, 0, 0),
+            at3(0, 1, 1),
+            at3(0, 0, 1),
+            at3(0, 0, 1),
+            at3(0, 0, 1),
+        ],
+        vec![
+            at3(0, 3, 0),
+            at3(0, 2, 0),
+            at3(0, 2, 0),
+            at3(0, 3, 0),
+            at3(0, 4, 0),
+            at3(0, 4, 0),
+        ],
+        vec![
+            at3(1, 1, 0),
+            at3(0, 1, 0),
+            at3(1, 1, 0),
+            at3(1, 2, 0),
+            at3(1, 3, 0),
+            at3(1, 4, 0),
+        ],
+    ];
+    assert!(trajectory_literals(&generator, &trajectory).is_some());
+    assert!(!admits(&generator, &clauses, &trajectory));
+}
+
+#[test]
+fn formula_rejects_walking_onto_a_lift_another_agent_is_entering() {
+    // Agent 2 may not ride, so the pulse does not force it off the lift.
+    let world = "S0 TU0A0 B0 S1 X\n. S2 . . X\n;\nX . . . .\n. . . . .";
+    let mut generator = build(world, 8);
+    let (clauses, _) = generator.generate(6, SolveMode::Standard, false);
+    let trajectory = vec![
+        vec![
+            at3(0, 0, 0),
+            at3(0, 0, 0),
+            at3(0, 1, 1),
+            at3(0, 0, 1),
+            at3(0, 0, 1),
+            at3(0, 0, 1),
+            at3(0, 0, 1),
+        ],
+        vec![
+            at3(0, 3, 0),
+            at3(0, 2, 0),
+            at3(0, 2, 0),
+            at3(0, 3, 0),
+            at3(0, 4, 0),
+            at3(0, 4, 0),
+            at3(0, 4, 0),
+        ],
+        vec![
+            at3(1, 1, 0),
+            at3(1, 1, 0),
+            at3(0, 1, 0),
+            at3(1, 1, 0),
+            at3(1, 2, 0),
+            at3(1, 3, 0),
+            at3(1, 4, 0),
+        ],
+    ];
+    assert!(trajectory_literals(&generator, &trajectory).is_some());
+    assert!(!admits(&generator, &clauses, &trajectory));
+}
+
+#[test]
+fn formula_admits_pushing_a_box_off_a_lift_and_riding_it() {
+    // Agent 0 pushes the box onto the lift, then walks onto the lift, pushing the box further, and
+    // rides it in the same step while agent 1 presses the button.
+    let world = "S0 # TU0 . .\n. . B0 S1 X\n;\n. . X . .\n. . . . .";
+    let mut generator = build(world, 6);
+    let (clauses, _) = generator.generate(4, SolveMode::Standard, false);
+    let trajectory = vec![
+        vec![
+            at3(0, 0, 0),
+            at3(0, 1, 0),
+            at3(0, 2, 1),
+            at3(0, 2, 1),
+            at3(0, 2, 1),
+        ],
+        vec![
+            at3(1, 3, 0),
+            at3(1, 2, 0),
+            at3(1, 2, 0),
+            at3(1, 3, 0),
+            at3(1, 4, 0),
+        ],
+    ];
+    assert!(admits(&generator, &clauses, &trajectory));
+}
+
+#[test]
+fn formula_rejects_walking_onto_a_lift_through_an_active_beam() {
+    // Agent 1 walks onto the lift, the first tile of beam 0, and would only leave it by riding the
+    // lift: the beam kills it before the lift moves.
+    let world = "L0E TU0 B0 . X\nS0 . S1 . .\n;\n. X . . .\n. . . . .";
+    let mut generator = build(world, 9);
+    let (clauses, _) = generator.generate(7, SolveMode::Standard, false);
+    let trajectory = vec![
+        vec![
+            at3(1, 0, 0),
+            at3(1, 1, 0),
+            at3(0, 1, 0),
+            at3(0, 1, 0),
+            at3(0, 2, 0),
+            at3(0, 2, 0),
+            at3(0, 3, 0),
+            at3(0, 4, 0),
+        ],
+        vec![
+            at3(1, 2, 0),
+            at3(1, 2, 0),
+            at3(0, 2, 0),
+            at3(1, 2, 0),
+            at3(1, 1, 0),
+            at3(0, 1, 1),
+            at3(0, 1, 1),
+            at3(0, 1, 1),
+        ],
+    ];
+    assert!(trajectory_literals(&generator, &trajectory).is_some());
+    assert!(!admits(&generator, &clauses, &trajectory));
+}
+
+#[test]
+fn formula_admits_landing_on_a_lift_pulsed_in_the_same_step() {
+    // Agent 0 is lifted onto a lift of group 1 while agent 3 presses button 1 to lift agent 2: a
+    // lift moves an agent once per step, so agent 0 stays there and rides it at the next press.
+    let world =
+        "S0 TU0 B0 S1 X\n. . . . X\n;\n. TU1 B1 TU1 S2\n. X S3 . .\n;\nX X . X .\n. . . . .";
+    let mut generator = build(world, 7);
+    let (clauses, _) = generator.generate(5, SolveMode::Standard, false);
+    let trajectory = vec![
+        vec![
+            at3(0, 0, 0),
+            at3(0, 0, 0),
+            at3(0, 1, 1),
+            at3(0, 1, 2),
+            at3(0, 1, 2),
+            at3(0, 1, 2),
+        ],
+        vec![
+            at3(0, 3, 0),
+            at3(0, 2, 0),
+            at3(0, 2, 0),
+            at3(0, 3, 0),
+            at3(0, 4, 0),
+            at3(0, 4, 0),
+        ],
+        vec![
+            at3(0, 4, 1),
+            at3(0, 4, 1),
+            at3(0, 3, 2),
+            at3(0, 3, 2),
+            at3(0, 3, 2),
+            at3(0, 3, 2),
+        ],
+        vec![
+            at3(1, 2, 1),
+            at3(0, 2, 1),
+            at3(0, 2, 1),
+            at3(0, 2, 1),
+            at3(1, 2, 1),
+            at3(1, 1, 1),
+        ],
+    ];
+    assert!(trajectory_literals(&generator, &trajectory).is_some());
+    assert!(admits(&generator, &clauses, &trajectory));
+}
+
+/// Box predecessors stay inside the grid: a box on the last column must not read a cell past it,
+/// which would alias the first cell of the next row (or overflow the bitset on the last row).
+#[test]
+fn test_boxes_on_the_grid_border_generate_clauses() {
+    let world = World::try_from(
+        "
+        . . X . . . . .
+        @ . . . G . . @
+        X . . . . . . .
+        . @ L1S . # . . .
+        . . # . . . . .
+        . . . . . . . .
+        @ S0 . . . S1 . .
+        . . . G . . . #
+        ",
+    )
+    .unwrap();
+    let mut cg = ClauseGenerator::new(&world, 12).unwrap();
+    cg.generate(12, SolveMode::Standard, false);
+    for lit in 1..=cg.n_vars() as i32 {
+        if let Some(VarKey::Box { pos, .. }) = cg.key(lit) {
+            assert!(
+                pos.i < 8 && pos.j < 8,
+                "box variable outside the grid: {pos:?}"
+            );
+        }
+    }
 }

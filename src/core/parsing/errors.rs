@@ -1,6 +1,6 @@
 use std::{error::Error, fmt::Display};
 
-use crate::agent::AgentId;
+use crate::{Position, agent::AgentId};
 
 #[derive(Debug)]
 pub enum ParseError {
@@ -27,11 +27,16 @@ pub enum ParseError {
         n_starts: usize,
         n_agents: usize,
     },
-    InconsistentDimensions {
+    Inconsistent2Dimensions {
         row_str: String,
         expected_n_cols: usize,
         actual_n_cols: usize,
         row: usize,
+    },
+    Inconsistent3Dimensions {
+        expected_n_dims: (usize, usize),
+        actual_n_dims: (usize, usize),
+        layer: usize,
     },
     InvalidLaserSourceAgentId {
         asked_id: AgentId,
@@ -39,6 +44,9 @@ pub enum ParseError {
     },
     InvalidAgentId {
         given_agent_id: String,
+    },
+    InvalidGroupId {
+        given_group_id: String,
     },
     InvalidDirection {
         given: String,
@@ -55,6 +63,10 @@ pub enum ParseError {
         toml_height: usize,
         world_str_height: usize,
     },
+    InconsistentWorldStringLayers {
+        toml_layers: usize,
+        world_str_layers: usize,
+    },
     InconsistentNumberOfAgents {
         toml_n_agents_field: usize,
         actual_n_agents: usize,
@@ -62,14 +74,23 @@ pub enum ParseError {
     PositionOutOfBounds {
         i: usize,
         j: usize,
+        k: usize,
     },
     MissingWidth,
     MissingHeight,
+    MissingLayers,
     UnknownTomlKey {
         key: String,
         message: String,
     },
+    InvalidTomlDocument {
+        message: String,
+    },
     NotV2,
+    /// A box starts on a wall, a void, a laser source, an agent start, or another box.
+    InvalidBoxPosition {
+        position: Position,
+    },
 }
 
 impl Display for ParseError {

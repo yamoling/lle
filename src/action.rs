@@ -1,6 +1,7 @@
 use std::{
     fmt::{Display, Formatter},
     ops::Add,
+    slice::Iter,
 };
 
 use crate::{Position, RuntimeWorldError};
@@ -12,6 +13,7 @@ pub enum Action {
     East = 2,
     West = 3,
     Stay = 4,
+    Trigger = 5,
 }
 
 impl Action {
@@ -22,6 +24,7 @@ impl Action {
             Action::East => (0, 1),
             Action::West => (0, -1),
             Action::Stay => (0, 0),
+            Action::Trigger => (0, 0),
         }
     }
 
@@ -32,7 +35,22 @@ impl Action {
             Action::East => Action::West,
             Action::West => Action::East,
             Action::Stay => Action::Stay,
+            Action::Trigger => Action::Stay,
         }
+    }
+}
+
+impl Action {
+    pub fn iter() -> Iter<'static, Action> {
+        [
+            Action::North,
+            Action::South,
+            Action::East,
+            Action::West,
+            Action::Stay,
+            Action::Trigger,
+        ]
+        .iter()
     }
 }
 
@@ -44,6 +62,7 @@ impl From<u32> for Action {
             2 => Action::East,
             3 => Action::West,
             4 => Action::Stay,
+            5 => Action::Trigger,
             _ => panic!("Invalid value for action: {}", value),
         }
     }
@@ -60,6 +79,20 @@ impl TryFrom<(i32, i32)> for Action {
             (0, -1) => Ok(Action::West),
             (0, 0) => Ok(Action::Stay),
             (di, dj) => Err(RuntimeWorldError::InvalidActionDelta { di, dj }),
+        }
+    }
+}
+
+impl From<&str> for Action {
+    fn from(value: &str) -> Self {
+        match value {
+            "North" | "N" => Action::North,
+            "South" | "S" => Action::South,
+            "East" | "E" => Action::East,
+            "West" | "W" => Action::West,
+            "Stay" => Action::Stay,
+            "Trigger" | "T" => Action::Trigger,
+            _ => panic!("Invalid value for action: {}", value),
         }
     }
 }

@@ -78,7 +78,8 @@ def generate(width: int = 10, height: int = 10, n_agents: int = 3, t_max: int | 
 
     - Layout: `random()`, `lanes()`, `clustered()`, or fine-grained
       `starts(...)` / `exits(...)`.
-    - Gems, lasers, and walls: `gems(...)`, `lasers(...)`, `walls(...)`.
+    - Gems, boxes, lasers, and walls: `gems(...)`, `boxes(...)`, `lasers(...)`, `walls(...)`.
+    - Layers: `layers(n, ...)`, `start_layers(...)`, `layer(k, ...)` for levels linked by lifts.
     - Behaviour: `solvable()` (default), `independent()`, `cooperative(...)`,
       `sequential(...)`, `convergent(...)`, `divergent(...)`, `mutual(...)`, or
       `require(filter)`.
@@ -91,6 +92,7 @@ def generate(width: int = 10, height: int = 10, n_agents: int = 3, t_max: int | 
     world2 = lle.generate(width=5, height=5, n_agents=2).gems(3).lasers(1).cooperative().cap(10).build()
     world3 = lle.generate(width=5, height=5, n_agents=2).clustered().lasers(2).mutual().cap(10).build()
     worlds = lle.generate(width=4, height=4, n_agents=2).starts("edge").exits("opposite").lasers(1).cooperative().cap(10).take(2)
+    world4 = lle.generate(width=5, height=5, n_agents=2).boxes(2).lasers(1).build(seed=0)
     ```
     """
     return GeneratorBuilder(width=width, height=height, n_agents=n_agents, t_max=t_max)

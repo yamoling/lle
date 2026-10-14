@@ -32,10 +32,11 @@ from __future__ import annotations
 import math
 import random
 from dataclasses import replace
-from typing import Iterator, Literal, overload
+from typing import Iterator, Literal, Sequence, overload
 
 from ..world import World
 from .generator import WorldGenerator
+from .layered import LayerConfig, LayeredGenerator
 from .world_filter import (
     Asymmetric,
     Constraint,
@@ -78,8 +79,9 @@ class GeneratorBuilder:
         self._exits: ExitsMode = "random"
         self._layout_explicit = False
 
-        # Gems
+        # Gems and boxes
         self._n_gems = 0
+        self._n_boxes = 0
 
         # Lasers
         self._n_lasers: int | Literal["auto"] = "auto"
@@ -95,6 +97,17 @@ class GeneratorBuilder:
         self._n_rooms_cols: int = 0
         self._door_size: int = 1
 
+        # Layers — a single layer unless `layers()` is called.
+        self._n_layers = 1
+        self._start_layers: list[int] | Literal["random"] = "random"
+        self._max_layer_changes: int | None = None
+        self._extra_exits = 0
+        self._cross_layer_buttons = False
+        self._restricted_lifts = 0.0
+        self._layer_overrides: dict[int, dict[str, int | Literal["auto"]]] = {}
+
+        # An automatic horizon grows with the number of layers, see `_make_layered_generator`.
+        self._auto_t_max = t_max == "auto"
         if t_max == "auto":
             t_max = width * height // 2
         self._constraint: Constraint = Constraint(t_max)
@@ -156,6 +169,15 @@ class GeneratorBuilder:
         self._n_gems = n
         return self
 
+    def boxes(self, n: int) -> GeneratorBuilder:
+        """Place exactly `n` movable boxes on distinct free cells.
+
+        A box blocks lasers of any colour, but pushing one is never help: boxes can only let agents
+        avoid cooperation, never force it.
+        """
+        self._n_boxes = n
+        return self
+
     def lasers(
         self,
         n: int | Literal["auto"] = "auto",
@@ -191,6 +213,58 @@ class GeneratorBuilder:
         single cells (`"individual"`) or connected`"shapes"`."""
         self._n_walls = n
         self._walls_style = style
+        return self
+
+    def layers(
+        self,
+        n: int,
+        *,
+        max_changes: int | None = None,
+        extra_exits: int = 0,
+        cross_layer_buttons: bool = False,
+        restricted_lifts: float = 0.0,
+    ) -> GeneratorBuilder:
+        """Generate `n` layers linked by lifts and buttons, layer 0 being the bottom one.
+
+        Every agent follows a random journey through the layers, one layer up or down at a time,
+        and the lifts, buttons and exits are placed along the journeys. The other settings
+        (`lasers`, `walls`, `gems`, `boxes`) apply to every layer; `layer()` overrides them for one
+        layer. Filters (`solvable()`, `cooperative()`, ...) apply to the whole level, whose shortest
+        plan must also visit every layer. Only the random layout is supported.
+
+        - `max_changes`: most layer changes in one journey (default: `n`).
+        - `extra_exits`: exits added on random layers on top of one exit per agent.
+        - `cross_layer_buttons`: also put a lift's button on the layer it lands on, so that an agent
+          who already rode it can press for the others.
+        - `restricted_lifts`: probability that a lift with a single rider only accepts the colour of
+          that rider (its buttons then only accept the colour of a possible presser).
+        """
+        if n < 1:
+            raise ValueError(f"layers requires n >= 1, got {n}")
+        self._n_layers = n
+        self._max_layer_changes = max_changes
+        self._extra_exits = extra_exits
+        self._cross_layer_buttons = cross_layer_buttons
+        self._restricted_lifts = restricted_lifts
+        return self
+
+    def start_layers(self, layers: Sequence[int] | Literal["random"]) -> GeneratorBuilder:
+        """The layer each agent starts on, or `"random"` (the default)."""
+        self._start_layers = layers if layers == "random" else list(layers)
+        return self
+
+    def layer(
+        self,
+        k: int,
+        *,
+        lasers: int | None = None,
+        walls: int | Literal["auto"] | None = None,
+        gems: int | None = None,
+        boxes: int | None = None,
+    ) -> GeneratorBuilder:
+        """Override the number of lasers, walls, gems or boxes of layer `k` (requires `layers()`)."""
+        overrides = {"lasers": lasers, "walls": walls, "gems": gems, "boxes": boxes}
+        self._layer_overrides.setdefault(k, {}).update({key: v for key, v in overrides.items() if v is not None})
         return self
 
     def rooms(self, n: int = 4, *, door_size: int = 1) -> GeneratorBuilder:
@@ -286,6 +360,7 @@ class GeneratorBuilder:
         """
         if isinstance(predicate, Constraint):
             self._constraint = predicate
+            self._auto_t_max = False
         elif isinstance(predicate, Predicate):
             self._constraint = replace(self._constraint, predicate=predicate)
         else:
@@ -305,6 +380,7 @@ class GeneratorBuilder:
         By default, `t_max` is set to width * height // 2.
         """
         self._constraint = replace(self._constraint, t_max=t_max)
+        self._auto_t_max = False
         return self
 
     # ------------------------------------------------------------------
@@ -375,6 +451,10 @@ class GeneratorBuilder:
 
     def _make_generator(self) -> WorldGenerator:
         """Compile the accumulated configuration into a concrete generator."""
+        if self._n_layers > 1:
+            return self._make_layered_generator()
+        if self._layer_overrides or self._start_layers != "random":
+            raise ValueError("layer() and start_layers() require layers(n) with n >= 2.")
         starts, exits = self._resolve_layout()
         placement = self._resolve_placement(starts)
         n_lasers = self._resolve_n_lasers(placement)
@@ -386,6 +466,7 @@ class GeneratorBuilder:
             exits=exits,
             n_lasers=n_lasers,
             n_gems=self._n_gems,
+            n_boxes=self._n_boxes,
             laser_placement=placement,
             laser_span=self._laser_span,
             n_walls=self._n_walls,
@@ -394,6 +475,46 @@ class GeneratorBuilder:
             n_rooms_cols=self._n_rooms_cols,
             door_size=self._door_size,
             constraint=self._constraint,
+        )
+
+    def _make_layered_generator(self) -> LayeredGenerator:
+        if self._layout_explicit and (self._starts, self._exits) != ("random", "random"):
+            raise ValueError("layers() only supports the random layout.")
+        if self._laser_placement not in ("auto", "free"):
+            raise ValueError("layers() only supports the 'free' laser placement.")
+        if self._n_rooms_rows > 0:
+            raise ValueError("layers() does not support rooms().")
+        if any(not 0 <= k < self._n_layers for k in self._layer_overrides):
+            raise ValueError(f"layer() overrides a layer outside [0, {self._n_layers}): {sorted(self._layer_overrides)}")
+        constraint = self._constraint
+        if self._auto_t_max:
+            constraint = replace(constraint, t_max=self._width * self._height * self._n_layers // 2)
+        configs = []
+        for k in range(self._n_layers):
+            overrides = self._layer_overrides.get(k, {})
+            n_walls = overrides.get("walls", self._n_walls)
+            configs.append(
+                LayerConfig(
+                    n_walls=self._width * self._height // 10 if n_walls == "auto" else int(n_walls),
+                    walls_style=self._walls_style,
+                    n_lasers=int(overrides.get("lasers", self._resolve_n_lasers("free"))),
+                    laser_span=self._laser_span,
+                    n_gems=int(overrides.get("gems", self._n_gems)),
+                    n_boxes=int(overrides.get("boxes", self._n_boxes)),
+                )
+            )
+        return LayeredGenerator(
+            width=self._width,
+            height=self._height,
+            n_agents=self._n_agents,
+            n_layers=self._n_layers,
+            layers=configs,
+            start_layers=self._start_layers,
+            max_changes=self._max_layer_changes,
+            extra_exits=self._extra_exits,
+            cross_layer_buttons=self._cross_layer_buttons,
+            restricted_lifts=self._restricted_lifts,
+            constraint=constraint,
         )
 
     def _resolve_layout(self) -> tuple[StartsMode, ExitsMode]:

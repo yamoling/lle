@@ -23,7 +23,7 @@ def test_count():
 
 def test_action_names():
     names = {a.name for a in Action.variants()}
-    expected_names = {"NORTH", "SOUTH", "EAST", "WEST", "STAY"}
+    expected_names = {"NORTH", "SOUTH", "EAST", "WEST", "STAY", "TRIGGER"}
     assert names == expected_names
 
 

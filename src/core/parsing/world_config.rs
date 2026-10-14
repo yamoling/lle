@@ -1,25 +1,33 @@
 use std::{collections::HashSet, fmt::Display, vec};
 
 use crate::{
-    Position, World,
+    Grid, Position, World,
     agent::Colour,
     tiles::{Gem, Laser, Tile, Void},
 };
 
 use crate::ParseError;
 
-use super::{laser_config::LaserConfig, parser_v1::to_v1_string, toml::TomlConfig};
+use super::{
+    button_config::ButtonConfig, laser_config::LaserConfig, lift_config::LiftConfig,
+    parser_v1::to_v1_string, toml::TomlConfig,
+};
 
 #[derive(Debug)]
 pub struct WorldConfig {
     width: usize,
     height: usize,
+    layers: usize,
     gems: Vec<Position>,
     random_starts: Vec<Vec<Position>>,
     voids: Vec<Position>,
     exits: Vec<Position>,
     walls: Vec<Position>,
+    /// Initial positions of the movable boxes. Boxes are occupants, not tiles.
+    boxes: Vec<Position>,
     lasers: Vec<(Position, LaserConfig)>,
+    lifts: Vec<(Position, LiftConfig)>,
+    buttons: Vec<(Position, ButtonConfig)>,
     /// The colour of each agent, indexed by agent id. Defaults to the agent id.
     colours: Vec<Colour>,
 }
@@ -29,23 +37,31 @@ impl WorldConfig {
     pub fn new(
         width: usize,
         height: usize,
+        layers: usize,
         gem_positions: Vec<Position>,
         random_start_positions: Vec<Vec<Position>>,
         void_positions: Vec<Position>,
         exit_positions: Vec<Position>,
         walls_positions: Vec<Position>,
+        box_positions: Vec<Position>,
         source_configs: Vec<(Position, LaserConfig)>,
+        lift_configs: Vec<(Position, LiftConfig)>,
+        button_configs: Vec<(Position, ButtonConfig)>,
         colours: Vec<Colour>,
     ) -> Self {
         Self {
             width,
             height,
+            layers,
             gems: gem_positions,
             random_starts: random_start_positions,
             voids: void_positions,
             exits: exit_positions,
             walls: walls_positions,
+            boxes: box_positions,
             lasers: source_configs,
+            lifts: lift_configs,
+            buttons: button_configs,
             colours,
         }
     }
@@ -66,12 +82,20 @@ impl WorldConfig {
         self.height
     }
 
+    pub fn layers(&self) -> usize {
+        self.layers
+    }
+
     pub fn voids(&self) -> &Vec<Position> {
         &self.voids
     }
 
     pub fn walls(&self) -> &Vec<Position> {
         &self.walls
+    }
+
+    pub fn boxes(&self) -> &Vec<Position> {
+        &self.boxes
     }
 
     pub fn gems(&self) -> &Vec<Position> {
@@ -82,43 +106,17 @@ impl WorldConfig {
         &self.lasers
     }
 
+    pub fn lifts(&self) -> &Vec<(Position, LiftConfig)> {
+        &self.lifts
+    }
+
+    pub fn buttons(&self) -> &Vec<(Position, ButtonConfig)> {
+        &self.buttons
+    }
+
     /// The colour of each agent, indexed by agent id.
     pub fn colours(&self) -> &Vec<Colour> {
         &self.colours
-    }
-
-    /// Whether two agents share a colour, which the solver forbids and the non-perspective
-    /// observations refuse to represent.
-    pub fn has_shared_colours(&self) -> bool {
-        let mut seen = HashSet::new();
-        !self.colours.iter().all(|c| seen.insert(c))
-    }
-
-    pub fn add_random_starts(&mut self, starts: Vec<Vec<Position>>) {
-        for (i, start) in starts.into_iter().enumerate() {
-            let start = self.filter_positions(start, &self.walls);
-            while i >= self.random_starts.len() {
-                self.random_starts.push(vec![]);
-            }
-            self.random_starts[i].extend(start);
-        }
-    }
-
-    pub fn add_exits(&mut self, exits: Vec<Position>) {
-        let exits = self.filter_positions(exits, &self.walls);
-        self.exits.extend(exits);
-    }
-
-    pub fn add_gems(&mut self, gems: Vec<Position>) {
-        let gems = self.filter_positions(gems, &self.walls);
-        self.gems.extend(gems);
-    }
-
-    fn filter_positions(&self, positions: Vec<Position>, forbidden: &[Position]) -> Vec<Position> {
-        positions
-            .into_iter()
-            .filter(|pos| !forbidden.contains(pos))
-            .collect()
     }
 
     pub fn into_world(mut self) -> Result<World, ParseError> {
@@ -126,6 +124,8 @@ impl WorldConfig {
         let (grid, lasers_positions) = self.make_grid();
         self.post_validate()?;
         let source_positions = self.lasers.iter().map(|(pos, _)| *pos).collect();
+        let lift_positions = self.lifts.iter().map(|(pos, _)| *pos).collect();
+        let button_positions = self.buttons.iter().map(|(pos, _)| *pos).collect();
         Ok(World::new(
             grid,
             self.gems,
@@ -133,8 +133,11 @@ impl WorldConfig {
             self.voids,
             self.exits,
             self.walls,
+            self.boxes,
             source_positions,
             lasers_positions,
+            lift_positions,
+            button_positions,
             self.colours,
         ))
     }
@@ -150,6 +153,22 @@ impl WorldConfig {
                 n_starts: self.n_agents(),
                 n_exits: self.exits.len(),
             });
+        }
+
+        // Boxes start on a free cell: no wall, void, laser source, agent start or other box.
+        for (k, pos) in self.boxes.iter().enumerate() {
+            let on_occupied_cell = self.walls.contains(pos)
+                || self.voids.contains(pos)
+                || self.lasers.iter().any(|(source, _)| source == pos)
+                || self
+                    .random_starts
+                    .iter()
+                    .flatten()
+                    .any(|start| start == pos)
+                || self.boxes[..k].contains(pos);
+            if on_occupied_cell {
+                return Err(ParseError::InvalidBoxPosition { position: *pos });
+            }
         }
 
         // // Check that there are no lasers with an agent ID that does not exist
@@ -191,26 +210,25 @@ impl WorldConfig {
         self.random_starts.len()
     }
 
-    fn make_grid(&mut self) -> (Vec<Vec<Tile>>, Vec<Position>) {
-        let mut grid = Vec::with_capacity(self.height);
-        for _ in 0..self.height {
-            let mut row = Vec::with_capacity(self.width);
-            for _ in 0..self.width {
-                row.push(Tile::Floor { agent: None });
-            }
-            grid.push(row);
-        }
+    fn make_grid(&mut self) -> (Grid<Tile>, Vec<Position>) {
+        let mut grid = Grid::<Tile>::new(self.width, self.height, self.layers).default_init();
         for pos in &self.gems {
-            grid[pos.i][pos.j] = Tile::Gem(Gem::default());
+            grid.replace_at(pos, Tile::Gem(Gem::default()));
         }
         for pos in &self.exits {
-            grid[pos.i][pos.j] = Tile::Exit { agent: None };
+            grid.replace_at(pos, Tile::Exit { agent: None });
         }
         for pos in &self.voids {
-            grid[pos.i][pos.j] = Tile::Void(Void::default());
+            grid.replace_at(pos, Tile::Void(Void::default()));
         }
         for pos in &self.walls {
-            grid[pos.i][pos.j] = Tile::Wall;
+            grid.replace_at(pos, Tile::Wall);
+        }
+        for (pos, config) in &self.lifts {
+            grid.replace_at(pos, Tile::Lift(config.build()));
+        }
+        for (pos, config) in &self.buttons {
+            grid.replace_at(pos, Tile::Button(config.build()));
         }
         let laser_positions = self.laser_setup(&mut grid).into_iter().collect();
         (grid, laser_positions)
@@ -218,21 +236,25 @@ impl WorldConfig {
 
     /// Place the laser sources and wrap the required tiles behind a
     /// `Laser` tile.
-    fn laser_setup(&mut self, grid: &mut [Vec<Tile>]) -> HashSet<Position> {
+    fn laser_setup(&mut self, grid: &mut Grid<Tile>) -> HashSet<Position> {
         let mut laser_positions = HashSet::new();
-        let width = grid[0].len() as i32;
-        let height: i32 = grid.len() as i32;
-        for (pos, source) in &self.lasers {
+        let width = grid.width as i32;
+        let height: i32 = grid.height as i32;
+        for (laser_pos, source) in &self.lasers {
             let mut beam_positions = vec![];
             let delta = source.direction.delta();
-            let (mut i, mut j) = (pos.i as i32, pos.j as i32);
+            let (mut i, mut j, k) = (laser_pos.i as i32, laser_pos.j as i32, laser_pos.k as i32);
             (i, j) = ((i + delta.0), (j + delta.1));
+            if k < 0 || k >= grid.layers as i32 {
+                continue; // Invalid layer, skip this laser
+            }
             while i >= 0 && j >= 0 && i < height && j < width {
                 let pos = Position {
                     i: i as usize,
                     j: j as usize,
+                    k: k as usize,
                 };
-                if !grid[pos.i][pos.j].is_walkable() {
+                if !grid.at(&pos).is_walkable() {
                     break;
                 }
                 beam_positions.push(pos);
@@ -251,7 +273,13 @@ impl WorldConfig {
                         is_blocked = true;
                     }
                 }
-                let wrapped = grid[pos.i].remove(pos.j);
+                // A box standing in the beam blocks it from the very first
+                // reset, so the cells behind it are safe and their starts must
+                // not be pruned.
+                if self.boxes.contains(&pos) {
+                    is_blocked = true;
+                }
+                let wrapped = grid.pop(&pos);
                 let laser = Tile::Laser(Laser::new(wrapped, source.beam(), i));
                 if !is_blocked {
                     // Remove the random starts on this location for agents of another colour,
@@ -264,9 +292,9 @@ impl WorldConfig {
                     }
                 }
 
-                grid[pos.i].insert(pos.j, laser);
+                grid.replace_at(&pos, laser);
             }
-            grid[pos.i][pos.j] = Tile::LaserSource(source);
+            grid.replace_at(laser_pos, Tile::LaserSource(source));
         }
         laser_positions
     }

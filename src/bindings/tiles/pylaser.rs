@@ -31,7 +31,7 @@ pub struct PyLaser {
     /// Whether the laser is enabled.
     #[pyo3(get)]
     is_enabled: bool,
-    /// The (i, j) position of the tile.
+    /// The (i, j, k) position of the tile.
     #[pyo3(get)]
     pos: PyPosition,
     world: Arc<Mutex<World>>,

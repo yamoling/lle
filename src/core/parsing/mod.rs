@@ -1,5 +1,7 @@
+mod button_config;
 mod errors;
 mod laser_config;
+mod lift_config;
 mod parser_v1;
 mod toml;
 mod world_config;

@@ -75,7 +75,9 @@ L2E .  .  .
  @  X  X  X
 ```
 
-**Implementation.** After the raw relevant-position map has been filtered by movement, exit reachability, first beam tiles, and unblockable laser tiles, each timestep scans the exit positions. If the number of exits equals the number of agents, and an exit is present in exactly one agent's relevant set, that exit is recorded as uniquely forced for that agent. Agents with exactly one uniquely forced exit then have every other exit removed from their relevant-position set for that timestep.
+**Implementation.** When the number of exits equals the number of agents, the context computes once, for each agent, every cell it could reach within $t_{\max}$ steps, walking or riding the lifts it may ride, without standing on the first tile of a foreign beam. An exit in exactly one agent's reach is recorded as uniquely forced for that agent, and agents with exactly one uniquely forced exit then have every other exit removed from their relevant-position set at every timestep.
+
+Uniqueness must hold over the whole horizon. An exit reachable by a single agent *by time $t$* may still be taken by another agent later: pruning on the per-timestep relevant sets wrongly removed an exit an agent was already standing on, and made the solver miss the shortest plan.
 
 The optimization is conservative: it is disabled when the number of exits differs from the number of agents, and it does not prune an agent that is the sole candidate for multiple exits at the same timestep.
 

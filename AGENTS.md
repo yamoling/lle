@@ -14,7 +14,7 @@ Each Rust type gets a `Py*` wrapper in `src/bindings/` deriving `#[pyclass]`. Cu
 ## Map Formats
 
 - **Plain-text (v1):** Space-separated tokens per row, newline-separated rows. Explained in `python/lle/__init__.py`.
-  - Tokens: `S[id]` (Start), `G` (Gem), `X` (Exit), `.` (Floor), `@` (Wall), `V` (Void), `L[id][direction]` (Laser source: N/E/S/W).
+  - Tokens: `S[id]` (Start), `G` (Gem), `X` (Exit), `.` (Floor), `@` (Wall), `V` (Void), `#` (Box), `L[id][direction]` (Laser source: N/E/S/W).
 - **TOML (v2):** Richer format supporting random start positions. Automatically detected by the presence of a `[world]` header.
 - Built-in levels 1–6 are statically embedded via `build.rs` and `src/core/levels.rs`.
 

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from functools import cache
 
 from lle.types import AgentId
-from lle.world import World
+from lle.world import Action, World
 
 from .types import Plan
 
@@ -101,14 +101,16 @@ class TemporalCooperationGraph:
         - `reset`: Whether to reset the copied world before replaying. Keep the default unless the
             trajectory is meant to continue from the world's current state.
         """
-        from .analyser import detect_dependencies
+        from .analyser import detect_dependencies, detect_lift_help
 
         if reset:
             world.reset()
         edges = [DependencyEdge(helper, beneficiary, 0) for helper, beneficiary in detect_dependencies(world)]
         for t, joint_action in enumerate(plan, start=1):
-            world.step(joint_action)
-            for helper, beneficiary in detect_dependencies(world):
+            events = world.step(joint_action)
+            if isinstance(joint_action, Action):
+                joint_action = [joint_action]
+            for helper, beneficiary in detect_dependencies(world) | detect_lift_help(world, joint_action, events):
                 edges.append(DependencyEdge(helper, beneficiary, t))
         return TemporalCooperationGraph(edges)
 

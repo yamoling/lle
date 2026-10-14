@@ -1,3 +1,5 @@
+use itertools::Itertools;
+
 use crate::solver::{Clause, Literal, clauses::VarPool};
 
 /// At-most-one encoding crossover: for small variable sets, the naive pairwise encoding
@@ -11,9 +13,18 @@ pub fn implies(a: Literal, b: Literal) -> Clause {
     vec![-a, b]
 }
 
-#[inline]
-pub fn equals(a: Literal, b: Literal) -> Vec<Clause> {
-    vec![implies(a, b), implies(b, a)]
+/// At-most-one constraint over `vars`: pairwise for small sets, sequential counter otherwise.
+pub fn at_most_one(vars: &[Literal], pool: &mut VarPool) -> Vec<Clause> {
+    if vars.len() <= 1 {
+        return Vec::new();
+    }
+    if vars.len() > PAIRWISE_ATMOST_MAX {
+        return at_most_one_sequential(vars, pool);
+    }
+    vars.iter()
+        .tuple_combinations()
+        .map(|(&a, &b)| implies(a, -b))
+        .collect()
 }
 
 /// Sequential-counter at-most-one encoding (mirrors `pysat.card.CardEnc.atmost(bound=1)`),

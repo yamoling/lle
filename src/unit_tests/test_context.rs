@@ -1,11 +1,11 @@
-use crate::{Position, Tile, World, solver::context::ConstraintContext, tiles::Direction};
+use crate::{Position, Tile, World, solver::context::ConstraintContext, tiles::CardinalDirection};
 use rstest::rstest;
 use rstest_reuse::{self, apply, template};
 use std::collections::HashSet;
 use strum::IntoEnumIterator;
 
 fn pos(i: usize, j: usize) -> Position {
-    Position { i, j }
+    Position::new2d(i, j)
 }
 
 #[template]
@@ -360,7 +360,7 @@ fn valid_positions_exclude_walls_voids_and_laser_sources_in_std_levels(level: us
     for i in 0..world.height() {
         for j in 0..world.width() {
             let p = pos(i, j);
-            let is_valid = !ctx.neighbours[i][j].is_empty();
+            let is_valid = !ctx.neighbours[0][i][j].is_empty();
             if walls.contains(&p) || voids.contains(&p) || laser_sources.contains(&p) {
                 assert!(!is_valid, "level {level}: ({i},{j}) should not be valid");
             } else {
@@ -379,7 +379,7 @@ fn valid_positions_exclude_void() {
     )
     .expect("Failed to parse world");
     let ctx = ConstraintContext::new(&world, 10);
-    let is_valid = |i: usize, j: usize| !ctx.neighbours[i][j].is_empty();
+    let is_valid = |i: usize, j: usize| !ctx.neighbours[0][i][j].is_empty();
     assert!(!is_valid(0, 1));
     assert!(!is_valid(1, 1));
     assert!(is_valid(0, 0));
@@ -397,11 +397,11 @@ fn valid_positions_exclude_laser_sources() {
     .expect("Failed to parse world");
     let ctx = ConstraintContext::new(&world, 10);
 
-    assert!(ctx.neighbours[0][1].is_empty());
-    assert!(ctx.predecessors[0][1].is_empty());
-    assert!(!ctx.neighbours[0][0].contains(&pos(0, 1)));
-    assert!(!ctx.neighbours[0][2].contains(&pos(0, 1)));
-    assert!(!ctx.neighbours[1][1].contains(&pos(0, 1)));
+    assert!(ctx.neighbours[0][0][1].is_empty());
+    assert!(ctx.predecessors[0][0][1].is_empty());
+    assert!(!ctx.neighbours[0][0][0].contains(&pos(0, 1)));
+    assert!(!ctx.neighbours[0][0][2].contains(&pos(0, 1)));
+    assert!(!ctx.neighbours[0][1][1].contains(&pos(0, 1)));
 }
 
 // ==================== neighbours ====================
@@ -423,7 +423,7 @@ fn neighbours_include_stay_and_walkable_cardinal_tiles() {
         for i in 0..world.height() {
             for j in 0..world.width() {
                 let p = pos(i, j);
-                let actual_neighbours = &ctx.neighbours[i][j];
+                let actual_neighbours = &ctx.neighbours[0][i][j];
                 if is_invalid(&p) {
                     assert!(
                         actual_neighbours.is_empty(),
@@ -438,7 +438,7 @@ fn neighbours_include_stay_and_walkable_cardinal_tiles() {
                     // Neighbours are the position itself + the non-walls neighbours
                     std::iter::once(p)
                         .chain(
-                            Direction::iter()
+                            CardinalDirection::iter()
                                 .filter_map(|d| (p + d).ok())
                                 .filter(|n| n.i < world.height() && n.j < world.width())
                                 .filter(|n| !is_invalid(n)),
@@ -464,10 +464,10 @@ fn neighbours_exclude_boundaries_walls_and_voids() {
     .expect("Failed to parse world");
     let ctx = ConstraintContext::new(&world, 10);
 
-    let start_neighbours: HashSet<Position> = ctx.neighbours[0][0].iter().collect();
+    let start_neighbours: HashSet<Position> = ctx.neighbours[0][0][0].iter().collect();
     assert_eq!(start_neighbours, HashSet::from([pos(0, 0)]));
 
-    let centre_neighbours: HashSet<Position> = ctx.neighbours[1][1].iter().collect();
+    let centre_neighbours: HashSet<Position> = ctx.neighbours[0][1][1].iter().collect();
     assert_eq!(centre_neighbours, HashSet::from([pos(1, 1), pos(1, 2)]));
     assert!(
         !centre_neighbours.contains(&pos(0, 1)),
@@ -478,11 +478,11 @@ fn neighbours_exclude_boundaries_walls_and_voids() {
         "voids should not be successors"
     );
     assert!(
-        ctx.neighbours[0][1].is_empty(),
+        ctx.neighbours[0][0][1].is_empty(),
         "walls should have no neighbours"
     );
     assert!(
-        ctx.neighbours[1][0].is_empty(),
+        ctx.neighbours[0][1][0].is_empty(),
         "voids should have no neighbours"
     );
 }
@@ -523,17 +523,17 @@ fn laser_source_neighbours_are_empty_and_unreachable() {
     .expect("Failed to parse world");
     let ctx = ConstraintContext::new(&world, 10);
 
-    let start_neighbours: HashSet<Position> = ctx.neighbours[0][0].iter().collect();
+    let start_neighbours: HashSet<Position> = ctx.neighbours[0][0][0].iter().collect();
     assert_eq!(start_neighbours, HashSet::from([pos(0, 0), pos(1, 0)]));
 
-    let centre_neighbours: HashSet<Position> = ctx.neighbours[1][1].iter().collect();
+    let centre_neighbours: HashSet<Position> = ctx.neighbours[0][1][1].iter().collect();
     assert_eq!(
         centre_neighbours,
         HashSet::from([pos(1, 1), pos(1, 0), pos(1, 2)])
     );
 
     assert!(
-        ctx.neighbours[0][1].is_empty(),
+        ctx.neighbours[0][0][1].is_empty(),
         "laser sources should have no neighbours"
     );
 }
@@ -552,7 +552,7 @@ fn exit_neighbours_only_allow_staying() {
     .expect("Failed to parse world");
     let ctx = ConstraintContext::new(&world, 10);
 
-    let exit_neighbours: HashSet<Position> = ctx.neighbours[0][1].iter().collect();
+    let exit_neighbours: HashSet<Position> = ctx.neighbours[0][0][1].iter().collect();
     assert_eq!(exit_neighbours, HashSet::from([pos(0, 1)]));
 }
 
@@ -756,4 +756,78 @@ fn relevant_laser_tiles() {
     );
     assert!(relevant_t1.contains(&pos(1, 2))); // Accessible by agent 1
     assert!(relevant_t1.contains(&pos(1, 3))); // Since (1, 2) can be blocked, this tile is relevant to consider
+}
+
+/// A laser is owned by the agent of its colour, which is not necessarily the agent with the same
+/// index, and by nobody when no agent has its colour.
+#[test]
+fn laser_owner_is_the_agent_of_its_colour() {
+    // The only agent, agent 0, has colour 1: no agent has colour 0.
+    let world = World::try_from("L1E . S1 X\nL0E . . X").unwrap();
+    let ctx = ConstraintContext::new(&world, 4);
+    let owners: Vec<_> = ctx
+        .laser_sources
+        .iter()
+        .map(|source| source.owner)
+        .collect();
+    assert_eq!(owners, vec![Some(0), None]);
+}
+
+#[test]
+fn test_neighbours_stay_on_their_layer() {
+    let world = World::try_from("S0 . X\n;\n. . .").unwrap();
+    let ctx = ConstraintContext::new(&world, 5);
+    let upper = Position { i: 0, j: 1, k: 1 };
+    let upper_neighbours: HashSet<Position> = ctx.neighbours[1][0][1].iter().collect();
+    assert_eq!(
+        upper_neighbours,
+        HashSet::from([
+            upper,
+            Position { i: 0, j: 0, k: 1 },
+            Position { i: 0, j: 2, k: 1 }
+        ])
+    );
+    assert!(!ctx.neighbours[0][0][1].contains(&upper));
+}
+
+#[test]
+fn test_lift_makes_an_upper_exit_reachable() {
+    let world = World::try_from("S0 TU0 B0\n;\n. . X").unwrap();
+    let mut ctx = ConstraintContext::new(&world, 5);
+    let lift_dest = Position { i: 0, j: 1, k: 1 };
+    // Walking onto the lift and riding it happen in the same step.
+    assert_eq!(ctx.get_exit_distance(&pos(0, 0)), 2);
+    assert!(ctx.relevant_positions_for_agent(0, 1).contains(&lift_dest));
+}
+
+#[test]
+fn test_lift_and_button_colours_restrict_agents() {
+    let world = World::try_from("S0 S1 TU0A1 B0A0\n;\n. X X .").unwrap();
+    let ctx = ConstraintContext::new(&world, 5);
+    assert_eq!(ctx.lifts.len(), 1);
+    assert_eq!(ctx.lifts[0].riders, vec![1]);
+    assert_eq!(ctx.lifts[0].dest, Position { i: 0, j: 2, k: 1 });
+    assert_eq!(ctx.buttons[0].pressers, vec![0]);
+    assert_eq!(ctx.buttons[0].group, 0);
+}
+
+#[test]
+fn test_lift_onto_a_wall_is_dropped() {
+    let world = World::try_from("S0 TU0 X\n;\n. @ .").unwrap();
+    let ctx = ConstraintContext::new(&world, 5);
+    assert!(ctx.lifts.is_empty());
+}
+
+/// An exit only one agent can reach *so far* may still be taken by another agent later: here agent
+/// 0 alone reaches `(0, 3, 0)` by `t = 3`, but agent 2 reaches it at `t = 4`, so agent 0 may still
+/// stand on the exit it was lifted onto at `t = 2`.
+#[test]
+fn test_forced_exit_holds_over_the_whole_horizon() {
+    let world =
+        World::try_from(". # TU0 X\n. S0 . .\n. S2 . .\n;\n. . X X\nB0 . TD0 .\nS1 . . .").unwrap();
+    let mut ctx = ConstraintContext::new(&world, 9);
+    ctx.update(3);
+    let upper_exit = Position { i: 0, j: 2, k: 1 };
+    assert!(ctx.relevant_positions_for_agent(0, 2).contains(&upper_exit));
+    assert!(ctx.relevant_positions_for_agent(0, 3).contains(&upper_exit));
 }

@@ -101,7 +101,10 @@ fn assert_help(
     t: usize,
     expected: &[(usize, usize)],
 ) {
-    let mut expected: Vec<Position> = expected.iter().map(|&(i, j)| Position { i, j }).collect();
+    let mut expected: Vec<Position> = expected
+        .iter()
+        .map(|&(i, j)| Position { i, j, k: 0 })
+        .collect();
     expected.sort_unstable_by_key(|p| (p.i, p.j));
     let got = help_beam_positions(engine, clauses, helper, beneficiary, t);
     assert_eq!(

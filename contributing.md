@@ -70,6 +70,34 @@ To characterize a world, the solver must not only find _a_ solution but also pro
 
 #### Feasibility shortcuts
 
-Before dispatching on the mode, `ClauseGenerator::generate` checks whether _P_ can occur at all in the world layout. The check is deliberately cheap and horizon-independent: it only counts agents, laser sources and distinct laser colours (which are agent IDs, so they also count the agents able to act as helpers). For instance, a sequence of help edges needs two laser-owning helpers, and fully coupled cooperation needs every agent to own a laser.
+Before dispatching on the mode, `ClauseGenerator::generate` checks whether _P_ can occur at all in the world layout. The check is deliberately cheap and horizon-independent: it only counts agents and potential helpers: the laser owners and the agents that may press a button pulsing a lift another agent may ride. For instance, a sequence of help edges needs two helpers, and fully coupled cooperation needs every agent to be one.
 
 When those necessary conditions fail, _P_ is impossible, the `No*` restriction is tautologically satisfied, and the mode is normalized to `Standard`: the query returns the usual movement, laser, objective and gem clauses without filling the cooperation buffers or allocating cooperation variables. These are only *necessary* conditions — finer impossibility that depends on beam reachability or on `t_max` is left to the geometric pruning of the `ClauseEngine`, which never materializes a `Help` variable for an unrealizable help event.
+
+#### Help events
+
+`Help(h, b, t)` holds when, at `t`, `b` stands on a beam of `h` with no box upstream on that beam (so `h` must be the one blocking it), or when `h` pressed a button whose group lifted `b` during the step from `t - 1` to `t`. Pushing a box is never cooperation: a beam blocked by a box is not help, whoever pushed the box. `NoCooperation` assumes every `Help` variable false, and the Python trajectory analyser (`lle.characterization.plan`) detects the same events.
+
+### Boxes
+
+`Box(b, x, t)` states that box $b$ is on cell $x$ at time $t$. Like agents, a box only gets variables on the cells it can actually reach (`relevant_box_positions`): its start cell, then any cell an agent could push it to. A box is pushed when an agent walks onto its cell, and moves one cell further in the same direction. The box clauses (`generate_box_clauses`) are part of the movement clauses:
+
+- **Adjacency:** a box on $x$ at $t$ was on $x$ or a neighbour of $x$ at $t - 1$, never on a void. This is what destroys a box pushed into a void: it has no possible position afterwards.
+- **Inertia:** a box on a non-void cell stays there unless an agent enters its cell (or walks onto it and is lifted away in the same step).
+- **Push:** an agent stepping from $q - d$ onto the box's cell $q$ moves the box to $q + d$. This is impossible when $q + d$ cannot hold a box (wall, laser source, outside the grid).
+- **No overlap:** two boxes, or an agent and a box, never share a cell, a void included.
+- **No following:** a box cannot be pushed onto a cell an agent is leaving.
+
+A box on a non-void beam tile blocks the beam, whatever its colour: `beam_activation` counts boxes as blockers next to the beam's owner.
+
+### Lifts and buttons
+
+The encoding follows `World::step`, which resolves a step in three passes: every agent walks (pushing boxes), every agent taking `Trigger` on a button it may press pulses the lifts of the button's group, then every pulsed lift moves the agent standing on it, if that agent may ride it, one layer up or down. Two variables describe the step from $t$ to $t + 1$: `Button(b, t)` (button $b$ is pressed) and `Lifted(i, L, t)` (agent $i$ is lifted by lift $L$). `Lifted` variables only exist for the agents whose colour may ride $L$, and are created in `lift_moves`; every clause that reads them goes through `lifted_literals`.
+
+- **Press:** a pressed button has an agent allowed to press it on it, and that agent stays there.
+- **Lift move:** a lifted agent stood on its lift or walked onto it at $t$ (both happen in one step), one button of the lift's group is pressed, and the agent is on the lift's destination at $t + 1$. Time-wise adjacency and the following conflict accept a lifted agent as an extra way to enter a cell.
+- **Forced lift:** a pulsed lift never keeps an agent it may ride, unless another lift brought that agent there in this very step (a lift moves an agent once per step). This also forbids relying on the cases where the world cancels a lift (a box or another agent on the destination).
+- **The rider is on the lift between the walk and the lift pass,** even when it walked onto it: no other agent may leave or enter the lift in that step, no box may be pushed onto it, and lasers are checked in that intermediate state too (`walk_pass_lasers`), where a lifted agent blocks the beams of its lift and not those of its destination.
+- **Boxes:** the world never lifts onto a box, and a rider walking onto a box on its lift pushes it like `box_push` would.
+
+Reachability (`ConstraintContext`) includes the lift moves, both in the exit distances and in the per-agent relevant positions, so that cells only reachable by lift are not pruned. `python/tests/solver/test_lifts.py` checks the solver on tricky worlds against the shortest plan length found by an exhaustive search over `World`.

@@ -6,7 +6,7 @@ use crate::RuntimeWorldError;
 use crate::{
     WorldEvent,
     agent::{Agent, AgentId, Colour},
-    tiles::{Direction, LaserId, Tile},
+    tiles::{BoxOutcome, CardinalDirection, LaserId, Tile},
 };
 
 use super::Gem;
@@ -16,12 +16,17 @@ pub struct LaserBeam {
     beam: RefCell<Vec<bool>>,
     is_enabled: Cell<bool>,
     colour: Cell<Colour>,
-    direction: Direction,
+    direction: CardinalDirection,
     laser_id: LaserId,
 }
 
 impl LaserBeam {
-    pub fn new(size: usize, colour: Colour, direction: Direction, laser_id: LaserId) -> Self {
+    pub fn new(
+        size: usize,
+        colour: Colour,
+        direction: CardinalDirection,
+        laser_id: LaserId,
+    ) -> Self {
         Self {
             beam: RefCell::new(vec![true; size]),
             is_enabled: Cell::new(true),
@@ -36,7 +41,7 @@ impl LaserBeam {
         self.colour.get()
     }
 
-    pub fn direction(&self) -> Direction {
+    pub fn direction(&self) -> CardinalDirection {
         self.direction
     }
 
@@ -119,6 +124,10 @@ impl Laser {
         &self.wrapped
     }
 
+    pub fn wrapped_mut(&mut self) -> &mut Tile {
+        &mut self.wrapped
+    }
+
     pub fn gem(&self) -> Option<&Gem> {
         match self.wrapped.as_ref() {
             Tile::Gem(gem) => Some(gem),
@@ -164,7 +173,7 @@ impl Laser {
         !self.is_enabled()
     }
 
-    pub fn direction(&self) -> Direction {
+    pub fn direction(&self) -> CardinalDirection {
         self.beam.direction
     }
 
@@ -217,5 +226,20 @@ impl Laser {
 
     pub fn agent(&self) -> Option<AgentId> {
         self.wrapped.agent()
+    }
+
+    /// Blocks the beam only if the wrapped tile lets the box rest. A beam can
+    /// cross a void, and a box destroyed there must not block it.
+    pub fn box_enter(&mut self) -> BoxOutcome {
+        let outcome = self.wrapped.box_enter();
+        if outcome == BoxOutcome::Rests {
+            self.turn_off();
+        }
+        outcome
+    }
+
+    pub fn box_leave(&mut self) {
+        self.turn_on();
+        self.wrapped.box_leave();
     }
 }

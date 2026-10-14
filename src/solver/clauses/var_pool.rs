@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    Action, AgentId, Position,
+    Action, AgentId, BoxId, Position,
     solver::{Literal, errors::SolverError},
 };
 
@@ -11,6 +11,12 @@ pub enum VarKey {
     /// Whether the specified agent is located at `pos` at time step `t`.
     Agent {
         agent_id: AgentId,
+        pos: Position,
+        t: usize,
+    },
+    /// Whether the specified box is located at `pos` at time step `t`.
+    Box {
+        box_id: BoxId,
         pos: Position,
         t: usize,
     },
@@ -27,6 +33,19 @@ pub enum VarKey {
     /// early-termination blocker, which is a clause of negated `Arrived` literals.
     Arrived {
         agent_id: AgentId,
+        t: usize,
+    },
+    /// Whether button `button` (index in `ConstraintContext::buttons`) is pressed during the step
+    /// from `t` to `t + 1`.
+    Button {
+        button: usize,
+        t: usize,
+    },
+    /// Whether the specified agent is lifted by `lift` (index in `ConstraintContext::lifts`)
+    /// during the step from `t` to `t + 1`.
+    Lifted {
+        agent_id: AgentId,
+        lift: usize,
         t: usize,
     },
     /// Whether `helper` is helping `beneficiary` at time step `t`.
@@ -80,6 +99,11 @@ impl VarKey {
             pos,
             t,
         }
+    }
+
+    #[inline]
+    pub fn box_at(id: BoxId, pos: Position, t: usize) -> Self {
+        VarKey::Box { box_id: id, pos, t }
     }
 
     #[inline]
@@ -143,12 +167,24 @@ impl VarPool {
         self.id(VarKey::Agent { agent_id, pos, t })
     }
 
+    pub fn box_at(&mut self, box_id: BoxId, pos: Position, t: usize) -> Literal {
+        self.id(VarKey::Box { box_id, pos, t })
+    }
+
     pub fn arrived(&mut self, agent_id: AgentId, t: usize) -> Literal {
         self.id(VarKey::Arrived { agent_id, t })
     }
 
     pub fn laser(&mut self, laser_id: usize, pos: Position, t: usize) -> Literal {
         self.id(VarKey::Laser { laser_id, pos, t })
+    }
+
+    pub fn button(&mut self, button: usize, t: usize) -> Literal {
+        self.id(VarKey::Button { button, t })
+    }
+
+    pub fn lifted(&mut self, agent_id: AgentId, lift: usize, t: usize) -> Literal {
+        self.id(VarKey::Lifted { agent_id, lift, t })
     }
 
     pub fn help(&mut self, helper: AgentId, beneficiary: AgentId, t: usize) -> Literal {

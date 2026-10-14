@@ -2,20 +2,29 @@ use itertools::Itertools;
 
 use crate::solver::{Clause, clauses::ClauseEngine};
 
-use super::utils::{PAIRWISE_ATMOST_MAX, at_most_one_sequential, implies};
+use super::utils::{at_most_one, implies};
 
 impl ClauseEngine {
-    /// Clauses fixing each agent at its start position at `t == 0`.
+    /// Clauses fixing each agent and each box at its start position at `t == 0`.
     pub(super) fn initialization(&mut self, t: usize) -> Vec<Clause> {
         if t != 0 {
             return Vec::new();
         }
-        let starts = self.ctx.start_pos.clone();
-        starts
-            .into_iter()
+        let ctx = &self.ctx;
+        let pool = &mut self.pool;
+        let mut clauses: Vec<Clause> = ctx
+            .start_pos
+            .iter()
             .enumerate()
-            .map(|(agent, pos)| vec![self.pool.agent(agent, pos, 0)])
-            .collect()
+            .map(|(agent, &pos)| vec![pool.agent(agent, pos, 0)])
+            .collect();
+        clauses.extend(
+            ctx.box_start_pos
+                .iter()
+                .enumerate()
+                .map(|(box_id, &pos)| vec![pool.box_at(box_id, pos, 0)]),
+        );
+        clauses
     }
 
     /// Every agent is in exactly one position at any given time step.
@@ -25,28 +34,17 @@ impl ClauseEngine {
         let mut clauses = Vec::new();
         for agent in 0..self.ctx.n_agents {
             let positions = self.ctx.relevant_positions_for_agent(agent, t);
-            if positions.size() <= 1 {
-                continue;
-            }
             let vars: Vec<i32> = positions
                 .into_iter()
                 .map(|p| self.pool.agent(agent, p, t))
                 .collect();
-            if vars.len() <= PAIRWISE_ATMOST_MAX {
-                for i in 0..vars.len() {
-                    for j in i + 1..vars.len() {
-                        clauses.push(implies(vars[i], -vars[j]));
-                        // clauses.push(vec![-vars[i], -vars[j]]);
-                    }
-                }
-            } else {
-                clauses.extend(at_most_one_sequential(&vars, &mut self.pool));
-            }
+            clauses.extend(at_most_one(&vars, &mut self.pool));
         }
         clauses
     }
 
-    /// If an agent is at `(x, y)` at time `t`, it must have been in an adjacent cell at `t - 1`.
+    /// If an agent is at `(x, y)` at time `t`, it must have been in an adjacent cell at `t - 1`,
+    /// or have been lifted there.
     pub(super) fn time_wise_adjacency(&mut self, t: usize) -> Vec<Clause> {
         if t == 0 {
             return Vec::new();
@@ -61,6 +59,7 @@ impl ClauseEngine {
                 for prev in prev_positions {
                     clause.push(self.pool.agent(agent, prev, t - 1));
                 }
+                clause.extend(self.lifted_into(agent, pos, t));
                 clauses.push(clause);
             }
         }
@@ -82,8 +81,13 @@ impl ClauseEngine {
         clauses
     }
 
-    /// Prevent an agent from entering another agent's cell from the previous time step.
-    /// This also forbids swaps, which are following conflicts in both directions.
+    /// Prevent an agent from walking into another agent's previous cell.
+    /// This also forbids walking swaps, which are following conflicts in both directions.
+    ///
+    /// A lift may move an agent onto a cell another agent is leaving, as the world only checks
+    /// lift destinations after the walking part of the step.
+    ///
+    /// @ai-edited
     pub(super) fn no_following_conflict(&mut self, t: usize) -> Vec<Clause> {
         if t == 0 {
             return Vec::new();
@@ -98,7 +102,9 @@ impl ClauseEngine {
             for pos in previous_positions.intersection(&current_positions) {
                 let current = self.pool.agent(current_agent, pos, t);
                 let previous = self.pool.agent(previous_agent, pos, t - 1);
-                clauses.push(implies(current, -previous));
+                let mut clause = implies(current, -previous);
+                clause.extend(self.lifted_into(current_agent, pos, t));
+                clauses.push(clause);
             }
         }
         clauses

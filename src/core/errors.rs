@@ -17,6 +17,10 @@ pub enum RuntimeWorldError {
         given: usize,
         expected: usize,
     },
+    InvalidNumberOfBoxes {
+        given: usize,
+        expected: usize,
+    },
     InvalidAgentPosition {
         position: Position,
         reason: String,
@@ -30,7 +34,7 @@ pub enum RuntimeWorldError {
     },
     InvalidWorldState {
         reason: String,
-        state: WorldState,
+        state: Box<WorldState>,
     },
     TileNotWalkable,
     PositionsNotAdjacent {

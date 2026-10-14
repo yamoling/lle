@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use crate::{
     agent::{AgentId, Colour},
-    tiles::Direction,
+    tiles::CardinalDirection,
 };
 
 use super::LaserBeam;
@@ -33,7 +33,7 @@ impl LaserSource {
         self.beam.colour()
     }
 
-    pub fn direction(&self) -> Direction {
+    pub fn direction(&self) -> CardinalDirection {
         self.beam.direction()
     }
 

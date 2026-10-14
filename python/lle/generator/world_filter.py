@@ -317,9 +317,13 @@ class Constraint:
     def requirements(self):
         return self.predicate.requirements
 
-    def is_satisfied_by(self, world: World):
-        """Return whether `world` satisfies this generator constraint."""
-        c = WorldCharacterizer(world, self.t_max)
+    def is_satisfied_by(self, world: World, c: WorldCharacterizer | None = None):
+        """Return whether `world` satisfies this generator constraint.
+
+        Pass `c` to reuse its cached solutions afterwards (it must characterize `world` with `t_max`).
+        """
+        if c is None:
+            c = WorldCharacterizer(world, self.t_max)
         if self.min_solution_length is not None:
             if c.shortest_path is None:
                 return False

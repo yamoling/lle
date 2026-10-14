@@ -33,11 +33,6 @@ class WorldCharacterizer:
         self._interdependence_cache = dict[int, bool]()
 
     @cached_property
-    def n_laser_colours(self) -> int:
-        """Number of distinct agent colours that own a laser source."""
-        return len({source.agent_id for source in self.world.laser_sources})
-
-    @cached_property
     def _shortest_path_profile(self):
         """Cooperation profile of `shortest_path`, or `None` for an unsolvable world."""
         if self.shortest_path is None:
@@ -66,8 +61,6 @@ class WorldCharacterizer:
         """
         path = self.shortest_path
         if path is None:
-            return False
-        if self.n_laser_colours == 0:
             return False
         profile = self._shortest_path_profile
         assert profile is not None

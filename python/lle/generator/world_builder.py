@@ -75,15 +75,42 @@ class WorldBuilder:
         self._grid[pos[0]][pos[1]] = "G"
         return self
 
+    def add_box(self, pos: Position) -> "WorldBuilder":
+        self._check_bounds(pos)
+        self._check_free(pos)
+        self._grid[pos[0]][pos[1]] = "#"
+        return self
+
     def add_laser(self, agent_id: int, pos: Position, direction: Direction) -> "WorldBuilder":
         self._check_bounds(pos)
         self._check_free(pos)
         self._grid[pos[0]][pos[1]] = f"L{agent_id}{_dir_letter(direction)}"
         return self
 
+    def add_lift(self, pos: Position, up: bool, group: int, colour: int | None = None) -> "WorldBuilder":
+        """A lift of `group` moving agents one layer up (`up`) or down, restricted to `colour` if given."""
+        self._check_bounds(pos)
+        self._check_free(pos)
+        self._grid[pos[0]][pos[1]] = f"T{'U' if up else 'D'}{group}" + ("" if colour is None else f"A{colour}")
+        return self
+
+    def add_button(self, pos: Position, group: int, colour: int | None = None) -> "WorldBuilder":
+        """A button pulsing the lifts of `group`, restricted to `colour` if given."""
+        self._check_bounds(pos)
+        self._check_free(pos)
+        self._grid[pos[0]][pos[1]] = f"B{group}" + ("" if colour is None else f"A{colour}")
+        return self
+
+    def to_str(self):
+        return "\n".join(" ".join(row) for row in self._grid)
+
     def build(self):
         """Serialize the grid and construct a real lle.World."""
-        world_str = "\n".join(" ".join(row) for row in self._grid)
-        world = World(world_str)
-        world.reset()
-        return world
+        return build_layers([self])
+
+
+def build_layers(layers: list[WorldBuilder]):
+    """Stack one builder per layer, bottom layer first, into a real lle.World."""
+    world = World("\n;\n".join(layer.to_str() for layer in layers))
+    world.reset()
+    return world
