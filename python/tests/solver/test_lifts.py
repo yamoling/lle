@@ -1339,3 +1339,13 @@ SWAP_MAP = ". . TU1\nTU0 L2S B0A0\nS0 X TU0\n;\n{actuator} X TD1\n. X S2\n. . S1
 @pytest.mark.parametrize(("actuator", "shortest"), [("P1", 7), ("B1", 8)])
 def test_lifts_of_one_group_swap_their_riders(actuator: str, shortest: int):
     check(Case(f"swap-{actuator}", SWAP_MAP.format(actuator=actuator), shortest=shortest))
+
+
+def test_find_shortest_does_not_crash_the_sat_solver():
+    # Minisat22 crashed the process at horizon 36 of the incremental search on this world.
+    world = World(
+        "@ . . L0W .\n. . X . .\n@ . . . .\n. X . . .\n. . . . .\n;\n"
+        "@ . S0 S2 .\nTU2 @ . TD0 P2\n. L0E . . .\nH0 . . . .\n. . . X .\n;\n"
+        ". . . . .\n. . @ . .\n. . . . .\nP1 . S1 . TD1\n. L1N . @ ."
+    )
+    assert Solver(world, 37).find_shortest() is None

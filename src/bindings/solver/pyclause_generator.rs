@@ -24,18 +24,18 @@ fn extract_solve_mode(py: Python, mode: Py<PyAny>) -> PyResult<SolveMode> {
 ///
 /// The constraint generation itself (agent movement, collisions, laser propagation and blocking)
 /// is implemented in Rust for performance; SAT solving remains delegated to Python (e.g.
-/// `pysat.solvers.Minisat22`). One generator can be reused across modes because domain clauses are
+/// `pysat.solvers.MinisatGH`). One generator can be reused across modes because domain clauses are
 /// cached independently from cooperation-specific support clauses.
 ///
 /// ```python
-/// from pysat.solvers import Minisat22
+/// from pysat.solvers import MinisatGH
 /// from lle import World
 /// from lle.solver.clauses import ClauseGenerator
 ///
 /// world = World.level(1)
 /// gen = ClauseGenerator(world, t_max=20)
 /// clauses, assumptions = gen.generate(10, mode="standard", collect_gems=False)
-/// with Minisat22(bootstrap_with=clauses) as solver:
+/// with MinisatGH(bootstrap_with=clauses) as solver:
 ///     if solver.solve(assumptions=assumptions):
 ///         plan = gen.decode_plan(solver.get_model(), 10)
 /// ```
@@ -164,7 +164,7 @@ impl PyClauseGenerator {
     ///
     /// ```python
     /// gen.start_delta_stream(mode="standard")
-    /// with Minisat22() as solver:
+    /// with MinisatGH() as solver:
     ///     for t in range(gen.solution_lower_bound, gen.t_max + 1):
     ///         clauses, assumptions = gen.advance_delta_stream(t)
     ///         solver.append_formula(clauses)

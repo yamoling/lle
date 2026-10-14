@@ -1,13 +1,13 @@
 import pytest
 from lle import Action, World
 from lle.solver.clauses import ClauseGenerator, SolveMode
-from pysat.solvers import Minisat22
+from pysat.solvers import MinisatGH
 
 COOPERATION_DELTA_WORLD = "L0E .  .  X\nL1E .  .  X\nL2E .  .  X\nS0  S1 S2 X"
 
 
 def _formula_is_sat(clauses: list[list[int]], assumptions: list[int]) -> bool:
-    with Minisat22(bootstrap_with=clauses) as solver:
+    with MinisatGH(bootstrap_with=clauses) as solver:
         return bool(solver.solve(assumptions=assumptions))
 
 
@@ -80,7 +80,7 @@ def test_delta_stream_matches_fresh_complete_formulas_across_modes(
     t_max = max(horizons)
     stream_generator = ClauseGenerator(World(world_string), t_max)
     stream_generator.start_delta_stream(mode=mode, collect_gems=collect_gems)
-    with Minisat22() as incremental_solver:
+    with MinisatGH() as incremental_solver:
         for horizon in horizons:
             delta_clauses, delta_assumptions = stream_generator.advance_delta_stream(horizon)
             incremental_solver.append_formula(delta_clauses)
@@ -104,7 +104,7 @@ def test_delta_stream_supports_incremental_solving_and_repeated_horizons():
     """
     generator = ClauseGenerator(World("S0 . . X"), 4)
     generator.start_delta_stream()
-    with Minisat22() as solver:
+    with MinisatGH() as solver:
         clauses, assumptions = generator.advance_delta_stream(2)
         solver.append_formula(clauses)
         assert not solver.solve(assumptions=assumptions)  # pyright: ignore[reportUnknownMemberType]
@@ -178,7 +178,7 @@ def test_new_stream_on_a_reused_generator_serves_a_fresh_solver_correctly():
 
     for mode in (SolveMode.standard(), SolveMode.no_sequence(2)):
         generator.start_delta_stream(mode=mode)
-        with Minisat22() as incremental_solver:
+        with MinisatGH() as incremental_solver:
             for horizon in (2, 3, 4):
                 clauses, assumptions = generator.advance_delta_stream(horizon)
                 incremental_solver.append_formula(clauses)

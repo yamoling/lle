@@ -10,7 +10,7 @@ import pytest
 from lle import World
 from lle.solver import Solver
 from lle.solver.clauses import ClauseGenerator
-from pysat.solvers import Minisat22
+from pysat.solvers import MinisatGH
 
 
 def first_all_arrived_step(world: World, plan: list[tuple[lle.Action, ...]]) -> int | None:
@@ -32,7 +32,7 @@ def all_plans(world: World, path_length: int) -> list[list[tuple[lle.Action, ...
     generator = ClauseGenerator(world, path_length)
     clauses, assumptions = generator.generate(path_length, mode="standard", collect_gems=False)
     plans: list[list[tuple[lle.Action, ...]]] = []
-    with Minisat22(bootstrap_with=clauses) as sat_solver:
+    with MinisatGH(bootstrap_with=clauses) as sat_solver:
         while sat_solver.solve(assumptions=assumptions):
             model = sat_solver.get_model()
             assert model is not None

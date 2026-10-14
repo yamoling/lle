@@ -3,7 +3,10 @@
 import random
 from typing import Literal
 
-from pysat.solvers import Minisat22  # pyright: ignore[reportMissingTypeStubs]
+# MinisatGH rather than Minisat22: Minisat22 (python-sat 1.9.dev5) crashes the process with an access
+# violation on some incremental clause sequences of `find_shortest` (worlds with levers and plates),
+# which MinisatGH, Glucose and CaDiCaL all solve.
+from pysat.solvers import MinisatGH  # pyright: ignore[reportMissingTypeStubs]
 
 from ..world import Action, World
 from .clauses import ClauseGenerator, SolveMode
@@ -109,7 +112,7 @@ class Solver:
 
         parsed_mode = _parse_mode(mode)
         self.generator.start_delta_stream(mode=parsed_mode, collect_gems=collect_gems)
-        with Minisat22() as sat_solver:
+        with MinisatGH() as sat_solver:
             for path_length in range(t_min, self.t_max + 1):
                 clauses, assumptions = self.generator.advance_delta_stream(path_length)
                 if shuffle:
@@ -157,7 +160,7 @@ def solve_model(clauses: list[list[int]], *, assumptions: list[int] | None = Non
     """
     if assumptions is None:
         assumptions = []
-    with Minisat22(bootstrap_with=clauses) as sat_solver:
+    with MinisatGH(bootstrap_with=clauses) as sat_solver:
         res = bool(sat_solver.solve(assumptions=assumptions))  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
         if res:
             model: list[int] | None = sat_solver.get_model()  # pyright: ignore[reportUnknownVariableType]
