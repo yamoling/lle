@@ -1,3 +1,4 @@
+mod actuator;
 mod button;
 mod direction;
 mod gem;

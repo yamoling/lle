@@ -1,6 +1,6 @@
 use crate::{agent::Colour, tiles::Button};
 
-use super::ParseError;
+use super::{ParseError, actuator_token::parse_actuator_token};
 
 #[derive(Debug)]
 pub struct ButtonConfig {
@@ -14,24 +14,7 @@ impl ButtonConfig {
     /// `B0A1`. As with `S<c>`, the trailing number is a *colour*, so a restricted
     /// button admits every agent sharing that colour.
     pub fn from_str(value: &str) -> Result<ButtonConfig, ParseError> {
-        let rest = &value[1..];
-        let (group_str, authorized_colour) = match rest.split_once('A') {
-            Some((group_str, colour_str)) => {
-                let colour =
-                    colour_str
-                        .parse::<Colour>()
-                        .map_err(|_| ParseError::InvalidAgentId {
-                            given_agent_id: colour_str.to_string(),
-                        })?;
-                (group_str, Some(colour))
-            }
-            None => (rest, None),
-        };
-        let group_id = group_str
-            .parse::<usize>()
-            .map_err(|_| ParseError::InvalidGroupId {
-                given_group_id: group_str.to_string(),
-            })?;
+        let (group_id, authorized_colour) = parse_actuator_token(value)?;
         Ok(Self {
             group_id,
             authorized_colour,

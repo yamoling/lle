@@ -1,3 +1,4 @@
+mod actuator_token;
 mod button_config;
 mod errors;
 mod laser_config;

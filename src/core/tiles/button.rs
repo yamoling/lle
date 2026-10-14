@@ -2,7 +2,10 @@ use crate::{
     WorldEvent,
     agent::{Agent, AgentId, Colour},
 };
-/// A pressure-plate-like tile. Standing on it does nothing by itself; taking
+
+use super::actuator::authorizes;
+
+/// A one-shot actuator tile. Standing on it does nothing by itself; taking
 /// `Action::Trigger` while standing on it pulses every `Lift` sharing the
 /// same `group_id` (see `Lift` and `World::step`). Buttons hold no
 /// persistent on/off state - the "pulse" model means every trigger is a
@@ -67,7 +70,7 @@ impl Button {
         // An unoccupied button cannot be actuated, whatever the colour.
         self.agent()?;
 
-        if self.authorized_colour.is_some_and(|auth| auth != colour) {
+        if !authorizes(self.authorized_colour, colour) {
             return None;
         }
 
