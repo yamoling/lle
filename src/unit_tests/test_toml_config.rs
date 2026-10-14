@@ -1,6 +1,6 @@
 use crate::{ParseError, Position, World};
 
-use super::parse;
+use super::{TomlConfig, parse};
 
 #[test]
 fn invalid_toml_field() {
@@ -670,4 +670,47 @@ k = 0
     assert_eq!(*pos, Position { i: 1, j: 1, k: 0 });
     assert_eq!(button.group_id, 1);
     assert_eq!(button.authorized_colour, None);
+}
+
+#[test]
+fn parse_toml_with_levers_and_pressure_plates() {
+    let toml_content = r#"
+width = 3
+height = 3
+[[levers]]
+group_id = 1
+authorized_colour = 0
+position = { i = 0, j = 1, k = 0 }
+
+[[pressure_plates]]
+group_id = 2
+position = { i = 1, j = 1, k = 0 }
+"#;
+    let config = parse(toml_content).unwrap();
+    assert_eq!(config.levers().len(), 1);
+    let (pos, lever) = &config.levers()[0];
+    assert_eq!(*pos, Position { i: 0, j: 1, k: 0 });
+    assert_eq!(lever.group_id, 1);
+    assert_eq!(lever.authorized_colour, Some(0));
+
+    assert_eq!(config.pressure_plates().len(), 1);
+    let (pos, plate) = &config.pressure_plates()[0];
+    assert_eq!(*pos, Position { i: 1, j: 1, k: 0 });
+    assert_eq!(plate.group_id, 2);
+    assert_eq!(plate.authorized_colour, None);
+}
+
+#[test]
+fn levers_and_pressure_plates_from_the_world_string_are_kept() {
+    let toml_content = r#"
+world_string = "S0 H0A1 P2 X"
+"#;
+    let config = parse(toml_content).unwrap();
+    assert_eq!(config.levers().len(), 1);
+    assert_eq!(config.pressure_plates().len(), 1);
+    // And they survive a TOML round trip.
+    let toml_string = TomlConfig::from(&config).to_toml_string();
+    let reparsed = parse(&toml_string).unwrap();
+    assert_eq!(reparsed.levers()[0].1.authorized_colour, Some(1));
+    assert_eq!(reparsed.pressure_plates()[0].1.group_id, 2);
 }

@@ -102,6 +102,22 @@
         "$ref": "#/definitions/ButtonConfig"
       },
       "default": []
+    },
+    "levers": {
+      "type": "array",
+      "description": "Lever tile configurations. Taking the Trigger action while standing on a lever toggles it; while on, it pulses every Lift sharing its group_id at every step. Levers start off. Example:\n[[levers]]\ngroup_id = 0\n[levers.position]\ni = 1\nj = 1\nk = 0",
+      "items": {
+        "$ref": "#/definitions/LeverConfig"
+      },
+      "default": []
+    },
+    "pressure_plates": {
+      "type": "array",
+      "description": "Pressure plate tile configurations. A pressure plate pulses every Lift sharing its group_id at every step an authorized agent stands on it, without any Trigger action. Example:\n[[pressure_plates]]\ngroup_id = 0\n[pressure_plates.position]\ni = 1\nj = 1\nk = 0",
+      "items": {
+        "$ref": "#/definitions/PressurePlateConfig"
+      },
+      "default": []
     }
   },
   "additionalProperties": false,
@@ -393,6 +409,56 @@
           "type": "integer",
           "minimum": 0,
           "description": "The lift group this button pulses when actuated. Example: group_id = 0"
+        }
+      },
+      "required": [
+        "position",
+        "group_id"
+      ],
+      "additionalProperties": false
+    },
+    "LeverConfig": {
+      "type": "object",
+      "description": "Configuration for a lever tile. Example:\n[[levers]]\ngroup_id = 0\n[levers.position]\ni = 1\nj = 1\nk = 0",
+      "properties": {
+        "authorized_colour": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "If set, only agents of this colour can toggle the lever. Several agents may share a colour, so this authorizes a group rather than one individual. Example: authorized_colour = 0"
+        },
+        "position": {
+          "$ref": "#/definitions/PositionIJK",
+          "description": "The position of the lever on the grid. Example:\n[levers.position]\ni = 1\nj = 1\nk = 0"
+        },
+        "group_id": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "The lift group this lever pulses while on. Example: group_id = 0"
+        }
+      },
+      "required": [
+        "position",
+        "group_id"
+      ],
+      "additionalProperties": false
+    },
+    "PressurePlateConfig": {
+      "type": "object",
+      "description": "Configuration for a pressure plate tile. Example:\n[[pressure_plates]]\ngroup_id = 0\n[pressure_plates.position]\ni = 1\nj = 1\nk = 0",
+      "properties": {
+        "authorized_colour": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "If set, only agents of this colour can activate the pressure plate. Several agents may share a colour, so this authorizes a group rather than one individual. Example: authorized_colour = 0"
+        },
+        "position": {
+          "$ref": "#/definitions/PositionIJK",
+          "description": "The position of the pressure plate on the grid. Example:\n[pressure_plates.position]\ni = 1\nj = 1\nk = 0"
+        },
+        "group_id": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "The lift group this pressure plate pulses while an authorized agent stands on it. Example: group_id = 0"
         }
       },
       "required": [

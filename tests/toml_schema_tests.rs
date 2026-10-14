@@ -1185,3 +1185,52 @@ color = "red"
 "#,
     );
 }
+
+// ===================== Lever / Pressure plate =====================
+
+#[test]
+fn valid_levers_and_pressure_plates() {
+    assert_valid(
+        r#"
+width = 5
+height = 5
+
+[[levers]]
+group_id = 0
+authorized_colour = 1
+position = { i = 1, j = 1, k = 0 }
+
+[[pressure_plates]]
+group_id = 1
+position = { i = 2, j = 2, k = 0 }
+"#,
+    );
+}
+
+#[test]
+fn invalid_lever_missing_group_id() {
+    assert_invalid(
+        r#"
+width = 5
+height = 5
+
+[[levers]]
+position = { i = 1, j = 1, k = 0 }
+"#,
+    );
+}
+
+#[test]
+fn invalid_pressure_plate_extra_field() {
+    assert_invalid(
+        r#"
+width = 5
+height = 5
+
+[[pressure_plates]]
+group_id = 0
+position = { i = 1, j = 1, k = 0 }
+is_on = true
+"#,
+    );
+}

@@ -6,7 +6,10 @@ use crate::{
     core::parsing::{WorldConfig, parse_v1},
 };
 
-use super::{AgentConfig, PositionsConfig, TomlButtonConfig, TomlLaserConfig, TomlLiftConfig};
+use super::{
+    AgentConfig, PositionsConfig, TomlButtonConfig, TomlLaserConfig, TomlLeverConfig,
+    TomlLiftConfig, TomlPressurePlateConfig,
+};
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -36,6 +39,10 @@ pub struct TomlConfig {
     pub lifts: Vec<TomlLiftConfig>,
     #[serde(default)]
     pub buttons: Vec<TomlButtonConfig>,
+    #[serde(default)]
+    pub levers: Vec<TomlLeverConfig>,
+    #[serde(default)]
+    pub pressure_plates: Vec<TomlPressurePlateConfig>,
 }
 impl TomlConfig {
     fn complete_with_world_string(&mut self) -> Result<(), ParseError> {
@@ -134,6 +141,17 @@ impl TomlConfig {
                 .iter()
                 .map(|(pos, button)| TomlButtonConfig::from_button_config(button, *pos)),
         );
+        self.levers.extend(
+            config
+                .levers()
+                .iter()
+                .map(|(pos, lever)| TomlLeverConfig::from_lever_config(lever, *pos)),
+        );
+        self.pressure_plates.extend(
+            config.pressure_plates().iter().map(|(pos, plate)| {
+                TomlPressurePlateConfig::from_pressure_plate_config(plate, *pos)
+            }),
+        );
         Ok(())
     }
 
@@ -221,6 +239,12 @@ impl TryInto<WorldConfig> for TomlConfig {
             .iter()
             .map(|b| (b.position, b.into()))
             .collect();
+        let lever_configs = self.levers.iter().map(|l| (l.position, l.into())).collect();
+        let pressure_plate_configs = self
+            .pressure_plates
+            .iter()
+            .map(|p| (p.position, p.into()))
+            .collect();
         // An agent without a declared colour keeps the historical default: colour = agent id.
         let colours = self
             .agents
@@ -241,8 +265,8 @@ impl TryInto<WorldConfig> for TomlConfig {
             source_configs,
             lift_configs,
             button_configs,
-            vec![],
-            vec![],
+            lever_configs,
+            pressure_plate_configs,
             colours,
         ))
     }
@@ -280,6 +304,16 @@ impl From<&WorldConfig> for TomlConfig {
             .iter()
             .map(|(pos, button)| TomlButtonConfig::from_button_config(button, *pos))
             .collect();
+        let levers = value
+            .levers()
+            .iter()
+            .map(|(pos, lever)| TomlLeverConfig::from_lever_config(lever, *pos))
+            .collect();
+        let pressure_plates = value
+            .pressure_plates()
+            .iter()
+            .map(|(pos, plate)| TomlPressurePlateConfig::from_pressure_plate_config(plate, *pos))
+            .collect();
 
         Self {
             width: Some(width),
@@ -297,6 +331,8 @@ impl From<&WorldConfig> for TomlConfig {
             starts: vec![],
             lifts,
             buttons,
+            levers,
+            pressure_plates,
         }
     }
 }
