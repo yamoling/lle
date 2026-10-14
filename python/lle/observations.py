@@ -68,9 +68,9 @@ class ObservationType(str, Enum):
         """Build the generator for this preset.
 
         `padding_size` reserves channels for agents that the world does not have,
-        and `n_groups` does the same for lift/button groups. Both exist to pin the
+        and `n_groups` does the same for lift/actuator groups. Both exist to pin the
         observation shape when a single network has to consume several maps: leave
-        `n_groups` at `None` to size the lift/button section after the world.
+        `n_groups` at `None` to size the lift/actuator section after the world.
         """
         match self:
             case ObservationType.NORMALIZED_STATE:
@@ -104,17 +104,18 @@ class ObservationType(str, Enum):
 
 
 def _build_group_index(world: World) -> tuple[list[int], dict[int, int]]:
-    """Map the (possibly sparse) lift/button group ids onto dense channel indices.
+    """Map the (possibly sparse) lift/actuator group ids onto dense channel indices.
 
-    Lifts and buttons share the index so that `LIFT_0 + g` and `BUTTON_0 + g`
-    designate the same group, which is exactly the button-pulses-lift relation.
+    Lifts and their actuators (buttons, levers and pressure plates) share the index so that
+    `LIFT_0 + g`, `BUTTON_0 + g`, `LEVER_0 + g` and `PLATE_0 + g` designate the same group,
+    which is exactly the actuator-pulses-lift relation.
     """
-    group_ids = sorted({tile.group_id for tile in (*world.lifts, *world.buttons)})
+    group_ids = sorted({tile.group_id for tile in (*world.lifts, *world.buttons, *world.levers, *world.pressure_plates)})
     return group_ids, {group_id: index for index, group_id in enumerate(group_ids)}
 
 
 def _resolve_n_groups(group_ids: list[int], n_groups: int | None) -> int:
-    """The number of lift/button group channels to reserve.
+    """The number of lift/actuator group channels to reserve.
 
     `None` sizes the section after the world it is given. An explicit value pins
     it instead, so that maps with different group counts still yield the same
@@ -123,7 +124,7 @@ def _resolve_n_groups(group_ids: list[int], n_groups: int | None) -> int:
     if n_groups is None:
         return len(group_ids)
     if n_groups < len(group_ids):
-        raise ValueError(f"n_groups={n_groups} is too small for a world with {len(group_ids)} lift/button groups")
+        raise ValueError(f"n_groups={n_groups} is too small for a world with {len(group_ids)} lift/actuator groups")
     return n_groups
 
 
@@ -142,7 +143,7 @@ def _assert_world_fits(
         )
     if n_new_groups > n_groups:
         raise ValueError(
-            f"The new world has {n_new_groups} lift/button groups but only {n_groups} are reserved. "
+            f"The new world has {n_new_groups} lift/actuator groups but only {n_groups} are reserved. "
             "Rebuild the generator, or reserve more room with `n_groups`."
         )
     new_dims = (new_world.height, new_world.width, new_world.layers)
@@ -151,7 +152,7 @@ def _assert_world_fits(
 
 
 def _authorized_colours(authorized_colour: Colour | None, n_colours: int) -> list[Colour]:
-    """The colours allowed to use a lift or button. `None` means all of them.
+    """The colours allowed to use a lift or an actuator. `None` means all of them.
 
     A colour at or above `n_colours` has no channel to go in, so it encodes as
     nothing rather than aliasing into another colour's layer - the same rule the
@@ -286,7 +287,7 @@ class RGBImage(ObservationGenerator):
 
 @dataclass
 class LayeredPadded(ObservationGenerator):
-    """Layered observations with an optional agent and lift/button group budget."""
+    """Layered observations with an optional agent and lift/actuator group budget."""
 
     def __init__(self, world: World, padding_size: int, n_groups: int | None = None, *, guard_shared_colours: bool = True):
         super().__init__(world)
@@ -307,12 +308,15 @@ class LayeredPadded(ObservationGenerator):
         self.VOID = self.WALL + 1
         self.GEM = self.VOID + 1
         self.EXIT = self.GEM + 1
-        # One channel per lift group (sign = direction), one per button group, and
-        # one per colour telling whether agents of that colour may use the
-        # lift/button below it. The whole section is absent when no group is reserved.
+        # One channel per lift group (sign = direction), one per button group, one per
+        # lever group (1 = off, -1 = on), one per pressure plate group, and one per colour
+        # telling whether agents of that colour may use the lift/actuator below it.
+        # The whole section is absent when no group is reserved.
         self.LIFT_0 = self.EXIT + 1
         self.BUTTON_0 = self.LIFT_0 + self.n_groups
-        self.AUTH_0 = self.BUTTON_0 + self.n_groups
+        self.LEVER_0 = self.BUTTON_0 + self.n_groups
+        self.PLATE_0 = self.LEVER_0 + self.n_groups
+        self.AUTH_0 = self.PLATE_0 + self.n_groups
         n_channels = self.AUTH_0 + (self.n_colours if self.n_groups > 0 else 0)
         self._shape = (n_channels, world.height, world.width, world.layers)
         self.ordered_gem_pos = sorted(gem.pos for gem in world.gems)
@@ -342,8 +346,8 @@ class LayeredPadded(ObservationGenerator):
         (e.g. `world.exit_pos = ...`), both of which call `reset()` on this generator — see
         `ObservationGenerator.reset`. Recomputed there instead of on every `observe()` call.
 
-        Lift/button positions, groups and authorizations never change either, so they are
-        baked in here too.
+        Lift/actuator positions, groups and authorizations never change either, so they are
+        baked in here too. Levers are baked in as off; `observe` flips the ones that are on.
         """
         obs = np.zeros(self._shape, dtype=np.float32)
         for i, j, k in self._world.wall_pos:
@@ -352,9 +356,9 @@ class LayeredPadded(ObservationGenerator):
         for i, j, k in self._world.void_pos:
             obs[self.VOID, i, j, k] = 1.0
 
-        # Neither the position of a lift/button nor its group or its authorized
+        # Neither the position of a lift/actuator nor its group or its authorized
         # colour changes during an episode, so all of it can be baked into the
-        # static layers just like walls/voids.
+        # static layers just like walls/voids. Only a lever's on/off state changes.
         for lift in self._world.lifts:
             i, j, k = lift.pos
             obs[self.LIFT_0 + self.group_index[lift.group_id], i, j, k] = 1.0 if lift.direction == "U" else -1.0
@@ -364,6 +368,16 @@ class LayeredPadded(ObservationGenerator):
             i, j, k = button.pos
             obs[self.BUTTON_0 + self.group_index[button.group_id], i, j, k] = 1.0
             self._encode_authorization(obs, button.authorized_colour, button.pos)
+
+        for lever in self._world.levers:
+            i, j, k = lever.pos
+            obs[self.LEVER_0 + self.group_index[lever.group_id], i, j, k] = 1.0
+            self._encode_authorization(obs, lever.authorized_colour, lever.pos)
+
+        for plate in self._world.pressure_plates:
+            i, j, k = plate.pos
+            obs[self.PLATE_0 + self.group_index[plate.group_id], i, j, k] = 1.0
+            self._encode_authorization(obs, plate.authorized_colour, plate.pos)
 
         for i, j, k in self._world.exit_pos:
             obs[self.EXIT, i, j, k] = 1.0
@@ -375,7 +389,7 @@ class LayeredPadded(ObservationGenerator):
         return obs
 
     def _encode_authorization(self, obs: npt.NDArray[np.float32], authorized_colour: Colour | None, pos: Position):
-        """Flag which colours may use the lift or button standing at `pos`."""
+        """Flag which colours may use the lift or actuator standing at `pos`."""
         i, j, k = pos
         for colour in _authorized_colours(authorized_colour, self.n_colours):
             obs[self.AUTH_0 + colour, i, j, k] = 1.0
@@ -401,7 +415,8 @@ class LayeredPadded(ObservationGenerator):
         # We need the gem positions to be ordered because they are initially stored in a hashmap
         for i, j, k in self.ordered_gem_pos:
             gems_collected.append(bool(data[self.GEM, i, j, k] == 0.0))
-        return WorldState(agents_positions, gems_collected)
+        levers_on = [bool(data[(self.LEVER_0 + self.group_index[lever.group_id], *lever.pos)] == -1.0) for lever in self._world.levers]
+        return WorldState(agents_positions, gems_collected, levers_on=levers_on)
 
     def observe(self):
         obs = np.copy(self.static_obs)
@@ -413,6 +428,10 @@ class LayeredPadded(ObservationGenerator):
             i, j, k = gem.pos
             if not gem.is_collected:
                 obs[self.GEM, i, j, k] = 1.0
+        for lever in self._world.levers:
+            if lever.is_on:
+                i, j, k = lever.pos
+                obs[self.LEVER_0 + self.group_index[lever.group_id], i, j, k] = -1.0
         # Every agent is stamped into its colour's layer. Two agents never share a cell, so
         # same-colour agents cannot overwrite each other.
         for colour, (y, x, z) in zip(self._world.agent_colours, self._world.agents_positions):
@@ -475,16 +494,19 @@ class PartialGenerator(ObservationGenerator):
         self.n_colours = world.n_colours
         self.group_ids, self.group_index = _build_group_index(world)
         self.n_groups = _resolve_n_groups(self.group_ids, n_groups)
-        # Each agent, walls, each laser, gems, exits, then the lift/button section:
-        # one channel per lift group (sign = direction), one per button group and
-        # one per colour for the authorizations. Absent when no group is reserved.
+        # Each agent, walls, each laser, gems, exits, then the lift/actuator section:
+        # one channel per lift group (sign = direction), one per button group, one per
+        # lever group (1 = off, -1 = on), one per pressure plate group and one per
+        # colour for the authorizations. Absent when no group is reserved.
         self.WALL = self.n_colours
         self.LASER_0 = self.WALL + 1
         self.GEM = self.LASER_0 + self.n_colours
         self.EXIT = self.GEM + 1
         self.LIFT_0 = self.EXIT + 1
         self.BUTTON_0 = self.LIFT_0 + self.n_groups
-        self.AUTH_0 = self.BUTTON_0 + self.n_groups
+        self.LEVER_0 = self.BUTTON_0 + self.n_groups
+        self.PLATE_0 = self.LEVER_0 + self.n_groups
+        self.AUTH_0 = self.PLATE_0 + self.n_groups
         n_channels = self.AUTH_0 + (self.n_colours if self.n_groups > 0 else 0)
         self._shape = (n_channels, self.size, self.size)
 
@@ -526,7 +548,7 @@ class PartialGenerator(ObservationGenerator):
         authorized_colour: Colour | None,
         pos: Position,
     ):
-        """Flag which colours may use the lift or button standing at `pos`."""
+        """Flag which colours may use the lift or actuator standing at `pos`."""
         for colour in _authorized_colours(authorized_colour, self.n_colours):
             self.encode_layer(obs[self.AUTH_0 + colour], origin, [pos])
 
@@ -563,6 +585,19 @@ class PartialGenerator(ObservationGenerator):
             for button in self._world.buttons:
                 self.encode_layer(obs[a, self.BUTTON_0 + self.group_index[button.group_id]], agent_pos, [button.pos])
                 self._encode_authorization(obs[a], agent_pos, button.authorized_colour, button.pos)
+            # Levers: one channel per group, 1 when off and -1 when on
+            for lever in self._world.levers:
+                self.encode_layer(
+                    obs[a, self.LEVER_0 + self.group_index[lever.group_id]],
+                    agent_pos,
+                    [lever.pos],
+                    fill_value=-1.0 if lever.is_on else 1.0,
+                )
+                self._encode_authorization(obs[a], agent_pos, lever.authorized_colour, lever.pos)
+            # Pressure plates: one channel per group
+            for plate in self._world.pressure_plates:
+                self.encode_layer(obs[a, self.PLATE_0 + self.group_index[plate.group_id]], agent_pos, [plate.pos])
+                self._encode_authorization(obs[a], agent_pos, plate.authorized_colour, plate.pos)
         return obs
 
     def _get_lasers_positions(self) -> dict[Colour, list[Position]]:
@@ -590,9 +625,9 @@ class PerspectiveLayered(ObservationGenerator):
       its colour's layer, exactly as lasers already were;
     - the observing agent's colour is transposed with colour 0, so an agent always sees itself
       as colour 0 regardless of the colour it was assigned;
-    - it also carries the lift/button group section, like `LayeredPadded`. The `AUTH_0` band is
+    - it also carries the lift/actuator group section, like `LayeredPadded`. The `AUTH_0` band is
       per-colour, like the agent and laser bands, so it is colour-permuted along with them: an
-      agent always finds its own lift/button authorization in `AUTH_0`.
+      agent always finds its own lift/actuator authorization in `AUTH_0`.
     """
 
     def __init__(self, world: World, n_groups: int | None = None):
@@ -611,7 +646,9 @@ class PerspectiveLayered(ObservationGenerator):
         self.EXIT = self.GEM + 1
         self.LIFT_0 = self.EXIT + 1
         self.BUTTON_0 = self.LIFT_0 + self.n_groups
-        self.AUTH_0 = self.BUTTON_0 + self.n_groups
+        self.LEVER_0 = self.BUTTON_0 + self.n_groups
+        self.PLATE_0 = self.LEVER_0 + self.n_groups
+        self.AUTH_0 = self.PLATE_0 + self.n_groups
         n_channels = self.AUTH_0 + (self.n_colours if self.n_groups > 0 else 0)
         self._shape = (n_channels, 2 * world.height - 1, 2 * world.width - 1, world.layers)
         # The map-sized view this one shifts and permutes. It is built unguarded on purpose:
@@ -650,7 +687,7 @@ class PerspectiveLayered(ObservationGenerator):
         """Swap `colour` into slot 0 of every colour-indexed band.
 
         That is the agent band, the laser band, and - when the world reserves any
-        lift/button group - the authorization band, so an observer reads its own
+        lift/actuator group - the authorization band, so an observer reads its own
         authorization out of `AUTH_0` whatever colour it was assigned.
         """
         if colour == 0:

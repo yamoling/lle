@@ -571,7 +571,7 @@ def test_declared_n_groups_on_a_world_without_lifts():
     """The section is emitted on a lift-free map so it stays shape-compatible."""
     observer = ObservationType.LAYERED.get_observation_generator(World(_ZERO_GROUPS), n_groups=2)
     layers = observer.observe()
-    assert observer.shape[0] == 3 * 2 + 4 + 2 * 2
+    assert observer.shape[0] == 3 * 2 + 4 + 4 * 2
     assert np.all(layers[:, observer.LIFT_0 :] == 0.0)
 
 
@@ -1059,3 +1059,124 @@ def test_layered_state_types_still_round_trip_without_boxes(state_type):
     env.step(env.sample_action())
     env.set_state(state)
     assert env.world.agents_positions == [(0, 0)]
+
+
+# ===================== Levers and pressure plates =====================
+
+_LEVER_WORLD = """
+S0 H0 TU0 . X
+;
+.  .  .   . X
+"""
+
+
+def test_observe_layered_lever_flips_when_toggled():
+    world = World(_LEVER_WORLD)
+    observer = Layered(world)
+    world.reset()
+    lever_channel = observer.LEVER_0 + observer.group_index[0]
+
+    layers = observer.observe()
+    assert np.all(layers[:, lever_channel, 0, 1, 0] == 1.0)  # present and off
+    assert np.count_nonzero(layers[0, lever_channel]) == 1
+
+    world.step([Action.EAST])
+    world.step([Action.TRIGGER])
+    layers = observer.observe()
+    assert np.all(layers[:, lever_channel, 0, 1, 0] == -1.0)  # on
+    assert np.count_nonzero(layers[0, lever_channel]) == 1
+
+    world.step([Action.TRIGGER])
+    assert np.all(observer.observe()[:, lever_channel, 0, 1, 0] == 1.0)  # off again
+
+
+def test_observe_layered_pressure_plate():
+    world = World("S0 P0 TU0 X\n;\n. . . X")
+    observer = Layered(world)
+    world.reset()
+    layers = observer.observe()
+    plate_channel = observer.PLATE_0 + observer.group_index[0]
+    assert np.all(layers[:, plate_channel, 0, 1, 0] == 1.0)
+    assert np.count_nonzero(layers[0, plate_channel]) == 1
+
+
+def test_observe_layered_actuators_share_the_lift_group_index():
+    world = World(
+        """
+        S0 H1 TU1 P2 TU2 B0 TU0 X
+        ;
+        .  .  .   .  .   .  .   X
+        """
+    )
+    observer = Layered(world)
+    world.reset()
+    layers = observer.observe()[0]
+    idx = observer.group_index
+    assert observer.n_groups == 3
+    assert layers[observer.LEVER_0 + idx[1], 0, 1, 0] == 1.0
+    assert layers[observer.LIFT_0 + idx[1], 0, 2, 0] == 1.0
+    assert layers[observer.PLATE_0 + idx[2], 0, 3, 0] == 1.0
+    assert layers[observer.LIFT_0 + idx[2], 0, 4, 0] == 1.0
+    assert layers[observer.BUTTON_0 + idx[0], 0, 5, 0] == 1.0
+    # A lever or plate never leaks into another group's channel.
+    assert np.count_nonzero(layers[observer.LEVER_0 : observer.LEVER_0 + 3]) == 1
+    assert np.count_nonzero(layers[observer.PLATE_0 : observer.PLATE_0 + 3]) == 1
+
+
+def test_observe_layered_lever_and_plate_authorization():
+    world = World(
+        """
+        S0 H0A1 P0A0 H0 X
+        S1 .    TU0  .  X
+        ;
+        .  .    .    .  .
+        .  .    .    .  .
+        """
+    )
+    observer = Layered(world)
+    world.reset()
+    layers = observer.observe()[0]
+    auth = observer.AUTH_0
+    assert (layers[auth + 0, 0, 1, 0], layers[auth + 1, 0, 1, 0]) == (0.0, 1.0)  # H0A1
+    assert (layers[auth + 0, 0, 2, 0], layers[auth + 1, 0, 2, 0]) == (1.0, 0.0)  # P0A0
+    assert (layers[auth + 0, 0, 3, 0], layers[auth + 1, 0, 3, 0]) == (1.0, 1.0)  # H0
+
+
+def test_partial_3x3_lever_and_plate():
+    world = World("S0 H0 P0 TU0 X\n;\n. . . . X")
+    observer = PartialGenerator(world, 3)
+    world.reset()
+    world.step([Action.EAST])  # onto the lever: the plate is the window's east cell
+    obs = observer.observe()[0]
+    lever_channel = observer.LEVER_0 + observer.group_index[0]
+    plate_channel = observer.PLATE_0 + observer.group_index[0]
+    assert obs[lever_channel, 1, 1] == 1.0
+    assert obs[plate_channel, 1, 2] == 1.0
+    world.step([Action.TRIGGER])
+    assert observer.observe()[0][lever_channel, 1, 1] == -1.0
+
+
+def test_perspective_carries_the_lever_state():
+    world = World(_LEVER_WORLD)
+    generator = PerspectiveLayered(world)
+    world.reset()
+    world.step([Action.EAST])
+    world.step([Action.TRIGGER])
+    obs = generator.observe()
+    lever_channel = generator.LEVER_0 + generator.group_index[0]
+    # The observer stands on the lever, at the centre of its canvas.
+    assert obs[0, lever_channel, world.height - 1, world.width - 1, 0] == -1.0
+    assert generator.shape == (generator.AUTH_0 + world.n_colours, *generator.shape[1:])
+
+
+def test_layered_to_world_state_restores_the_lever():
+    world = World(_LEVER_WORLD)
+    observer = Layered(world)
+    world.reset()
+    world.step([Action.EAST])
+    world.step([Action.TRIGGER])
+    state = observer.to_world_state(observer.observe()[0])
+    assert state.levers_on == [True]
+    world.reset()
+    world.set_state(state)
+    assert world.levers[0].is_on
