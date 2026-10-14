@@ -10,7 +10,9 @@ __all__ = [
     "Gem",
     "Laser",
     "LaserSource",
+    "Lever",
     "Lift",
+    "PressurePlate",
 ]
 
 @typing.final
@@ -204,6 +206,41 @@ class LaserSource:
     def __repr__(self) -> builtins.str: ...
 
 @typing.final
+class Lever:
+    r"""
+    A toggle tile: taking `Action.TRIGGER` while standing on it switches it on
+    or off. While on, it pulses every `Lift` sharing the same `group_id` at
+    every step, even once its toggler has left.
+    """
+    @property
+    def group_id(self) -> builtins.int:
+        r"""
+        The group shared with the `Lift`(s) this lever can pulse.
+        """
+    @property
+    def authorized_colour(self) -> typing.Optional[builtins.int]:
+        r"""
+        If set, only agents of this colour can toggle the lever.
+        """
+    @property
+    def pos(self) -> builtins.tuple[int, int, int]:
+        r"""
+        The (i, j, k) position of the lever.
+        """
+    @property
+    def agent(self) -> typing.Optional[builtins.int]:
+        r"""
+        The id of the agent currently standing on the tile, if any.
+        """
+    @property
+    def is_on(self) -> builtins.bool:
+        r"""
+        Whether the lever is currently on, i.e. pulsing its group at every step.
+        """
+    def __str__(self) -> builtins.str: ...
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
 class Lift:
     r"""
     A one-shot elevator tile: pressing a `Button` sharing the same `group_id`
@@ -232,6 +269,35 @@ class Lift:
     def pos(self) -> builtins.tuple[int, int, int]:
         r"""
         The (i, j, k) position of the lift.
+        """
+    @property
+    def agent(self) -> typing.Optional[builtins.int]:
+        r"""
+        The id of the agent currently standing on the tile, if any.
+        """
+    def __str__(self) -> builtins.str: ...
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class PressurePlate:
+    r"""
+    A passive tile: it pulses every `Lift` sharing the same `group_id` at every
+    step in which an authorized agent stands on it. No `Action.TRIGGER` is needed.
+    """
+    @property
+    def group_id(self) -> builtins.int:
+        r"""
+        The group shared with the `Lift`(s) this plate can pulse.
+        """
+    @property
+    def authorized_colour(self) -> typing.Optional[builtins.int]:
+        r"""
+        If set, only agents of this colour activate the plate.
+        """
+    @property
+    def pos(self) -> builtins.tuple[int, int, int]:
+        r"""
+        The (i, j, k) position of the plate.
         """
     @property
     def agent(self) -> typing.Optional[builtins.int]:

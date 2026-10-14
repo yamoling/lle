@@ -15,7 +15,7 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use crate::bindings::{
     pyagent::PyAgent,
     pyexceptions::{parse_error_to_exception, runtime_error_to_pyexception},
-    tiles::{PyButton, PyGem, PyLaser, PyLaserSource, PyLift},
+    tiles::{PyButton, PyGem, PyLaser, PyLaserSource, PyLever, PyLift, PyPressurePlate},
     world::{PyAction, PyPosition, PyWorldEvent, PyWorldState},
 };
 use crate::{Action, AgentId, Renderer, Tile, World};
@@ -410,6 +410,30 @@ impl PyWorld {
             .buttons()
             .iter()
             .map(|(pos, button)| PyButton::new(button, *pos, arc_world.clone()))
+            .collect()
+    }
+
+    /// Every lever tile in the world, in the order of `WorldState.levers_on`.
+    #[getter]
+    fn levers(&self) -> Vec<PyLever> {
+        let arc_world = self.world.clone();
+        let world = self.world.lock().unwrap();
+        world
+            .levers()
+            .iter()
+            .map(|(pos, lever)| PyLever::new(lever, *pos, arc_world.clone()))
+            .collect()
+    }
+
+    /// Every pressure plate tile in the world.
+    #[getter]
+    fn pressure_plates(&self) -> Vec<PyPressurePlate> {
+        let arc_world = self.world.clone();
+        let world = self.world.lock().unwrap();
+        world
+            .pressure_plates()
+            .iter()
+            .map(|(pos, plate)| PyPressurePlate::new(plate, *pos, arc_world.clone()))
             .collect()
     }
 

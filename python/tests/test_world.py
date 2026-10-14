@@ -981,3 +981,68 @@ def test_set_state_after_a_death_restores_a_beam_blocker():
     assert not any(agent.is_alive for agent in world.agents)
     world.set_state(initial)
     assert world.get_state() == initial
+
+
+def test_lever_toggles_and_keeps_pulsing():
+    world = World(
+        """
+        S0 H0 TU0 . X
+        ;
+        .  .  .   . X
+        """
+    )
+    world.reset()
+    [lever] = world.levers
+    assert lever.group_id == 0 and not lever.is_on
+    world.step([Action.EAST])
+    world.step([Action.TRIGGER])
+    assert lever.is_on
+    assert world.get_state().levers_on == [True]
+    # The agent leaves the lever, steps on the lift and is lifted at once.
+    events = world.step([Action.EAST])
+    assert [e.event_type for e in events] == [EventType.LIFT_MOVED]
+    assert world.agents_positions[0] == (0, 2, 1)
+
+
+def test_lever_state_round_trip():
+    world = World("S0 H0 TU0 . X\n;\n. . . . X")
+    world.reset()
+    initial = world.get_state()
+    world.step([Action.EAST])
+    world.step([Action.TRIGGER])
+    on = world.get_state()
+    assert on != initial
+    world.set_state(initial)
+    assert not world.levers[0].is_on
+    world.set_state(on)
+    assert world.levers[0].is_on
+    with pytest.raises(InvalidWorldStateError):
+        world.set_state(WorldState(on.agents_positions, on.gems_collected, on.agents_alive))
+
+
+def test_pressure_plate_pulses_without_trigger():
+    world = World(
+        """
+        S0 TU0 P0 S1 X
+        ;
+        X  .   .  .  .
+        """
+    )
+    world.reset()
+    [plate] = world.pressure_plates
+    assert plate.group_id == 0 and plate.authorized_colour is None
+    events = world.step([Action.EAST, Action.WEST])
+    assert plate.agent == 1
+    assert Action.TRIGGER not in world.available_actions()[1]
+    lift_events = [e for e in events if e.event_type == EventType.LIFT_MOVED]
+    assert len(lift_events) == 1 and lift_events[0].agent_id == 0
+    assert world.agents_positions[0] == (0, 1, 1)
+
+
+def test_world_state_pickles_levers_on():
+    import pickle
+
+    state = WorldState([(0, 0)], [], levers_on=[True, False])
+    restored = pickle.loads(pickle.dumps(state))
+    assert restored.levers_on == [True, False]
+    assert restored == state
