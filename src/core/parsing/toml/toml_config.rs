@@ -241,6 +241,8 @@ impl TryInto<WorldConfig> for TomlConfig {
             source_configs,
             lift_configs,
             button_configs,
+            vec![],
+            vec![],
             colours,
         ))
     }

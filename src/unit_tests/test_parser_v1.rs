@@ -256,3 +256,55 @@ fn test_box_starting_on_a_laser_is_allowed() {
     let world = crate::World::try_from("L0E # . X\n S0 . . .").unwrap();
     assert_eq!(world.n_boxes(), 1);
 }
+
+#[test]
+fn test_parse_lever_and_pressure_plate() {
+    let config = parse(
+        "
+        S0 H0  TU0
+        .  P1A2 X
+        ",
+    )
+    .unwrap();
+    let world = config.into_world().unwrap();
+
+    match world.at(&Position { i: 0, j: 1, k: 0 }) {
+        Some(Tile::Lever(lever)) => {
+            assert_eq!(lever.group_id(), 0);
+            assert_eq!(lever.authorized_colour(), None);
+            assert!(!lever.is_on());
+        }
+        other => panic!("Expected a Lever tile, got {:?}", other),
+    }
+    match world.at(&Position { i: 1, j: 1, k: 0 }) {
+        Some(Tile::PressurePlate(plate)) => {
+            assert_eq!(plate.group_id(), 1);
+            assert_eq!(plate.authorized_colour(), Some(2));
+        }
+        other => panic!("Expected a PressurePlate tile, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_parse_lever_and_pressure_plate_invalid_group_id() {
+    for token in ["Hx", "Px", "H0Ax"] {
+        let world_str = format!("S0 {token} X");
+        assert!(
+            matches!(
+                parse(&world_str),
+                Err(ParseError::InvalidGroupId { .. } | ParseError::InvalidAgentId { .. })
+            ),
+            "{token} should not parse"
+        );
+    }
+}
+
+#[test]
+fn test_lever_and_pressure_plate_round_trip() {
+    let config = parse("S0 H0A1 P2 TU0 X").unwrap();
+    let as_string = super::to_v1_string(&config).unwrap();
+    assert_eq!(
+        as_string.split_whitespace().collect::<Vec<_>>(),
+        ["S0", "H0A1", "P2", "TU0", "X"]
+    );
+}

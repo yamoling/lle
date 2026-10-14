@@ -2,8 +2,10 @@ mod actuator_token;
 mod button_config;
 mod errors;
 mod laser_config;
+mod lever_config;
 mod lift_config;
 mod parser_v1;
+mod pressure_plate_config;
 mod toml;
 mod world_config;
 

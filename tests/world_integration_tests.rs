@@ -243,6 +243,7 @@ fn test_force_state_agent_dies() {
         agents_alive: vec![true, false],
         boxes_positions: vec![],
         boxes_present: vec![],
+        levers_on: vec![],
     };
     w.set_state(&s).unwrap();
     assert!(w.agents()[0].has_arrived());

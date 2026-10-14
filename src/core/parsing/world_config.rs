@@ -9,8 +9,9 @@ use crate::{
 use crate::ParseError;
 
 use super::{
-    button_config::ButtonConfig, laser_config::LaserConfig, lift_config::LiftConfig,
-    parser_v1::to_v1_string, toml::TomlConfig,
+    button_config::ButtonConfig, laser_config::LaserConfig, lever_config::LeverConfig,
+    lift_config::LiftConfig, parser_v1::to_v1_string, pressure_plate_config::PressurePlateConfig,
+    toml::TomlConfig,
 };
 
 #[derive(Debug)]
@@ -28,6 +29,8 @@ pub struct WorldConfig {
     lasers: Vec<(Position, LaserConfig)>,
     lifts: Vec<(Position, LiftConfig)>,
     buttons: Vec<(Position, ButtonConfig)>,
+    levers: Vec<(Position, LeverConfig)>,
+    pressure_plates: Vec<(Position, PressurePlateConfig)>,
     /// The colour of each agent, indexed by agent id. Defaults to the agent id.
     colours: Vec<Colour>,
 }
@@ -47,6 +50,8 @@ impl WorldConfig {
         source_configs: Vec<(Position, LaserConfig)>,
         lift_configs: Vec<(Position, LiftConfig)>,
         button_configs: Vec<(Position, ButtonConfig)>,
+        lever_configs: Vec<(Position, LeverConfig)>,
+        pressure_plate_configs: Vec<(Position, PressurePlateConfig)>,
         colours: Vec<Colour>,
     ) -> Self {
         Self {
@@ -62,6 +67,8 @@ impl WorldConfig {
             lasers: source_configs,
             lifts: lift_configs,
             buttons: button_configs,
+            levers: lever_configs,
+            pressure_plates: pressure_plate_configs,
             colours,
         }
     }
@@ -114,6 +121,14 @@ impl WorldConfig {
         &self.buttons
     }
 
+    pub fn levers(&self) -> &Vec<(Position, LeverConfig)> {
+        &self.levers
+    }
+
+    pub fn pressure_plates(&self) -> &Vec<(Position, PressurePlateConfig)> {
+        &self.pressure_plates
+    }
+
     /// The colour of each agent, indexed by agent id.
     pub fn colours(&self) -> &Vec<Colour> {
         &self.colours
@@ -126,6 +141,8 @@ impl WorldConfig {
         let source_positions = self.lasers.iter().map(|(pos, _)| *pos).collect();
         let lift_positions = self.lifts.iter().map(|(pos, _)| *pos).collect();
         let button_positions = self.buttons.iter().map(|(pos, _)| *pos).collect();
+        let lever_positions = self.levers.iter().map(|(pos, _)| *pos).collect();
+        let pressure_plate_positions = self.pressure_plates.iter().map(|(pos, _)| *pos).collect();
         Ok(World::new(
             grid,
             self.gems,
@@ -138,6 +155,8 @@ impl WorldConfig {
             lasers_positions,
             lift_positions,
             button_positions,
+            lever_positions,
+            pressure_plate_positions,
             self.colours,
         ))
     }
@@ -229,6 +248,12 @@ impl WorldConfig {
         }
         for (pos, config) in &self.buttons {
             grid.replace_at(pos, Tile::Button(config.build()));
+        }
+        for (pos, config) in &self.levers {
+            grid.replace_at(pos, Tile::Lever(config.build()));
+        }
+        for (pos, config) in &self.pressure_plates {
+            grid.replace_at(pos, Tile::PressurePlate(config.build()));
         }
         let laser_positions = self.laser_setup(&mut grid).into_iter().collect();
         (grid, laser_positions)
