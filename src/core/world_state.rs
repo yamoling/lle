@@ -8,6 +8,8 @@ pub struct WorldState {
     pub agents_alive: Vec<bool>,
     pub boxes_positions: Vec<Position>,
     pub boxes_present: Vec<bool>,
+    /// Whether each lever is on, in the order of `World::levers`.
+    pub levers_on: Vec<bool>,
 }
 
 impl WorldState {
@@ -18,6 +20,7 @@ impl WorldState {
             gems_collected,
             boxes_positions: vec![],
             boxes_present: vec![],
+            levers_on: vec![],
         }
     }
 }

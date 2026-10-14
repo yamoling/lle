@@ -4,7 +4,7 @@ use crate::{
 };
 use core::panic;
 
-use super::{Button, Gem, Laser, LaserSource, Lift, Void};
+use super::{Button, Gem, Laser, LaserSource, Lever, Lift, PressurePlate, Void};
 
 /// What happens to a box that is pushed onto a tile.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,6 +26,8 @@ pub enum Tile {
     LaserSource(LaserSource),
     Lift(Lift),
     Button(Button),
+    Lever(Lever),
+    PressurePlate(PressurePlate),
 }
 
 impl Tile {
@@ -59,6 +61,8 @@ impl Tile {
             Self::Gem(gem) => gem.enter(agent),
             Self::Lift(lift) => lift.enter(agent),
             Self::Button(button) => button.enter(agent),
+            Self::Lever(lever) => lever.enter(agent),
+            Self::PressurePlate(plate) => plate.enter(agent),
         }
     }
 
@@ -72,6 +76,8 @@ impl Tile {
             Self::Gem(gem) => gem.leave(),
             Self::Lift(lift) => lift.leave(),
             Self::Button(button) => button.leave(),
+            Self::Lever(lever) => lever.leave(),
+            Self::PressurePlate(plate) => plate.leave(),
         }
     }
 
@@ -95,6 +101,8 @@ impl Tile {
             Self::Laser(_) => true,
             Self::Lift(_) => true,
             Self::Button(_) => true,
+            Self::Lever(_) => true,
+            Self::PressurePlate(_) => true,
         }
     }
 
@@ -108,6 +116,8 @@ impl Tile {
             Self::Laser(laser) => laser.reset(),
             Self::Lift(lift) => lift.reset(),
             Self::Button(button) => button.reset(),
+            Self::Lever(lever) => lever.reset(),
+            Self::PressurePlate(plate) => plate.reset(),
         }
     }
 
@@ -121,6 +131,8 @@ impl Tile {
             Self::Laser(laser) => laser.agent(),
             Self::Lift(lift) => lift.agent(),
             Self::Button(button) => button.agent(),
+            Self::Lever(lever) => lever.agent(),
+            Self::PressurePlate(plate) => plate.agent(),
         }
     }
 
@@ -164,6 +176,18 @@ impl Tile {
                     return format!("B{}", button.group_id(),);
                 }
             }
+            Self::Lever(lever) => {
+                return match lever.authorized_colour() {
+                    Some(colour) => format!("H{}A{}", lever.group_id(), colour),
+                    None => format!("H{}", lever.group_id()),
+                };
+            }
+            Self::PressurePlate(plate) => {
+                return match plate.authorized_colour() {
+                    Some(colour) => format!("P{}A{}", plate.group_id(), colour),
+                    None => format!("P{}", plate.group_id()),
+                };
+            }
             _ => {}
         }
         match self {
@@ -172,8 +196,8 @@ impl Tile {
             Self::Exit { .. } => "X",
             Self::Floor { .. } => ".",
             Self::Void(..) => "V",
-            Self::Lift(..) | Self::Button(..) => {
-                panic!("Lift and Button should be handled before")
+            Self::Lift(..) | Self::Button(..) | Self::Lever(..) | Self::PressurePlate(..) => {
+                panic!("Lifts and actuators should be handled before")
             }
             Self::Laser(..) | Self::LaserSource(..) => {
                 panic!("Should have been handled before")
@@ -184,8 +208,8 @@ impl Tile {
 
     /// A box settles on this tile. Boxes are colour-blind: they block a beam of
     /// any colour. Unlike agents, boxes never reach `enter`, so a box on a gem
-    /// does not collect it. Likewise, a box neither presses a button nor rides a
-    /// lift: both behave like a floor for boxes.
+    /// does not collect it. Likewise, a box neither presses an actuator (button,
+    /// lever or pressure plate) nor rides a lift: all behave like a floor for boxes.
     pub fn box_enter(&mut self) -> BoxOutcome {
         match self {
             Self::Void(_) => BoxOutcome::Destroyed,
@@ -194,7 +218,9 @@ impl Tile {
             | Self::Exit { .. }
             | Self::Gem(_)
             | Self::Lift(_)
-            | Self::Button(_) => BoxOutcome::Rests,
+            | Self::Button(_)
+            | Self::Lever(_)
+            | Self::PressurePlate(_) => BoxOutcome::Rests,
             Self::Wall | Self::LaserSource(_) => {
                 panic!("A box cannot be pushed onto a wall or a laser source")
             }
@@ -210,7 +236,9 @@ impl Tile {
             | Self::Gem(_)
             | Self::Void(_)
             | Self::Lift(_)
-            | Self::Button(_) => {}
+            | Self::Button(_)
+            | Self::Lever(_)
+            | Self::PressurePlate(_) => {}
             Self::Wall | Self::LaserSource(_) => {
                 panic!("A box cannot leave a wall or a laser source")
             }
@@ -218,10 +246,17 @@ impl Tile {
     }
 
     /// `colour` is the colour of the agent taking `Action::Trigger` on this tile,
-    /// which is what a `Button`'s authorization is checked against.
+    /// which is what a `Button`'s or `Lever`'s authorization is checked against.
+    ///
+    /// Returns the group pulsed by a button press. A lever is only toggled here:
+    /// its pulse comes from its on-state, read once every trigger is resolved.
     pub fn actuate(&mut self, colour: Colour) -> Option<usize> {
         match self {
             Self::Button(button) => button.actuate(colour),
+            Self::Lever(lever) => {
+                lever.actuate(colour);
+                None
+            }
             Self::Laser(laser) => laser.wrapped_mut().actuate(colour),
             _ => None,
         }
@@ -232,7 +267,7 @@ impl Tile {
     /// `actuate()`'s match arms — a future triggerable tile needs both updated.
     pub fn is_triggerable(&self) -> bool {
         match self {
-            Self::Button(_) => true,
+            Self::Button(_) | Self::Lever(_) => true,
             Self::Laser(laser) => laser.wrapped().is_triggerable(),
             _ => false,
         }
@@ -242,6 +277,14 @@ impl Tile {
     pub fn innermost(&self) -> &Tile {
         match self {
             Self::Laser(laser) => laser.wrapped().innermost(),
+            tile => tile,
+        }
+    }
+
+    /// Mutable access to the tile under every laser beam crossing this one.
+    pub fn innermost_mut(&mut self) -> &mut Tile {
+        match self {
+            Self::Laser(laser) => laser.wrapped_mut().innermost_mut(),
             tile => tile,
         }
     }

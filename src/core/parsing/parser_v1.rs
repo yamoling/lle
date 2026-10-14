@@ -3,8 +3,8 @@ use std::collections::BTreeMap;
 use crate::{Grid, Position, agent::Colour};
 
 use super::{
-    ParseError, button_config::ButtonConfig, laser_config::LaserConfig, lift_config::LiftConfig,
-    world_config::WorldConfig,
+    ParseError, button_config::ButtonConfig, laser_config::LaserConfig, lever_config::LeverConfig,
+    lift_config::LiftConfig, pressure_plate_config::PressurePlateConfig, world_config::WorldConfig,
 };
 
 #[derive(Default)]
@@ -25,6 +25,8 @@ pub struct ParsingData {
     pub laser_configs: Vec<(Position, LaserConfig)>,
     pub lift_configs: Vec<(Position, LiftConfig)>,
     pub button_configs: Vec<(Position, ButtonConfig)>,
+    pub lever_configs: Vec<(Position, LeverConfig)>,
+    pub pressure_plate_configs: Vec<(Position, PressurePlateConfig)>,
 }
 
 impl ParsingData {
@@ -43,6 +45,14 @@ impl ParsingData {
 
     pub fn add_button(&mut self, pos: Position, config: ButtonConfig) {
         self.button_configs.push((pos, config));
+    }
+
+    pub fn add_lever(&mut self, pos: Position, config: LeverConfig) {
+        self.lever_configs.push((pos, config));
+    }
+
+    pub fn add_pressure_plate(&mut self, pos: Position, config: PressurePlateConfig) {
+        self.pressure_plate_configs.push((pos, config));
     }
 
     /// Declare one agent of colour `colour` starting at `pos`. Repeating a token declares
@@ -148,6 +158,8 @@ impl TryInto<WorldConfig> for ParsingData {
             self.laser_configs,
             self.lift_configs,
             self.button_configs,
+            self.lever_configs,
+            self.pressure_plate_configs,
             colours,
         ))
     }
@@ -210,6 +222,12 @@ pub fn to_v1_string(config: &WorldConfig) -> Result<String, ()> {
     for (pos, config) in config.buttons() {
         res.replace_at(pos, config.to_string());
     }
+    for (pos, config) in config.levers() {
+        res.replace_at(pos, config.to_string());
+    }
+    for (pos, config) in config.pressure_plates() {
+        res.replace_at(pos, config.to_string());
+    }
     Ok((&res).into())
 }
 
@@ -263,6 +281,14 @@ pub fn parse(world_str: &str) -> Result<WorldConfig, ParseError> {
                 'B' => {
                     let button_config = ButtonConfig::from_str(token)?;
                     data.add_button(pos, button_config);
+                }
+                'H' => {
+                    let lever_config = LeverConfig::from_str(token)?;
+                    data.add_lever(pos, lever_config);
+                }
+                'P' => {
+                    let plate_config = PressurePlateConfig::from_str(token)?;
+                    data.add_pressure_plate(pos, plate_config);
                 }
                 _ => {
                     return Err(ParseError::InvalidTile {

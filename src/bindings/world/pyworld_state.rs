@@ -10,6 +10,7 @@ type PickledState = (
     Vec<bool>,
     Vec<PyPosition>,
     Vec<bool>,
+    Vec<bool>,
 );
 
 ///
@@ -18,6 +19,7 @@ type PickledState = (
 ///  - Whether each gem has been collected.
 ///  - Whether each agent is alive.
 ///  - The position of each movable box and whether it is still present (a box pushed onto a void tile is destroyed).
+///  - Whether each lever is on.
 /// ## Using `WorldState`s
 /// ```python
 /// from lle import WorldState, World
@@ -59,6 +61,9 @@ pub struct PyWorldState {
     /// Whether each box is still present (`False` once it has been destroyed).
     #[pyo3(get, set)]
     boxes_present: Vec<bool>,
+    /// Whether each lever is on, in the order of `World.levers`.
+    #[pyo3(get, set)]
+    levers_on: Vec<bool>,
 }
 
 #[gen_stub_pymethods]
@@ -74,13 +79,14 @@ impl PyWorldState {
     const BOX_SIZE: usize = PyWorldState::POSITION_SIZE + 1; // 3 for position and 1 for presence
 
     #[new]
-    #[pyo3(signature = (agents_positions, gems_collected, agents_alive=None, boxes_positions=None, boxes_present=None))]
+    #[pyo3(signature = (agents_positions, gems_collected, agents_alive=None, boxes_positions=None, boxes_present=None, levers_on=None))]
     pub fn new(
         agents_positions: Vec<PyPosition>,
         gems_collected: Vec<bool>,
         agents_alive: Option<Vec<bool>>,
         boxes_positions: Option<Vec<PyPosition>>,
         boxes_present: Option<Vec<bool>>,
+        levers_on: Option<Vec<bool>>,
     ) -> Self {
         let agents_alive = agents_alive.unwrap_or_else(|| vec![true; agents_positions.len()]);
         let boxes_positions = boxes_positions.unwrap_or_default();
@@ -91,10 +97,11 @@ impl PyWorldState {
             agents_alive,
             boxes_positions,
             boxes_present,
+            levers_on: levers_on.unwrap_or_default(),
         }
     }
 
-    #[pyo3(signature = (agents_positions, gems_collected, agents_alive=None, boxes_positions=None, boxes_present=None))]
+    #[pyo3(signature = (agents_positions, gems_collected, agents_alive=None, boxes_positions=None, boxes_present=None, levers_on=None))]
     fn __init__(
         &mut self,
         agents_positions: Vec<PyPosition>,
@@ -102,6 +109,7 @@ impl PyWorldState {
         agents_alive: Option<Vec<bool>>,
         boxes_positions: Option<Vec<PyPosition>>,
         boxes_present: Option<Vec<bool>>,
+        levers_on: Option<Vec<bool>>,
     ) {
         let agents_alive = agents_alive.unwrap_or_else(|| vec![true; agents_positions.len()]);
         let boxes_positions = boxes_positions.unwrap_or_default();
@@ -111,11 +119,14 @@ impl PyWorldState {
         self.agents_alive = agents_alive;
         self.boxes_positions = boxes_positions;
         self.boxes_present = boxes_present;
+        self.levers_on = levers_on.unwrap_or_default();
     }
 
     /// Flatten the state into a 1D array: the (i, j, k) position of each agent, the collection status
     /// of each gem, the alive flag of each agent, then the (i, j, k) position of each box followed by
     /// the presence flag of each box. Its length is `n_agents * 4 + n_gems + n_boxes * 4`.
+    ///
+    /// The state of the levers (`levers_on`) is not part of the array yet.
     fn as_array<'a>(&self, py: Python<'a>) -> Bound<'a, PyArray1<f32>> {
         let len = self.agents_positions.len() * Self::AGENT_SIZE
             + self.gems_collected.len()
@@ -215,6 +226,7 @@ impl PyWorldState {
             agents_alive,
             boxes_positions,
             boxes_present,
+            levers_on: vec![],
         })
     }
 
@@ -229,17 +241,25 @@ impl PyWorldState {
             self.agents_alive.clone(),
             self.boxes_positions.clone(),
             self.boxes_present.clone(),
+            self.levers_on.clone(),
         ))
     }
 
     fn __setstate__(&mut self, state: PickledState) -> PyResult<()> {
-        let (gems_collected, agents_positions, agents_alive, boxes_positions, boxes_present) =
-            state;
+        let (
+            gems_collected,
+            agents_positions,
+            agents_alive,
+            boxes_positions,
+            boxes_present,
+            levers_on,
+        ) = state;
         self.gems_collected = gems_collected;
         self.agents_positions = agents_positions;
         self.agents_alive = agents_alive;
         self.boxes_positions = boxes_positions;
         self.boxes_present = boxes_present;
+        self.levers_on = levers_on;
         Ok(())
     }
 
@@ -262,7 +282,8 @@ impl PyWorldState {
             && self.gems_collected == other.gems_collected
             && self.agents_alive == other.agents_alive
             && self.boxes_positions == other.boxes_positions
-            && self.boxes_present == other.boxes_present;
+            && self.boxes_present == other.boxes_present
+            && self.levers_on == other.levers_on;
         match cmp {
             CompareOp::Eq => Ok(eq),
             CompareOp::Ne => Ok(!eq),
@@ -281,6 +302,7 @@ impl From<PyWorldState> for WorldState {
             agents_alive: val.agents_alive,
             boxes_positions: val.boxes_positions.into_iter().map(Into::into).collect(),
             boxes_present: val.boxes_present,
+            levers_on: val.levers_on,
         }
     }
 }
@@ -293,6 +315,7 @@ impl From<WorldState> for PyWorldState {
             agents_alive: val.agents_alive,
             boxes_positions: val.boxes_positions.into_iter().map(Into::into).collect(),
             boxes_present: val.boxes_present,
+            levers_on: val.levers_on,
         }
     }
 }

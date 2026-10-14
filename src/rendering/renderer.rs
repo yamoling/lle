@@ -5,7 +5,10 @@ use super::{BLACK, GRID_GREY, sprites};
 use crate::{
     agent::Colour,
     core::World,
-    tiles::{Button, CardinalDirection, Gem, Laser, LaserSource, Lift, Tile, VerticalDirection},
+    tiles::{
+        Button, CardinalDirection, Gem, Laser, LaserSource, Lever, Lift, PressurePlate, Tile,
+        VerticalDirection,
+    },
 };
 
 use super::{BACKGROUND_GREY, TILE_SIZE};
@@ -113,6 +116,22 @@ impl Renderer {
                 frame: &mut frame_stack[pos.z()],
             };
             self.visit_button(button, &mut data);
+        }
+        for (pos, lever) in world.levers() {
+            let mut data = VisitorData {
+                x: pos.x() as u32 * TILE_SIZE,
+                y: pos.y() as u32 * TILE_SIZE,
+                frame: &mut frame_stack[pos.z()],
+            };
+            self.visit_lever(lever, &mut data);
+        }
+        for (pos, plate) in world.pressure_plates() {
+            let mut data = VisitorData {
+                x: pos.x() as u32 * TILE_SIZE,
+                y: pos.y() as u32 * TILE_SIZE,
+                frame: &mut frame_stack[pos.z()],
+            };
+            self.visit_pressure_plate(plate, &mut data);
         }
         for (pos, present) in izip!(world.boxes_positions(), world.boxes_present()) {
             if !present {
@@ -360,14 +379,49 @@ impl Renderer {
     }
 
     fn visit_button(&self, button: &Button, data: &mut VisitorData) {
-        let sprite = if button.agent().is_some() {
+        self.draw_actuator(
+            button.agent().is_some(),
+            button.group_id(),
+            button.authorized_colour(),
+            data,
+        );
+    }
+
+    /// Levers reuse the button sprites for now: pressed while on.
+    fn visit_lever(&self, lever: &Lever, data: &mut VisitorData) {
+        self.draw_actuator(
+            lever.is_on(),
+            lever.group_id(),
+            lever.authorized_colour(),
+            data,
+        );
+    }
+
+    /// Pressure plates reuse the button sprites for now: pressed while occupied.
+    fn visit_pressure_plate(&self, plate: &PressurePlate, data: &mut VisitorData) {
+        self.draw_actuator(
+            plate.agent().is_some(),
+            plate.group_id(),
+            plate.authorized_colour(),
+            data,
+        );
+    }
+
+    fn draw_actuator(
+        &self,
+        pressed: bool,
+        group_id: usize,
+        authorized_colour: Option<Colour>,
+        data: &mut VisitorData,
+    ) {
+        let sprite = if pressed {
             &*sprites::BUTTON_PRESSED
         } else {
             &*sprites::BUTTON_IDLE
         };
-        let tinted = tint_image(sprite, group_color(button.group_id()));
+        let tinted = tint_image(sprite, group_color(group_id));
         add_transparent_image(data.frame, &tinted, data.x, data.y);
-        if let Some(colour) = button.authorized_colour() {
+        if let Some(colour) = authorized_colour {
             let badge = tint_image(&sprites::AGENT_LOCK, agent_color(colour));
             add_transparent_image(
                 data.frame,

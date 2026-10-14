@@ -21,6 +21,10 @@ pub enum RuntimeWorldError {
         given: usize,
         expected: usize,
     },
+    InvalidNumberOfLevers {
+        given: usize,
+        expected: usize,
+    },
     InvalidAgentPosition {
         position: Position,
         reason: String,

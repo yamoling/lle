@@ -61,6 +61,27 @@ world.step([Action.STAY, Action.TRIGGER])  # agent 1 presses: agent 0 goes one f
 print(world.agents_positions)  # [(0, 1, 1), (0, 2, 0)]
 ```
 
+Two other actuators pulse lifts, and all three can be mixed in one world:
+- a **lever** (`H`) is toggled on or off by the `TRIGGER` action. While on, it pulses its group at
+  every step, from the very step it is switched on, even once its agent has left;
+- a **pressure plate** (`P`) pulses its group at every step an agent stands on it, without any
+  `TRIGGER` action.
+
+Like buttons, both can be restricted to one colour. Whether each lever is on is part of the
+`WorldState` (`levers_on`). The solver does not support levers and pressure plates yet.
+```python
+from lle import Action, World
+
+world = World('''
+S0 TU0 P0 S1 X
+;
+X  .   .  .  .
+''')
+world.reset()
+world.step([Action.EAST, Action.WEST])  # agent 1 steps on the plate: agent 0 goes one floor up
+print(world.agents_positions)  # [(0, 1, 1), (0, 2, 0)]
+```
+
 ## High-level `LLE`
 Use `LLE` when you want a ready-to-use MARL environment with multiple types of observations (partial, full, 1d, 3d, ...).
 The usual workflow is `lle.level(...)`, `lle.from_str(...)`, or `lle.from_file(...)`, followed by
@@ -156,6 +177,8 @@ separate tiles.
 | `V` | Void | Yes | A void tile. The agent dies if it walks on it |
 | `T<d><g>` | Lift | Yes | A lift of group `g` (a number) that moves the agent standing on it one floor up (`d` = `U`) or down (`d` = `D`) when a button of group `g` is pressed. `T<d><g>A<c>` only moves agents of colour `c`. |
 | `B<g>` | Button | Yes | A button of group `g`. Taking the `TRIGGER` action on it moves every lift of group `g`. `B<g>A<c>` can only be pressed by agents of colour `c`. |
+| `H<g>` | Lever | Yes | A lever of group `g`. Taking the `TRIGGER` action on it switches it on or off; while on, it moves every lift of group `g` at every step. `H<g>A<c>` can only be toggled by agents of colour `c`. |
+| `P<g>` | Pressure plate | Yes | A pressure plate of group `g`. It moves every lift of group `g` at every step an agent stands on it. `P<g>A<c>` only reacts to agents of colour `c`. |
 | `;` | Floor separator | - | A line starting with `;` starts the next floor. |
 
 For instance, the following map string yields the image shown below.
@@ -171,8 +194,8 @@ G  . . . X
 
 TOML maps are useful when you want richer placement rules, such as random start
 positions. Positions can be specified as a list of positions `{i, j}` or as rectangles `{i_min, i_max, j_min, j_max}`,
-and the `world_string` field can be used to define the map as discussed above. Lifts and buttons
-can also be placed with the `lifts` and `buttons` keys. The full list of authorized
+and the `world_string` field can be used to define the map as discussed above. Lifts and their
+actuators can also be placed with the `lifts`, `buttons`, `levers` and `pressure_plates` keys. The full list of authorized
 keys is defined by the JSON schema as shown in the below example.
 
 ```toml

@@ -13,7 +13,9 @@ use crate::{
         levels,
         parsing::{WorldConfig, parse},
     },
-    tiles::{BoxOutcome, Button, Gem, Laser, LaserId, LaserSource, Lift, Tile},
+    tiles::{
+        BoxOutcome, Button, Gem, Laser, LaserId, LaserSource, Lever, Lift, PressurePlate, Tile,
+    },
     utils::{find_duplicates, find_duplicates_into, sample_different},
 };
 
@@ -31,6 +33,8 @@ pub struct World {
     gems_positions: Vec<Position>,
     lift_positions: Vec<Position>,
     button_positions: Vec<Position>,
+    lever_positions: Vec<Position>,
+    pressure_plate_positions: Vec<Position>,
     /// Possible random start position of each agent.
     random_start_positions: Vec<Vec<Position>>,
     void_positions: Vec<Position>,
@@ -62,6 +66,8 @@ impl World {
         lasers_positions: Vec<Position>,
         lift_positions: Vec<Position>,
         button_positions: Vec<Position>,
+        lever_positions: Vec<Position>,
+        pressure_plate_positions: Vec<Position>,
         agent_colours: Vec<Colour>,
     ) -> Self {
         let agents: Vec<Agent> = random_start_positions
@@ -91,6 +97,8 @@ impl World {
             lasers_positions,
             lift_positions,
             button_positions,
+            lever_positions,
+            pressure_plate_positions,
             rng: rand::SeedableRng::seed_from_u64(0u64),
         };
         w.reset();
@@ -247,6 +255,16 @@ impl World {
             .into_iter()
             .map(|(pos, button)| (pos, button.into()))
             .collect();
+        let lever_configs = self
+            .levers()
+            .into_iter()
+            .map(|(pos, lever)| (pos, lever.into()))
+            .collect();
+        let pressure_plate_configs = self
+            .pressure_plates()
+            .into_iter()
+            .map(|(pos, plate)| (pos, plate.into()))
+            .collect();
         WorldConfig::new(
             self.width,
             self.height,
@@ -260,6 +278,8 @@ impl World {
             source_configs,
             lift_configs,
             button_configs,
+            lever_configs,
+            pressure_plate_configs,
             self.agent_colours(),
         )
     }
@@ -331,6 +351,32 @@ impl World {
                 _ => unreachable!(),
             })
             .collect()
+    }
+
+    pub fn levers(&self) -> Vec<(Position, &Lever)> {
+        self.lever_positions
+            .iter()
+            // Levers can be wrapped into lasers.
+            .map(|pos| match self.grid.at(pos).innermost() {
+                Tile::Lever(lever) => (*pos, lever),
+                _ => unreachable!(),
+            })
+            .collect()
+    }
+
+    pub fn pressure_plates(&self) -> Vec<(Position, &PressurePlate)> {
+        self.pressure_plate_positions
+            .iter()
+            // Pressure plates can be wrapped into lasers.
+            .map(|pos| match self.grid.at(pos).innermost() {
+                Tile::PressurePlate(plate) => (*pos, plate),
+                _ => unreachable!(),
+            })
+            .collect()
+    }
+
+    pub fn n_levers(&self) -> usize {
+        self.lever_positions.len()
     }
 
     pub fn lasers(&self) -> Vec<(Position, &Laser)> {
@@ -590,6 +636,37 @@ impl World {
         self.compute_available_actions();
     }
 
+    /// The lift groups pulsed this step, in the agents' positions after the walk
+    /// pass. Three actuators pulse a group:
+    /// - a button on which an authorized agent takes `Trigger` (one-shot);
+    /// - a lever that is on once every `Trigger` has toggled it (so it pulses in
+    ///   the very step it is switched on, and no longer in the step it is
+    ///   switched off);
+    /// - a pressure plate with an authorized agent on it.
+    fn pulsed_groups(&mut self, actions: &[Action]) -> Vec<usize> {
+        let mut groups = self.trigger_environment_actions(actions);
+        let lever_groups = self
+            .levers()
+            .into_iter()
+            .filter_map(|(_, lever)| lever.pulsed_group());
+        let plate_groups = self.pressure_plates().into_iter().filter_map(|(_, plate)| {
+            let occupant_colour = plate
+                .agent()
+                .filter(|&agent_id| self.agents[agent_id].is_alive())
+                .map(|agent_id| self.agents[agent_id].colour());
+            plate.pulsed_group(occupant_colour)
+        });
+        let others: Vec<usize> = lever_groups.chain(plate_groups).collect();
+        for group_id in others {
+            if !groups.contains(&group_id) {
+                groups.push(group_id);
+            }
+        }
+        groups
+    }
+
+    /// Actuate the tile under every alive agent taking `Trigger`: buttons return
+    /// their group, levers toggle.
     fn trigger_environment_actions(&mut self, actions: &[Action]) -> Vec<usize> {
         let triggers: Vec<(Colour, Position)> =
             izip!(actions, &self.agents, &self.agents_positions)
@@ -685,7 +762,7 @@ impl World {
 
         // Positions are computed in two passes:
         // - first: the natural movement of the agents according to their actions
-        // - second: environment-triggered movement (lifts pulsed by a button press)
+        // - second: environment-triggered movement (lifts pulsed by an actuator)
         let mut first_pass_positions = self
             .agents_positions
             .iter()
@@ -699,14 +776,15 @@ impl World {
         let box_moves = self.resolve_box_pushes(actions, &mut first_pass_positions);
         let mut events = self.resolve_move(first_pass_positions, &box_moves)?;
 
-        // Trigger phase: actuate whatever tile every `Trigger`-ing agent stands on.
-        let triggered_groups = self.trigger_environment_actions(actions);
+        // Trigger phase: actuate whatever tile every `Trigger`-ing agent stands on,
+        // then gather the groups pulsed by buttons, levers and pressure plates.
+        let pulsed_groups = self.pulsed_groups(actions);
 
-        // Pass 2: lift-driven movement, only if something was actually pressed.
+        // Pass 2: lift-driven movement, only if some group was actually pulsed.
         // Lifts never push boxes: `resolve_lift_moves` refuses a destination
         // occupied by a box.
-        if !triggered_groups.is_empty() {
-            let lift_moves = self.resolve_lift_moves(&triggered_groups);
+        if !pulsed_groups.is_empty() {
+            let lift_moves = self.resolve_lift_moves(&pulsed_groups);
             if !lift_moves.is_empty() {
                 let mut second_pass_positions = self.agents_positions.clone();
                 for (agent_id, dest) in &lift_moves {
@@ -827,6 +905,11 @@ impl World {
             agents_alive: self.agents.iter().map(|agent| agent.is_alive()).collect(),
             boxes_positions: self.boxes.positions().clone(),
             boxes_present: self.boxes.present().clone(),
+            levers_on: self
+                .levers()
+                .iter()
+                .map(|(_, lever)| lever.is_on())
+                .collect(),
         }
     }
 
@@ -858,11 +941,23 @@ impl World {
             }
         }
         self.validate_boxes(state)?;
+        if state.levers_on.len() != self.n_levers() {
+            return Err(RuntimeWorldError::InvalidNumberOfLevers {
+                given: state.levers_on.len(),
+                expected: self.n_levers(),
+            });
+        }
         let current_state = self.get_state();
 
         // Reset tiles and agents (but do not enter the new tiles)
         for (_, tile) in self.grid.iter_mut() {
             tile.reset();
+        }
+        for (pos, &on) in izip!(&self.lever_positions, &state.levers_on) {
+            match self.grid.at_mut(pos).innermost_mut() {
+                Tile::Lever(lever) => lever.set_on(on),
+                _ => unreachable!("Every lever position should contain a lever"),
+            }
         }
         // Collect the necessary gems BEFORE entering the tiles with the agents
         for (pos, &collect) in izip!(&self.gems_positions, &state.gems_collected) {

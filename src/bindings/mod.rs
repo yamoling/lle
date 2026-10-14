@@ -10,7 +10,7 @@ pub use pyexceptions::{
     InvalidActionError, InvalidLevelError, InvalidWorldStateError, ParsingError,
 };
 pub use solver::{PyClauseGenerator, PySolveMode};
-pub use tiles::{PyButton, PyLaser, PyLaserSource, PyLift};
+pub use tiles::{PyButton, PyLaser, PyLaserSource, PyLever, PyLift, PyPressurePlate};
 pub use world::{PyAction, PyEventType, PyPosition, PyWorld, PyWorldEvent, PyWorldState};
 
 #[pymodule]
@@ -30,7 +30,11 @@ mod lle {
         #[pymodule_export]
         use super::super::tiles::PyLaserSource;
         #[pymodule_export]
+        use super::super::tiles::PyLever;
+        #[pymodule_export]
         use super::super::tiles::PyLift;
+        #[pymodule_export]
+        use super::super::tiles::PyPressurePlate;
     }
 
     #[pymodule]

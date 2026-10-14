@@ -147,6 +147,16 @@ class World:
         Every button tile in the world.
         """
     @property
+    def levers(self) -> builtins.list[tiles.Lever]:
+        r"""
+        Every lever tile in the world, in the order of `WorldState.levers_on`.
+        """
+    @property
+    def pressure_plates(self) -> builtins.list[tiles.PressurePlate]:
+        r"""
+        Every pressure plate tile in the world.
+        """
+    @property
     def start_pos(self) -> builtins.list[builtins.tuple[int, int, int]]:
         r"""
         The start position of each agent for this reset.
@@ -421,6 +431,7 @@ class WorldState:
      - Whether each gem has been collected.
      - Whether each agent is alive.
      - The position of each movable box and whether it is still present (a box pushed onto a void tile is destroyed).
+     - Whether each lever is on.
     ## Using `WorldState`s
     ```python
     from lle import WorldState, World
@@ -497,13 +508,25 @@ class WorldState:
         r"""
         Whether each box is still present (`False` once it has been destroyed).
         """
-    def __new__(cls, agents_positions: typing.Sequence[builtins.tuple[int, int] | tuple[int, int, int]], gems_collected: typing.Sequence[builtins.bool], agents_alive: typing.Optional[typing.Sequence[builtins.bool]] = None, boxes_positions: typing.Optional[typing.Sequence[builtins.tuple[int, int] | tuple[int, int, int]]] = None, boxes_present: typing.Optional[typing.Sequence[builtins.bool]] = None) -> WorldState: ...
-    def __init__(self, agents_positions: typing.Sequence[builtins.tuple[int, int] | tuple[int, int, int]], gems_collected: typing.Sequence[builtins.bool], agents_alive: typing.Optional[typing.Sequence[builtins.bool]] = None, boxes_positions: typing.Optional[typing.Sequence[builtins.tuple[int, int] | tuple[int, int, int]]] = None, boxes_present: typing.Optional[typing.Sequence[builtins.bool]] = None) -> None: ...
+    @property
+    def levers_on(self) -> builtins.list[builtins.bool]:
+        r"""
+        Whether each lever is on, in the order of `World.levers`.
+        """
+    @levers_on.setter
+    def levers_on(self, value: typing.Sequence[builtins.bool]) -> None:
+        r"""
+        Whether each lever is on, in the order of `World.levers`.
+        """
+    def __new__(cls, agents_positions: typing.Sequence[builtins.tuple[int, int] | tuple[int, int, int]], gems_collected: typing.Sequence[builtins.bool], agents_alive: typing.Optional[typing.Sequence[builtins.bool]] = None, boxes_positions: typing.Optional[typing.Sequence[builtins.tuple[int, int] | tuple[int, int, int]]] = None, boxes_present: typing.Optional[typing.Sequence[builtins.bool]] = None, levers_on: typing.Optional[typing.Sequence[builtins.bool]] = None) -> WorldState: ...
+    def __init__(self, agents_positions: typing.Sequence[builtins.tuple[int, int] | tuple[int, int, int]], gems_collected: typing.Sequence[builtins.bool], agents_alive: typing.Optional[typing.Sequence[builtins.bool]] = None, boxes_positions: typing.Optional[typing.Sequence[builtins.tuple[int, int] | tuple[int, int, int]]] = None, boxes_present: typing.Optional[typing.Sequence[builtins.bool]] = None, levers_on: typing.Optional[typing.Sequence[builtins.bool]] = None) -> None: ...
     def as_array(self) -> numpy.typing.NDArray[numpy.float32]:
         r"""
         Flatten the state into a 1D array: the (i, j, k) position of each agent, the collection status
         of each gem, the alive flag of each agent, then the (i, j, k) position of each box followed by
         the presence flag of each box. Its length is `n_agents * 4 + n_gems + n_boxes * 4`.
+        
+        The state of the levers (`levers_on`) is not part of the array yet.
         """
     @staticmethod
     def from_array(array: typing.Sequence[builtins.float], n_agents: builtins.int, n_gems: builtins.int, n_boxes: builtins.int = 0) -> WorldState:
@@ -519,8 +542,8 @@ class WorldState:
             `ValueError`: if the array does not have a length of `n_agents * 4 + n_gems + n_boxes * 4`.
         """
     def __deepcopy__(self, _memo: dict) -> WorldState: ...
-    def __getstate__(self) -> tuple[builtins.list[builtins.bool], builtins.list[builtins.tuple[int, int, int]], builtins.list[builtins.bool], builtins.list[builtins.tuple[int, int, int]], builtins.list[builtins.bool]]: ...
-    def __setstate__(self, state: tuple[typing.Sequence[builtins.bool], typing.Sequence[builtins.tuple[int, int] | tuple[int, int, int]], typing.Sequence[builtins.bool], typing.Sequence[builtins.tuple[int, int] | tuple[int, int, int]], typing.Sequence[builtins.bool]]) -> None: ...
+    def __getstate__(self) -> tuple[builtins.list[builtins.bool], builtins.list[builtins.tuple[int, int, int]], builtins.list[builtins.bool], builtins.list[builtins.tuple[int, int, int]], builtins.list[builtins.bool], builtins.list[builtins.bool]]: ...
+    def __setstate__(self, state: tuple[typing.Sequence[builtins.bool], typing.Sequence[builtins.tuple[int, int] | tuple[int, int, int]], typing.Sequence[builtins.bool], typing.Sequence[builtins.tuple[int, int] | tuple[int, int, int]], typing.Sequence[builtins.bool], typing.Sequence[builtins.bool]]) -> None: ...
     def __getnewargs__(self) -> tuple[builtins.list[builtins.tuple[int, int, int]], builtins.list[builtins.bool], typing.Optional[builtins.list[builtins.bool]]]: ...
     def __repr__(self) -> builtins.str: ...
     def __hash__(self) -> builtins.int: ...

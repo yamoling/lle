@@ -5,7 +5,7 @@ use crate::{
     Action, Grid, ParseError, Position, RuntimeWorldError, WorldEvent,
     agent::{Agent, Colour},
     core::WorldState,
-    tiles::{Button, Laser, Lift, Tile, VerticalDirection},
+    tiles::{Button, Laser, Lever, Lift, PressurePlate, Tile, VerticalDirection},
 };
 
 use super::World;
@@ -695,6 +695,7 @@ fn test_force_state_agent_dies() {
         agents_alive: vec![true, false],
         boxes_positions: vec![],
         boxes_present: vec![],
+        levers_on: vec![],
     };
     w.set_state(&s).unwrap();
     assert!(w.agents()[1].is_dead());
@@ -882,10 +883,14 @@ fn build_lift_world_with_colours(
     let mut grid = Grid::<Tile>::new(width, 1, layers).default_init();
     let mut lift_positions = vec![];
     let mut button_positions = vec![];
+    let mut lever_positions = vec![];
+    let mut pressure_plate_positions = vec![];
     for (pos, tile) in tiles {
         match &tile {
             Tile::Lift(_) => lift_positions.push(pos),
             Tile::Button(_) => button_positions.push(pos),
+            Tile::Lever(_) => lever_positions.push(pos),
+            Tile::PressurePlate(_) => pressure_plate_positions.push(pos),
             _ => {}
         }
         grid.replace_at(&pos, tile);
@@ -903,6 +908,8 @@ fn build_lift_world_with_colours(
         vec![],
         lift_positions,
         button_positions,
+        lever_positions,
+        pressure_plate_positions,
         colours,
     )
 }
@@ -2361,4 +2368,208 @@ fn test_set_state_after_a_death_restores_a_beam_blocker() {
     assert!(world.agents().iter().all(|agent| !agent.is_alive()));
     world.set_state(&initial).unwrap();
     assert_eq!(world.get_state(), initial);
+}
+
+// ===================== Levers and pressure plates =====================
+
+#[test]
+fn test_lever_pulses_in_the_step_it_is_switched_on() {
+    let mut world = World::try_from("S0 TU0 H0 S1 X\n;\nX . . . .").unwrap();
+    world.reset();
+    world.step(&[Action::Stay, Action::West]).unwrap();
+    assert!(!world.levers()[0].1.is_on());
+    // Agent 0 walks onto the lift in the very step agent 1 switches the lever on.
+    let events = world.step(&[Action::East, Action::Trigger]).unwrap();
+    assert!(world.levers()[0].1.is_on());
+    let dest = Position { i: 0, j: 1, k: 1 };
+    assert_eq!(world.agents_positions()[0], dest);
+    assert!(events.contains(&WorldEvent::LiftMoved {
+        agent_id: 0,
+        from: Position { i: 0, j: 1, k: 0 },
+        to: dest,
+    }));
+}
+
+#[test]
+fn test_lever_keeps_pulsing_after_its_toggler_left() {
+    let mut world = World::try_from("S0 H0 TU0 . X\n;\n. . . . X").unwrap();
+    world.reset();
+    world.step(&[Action::East]).unwrap();
+    world.step(&[Action::Trigger]).unwrap();
+    assert!(world.levers()[0].1.is_on());
+    // The agent leaves the lever and walks onto the lift: the lever still pulses.
+    world.step(&[Action::East]).unwrap();
+    assert_eq!(world.agents_positions()[0], Position { i: 0, j: 2, k: 1 });
+    assert!(world.levers()[0].1.is_on());
+}
+
+#[test]
+fn test_lever_stops_pulsing_in_the_step_it_is_switched_off() {
+    let mut world = World::try_from("S0 TU0 H0 S1 X\n;\nX . . . .").unwrap();
+    world.reset();
+    world.step(&[Action::Stay, Action::West]).unwrap();
+    world.step(&[Action::Stay, Action::Trigger]).unwrap();
+    assert!(world.levers()[0].1.is_on());
+    // Agent 0 walks onto the lift in the very step the lever is switched off.
+    let events = world.step(&[Action::East, Action::Trigger]).unwrap();
+    assert!(!world.levers()[0].1.is_on());
+    assert_eq!(world.agents_positions()[0], Position { i: 0, j: 1, k: 0 });
+    assert!(events.is_empty());
+}
+
+#[test]
+fn test_lever_cannot_be_toggled_by_an_unauthorized_colour() {
+    let mut world = World::try_from("S0 TU0 H0A0 S1 X\n;\nX . . . .").unwrap();
+    world.reset();
+    world.step(&[Action::East, Action::West]).unwrap();
+    // Like a button, Trigger is offered whatever the colour, but does nothing.
+    assert!(world.available_actions()[1].contains(&Action::Trigger));
+    world.step(&[Action::Stay, Action::Trigger]).unwrap();
+    assert!(!world.levers()[0].1.is_on());
+    assert_eq!(world.agents_positions()[0], Position { i: 0, j: 1, k: 0 });
+}
+
+#[test]
+fn test_lever_under_a_laser_beam_can_be_toggled() {
+    // Agent 1 stands on the lever under its own beam.
+    let mut world = World::try_from("S0 TU0 H0 S1 L1W X\n;\nX . . . . .").unwrap();
+    world.reset();
+    world.step(&[Action::East, Action::West]).unwrap();
+    assert!(world.available_actions()[1].contains(&Action::Trigger));
+    world.step(&[Action::Stay, Action::Trigger]).unwrap();
+    assert!(world.levers()[0].1.is_on());
+    assert_eq!(world.agents_positions()[0], Position { i: 0, j: 1, k: 1 });
+}
+
+#[test]
+fn test_pressure_plate_pulses_when_an_agent_walks_onto_it() {
+    let mut world = World::try_from("S0 TU0 P0 S1 X\n;\nX . . . .").unwrap();
+    world.reset();
+    // Agent 1 steps on the plate while agent 0 steps on the lift: no Trigger needed.
+    let events = world.step(&[Action::East, Action::West]).unwrap();
+    let dest = Position { i: 0, j: 1, k: 1 };
+    assert_eq!(world.agents_positions()[0], dest);
+    assert!(events.contains(&WorldEvent::LiftMoved {
+        agent_id: 0,
+        from: Position { i: 0, j: 1, k: 0 },
+        to: dest,
+    }));
+    // A plate is not triggerable.
+    assert!(!world.available_actions()[1].contains(&Action::Trigger));
+}
+
+#[test]
+fn test_pressure_plate_pulses_every_step_while_occupied() {
+    let mut world = World::try_from("S0 . TU0 P0 S1 X\n;\nX . . . . .").unwrap();
+    world.reset();
+    world.step(&[Action::East, Action::West]).unwrap();
+    assert_eq!(world.agents_positions()[0], Position { i: 0, j: 1, k: 0 });
+    // Agent 1 stays on the plate: the lift is still pulsed a step later.
+    world.step(&[Action::East, Action::Stay]).unwrap();
+    assert_eq!(world.agents_positions()[0], Position { i: 0, j: 2, k: 1 });
+}
+
+#[test]
+fn test_pressure_plate_stops_pulsing_once_left() {
+    let mut world = World::try_from(". S0 TU0 P0 . X\n;\nX . . . . .").unwrap();
+    world.reset();
+    let plate = Position { i: 0, j: 3, k: 0 };
+    // A single agent cannot hold the plate and ride the lift at once.
+    world.step(&[Action::East]).unwrap();
+    assert_eq!(world.agents_positions()[0], Position { i: 0, j: 2, k: 0 });
+    world.step(&[Action::East]).unwrap();
+    assert_eq!(world.agents_positions()[0], plate);
+    world.step(&[Action::West]).unwrap();
+    assert_eq!(world.agents_positions()[0], Position { i: 0, j: 2, k: 0 });
+}
+
+#[test]
+fn test_pressure_plate_ignores_an_unauthorized_colour() {
+    let mut world = World::try_from("S0 TU0 P0A0 S1 X\n;\nX . . . .").unwrap();
+    world.reset();
+    world.step(&[Action::East, Action::West]).unwrap();
+    assert_eq!(world.agents_positions()[0], Position { i: 0, j: 1, k: 0 });
+}
+
+#[test]
+fn test_button_lever_and_plate_each_pulse_only_their_group() {
+    let at = |j| Position { i: 0, j, k: 0 };
+    let up = |j| Position { i: 0, j, k: 1 };
+    let lift = |group| Tile::Lift(Lift::new(VerticalDirection::Up, None, group));
+    let tiles = vec![
+        (at(0), Tile::Button(Button::new(0))),
+        (at(1), lift(0)),
+        (at(2), Tile::Lever(Lever::new(1))),
+        (at(3), lift(1)),
+        (at(4), lift(2)),
+        (at(5), Tile::PressurePlate(PressurePlate::new(2))),
+    ];
+    // Agents: button presser, rider 0, lever toggler, rider 1, rider 2, plate walker.
+    let starts = vec![at(0), at(1), at(2), at(3), at(4), at(6)];
+    let mut world = build_lift_world(7, 2, tiles, starts);
+    use Action::{Stay, Trigger, West};
+
+    world
+        .step(&[Trigger, Stay, Stay, Stay, Stay, Stay])
+        .unwrap();
+    assert_eq!(world.agents_positions()[1..5], [up(1), at(2), at(3), at(4)]);
+
+    world
+        .step(&[Stay, Stay, Trigger, Stay, Stay, Stay])
+        .unwrap();
+    assert_eq!(world.agents_positions()[3..5], [up(3), at(4)]);
+
+    world.step(&[Stay, Stay, Stay, Stay, Stay, West]).unwrap();
+    assert_eq!(world.agents_positions()[4], up(4));
+    assert_eq!(world.agents_positions()[5], at(5));
+}
+
+#[test]
+fn test_lever_state_round_trip() {
+    let mut world = World::try_from("S0 H0 TU0 . X\n;\n. . . . X").unwrap();
+    world.reset();
+    let initial = world.get_state();
+    assert_eq!(initial.levers_on, vec![false]);
+    world.step(&[Action::East]).unwrap();
+    world.step(&[Action::Trigger]).unwrap();
+    let on = world.get_state();
+    assert_eq!(on.levers_on, vec![true]);
+
+    world.set_state(&initial).unwrap();
+    assert!(!world.levers()[0].1.is_on());
+    world.set_state(&on).unwrap();
+    assert!(world.levers()[0].1.is_on());
+    assert_eq!(world.get_state(), on);
+
+    // A clone keeps the lever on, a reset switches it off.
+    assert_eq!(world.clone().get_state(), on);
+    world.reset();
+    assert!(!world.levers()[0].1.is_on());
+}
+
+#[test]
+fn test_set_state_rejects_a_wrong_number_of_levers() {
+    let mut world = World::try_from("S0 H0 TU0 . X\n;\n. . . . X").unwrap();
+    world.reset();
+    let state = WorldState {
+        levers_on: vec![],
+        ..world.get_state()
+    };
+    match world.set_state(&state) {
+        Err(RuntimeWorldError::InvalidNumberOfLevers { given, expected }) => {
+            assert_eq!(given, 0);
+            assert_eq!(expected, 1);
+        }
+        other => panic!("expected InvalidNumberOfLevers, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_lever_and_plate_round_trip_through_the_world_string() {
+    let world = World::try_from("S0 H0A1 P2 TU0 TU2 X\n;\n. . . . . .").unwrap();
+    let reparsed = World::try_from(world.world_string().as_str()).unwrap();
+    let (_, lever) = reparsed.levers()[0];
+    assert_eq!((lever.group_id(), lever.authorized_colour()), (0, Some(1)));
+    let (_, plate) = reparsed.pressure_plates()[0];
+    assert_eq!((plate.group_id(), plate.authorized_colour()), (2, None));
 }

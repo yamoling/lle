@@ -1293,3 +1293,9 @@ def test_lifting_another_agent_is_help():
     assert (0, 1) in profile_plan(world, plan).graph.flattened_edges()
     assert lle.solve(world, 10, mode="no-cooperation") is None
     assert lle.is_cooperative(world, 10)
+
+
+@pytest.mark.parametrize("world_str", ["S0 TU0 H0 S1 X\n;\nX . . . .", "S0 TU0 P0 S1 X\n;\nX . . . ."])
+def test_solver_rejects_levers_and_pressure_plates(world_str: str):
+    with pytest.raises(NotImplementedError):
+        lle.solve(World(world_str), 10)
