@@ -379,46 +379,39 @@ impl Renderer {
     }
 
     fn visit_button(&self, button: &Button, data: &mut VisitorData) {
-        self.draw_actuator(
-            button.agent().is_some(),
-            button.group_id(),
-            button.authorized_colour(),
-            data,
-        );
-    }
-
-    /// Levers reuse the button sprites for now: pressed while on.
-    fn visit_lever(&self, lever: &Lever, data: &mut VisitorData) {
-        self.draw_actuator(
-            lever.is_on(),
-            lever.group_id(),
-            lever.authorized_colour(),
-            data,
-        );
-    }
-
-    /// Pressure plates reuse the button sprites for now: pressed while occupied.
-    fn visit_pressure_plate(&self, plate: &PressurePlate, data: &mut VisitorData) {
-        self.draw_actuator(
-            plate.agent().is_some(),
-            plate.group_id(),
-            plate.authorized_colour(),
-            data,
-        );
-    }
-
-    fn draw_actuator(
-        &self,
-        pressed: bool,
-        group_id: usize,
-        authorized_colour: Option<Colour>,
-        data: &mut VisitorData,
-    ) {
-        let sprite = if pressed {
+        let sprite = if button.agent().is_some() {
             &*sprites::BUTTON_PRESSED
         } else {
             &*sprites::BUTTON_IDLE
         };
+        self.draw_actuator(sprite, button.group_id(), button.authorized_colour(), data);
+    }
+
+    fn visit_lever(&self, lever: &Lever, data: &mut VisitorData) {
+        let sprite = if lever.is_on() {
+            &*sprites::LEVER_ON
+        } else {
+            &*sprites::LEVER_OFF
+        };
+        self.draw_actuator(sprite, lever.group_id(), lever.authorized_colour(), data);
+    }
+
+    fn visit_pressure_plate(&self, plate: &PressurePlate, data: &mut VisitorData) {
+        let sprite = if plate.agent().is_some() {
+            &*sprites::PRESSURE_PLATE_PRESSED
+        } else {
+            &*sprites::PRESSURE_PLATE_IDLE
+        };
+        self.draw_actuator(sprite, plate.group_id(), plate.authorized_colour(), data);
+    }
+
+    fn draw_actuator(
+        &self,
+        sprite: &RgbaImage,
+        group_id: usize,
+        authorized_colour: Option<Colour>,
+        data: &mut VisitorData,
+    ) {
         let tinted = tint_image(sprite, group_color(group_id));
         add_transparent_image(data.frame, &tinted, data.x, data.y);
         if let Some(colour) = authorized_colour {

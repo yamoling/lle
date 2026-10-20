@@ -181,6 +181,18 @@ fn include_sprites_in_binary() {
         "pub const BUTTON_PRESSED_BYTES: &[u8] = include_bytes!(r#\"{cwd}/{RESOURCES}/button_pressed.png\"#);\n",
     ));
     res.push_str(&format!(
+        "pub const LEVER_OFF_BYTES: &[u8] = include_bytes!(r#\"{cwd}/{RESOURCES}/lever_off.png\"#);\n",
+    ));
+    res.push_str(&format!(
+        "pub const LEVER_ON_BYTES: &[u8] = include_bytes!(r#\"{cwd}/{RESOURCES}/lever_on.png\"#);\n",
+    ));
+    res.push_str(&format!(
+        "pub const PRESSURE_PLATE_IDLE_BYTES: &[u8] = include_bytes!(r#\"{cwd}/{RESOURCES}/pressure_plate_idle.png\"#);\n",
+    ));
+    res.push_str(&format!(
+        "pub const PRESSURE_PLATE_PRESSED_BYTES: &[u8] = include_bytes!(r#\"{cwd}/{RESOURCES}/pressure_plate_pressed.png\"#);\n",
+    ));
+    res.push_str(&format!(
         "pub const AGENT_LOCK_BYTES: &[u8] = include_bytes!(r#\"{cwd}/{RESOURCES}/agent_lock.png\"#);\n",
     ));
     let dest_path = out_dir.join("constants.rs");
@@ -199,10 +211,5 @@ fn main() {
     // make_readme();
 
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed={RESOURCES}/agents");
-    println!("cargo:rerun-if-changed={RESOURCES}/lasers");
-    println!("cargo:rerun-if-changed={RESOURCES}/sources");
-    println!("cargo:rerun-if-changed={RESOURCES}/gem.png");
-    println!("cargo:rerun-if-changed={RESOURCES}/void.png");
-    println!("cargo:rerun-if-changed={RESOURCES}/box.png");
+    println!("cargo:rerun-if-changed={RESOURCES}");
 }

@@ -118,10 +118,7 @@ fn assert_differ_only_in_cell(drawn: &RgbImage, reference: &RgbImage, col: u32, 
             );
         }
     }
-    assert!(
-        differs_in_cell,
-        "the box must be drawn in cell ({col}, {row})"
-    );
+    assert!(differs_in_cell, "cell ({col}, {row}) must differ");
 }
 
 /// Compare two worlds that differ only by the box: the frames must differ, and
@@ -323,4 +320,65 @@ fn lift_and_button_restriction_badge_is_rendered() {
         *restricted_image.get_pixel(button_x, button_y),
         *unrestricted_image.get_pixel(button_x, button_y)
     );
+}
+
+/// The pixels of the cell at (`col`, `row`).
+fn cell(image: &RgbImage, col: u32, row: u32) -> Vec<image::Rgb<u8>> {
+    image
+        .enumerate_pixels()
+        .filter(|(x, y, _)| in_cell(*x, *y, col, row))
+        .map(|(_, _, pixel)| *pixel)
+        .collect()
+}
+
+/// Levers and plates once borrowed the button sprites, which left the three
+/// actuators of a group indistinguishable in a frame.
+#[test]
+fn the_actuators_of_a_group_are_drawn_differently() {
+    let mut world = World::try_from("S0 B0 H0 P0 X").unwrap();
+    world.reset();
+    let image = Renderer::new(&world).update(&world);
+
+    let button = cell(&image, 1, 0);
+    let lever = cell(&image, 2, 0);
+    let plate = cell(&image, 3, 0);
+    assert_ne!(button, lever);
+    assert_ne!(button, plate);
+    assert_ne!(lever, plate);
+}
+
+#[test]
+fn a_lever_is_drawn_switched_on() {
+    let mut world = World::try_from("S0 H0 X").unwrap();
+    world.reset();
+    let renderer = Renderer::new(&world);
+    let off = renderer.update(&world);
+
+    // Walk onto the lever, switch it on and walk back: the lever stays on, so
+    // it is all that tells the two frames apart.
+    world.step(&[Action::East]).unwrap();
+    world.step(&[Action::Trigger]).unwrap();
+    world.step(&[Action::West]).unwrap();
+    let on = renderer.update(&world);
+
+    assert_differ_only_in_cell(&on, &off, 1, 0);
+}
+
+#[test]
+fn a_pressure_plate_is_drawn_occupied() {
+    let mut world = World::try_from("S0 P0 X").unwrap();
+    world.reset();
+    let renderer = Renderer::new(&world);
+    let free = renderer.update(&world);
+
+    world.step(&[Action::East]).unwrap();
+    let occupied = renderer.update(&world);
+
+    // Sample the middle of the plate's left edge: the occupied sprite fills it,
+    // the free one notches it out, and the agent sprite is too narrow to reach
+    // it - so the pixel only moves if the occupied sprite is drawn.
+    let (x, y) = (TILE_SIZE + 6, TILE_SIZE / 2);
+    let floor = *occupied.get_pixel(TILE_SIZE / 2, TILE_SIZE / 2);
+    assert_eq!(*free.get_pixel(x, y), floor);
+    assert_ne!(*occupied.get_pixel(x, y), floor);
 }

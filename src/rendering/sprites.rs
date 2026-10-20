@@ -120,6 +120,16 @@ pub static BUTTON_PRESSED: LazyLock<RgbaImage> = LazyLock::new(|| {
         .to_rgba8()
 });
 
+pub static LEVER_OFF: LazyLock<RgbaImage> = LazyLock::new(|| load_single_rgba(LEVER_OFF_BYTES));
+
+pub static LEVER_ON: LazyLock<RgbaImage> = LazyLock::new(|| load_single_rgba(LEVER_ON_BYTES));
+
+pub static PRESSURE_PLATE_IDLE: LazyLock<RgbaImage> =
+    LazyLock::new(|| load_single_rgba(PRESSURE_PLATE_IDLE_BYTES));
+
+pub static PRESSURE_PLATE_PRESSED: LazyLock<RgbaImage> =
+    LazyLock::new(|| load_single_rgba(PRESSURE_PLATE_PRESSED_BYTES));
+
 pub static AGENT_LOCK: LazyLock<RgbaImage> = LazyLock::new(|| {
     image::load_from_memory_with_format(AGENT_LOCK_BYTES, image::ImageFormat::Png)
         .unwrap()
