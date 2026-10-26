@@ -1349,3 +1349,29 @@ def test_find_shortest_does_not_crash_the_sat_solver():
         ". . . . .\n. . @ . .\n. . . . .\nP1 . S1 . TD1\n. L1N . @ ."
     )
     assert Solver(world, 37).find_shortest() is None
+
+
+# Shortest plan lengths found by an exhaustive search over `World`.
+ACTUATOR_CASES = [
+    Case("lever-for-another", "S0 TU0 H0A1 S1 X\n;\nX . . . .", shortest=4, trigger=True),
+    Case("lever-stays-on", "S0 H0 TU0 . X\n;\n. . X . .", shortest=3, trigger=True),
+    Case("lever-down", "X . . . .\n;\nS0 TD0 H0 S1 X", shortest=4, trigger=True),
+    Case("lever-switch-off", "S0 TU0 H0A0 . .\n;\nX TD0 . . .", shortest=5, trigger=True),
+    Case("lever-and-button", "S0 TU0 B0 H0 S1 X\n;\nX . . . . .", shortest=4, trigger=True),
+    Case("plate-held", "S0 TU0 P0 S1 X\n;\nX . . . .", shortest=3),
+    Case("plate-two-riders", "S0 TU0 P0 S1 .\n;\nX X . . .", shortest=None),
+]
+
+
+@pytest.mark.parametrize("case", ACTUATOR_CASES, ids=lambda case: case.id)
+def test_actuator_worlds_shortest_plan(case: Case):
+    check(case)
+
+
+@pytest.mark.parametrize("name", ["lever-for-another", "lever-down", "lever-and-button", "plate-held"])
+def test_actuator_help_is_credited_to_the_other_agent(name: str):
+    case = next(case for case in ACTUATOR_CASES if case.id == name)
+    plan = lle.solve(World(case.map), 12, path_length=case.shortest)
+    assert plan is not None
+    edges = {(edge.helper, edge.beneficiary) for edge in profile_plan(World(case.map), plan).graph.edges}
+    assert edges == {(1, 0)}

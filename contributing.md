@@ -111,5 +111,3 @@ Two other actuators pulse the lifts of their group, next to buttons, with the sa
 
 - a **lever** (`H<g>`) is toggled by `Trigger`. While it is on, it pulses its group at every step, from the step it is switched on until the step it is switched off (excluded). Its on/off flag is the only actuator state that persists, so it is part of `WorldState` (`levers_on`);
 - a **pressure plate** (`P<g>`) pulses its group at every step an authorized agent stands on it after the walk pass. It is not triggerable.
-
-The solver does not encode them yet: `ClauseGenerator::new` rejects such worlds with `SolverError::UnsupportedFeature`.
