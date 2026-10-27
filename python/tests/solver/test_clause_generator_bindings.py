@@ -1,14 +1,14 @@
 import pytest
 from lle import Action, World
-from lle.solver.clauses import ClauseGenerator, SolveMode
-from pysat.solvers import MinisatGH
+from lle.solver.clauses import ClauseGenerator, SatSolver, SolveMode
 
 COOPERATION_DELTA_WORLD = "L0E .  .  X\nL1E .  .  X\nL2E .  .  X\nS0  S1 S2 X"
 
 
 def _formula_is_sat(clauses: list[list[int]], assumptions: list[int]) -> bool:
-    with MinisatGH(bootstrap_with=clauses) as solver:
-        return bool(solver.solve(assumptions=assumptions))
+    solver = SatSolver()
+    solver.append_formula(clauses)
+    return solver.solve(assumptions)
 
 
 @pytest.mark.parametrize(
@@ -80,21 +80,19 @@ def test_delta_stream_matches_fresh_complete_formulas_across_modes(
     t_max = max(horizons)
     stream_generator = ClauseGenerator(World(world_string), t_max)
     stream_generator.start_delta_stream(mode=mode, collect_gems=collect_gems)
-    with MinisatGH() as incremental_solver:
-        for horizon in horizons:
-            delta_clauses, delta_assumptions = stream_generator.advance_delta_stream(horizon)
-            incremental_solver.append_formula(delta_clauses)
-            delta_is_sat = bool(
-                incremental_solver.solve(assumptions=delta_assumptions)  # pyright: ignore[reportUnknownMemberType]
-            )
+    incremental_solver = SatSolver()
+    for horizon in horizons:
+        delta_clauses, delta_assumptions = stream_generator.advance_delta_stream(horizon)
+        incremental_solver.append_formula(delta_clauses)
+        delta_is_sat = incremental_solver.solve(delta_assumptions)
 
-            fresh_generator = ClauseGenerator(World(world_string), t_max)
-            full_clauses, full_assumptions = fresh_generator.generate(
-                horizon,
-                mode=mode,
-                collect_gems=collect_gems,
-            )
-            assert delta_is_sat is _formula_is_sat(full_clauses, full_assumptions), f"delta/full mismatch for {mode} at horizon {horizon}"
+        fresh_generator = ClauseGenerator(World(world_string), t_max)
+        full_clauses, full_assumptions = fresh_generator.generate(
+            horizon,
+            mode=mode,
+            collect_gems=collect_gems,
+        )
+        assert delta_is_sat is _formula_is_sat(full_clauses, full_assumptions), f"delta/full mismatch for {mode} at horizon {horizon}"
 
 
 def test_delta_stream_supports_incremental_solving_and_repeated_horizons():
@@ -104,22 +102,22 @@ def test_delta_stream_supports_incremental_solving_and_repeated_horizons():
     """
     generator = ClauseGenerator(World("S0 . . X"), 4)
     generator.start_delta_stream()
-    with MinisatGH() as solver:
-        clauses, assumptions = generator.advance_delta_stream(2)
-        solver.append_formula(clauses)
-        assert not solver.solve(assumptions=assumptions)  # pyright: ignore[reportUnknownMemberType]
+    solver = SatSolver()
+    clauses, assumptions = generator.advance_delta_stream(2)
+    solver.append_formula(clauses)
+    assert not solver.solve(assumptions)
 
-        repeated, repeated_assumptions = generator.advance_delta_stream(2)
-        assert repeated == []
-        assert repeated_assumptions == assumptions
+    repeated, repeated_assumptions = generator.advance_delta_stream(2)
+    assert repeated == []
+    assert repeated_assumptions == assumptions
 
-        clauses, assumptions = generator.advance_delta_stream(3)
-        solver.append_formula(clauses)
-        assert solver.solve(assumptions=assumptions)  # pyright: ignore[reportUnknownMemberType]
-        model = solver.get_model()  # pyright: ignore[reportUnknownMemberType]
-        assert model is not None
-        plan = generator.decode_plan(model, 3)
-        assert plan == [[Action.EAST], [Action.EAST], [Action.EAST]]
+    clauses, assumptions = generator.advance_delta_stream(3)
+    solver.append_formula(clauses)
+    assert solver.solve(assumptions)
+    model = solver.get_model()
+    assert model is not None
+    plan = generator.decode_plan(model, 3)
+    assert plan == [[Action.EAST], [Action.EAST], [Action.EAST]]
 
 
 def test_advance_delta_stream_without_start_raises():
@@ -178,19 +176,17 @@ def test_new_stream_on_a_reused_generator_serves_a_fresh_solver_correctly():
 
     for mode in (SolveMode.standard(), SolveMode.no_sequence(2)):
         generator.start_delta_stream(mode=mode)
-        with MinisatGH() as incremental_solver:
-            for horizon in (2, 3, 4):
-                clauses, assumptions = generator.advance_delta_stream(horizon)
-                incremental_solver.append_formula(clauses)
-                incremental_is_sat = bool(
-                    incremental_solver.solve(assumptions=assumptions)  # pyright: ignore[reportUnknownMemberType]
-                )
+        incremental_solver = SatSolver()
+        for horizon in (2, 3, 4):
+            clauses, assumptions = generator.advance_delta_stream(horizon)
+            incremental_solver.append_formula(clauses)
+            incremental_is_sat = incremental_solver.solve(assumptions)
 
-                fresh = ClauseGenerator(World(world_string), t_max)
-                expected = fresh.generate(horizon, mode=mode)
-                assert incremental_is_sat is _formula_is_sat(*expected), (
-                    f"delta/full mismatch for {mode} at horizon {horizon} on a reused generator"
-                )
+            fresh = ClauseGenerator(World(world_string), t_max)
+            expected = fresh.generate(horizon, mode=mode)
+            assert incremental_is_sat is _formula_is_sat(*expected), (
+                f"delta/full mismatch for {mode} at horizon {horizon} on a reused generator"
+            )
 
 
 def test_delta_stream_repeated_request_returns_no_clause():

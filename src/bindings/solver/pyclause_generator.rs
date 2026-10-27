@@ -7,7 +7,7 @@ use crate::{
     solver::{Clause, ClauseGenerator, DeltaStream, Literal, SolveMode},
 };
 
-fn extract_solve_mode(py: Python, mode: Py<PyAny>) -> PyResult<SolveMode> {
+pub(super) fn extract_solve_mode(py: Python, mode: Py<PyAny>) -> PyResult<SolveMode> {
     if let Ok(m) = mode.extract::<PySolveMode>(py) {
         Ok(m.into())
     } else if let Ok(s) = mode.extract::<String>(py) {
@@ -22,22 +22,22 @@ fn extract_solve_mode(py: Python, mode: Py<PyAny>) -> PyResult<SolveMode> {
 /// Generates the SAT clauses (CNF, as lists of signed integer literals) used by
 /// `lle.solver.Solver` and decodes solver models back into joint-action plans.
 ///
-/// The constraint generation itself (agent movement, collisions, laser propagation and blocking)
-/// is implemented in Rust for performance; SAT solving remains delegated to Python (e.g.
-/// `pysat.solvers.MinisatGH`). One generator can be reused across modes because domain clauses are
-/// cached independently from cooperation-specific support clauses.
+/// `lle.solver.Solver` generates and solves these clauses without leaving Rust; this class is for
+/// callers who want the formula itself, to feed `SatSolver` or any other SAT solver. One generator
+/// can be reused across modes because domain clauses are cached independently from
+/// cooperation-specific support clauses.
 ///
 /// ```python
-/// from pysat.solvers import MinisatGH
 /// from lle import World
-/// from lle.solver.clauses import ClauseGenerator
+/// from lle.solver.clauses import ClauseGenerator, SatSolver
 ///
 /// world = World.level(1)
 /// gen = ClauseGenerator(world, t_max=20)
 /// clauses, assumptions = gen.generate(10, mode="standard", collect_gems=False)
-/// with MinisatGH(bootstrap_with=clauses) as solver:
-///     if solver.solve(assumptions=assumptions):
-///         plan = gen.decode_plan(solver.get_model(), 10)
+/// solver = SatSolver()
+/// solver.append_formula(clauses)
+/// if solver.solve(assumptions):
+///     plan = gen.decode_plan(solver.get_model(), 10)
 /// ```
 #[gen_stub_pyclass]
 #[pyclass(name = "ClauseGenerator", module = "lle.solver.clauses")]
@@ -164,13 +164,13 @@ impl PyClauseGenerator {
     ///
     /// ```python
     /// gen.start_delta_stream(mode="standard")
-    /// with MinisatGH() as solver:
-    ///     for t in range(gen.solution_lower_bound, gen.t_max + 1):
-    ///         clauses, assumptions = gen.advance_delta_stream(t)
-    ///         solver.append_formula(clauses)
-    ///         if solver.solve(assumptions=assumptions):
-    ///             plan = gen.decode_plan(solver.get_model(), t)
-    ///             break
+    /// solver = SatSolver()
+    /// for t in range(gen.solution_lower_bound, gen.t_max + 1):
+    ///     clauses, assumptions = gen.advance_delta_stream(t)
+    ///     solver.append_formula(clauses)
+    ///     if solver.solve(assumptions):
+    ///         plan = gen.decode_plan(solver.get_model(), t)
+    ///         break
     /// ```
     ///
     /// # Returns
