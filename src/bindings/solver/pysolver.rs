@@ -40,12 +40,6 @@ impl PySolver {
         Ok(Self { inner })
     }
 
-    /// The maximum plan length considered by this solver.
-    #[getter]
-    fn t_max(&self) -> usize {
-        self.inner.t_max()
-    }
-
     /// A cheap admissible lower bound on the length of any valid plan.
     #[getter]
     fn solution_lower_bound(&self) -> usize {

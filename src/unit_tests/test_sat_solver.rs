@@ -42,7 +42,6 @@ fn assumed_variables_count_in_the_model() {
     let mut solver = SatSolver::new();
     solver.add_clause(&[1]).unwrap();
     assert!(solver.solve(&[-4]).unwrap());
-    assert_eq!(solver.n_vars(), 4);
     let model = solver.model().unwrap();
     assert_eq!(model.len(), 4);
     assert_eq!(model[0], 1);

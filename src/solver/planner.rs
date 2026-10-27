@@ -25,10 +25,6 @@ impl Solver {
         })
     }
 
-    pub fn t_max(&self) -> usize {
-        self.t_max
-    }
-
     /// A cheap admissible lower bound on the length of any valid plan.
     pub fn solution_lower_bound(&self) -> usize {
         self.generator.solution_lower_bound()
@@ -36,8 +32,8 @@ impl Solver {
 
     /// Find a plan of exactly `path_length` joint actions, or `None` if there is none.
     ///
-    /// The returned plan completes exactly at its last step. `path_length` must not exceed
-    /// [`Self::t_max`].
+    /// The returned plan completes exactly at its last step. `path_length` must not exceed the
+    /// solver's `t_max`.
     ///
     /// `shuffle` randomizes the order in which clauses and assumptions are given to the SAT
     /// solver, which can lead it to a different plan.
@@ -62,8 +58,8 @@ impl Solver {
         self.decode(&sat_solver, path_length)
     }
 
-    /// Find the shortest plan from `t_min` (at least [`Self::solution_lower_bound`]) through
-    /// [`Self::t_max`], or `None` if there is none.
+    /// Find the shortest plan from `t_min` (at least [`Self::solution_lower_bound`]) through the
+    /// solver's `t_max`, or `None` if there is none.
     ///
     /// The whole search retains one SAT solver and one [`super::DeltaStream`] fixed to `mode` and
     /// `collect_gems`, so larger horizons only add the clauses they newly need.

@@ -19,11 +19,6 @@ impl SatSolver {
         Self::default()
     }
 
-    /// The largest variable seen so far in a clause or an assumption.
-    pub fn n_vars(&self) -> usize {
-        self.n_vars
-    }
-
     /// Check that every literal is one CaDiCaL accepts, and track the largest variable.
     fn register(&mut self, literals: &[Literal]) -> Result<(), SolverError> {
         for &literal in literals {
@@ -68,7 +63,7 @@ impl SatSolver {
     }
 
     /// The model found by the last call to [`Self::solve`], as one signed literal per variable from
-    /// 1 to [`Self::n_vars`] (the same layout as `pysat`'s `get_model()`). A variable whose value
+    /// 1 to the largest variable seen in a clause or an assumption (the same layout as `pysat`'s `get_model()`). A variable whose value
     /// does not matter is reported as false.
     ///
     /// `None` if that call returned `false`, or if a clause was added since.

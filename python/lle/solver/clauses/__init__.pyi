@@ -163,11 +163,6 @@ class SatSolver:
         plan = gen.decode_plan(solver.get_model(), 10)
     ```
     """
-    @property
-    def n_vars(self) -> builtins.int:
-        r"""
-        The largest variable seen so far in a clause or an assumption.
-        """
     def __new__(cls) -> SatSolver: ...
     def add_clause(self, clause: typing.Sequence[builtins.int]) -> None:
         r"""
@@ -194,7 +189,8 @@ class SatSolver:
     def get_model(self) -> typing.Optional[builtins.list[builtins.int]]:
         r"""
         The model found by the last call to `solve`, as one signed literal per variable from 1 to
-        `n_vars`, or `None` if that call was unsatisfiable or a clause was added since.
+        the largest variable seen, or `None` if that call was unsatisfiable or a clause was added
+        since.
         """
 
 @typing.final
@@ -309,11 +305,6 @@ class Solver:
     
     Arguments are not validated here; use `lle.solver.Solver` instead.
     """
-    @property
-    def t_max(self) -> builtins.int:
-        r"""
-        The maximum plan length considered by this solver.
-        """
     @property
     def solution_lower_bound(self) -> builtins.int:
         r"""

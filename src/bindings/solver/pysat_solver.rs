@@ -37,12 +37,6 @@ impl PySatSolver {
         }
     }
 
-    /// The largest variable seen so far in a clause or an assumption.
-    #[getter]
-    fn n_vars(&self) -> usize {
-        self.inner.n_vars()
-    }
-
     /// Add one clause, as a list of non-zero signed literals.
     ///
     /// # Raises
@@ -76,7 +70,8 @@ impl PySatSolver {
     }
 
     /// The model found by the last call to `solve`, as one signed literal per variable from 1 to
-    /// `n_vars`, or `None` if that call was unsatisfiable or a clause was added since.
+    /// the largest variable seen, or `None` if that call was unsatisfiable or a clause was added
+    /// since.
     fn get_model(&self) -> Option<Vec<Literal>> {
         self.inner.model()
     }

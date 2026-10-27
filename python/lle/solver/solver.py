@@ -67,9 +67,6 @@ class Solver:
                 f"path_length={path_length} exceeds this solver's t_max={self.t_max}. Construct a new Solver with a larger t_max."
             )
 
-        if path_length < self.solution_lower_bound:
-            return None
-
         plan = self._solver.solve(path_length, mode=_parse_mode(mode), collect_gems=collect_gems, shuffle=shuffle)
         return _to_plan(plan)
 
@@ -95,9 +92,7 @@ class Solver:
         any later call to `find_shortest` with a different mode) are unaffected: each call to
         `find_shortest` starts its own stream from scratch.
         """
-        if t_min is None or t_min < self.solution_lower_bound:
-            t_min = self.solution_lower_bound
-        elif t_min > self.t_max:
+        if t_min is not None and t_min > self.t_max and t_min >= self.solution_lower_bound:
             raise ValueError(f"t_min={t_min} exceeds this solver's t_max={self.t_max}.")
 
         plan = self._solver.find_shortest(mode=_parse_mode(mode), t_min=t_min, collect_gems=collect_gems, shuffle=shuffle)
