@@ -9,8 +9,7 @@ import lle
 import pytest
 from lle import World
 from lle.solver import Solver
-from lle.solver.clauses import ClauseGenerator
-from pysat.solvers import MinisatGH
+from lle.solver.clauses import ClauseGenerator, SatSolver
 
 
 def first_all_arrived_step(world: World, plan: list[tuple[lle.Action, ...]]) -> int | None:
@@ -32,12 +31,13 @@ def all_plans(world: World, path_length: int) -> list[list[tuple[lle.Action, ...
     generator = ClauseGenerator(world, path_length)
     clauses, assumptions = generator.generate(path_length, mode="standard", collect_gems=False)
     plans: list[list[tuple[lle.Action, ...]]] = []
-    with MinisatGH(bootstrap_with=clauses) as sat_solver:
-        while sat_solver.solve(assumptions=assumptions):
-            model = sat_solver.get_model()
-            assert model is not None
-            plans.append([tuple(row) for row in generator.decode_plan(model, path_length)])
-            sat_solver.add_clause([-literal for literal in model])
+    sat_solver = SatSolver()
+    sat_solver.append_formula(clauses)
+    while sat_solver.solve(assumptions):
+        model = sat_solver.get_model()
+        assert model is not None
+        plans.append([tuple(row) for row in generator.decode_plan(model, path_length)])
+        sat_solver.add_clause([-literal for literal in model])
     return plans
 
 

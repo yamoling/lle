@@ -1,15 +1,13 @@
-"""Incremental SAT solver that builds constraints incrementally for time-bounded solving."""
+"""Incremental SAT solver that builds constraints incrementally for time-bounded solving.
 
-import random
+Clause generation and SAT solving (CaDiCaL) both happen in Rust: the clauses never cross into Python.
+"""
+
 from typing import Literal
 
-# MinisatGH rather than Minisat22: Minisat22 (python-sat 1.9.dev5) crashes the process with an access
-# violation on some incremental clause sequences of `find_shortest` (worlds with levers and plates),
-# which MinisatGH, Glucose and CaDiCaL all solve.
-from pysat.solvers import MinisatGH  # pyright: ignore[reportMissingTypeStubs]
-
 from ..world import Action, World
-from .clauses import ClauseGenerator, SolveMode
+from .clauses import SatSolver, SolveMode
+from .clauses import Solver as _RustSolver
 from .types import SolveModeLiteral
 
 
@@ -32,16 +30,15 @@ class Solver:
 
     world: World
     t_max: int
-    generator: ClauseGenerator
 
     def __init__(self, world: World, t_max: int | Literal["auto"] = "auto") -> None:
         self.world = world
         self.t_max = _default_t_max(world) if t_max == "auto" else t_max
-        self.generator = ClauseGenerator(world, self.t_max)
+        self._solver = _RustSolver(world, self.t_max)
 
     @property
     def solution_lower_bound(self) -> int:
-        return self.generator.solution_lower_bound
+        return self._solver.solution_lower_bound
 
     def solve(
         self,
@@ -70,18 +67,8 @@ class Solver:
                 f"path_length={path_length} exceeds this solver's t_max={self.t_max}. Construct a new Solver with a larger t_max."
             )
 
-        if path_length < self.solution_lower_bound:
-            return None
-
-        parsed_mode = _parse_mode(mode)
-        clauses, assumptions = self.generator.generate(path_length, mode=parsed_mode, collect_gems=collect_gems)
-        if shuffle:
-            random.shuffle(clauses)
-            random.shuffle(assumptions)
-        model = solve_model(clauses, assumptions=assumptions)
-        if model is None:
-            return None
-        return _to_plan(self.generator.decode_plan(model, path_length))
+        plan = self._solver.solve(path_length, mode=_parse_mode(mode), collect_gems=collect_gems, shuffle=shuffle)
+        return _to_plan(plan)
 
     def find_shortest(
         self,
@@ -105,26 +92,11 @@ class Solver:
         any later call to `find_shortest` with a different mode) are unaffected: each call to
         `find_shortest` starts its own stream from scratch.
         """
-        if t_min is None or t_min < self.solution_lower_bound:
-            t_min = self.solution_lower_bound
-        elif t_min > self.t_max:
+        if t_min is not None and t_min > self.t_max and t_min >= self.solution_lower_bound:
             raise ValueError(f"t_min={t_min} exceeds this solver's t_max={self.t_max}.")
 
-        parsed_mode = _parse_mode(mode)
-        self.generator.start_delta_stream(mode=parsed_mode, collect_gems=collect_gems)
-        with MinisatGH() as sat_solver:
-            for path_length in range(t_min, self.t_max + 1):
-                clauses, assumptions = self.generator.advance_delta_stream(path_length)
-                if shuffle:
-                    random.shuffle(clauses)
-                    random.shuffle(assumptions)
-                sat_solver.append_formula(clauses)
-                if not sat_solver.solve(assumptions=assumptions):  # pyright: ignore[reportUnknownMemberType]
-                    continue
-                model: list[int] | None = sat_solver.get_model()  # pyright: ignore[reportUnknownVariableType]
-                assert model is not None
-                return _to_plan(self.generator.decode_plan(model, path_length))
-        return None
+        plan = self._solver.find_shortest(mode=_parse_mode(mode), t_min=t_min, collect_gems=collect_gems, shuffle=shuffle)
+        return _to_plan(plan)
 
 
 def solve(
@@ -158,15 +130,14 @@ def solve_model(clauses: list[list[int]], *, assumptions: list[int] | None = Non
     Solve the SAT problem with the given clauses and assumptions, returning the literals' values
     if a solution is found, or `None` if the clauses are unsatisfiable.
     """
-    if assumptions is None:
-        assumptions = []
-    with MinisatGH(bootstrap_with=clauses) as sat_solver:
-        res = bool(sat_solver.solve(assumptions=assumptions))  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
-        if res:
-            model: list[int] | None = sat_solver.get_model()  # pyright: ignore[reportUnknownVariableType]
-            assert model is not None
-            return model  # pyright: ignore[reportUnknownVariableType]
+    sat_solver = SatSolver()
+    sat_solver.append_formula(clauses)
+    if sat_solver.solve(assumptions or []):
+        return sat_solver.get_model()
+    return None
 
 
-def _to_plan(joint_actions: list[list[Action]]) -> list[tuple[Action, ...]]:
+def _to_plan(joint_actions: list[list[Action]] | None) -> list[tuple[Action, ...]] | None:
+    if joint_actions is None:
+        return None
     return [tuple(joint) for joint in joint_actions]

@@ -41,6 +41,10 @@ pub enum SolverError {
         value: usize,
         reason: String,
     },
+    /// The SAT solver backend (CaDiCaL) rejected a literal or failed to solve.
+    Backend {
+        reason: String,
+    },
 }
 
 impl Display for SolverError {
@@ -79,6 +83,7 @@ impl Display for SolverError {
                 f,
                 "Invalid parameter {value} for SolveMode::{variant}: {reason}"
             ),
+            SolverError::Backend { reason } => write!(f, "SAT solver error: {reason}"),
         }
     }
 }

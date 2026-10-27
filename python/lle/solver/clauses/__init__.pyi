@@ -6,7 +6,9 @@ from lle import world
 import typing
 __all__ = [
     "ClauseGenerator",
+    "SatSolver",
     "SolveMode",
+    "Solver",
 ]
 
 @typing.final
@@ -15,22 +17,22 @@ class ClauseGenerator:
     Generates the SAT clauses (CNF, as lists of signed integer literals) used by
     `lle.solver.Solver` and decodes solver models back into joint-action plans.
     
-    The constraint generation itself (agent movement, collisions, laser propagation and blocking)
-    is implemented in Rust for performance; SAT solving remains delegated to Python (e.g.
-    `pysat.solvers.MinisatGH`). One generator can be reused across modes because domain clauses are
-    cached independently from cooperation-specific support clauses.
+    `lle.solver.Solver` generates and solves these clauses without leaving Rust; this class is for
+    callers who want the formula itself, to feed `SatSolver` or any other SAT solver. One generator
+    can be reused across modes because domain clauses are cached independently from
+    cooperation-specific support clauses.
     
     ```python
-    from pysat.solvers import MinisatGH
     from lle import World
-    from lle.solver.clauses import ClauseGenerator
+    from lle.solver.clauses import ClauseGenerator, SatSolver
     
     world = World.level(1)
     gen = ClauseGenerator(world, t_max=20)
     clauses, assumptions = gen.generate(10, mode="standard", collect_gems=False)
-    with MinisatGH(bootstrap_with=clauses) as solver:
-        if solver.solve(assumptions=assumptions):
-            plan = gen.decode_plan(solver.get_model(), 10)
+    solver = SatSolver()
+    solver.append_formula(clauses)
+    if solver.solve(assumptions):
+        plan = gen.decode_plan(solver.get_model(), 10)
     ```
     """
     @property
@@ -109,13 +111,13 @@ class ClauseGenerator:
         
         ```python
         gen.start_delta_stream(mode="standard")
-        with MinisatGH() as solver:
-            for t in range(gen.solution_lower_bound, gen.t_max + 1):
-                clauses, assumptions = gen.advance_delta_stream(t)
-                solver.append_formula(clauses)
-                if solver.solve(assumptions=assumptions):
-                    plan = gen.decode_plan(solver.get_model(), t)
-                    break
+        solver = SatSolver()
+        for t in range(gen.solution_lower_bound, gen.t_max + 1):
+            clauses, assumptions = gen.advance_delta_stream(t)
+            solver.append_formula(clauses)
+            if solver.solve(assumptions):
+                plan = gen.decode_plan(solver.get_model(), t)
+                break
         ```
         
         # Returns
@@ -140,6 +142,55 @@ class ClauseGenerator:
         
         # Raises:
         - `ValueError`: if the model does not encode a coherent sequence of moves.
+        """
+
+@typing.final
+class SatSolver:
+    r"""
+    An incremental SAT solver (CaDiCaL) for the clauses of a `ClauseGenerator`.
+    
+    Clauses are permanent once added, while assumptions only hold for one call to `solve`.
+    
+    ```python
+    from lle import World
+    from lle.solver.clauses import ClauseGenerator, SatSolver
+    
+    gen = ClauseGenerator(World.level(1), t_max=20)
+    clauses, assumptions = gen.generate(10, mode="standard", collect_gems=False)
+    solver = SatSolver()
+    solver.append_formula(clauses)
+    if solver.solve(assumptions):
+        plan = gen.decode_plan(solver.get_model(), 10)
+    ```
+    """
+    def __new__(cls) -> SatSolver: ...
+    def add_clause(self, clause: typing.Sequence[builtins.int]) -> None:
+        r"""
+        Add one clause, as a list of non-zero signed literals.
+        
+        # Raises
+        - `SolverError`: if a literal is 0.
+        """
+    def append_formula(self, clauses: typing.Sequence[typing.Sequence[builtins.int]]) -> None:
+        r"""
+        Add every clause of `clauses`.
+        
+        # Raises
+        - `SolverError`: if a literal is 0.
+        """
+    def solve(self, assumptions: typing.Sequence[builtins.int] = []) -> builtins.bool:
+        r"""
+        Solve the clauses added so far under `assumptions`, and return whether they are
+        satisfiable.
+        
+        # Raises
+        - `SolverError`: if an assumption is 0.
+        """
+    def get_model(self) -> typing.Optional[builtins.list[builtins.int]]:
+        r"""
+        The model found by the last call to `solve`, as one signed literal per variable from 1 to
+        the largest variable seen, or `None` if that call was unsatisfiable or a clause was added
+        since.
         """
 
 @typing.final
@@ -245,4 +296,40 @@ class SolveMode:
         """
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class Solver:
+    r"""
+    The Rust core of `lle.solver.Solver`: generates the clauses and solves them with CaDiCaL
+    without handing them to Python.
+    
+    Arguments are not validated here; use `lle.solver.Solver` instead.
+    """
+    @property
+    def solution_lower_bound(self) -> builtins.int:
+        r"""
+        A cheap admissible lower bound on the length of any valid plan.
+        """
+    def __new__(cls, world: world.World, t_max: builtins.int) -> Solver:
+        r"""
+        Build a solver for `world`, considering plans of length up to `t_max`.
+        
+        # Raises
+        - `ValueError`: if two agents share a colour.
+        """
+    def solve(self, path_length: builtins.int, mode: typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-mutual', 'no-fully-coupled', 'no-sequence', 'no-interdependence', 'no-convergence', 'no-divergence'] | builtins.str | SolveMode | None = None, collect_gems: builtins.bool = False, shuffle: builtins.bool = False) -> typing.Optional[builtins.list[builtins.list[world.Action]]]:
+        r"""
+        Find a plan of exactly `path_length` joint actions, or `None` if there is none.
+        
+        # Raises
+        - `ValueError`: if `mode` is invalid.
+        """
+    def find_shortest(self, mode: typing.Literal['standard', 'no-cooperation', 'no-asymmetric', 'no-mutual', 'no-fully-coupled', 'no-sequence', 'no-interdependence', 'no-convergence', 'no-divergence'] | builtins.str | SolveMode | None = None, t_min: typing.Optional[builtins.int] = None, collect_gems: builtins.bool = False, shuffle: builtins.bool = False) -> typing.Optional[builtins.list[builtins.list[world.Action]]]:
+        r"""
+        Find the shortest plan from `t_min` (at least `solution_lower_bound`) through `t_max`, or
+        `None` if there is none.
+        
+        # Raises
+        - `ValueError`: if `mode` is invalid.
+        """
 
