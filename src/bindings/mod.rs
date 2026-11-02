@@ -9,7 +9,7 @@ mod world;
 pub use pyexceptions::{
     InvalidActionError, InvalidLevelError, InvalidWorldStateError, ParsingError,
 };
-pub use solver::{PyClauseGenerator, PySolveMode};
+pub use solver::{PyClauseGenerator, PySatSolver, PySolveMode, PySolver};
 pub use tiles::{PyButton, PyLaser, PyLaserSource, PyLever, PyLift, PyPressurePlate};
 pub use world::{PyAction, PyEventType, PyPosition, PyWorld, PyWorldEvent, PyWorldState};
 
@@ -107,6 +107,8 @@ mod lle {
         let clauses = PyModule::new(py, "clauses")?;
         clauses.add_class::<super::solver::PyClauseGenerator>()?;
         clauses.add_class::<super::solver::PySolveMode>()?;
+        clauses.add_class::<super::solver::PySatSolver>()?;
+        clauses.add_class::<super::solver::PySolver>()?;
         sys_modules.set_item("lle.solver.clauses", &clauses)
     }
 }
