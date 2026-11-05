@@ -160,3 +160,58 @@ def test_bfs_only_lets_the_only_rider_use_a_lever(kind: str, usable: bool):
     # Agent 0 is the only visitor of layer 0 and the only rider: it cannot hold a button or a plate
     # while riding, but it can switch a lever on and then ride.
     assert _bfs(lifts={(0, True): lift}, actuators=[Actuator(kind, 0, (2, 0), group=0)]) == usable
+
+
+def _skeleton(journeys, kinds, cross=False):
+    from lle.generator.layered import Actuator, Lift, Skeleton
+
+    lifts = {}
+    for agent, journey in enumerate(journeys):
+        for k, nxt in zip(journey, journey[1:]):
+            lift = lifts.setdefault((k, nxt > k), Lift(k, (0, len(lifts)), nxt > k, group=len(lifts)))
+            lift.riders.add(agent)
+    actuators = [
+        Actuator(kind, layer, (1, lift.group), lift.group)
+        for lift in lifts.values()
+        for layer in ([lift.layer, lift.landing] if cross else [lift.layer])
+        for kind in kinds
+    ]
+    return Skeleton(journeys, [], [], lifts, actuators, [])
+
+
+@pytest.mark.parametrize(
+    ("journeys", "kinds", "cross", "expected"),
+    [
+        # Both ride 0 -> 1 with a plate on layer 0: the last one has nobody left to stand on it.
+        ([[0, 1], [0, 1]], ["plate"], False, False),
+        # Agent 1 stays on layer 0 and holds the plate.
+        ([[0, 1], [0]], ["plate"], False, True),
+        # Each agent holds the other's plate on layer 1, but the first to leave strands the other.
+        ([[1, 2], [1, 0]], ["plate"], False, False),
+        # Agents crossing in opposite directions: each needs the other on its own layer...
+        ([[0, 1], [1, 0]], ["plate"], False, False),
+        # ...unless a copy on the landing layer lets the agent already there hold it.
+        ([[0, 1], [1, 0]], ["plate"], True, True),
+        # Nobody is on the landing layer yet when both must leave layer 0.
+        ([[0, 1], [0, 1]], ["plate"], True, False),
+        # A lever keeps pulsing once switched on: its own rider may use it.
+        ([[0, 1], [0, 1]], ["lever"], False, True),
+        ([[0, 1, 2], [0, 1, 2]], ["button"], False, False),
+    ],
+)
+def test_journeys_can_be_ridden(journeys, kinds, cross: bool, expected: bool):
+    from lle.generator.layered import journeys_can_be_ridden
+
+    assert journeys_can_be_ridden(_skeleton(journeys, kinds, cross)) == expected
+
+
+def test_impossible_settings_raise_instead_of_looping():
+    # Two agents with plates only can ride at most once: three layers can never all be visited.
+    with pytest.raises(ValueError, match="No valid layout"):
+        generate(width=5, height=5, n_agents=2).layers(3).actuators("plate").lasers(0).build(seed=0)
+
+
+@pytest.mark.parametrize(("n_agents", "kinds", "cross"), [(2, ("plate",), True), (2, ("lever",), False), (3, ("plate",), False)])
+def test_three_layers_with_plates_or_levers(n_agents: int, kinds, cross: bool):
+    world = generate(width=5, height=5, n_agents=n_agents).layers(3, cross_layer_actuators=cross).actuators(*kinds).lasers(0).build(seed=0)
+    assert world.layers == 3

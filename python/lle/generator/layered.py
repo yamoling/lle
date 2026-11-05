@@ -34,6 +34,8 @@ SKELETON_TRIES = 50
 ActuatorKind = Literal["button", "lever", "plate"]
 ActuatorChoice = Literal["button", "lever", "plate", "random"]
 ACTUATOR_KINDS: tuple[ActuatorKind, ...] = ("button", "lever", "plate")
+# Consecutive rejected skeletons after which the settings are considered impossible.
+MAX_SKELETON_FAILURES = 5_000
 # Fills of one layer before drawing a new skeleton.
 LAYER_TRIES = 20
 
@@ -167,6 +169,8 @@ class LayeredGenerator(WorldGenerator):
         self.restricted_lifts = restricted_lifts
         self.constraint = constraint
         self._rng = random.Random()
+        # Consecutive skeletons rejected since the last valid one, to detect impossible settings.
+        self._skeleton_failures = 0
 
     # ------------------------------------------------------------------
     # Skeleton
@@ -222,6 +226,9 @@ class LayeredGenerator(WorldGenerator):
                 for kind in kinds:
                     actuators.append(Actuator(kind, k, self._free_cell(used, k), lift.group))
         skeleton = Skeleton(journeys, starts, exits, lifts, actuators, visits)
+        # Cheap check before filling any layer: the journeys can be ridden in some order.
+        if not journeys_can_be_ridden(skeleton):
+            raise LayoutRetry()
         self._restrict_colours(skeleton)
         return skeleton
 
@@ -234,7 +241,11 @@ class LayeredGenerator(WorldGenerator):
             (lift.colour,) = lift.riders
             for actuator in skeleton.actuators:
                 if actuator.group == lift.group:
-                    pressers = sorted(skeleton.visitors(actuator.layer) - lift.riders)
+                    # The rider itself may only use a copy on the landing layer, once it went through.
+                    pressers = skeleton.visitors(actuator.layer)
+                    if actuator.layer != lift.landing:
+                        pressers -= lift.riders
+                    pressers = sorted(pressers)
                     if pressers:
                         actuator.colour = self._rng.choice(pressers)
 
@@ -296,19 +307,19 @@ class LayeredGenerator(WorldGenerator):
         if not all(reachable(visit.begin, visit.target) for visit in visits):
             return False
 
-        # Every lift with actuators on this layer needs an agent here who can activate one of them. A
-        # button or a plate holds its agent, who cannot ride at the same time: it needs an agent not
-        # riding the lift, or several riders taking turns. A lever keeps pulsing once switched on, so
-        # a rider may switch it on and ride.
+        # Every lift with actuators on this layer needs an agent here who can activate one of them.
+        # The colour restriction aside, see `can_activate`.
         def can_activate(agent: int, lift: Lift, actuator: Actuator):
-            if actuator.kind != "lever" and agent in lift.riders and len(lift.riders) == 1:
-                return False
-            return actuator.colour in (None, agent)
+            return actuator.colour in (None, agent) and can_hold(agent, lift, actuator)
 
         for lift in skeleton.lifts.values():
             actuators = [a for a in skeleton.actuators if a.group == lift.group and a.layer == k]
-            if actuators and not any(
-                can_activate(visit.agent, lift, a) and reachable(visit.begin, a.pos) for visit in visits for a in actuators
+            # A lift with actuators on another layer (a landing copy) may be activated from there.
+            elsewhere = any(a.group == lift.group and a.layer != k for a in skeleton.actuators)
+            if (
+                actuators
+                and not elsewhere
+                and not any(can_activate(visit.agent, lift, a) and reachable(visit.begin, a.pos) for visit in visits for a in actuators)
             ):
                 return False
         return True
@@ -348,6 +359,18 @@ class LayeredGenerator(WorldGenerator):
             self._rng.seed(seed)
         try:
             skeleton = self._make_skeleton()
+        except LayoutRetry:
+            self._skeleton_failures += 1
+            if self._skeleton_failures >= MAX_SKELETON_FAILURES:
+                raise ValueError(
+                    f"No valid layout after {MAX_SKELETON_FAILURES} tries: with these settings, the agents can most "
+                    "likely never ride the lifts through every layer. A button or a pressure plate needs another "
+                    'agent on the lift\'s layer while the rider leaves; use more agents, levers (`actuators("lever")`) '
+                    "or copies on the landing layers (`layers(n, cross_layer_actuators=True)`)."
+                )
+            return None
+        self._skeleton_failures = 0
+        try:
             layouts = [self._fill_layer_retrying(k, skeleton) for k in range(self.n_layers)]
         except LayoutRetry:
             return None
@@ -385,3 +408,48 @@ def visits_every_layer(world: World, plan):
         visited |= {pos[2] for pos in world.agents_positions}
     world.reset()
     return visited == set(range(world.layers))
+
+
+def journeys_can_be_ridden(skeleton: Skeleton):
+    """Whether the agents can follow their journeys in some order, given who must activate each lift.
+
+    Only tracks which layer each agent is on (geometry and timing within a layer are left to the
+    layer BFS and to the solver): an agent may take its next lift when one of the lift's actuators
+    can be activated by an agent currently on the actuator's layer (see `can_hold`).
+    """
+    journeys = skeleton.journeys
+    goal = tuple(len(journey) - 1 for journey in journeys)
+    start = tuple(0 for _ in journeys)
+    seen = {start}
+    stack = [start]
+    while stack:
+        progress = stack.pop()
+        if progress == goal:
+            return True
+        layers = [journey[step] for journey, step in zip(journeys, progress)]
+        for agent, step in enumerate(progress):
+            if step == goal[agent]:
+                continue
+            lift = skeleton.lifts[(layers[agent], journeys[agent][step + 1] > layers[agent])]
+            if any(
+                can_hold(other, lift, actuator) and layers[other] == actuator.layer and (other != agent or actuator.kind == "lever")
+                for actuator in skeleton.actuators
+                if actuator.group == lift.group
+                for other in range(len(journeys))
+            ):
+                nxt = progress[:agent] + (step + 1,) + progress[agent + 1 :]
+                if nxt not in seen:
+                    seen.add(nxt)
+                    stack.append(nxt)
+    return False
+
+
+def can_hold(agent: int, lift: Lift, actuator: Actuator):
+    """Whether `agent` may be the one activating `actuator` for `lift`, colours aside.
+
+    A button or a plate on the lift's own layer holds its agent during the pulse, so that agent cannot
+    ride the lift: the last rider to leave would be stranded. A copy on the landing layer can be held
+    by a rider who already went through. A lever keeps pulsing once switched on, so a rider may switch
+    it on and ride.
+    """
+    return actuator.kind == "lever" or actuator.layer == lift.landing or agent not in lift.riders

@@ -111,5 +111,3 @@ Two other actuators pulse the lifts of their group, next to buttons, with the sa
 
 - a **lever** (`H<g>`) is toggled by `Trigger`. While it is on, it pulses its group at every step, from the step it is switched on until the step it is switched off (excluded). Its on/off flag is the only actuator state that persists, so it is part of `WorldState` (`levers_on`). A lever starts off, unless a TOML map declares it with `on = true` (the v1 string cannot); `reset` restores that initial state, and so does `set_state` with an empty `levers_on`. The solver then asserts `LeverOn(l, 0)`, and nobody owns the lever until its first toggle, so riding a lift pulsed by an initially-on lever is not help;
 - a **pressure plate** (`P<g>`) pulses its group at every step an authorized agent stands on it after the walk pass. It is not triggerable.
-
-The solver does not encode them yet: `ClauseGenerator::new` rejects such worlds with `SolverError::UnsupportedFeature`.
