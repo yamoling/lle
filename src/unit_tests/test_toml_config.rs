@@ -714,3 +714,44 @@ world_string = "S0 H0A1 P2 X"
     assert_eq!(reparsed.levers()[0].1.authorized_colour, Some(1));
     assert_eq!(reparsed.pressure_plates()[0].1.group_id, 2);
 }
+
+const LEVER_ON_TOML: &str = r#"
+world_string = """
+S0 TU0 . X
+;
+. . . X
+"""
+[[levers]]
+group_id = 0
+position = { i = 0, j = 2, k = 0 }
+on = true
+"#;
+
+#[test]
+fn parse_toml_lever_initially_on() {
+    let config = parse(LEVER_ON_TOML).unwrap();
+    assert_eq!(config.levers().len(), 1);
+    assert!(config.levers()[0].1.on);
+}
+
+#[test]
+fn toml_lever_is_off_by_default() {
+    let toml_content = r#"
+world_string = "S0 H0 X"
+"#;
+    let config = parse(toml_content).unwrap();
+    assert!(!config.levers()[0].1.on);
+    let toml_string = TomlConfig::from(&config).to_toml_string();
+    assert!(!toml_string.contains("on ="), "{toml_string}");
+}
+
+#[test]
+fn lever_initially_on_survives_the_world_string_round_trip() {
+    let world = World::try_from(LEVER_ON_TOML).unwrap();
+    let world_string = world.world_string();
+    // A v1 string cannot express a lever that starts on, so the world falls back to TOML.
+    assert!(world_string.contains("on = true"), "{world_string}");
+    let reparsed = World::try_from(world_string.as_str()).unwrap();
+    assert!(reparsed.levers()[0].1.is_initially_on());
+    assert!(reparsed.levers()[0].1.is_on());
+}

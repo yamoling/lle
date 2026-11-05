@@ -121,6 +121,8 @@ pub struct ConstraintContext {
     pub lifts: Vec<LiftInfo>,
     pub buttons: Vec<ButtonInfo>,
     pub levers: Vec<ButtonInfo>,
+    /// Whether each lever (index in `levers`) is on at `t == 0`.
+    pub levers_initially_on: Vec<bool>,
     pub plates: Vec<ButtonInfo>,
     exits: PositionSet,
     layers: usize,
@@ -247,6 +249,11 @@ impl ConstraintContext {
                 pressers: allowed(lever.authorized_colour()),
             })
             .collect();
+        let levers_initially_on = world
+            .levers()
+            .iter()
+            .map(|(_, lever)| lever.is_initially_on())
+            .collect();
         let plates = world
             .pressure_plates()
             .into_iter()
@@ -357,6 +364,7 @@ impl ConstraintContext {
             lifts,
             buttons,
             levers,
+            levers_initially_on,
             plates,
             exits,
             layers,

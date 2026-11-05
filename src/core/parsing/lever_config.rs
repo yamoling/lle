@@ -7,6 +7,8 @@ use super::{ParseError, actuator_token::parse_actuator_token};
 pub struct LeverConfig {
     pub group_id: usize,
     pub authorized_colour: Option<Colour>,
+    /// Whether the lever is on at reset. Only the TOML format can set it.
+    pub on: bool,
 }
 
 impl LeverConfig {
@@ -17,11 +19,12 @@ impl LeverConfig {
         Ok(Self {
             group_id,
             authorized_colour,
+            on: false,
         })
     }
 
     pub fn build(&self) -> Lever {
-        let tile = Lever::new(self.group_id);
+        let tile = Lever::new(self.group_id).initially_on(self.on);
         match self.authorized_colour {
             Some(colour) => tile.restricted_to(colour),
             None => tile,
@@ -43,6 +46,7 @@ impl From<&Lever> for LeverConfig {
         Self {
             group_id: tile.group_id(),
             authorized_colour: tile.authorized_colour(),
+            on: tile.is_initially_on(),
         }
     }
 }

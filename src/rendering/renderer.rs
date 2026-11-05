@@ -101,13 +101,15 @@ impl Renderer {
             };
             self.draw_gem(gem, &mut data);
         }
+        let powered_groups = world.powered_groups();
         for (pos, lift) in world.lifts() {
+            let powered = powered_groups.contains(&lift.group_id());
             let mut data = VisitorData {
                 x: pos.x() as u32 * TILE_SIZE,
                 y: pos.y() as u32 * TILE_SIZE,
                 frame: &mut frame_stack[pos.z()],
             };
-            self.visit_lift(lift, &mut data);
+            self.visit_lift(lift, powered, &mut data);
         }
         for (pos, button) in world.buttons() {
             let mut data = VisitorData {
@@ -360,10 +362,13 @@ impl Renderer {
         data.frame.copy_from(source_sprite, data.x, data.y).unwrap();
     }
 
-    fn visit_lift(&self, lift: &Lift, data: &mut VisitorData) {
-        let sprite = match lift.direction() {
-            VerticalDirection::Up => &*sprites::LIFT_UP,
-            VerticalDirection::Down => &*sprites::LIFT_DOWN,
+    /// Draw a lift, lit when its group is `powered`.
+    fn visit_lift(&self, lift: &Lift, powered: bool, data: &mut VisitorData) {
+        let sprite = match (lift.direction(), powered) {
+            (VerticalDirection::Up, false) => &*sprites::LIFT_UP,
+            (VerticalDirection::Down, false) => &*sprites::LIFT_DOWN,
+            (VerticalDirection::Up, true) => &*sprites::LIFT_UP_ACTIVE,
+            (VerticalDirection::Down, true) => &*sprites::LIFT_DOWN_ACTIVE,
         };
         let tinted = tint_image(sprite, group_color(lift.group_id()));
         add_transparent_image(data.frame, &tinted, data.x, data.y);

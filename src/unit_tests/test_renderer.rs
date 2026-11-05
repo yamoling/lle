@@ -382,3 +382,33 @@ fn a_pressure_plate_is_drawn_occupied() {
     assert_eq!(*free.get_pixel(x, y), floor);
     assert_ne!(*occupied.get_pixel(x, y), floor);
 }
+
+/// A lift whose group is powered (here by a lever that starts on) is drawn with the active
+/// sprite: only the lift's cell and the lever's cell differ from the unpowered world.
+#[test]
+fn test_a_powered_lift_is_drawn_lit() {
+    let toml = |on: bool| {
+        format!(
+            "world_string = \"S0 TU0 . X\\n;\\n. . . X\"\n[[levers]]\ngroup_id = 0\nposition = {{ i = 0, j = 2, k = 0 }}\non = {on}\n"
+        )
+    };
+    let mut powered = World::try_from(toml(true).as_str()).unwrap();
+    let mut idle = World::try_from(toml(false).as_str()).unwrap();
+    powered.reset();
+    idle.reset();
+    let drawn = Renderer::new(&powered).update(&powered);
+    let reference = Renderer::new(&idle).update(&idle);
+    for (x, y, pixel) in drawn.enumerate_pixels() {
+        if !in_cell(x, y, 1, 0) && !in_cell(x, y, 2, 0) {
+            assert_eq!(
+                pixel,
+                reference.get_pixel(x, y),
+                "({x}, {y}) must not differ"
+            );
+        }
+    }
+    let lift_differs = drawn
+        .enumerate_pixels()
+        .any(|(x, y, p)| in_cell(x, y, 1, 0) && p != reference.get_pixel(x, y));
+    assert!(lift_differs, "the powered lift must be drawn differently");
+}

@@ -68,7 +68,8 @@ Two other actuators pulse lifts, and all three can be mixed in one world:
   `TRIGGER` action.
 
 Like buttons, both can be restricted to one colour. Whether each lever is on is part of the
-`WorldState` (`levers_on`).
+`WorldState` (`levers_on`). Levers start off, unless a TOML map declares them with `on = true` (see
+below); a lift whose group is powered (`Lift.is_powered`) is drawn lit.
 ```python
 from lle import Action, World
 
@@ -196,7 +197,8 @@ TOML maps are useful when you want richer placement rules, such as random start
 positions. Positions can be specified as a list of positions `{i, j}` or as rectangles `{i_min, i_max, j_min, j_max}`,
 and the `world_string` field can be used to define the map as discussed above. Lifts and their
 actuators can also be placed with the `lifts`, `buttons`, `levers` and `pressure_plates` keys. The full list of authorized
-keys is defined by the JSON schema as shown in the below example.
+keys is defined by the JSON schema as shown in the below example. Only TOML can switch a lever on
+at reset: declare it in `levers` with `on = true` (leave the cell as `.` in `world_string`).
 
 ```toml
 #:schema https://raw.githubusercontent.com/yamoling/lle/refs/heads/master/resources/lle_toml_schema.json
@@ -206,6 +208,7 @@ exits = [{ j_min = 9 }] # Exits on all cells with j>=9
 gems = [{ i = 0, j = 2 }] # One single gem at position (0, 2)
 boxes = [{ i = 4, j = 1 }] # One box at position (4, 1)
 starts = [{ row = 2}] # All tiles on row=2 are start positions for all agents
+levers = [{ group_id = 0, position = { i = 3, j = 0, k = 0 }, on = true }] # A lever that starts on
 world_string = '''
 X . . . S1 . . . . .
 . . . . .  . . . . .

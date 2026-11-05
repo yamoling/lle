@@ -49,6 +49,8 @@ pub struct World {
     /// Scratch buffer reused by `solve_vertex_conflicts` across steps to avoid a fresh
     /// allocation on every call.
     conflict_scratch: Vec<bool>,
+    /// The lift groups pulsed during the last step, empty after a reset or `set_state`.
+    last_pulsed_groups: Vec<usize>,
     rng: rand::rngs::StdRng,
 }
 
@@ -99,6 +101,7 @@ impl World {
             button_positions,
             lever_positions,
             pressure_plate_positions,
+            last_pulsed_groups: vec![],
             rng: rand::SeedableRng::seed_from_u64(0u64),
         };
         w.reset();
@@ -614,6 +617,7 @@ impl World {
         for (_, tile) in self.grid.iter_mut() {
             tile.reset();
         }
+        self.last_pulsed_groups.clear();
         // Boxes settle before the agents enter, as in `step`. No box can be
         // destroyed here: a box never starts on a void.
         self.boxes.reset();
@@ -645,6 +649,17 @@ impl World {
     /// - a pressure plate with an authorized agent on it.
     fn pulsed_groups(&mut self, actions: &[Action]) -> Vec<usize> {
         let mut groups = self.trigger_environment_actions(actions);
+        for group_id in self.held_groups() {
+            if !groups.contains(&group_id) {
+                groups.push(group_id);
+            }
+        }
+        groups
+    }
+
+    /// The lift groups pulsed by a persistent actuator in the current state: a lever that is on,
+    /// or a pressure plate with an alive, authorized agent on it.
+    fn held_groups(&self) -> Vec<usize> {
         let lever_groups = self
             .levers()
             .into_iter()
@@ -656,8 +671,15 @@ impl World {
                 .map(|agent_id| self.agents[agent_id].colour());
             plate.pulsed_group(occupant_colour)
         });
-        let others: Vec<usize> = lever_groups.chain(plate_groups).collect();
-        for group_id in others {
+        lever_groups.chain(plate_groups).collect()
+    }
+
+    /// The lift groups powered in the current state, used to draw the lifts: the groups pulsed
+    /// during the last step (e.g. by a button press), and those pulsed by a lever that is on or
+    /// by an occupied pressure plate. A lever that starts on powers its group right after reset.
+    pub fn powered_groups(&self) -> Vec<usize> {
+        let mut groups = self.last_pulsed_groups.clone();
+        for group_id in self.held_groups() {
             if !groups.contains(&group_id) {
                 groups.push(group_id);
             }
@@ -779,6 +801,7 @@ impl World {
         // Trigger phase: actuate whatever tile every `Trigger`-ing agent stands on,
         // then gather the groups pulsed by buttons, levers and pressure plates.
         let pulsed_groups = self.pulsed_groups(actions);
+        self.last_pulsed_groups.clone_from(&pulsed_groups);
 
         // Pass 2: lift-driven movement, only if some group was actually pulsed.
         // Lifts never push boxes: `resolve_lift_moves` refuses a destination
@@ -915,8 +938,8 @@ impl World {
 
     /// Restore the world's agents, gems, boxes and levers to an explicitly supplied state.
     ///
-    /// An empty `levers_on` switches every lever off: states built without lever information
-    /// (e.g. `WorldState::from_array`) stay usable on worlds with levers.
+    /// An empty `levers_on` puts every lever back in its initial state: states built without lever
+    /// information (e.g. `WorldState::from_array`) stay usable on worlds with levers.
     pub fn set_state(&mut self, state: &WorldState) -> Result<Vec<WorldEvent>, RuntimeWorldError> {
         if state.gems_collected.len() != self.n_gems() {
             return Err(RuntimeWorldError::InvalidNumberOfGems {
@@ -944,13 +967,17 @@ impl World {
             }
         }
         self.validate_boxes(state)?;
-        let all_off;
+        let initial_levers;
         let state = if state.levers_on.is_empty() && self.n_levers() > 0 {
-            all_off = WorldState {
-                levers_on: vec![false; self.n_levers()],
+            initial_levers = WorldState {
+                levers_on: self
+                    .levers()
+                    .iter()
+                    .map(|(_, lever)| lever.is_initially_on())
+                    .collect(),
                 ..state.clone()
             };
-            &all_off
+            &initial_levers
         } else {
             state
         };
@@ -966,6 +993,7 @@ impl World {
         for (_, tile) in self.grid.iter_mut() {
             tile.reset();
         }
+        self.last_pulsed_groups.clear();
         for (pos, &on) in izip!(&self.lever_positions, &state.levers_on) {
             match self.grid.at_mut(pos).innermost_mut() {
                 Tile::Lever(lever) => lever.set_on(on),
@@ -1090,6 +1118,9 @@ impl Clone for World {
         let state = self.get_state();
         let mut clone = self.get_config().into_world().unwrap();
         clone.set_state(&state).unwrap();
+        clone
+            .last_pulsed_groups
+            .clone_from(&self.last_pulsed_groups);
         clone
     }
 }

@@ -171,11 +171,16 @@ impl ClauseEngine {
         clauses
     }
 
-    /// `on(l, t) <-> on(l, t - 1) xor toggle(l, t - 1)`. Levers start off: no `LeverOn` variable
-    /// exists until a toggle is possible.
+    /// `on(l, t) <-> on(l, t - 1) xor toggle(l, t - 1)`. A lever that starts off has no `LeverOn`
+    /// variable until a toggle is possible; one that starts on gets a `LeverOn` variable at
+    /// `t == 0`, asserted true.
     fn lever_states(&mut self, t: usize) -> Vec<Clause> {
         let mut clauses = Vec::new();
         for l in 0..self.ctx.levers.len() {
+            if t == 1 && self.ctx.levers_initially_on[l] {
+                let initial = self.pool.id(VarKey::LeverOn { lever: l, t: 0 });
+                clauses.push(vec![initial]);
+            }
             let previous = self.pool.get(&VarKey::LeverOn { lever: l, t: t - 1 });
             let toggle = self.pool.get(&VarKey::Toggle { lever: l, t: t - 1 });
             if previous.is_none() && toggle.is_none() {

@@ -1349,3 +1349,46 @@ def test_find_shortest_does_not_crash_the_sat_solver():
         ". . . . .\n. . @ . .\n. . . . .\nP1 . S1 . TD1\n. L1N . @ ."
     )
     assert Solver(world, 37).find_shortest() is None
+
+
+LEVER_ON_CASES = [
+    Case(
+        "lever-initially-on-lifts-without-trigger",
+        """
+world_string = \"\"\"
+S0 TU0 .
+;
+.  X   .
+\"\"\"
+[[levers]]
+group_id = 0
+position = { i = 0, j = 2, k = 0 }
+on = true
+""",
+        shortest=1,
+    ),
+    Case(
+        "lever-initially-on-must-be-switched-off",
+        """
+world_string = \"\"\"
+S0 . TU0 X
+;
+.  .  .  .
+\"\"\"
+[[levers]]
+group_id = 0
+position = { i = 0, j = 1, k = 0 }
+on = true
+""",
+        shortest=4,
+        trigger=True,
+    ),
+]
+
+
+@pytest.mark.parametrize("case", LEVER_ON_CASES, ids=[case.id for case in LEVER_ON_CASES])
+def test_lever_initially_on(case: Case):
+    world = World(case.map)
+    assert world.levers[0].initially_on and world.levers[0].is_on
+    assert world.lifts[0].is_powered
+    check(case)

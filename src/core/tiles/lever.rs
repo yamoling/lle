@@ -11,7 +11,8 @@ use super::actuator::authorizes;
 /// still stands on it. Switching it off stops the pulses in that same step.
 ///
 /// Unlike a `Button`, a lever holds persistent state: its on/off flag is part
-/// of the `WorldState`. Levers start off.
+/// of the `WorldState`. A lever starts in its initial state, off by default
+/// (`on = true` in a TOML map switches it on at every reset).
 #[derive(Debug, Clone)]
 pub struct Lever {
     /// If set, only agents of this colour may toggle the lever.
@@ -19,6 +20,8 @@ pub struct Lever {
     agent: Option<AgentId>,
     group_id: usize,
     on: bool,
+    /// The state the lever is reset to.
+    initially_on: bool,
 }
 
 impl Lever {
@@ -28,7 +31,20 @@ impl Lever {
             agent: None,
             group_id,
             on: false,
+            initially_on: false,
         }
+    }
+
+    /// Set the state the lever starts in, and is reset to.
+    pub fn initially_on(mut self, on: bool) -> Self {
+        self.initially_on = on;
+        self.on = on;
+        self
+    }
+
+    /// Whether the lever is on after a reset.
+    pub fn is_initially_on(&self) -> bool {
+        self.initially_on
     }
 
     pub fn group_id(&self) -> usize {
@@ -50,10 +66,10 @@ impl Lever {
         self.agent.take().expect("No agent to leave")
     }
 
-    /// Removes the occupant and switches the lever off.
+    /// Removes the occupant and restores the initial on/off state.
     pub fn reset(&mut self) {
         self.agent = None;
-        self.on = false;
+        self.on = self.initially_on;
     }
 
     pub fn agent(&self) -> Option<AgentId> {

@@ -105,7 +105,7 @@
     },
     "levers": {
       "type": "array",
-      "description": "Lever tile configurations. Taking the Trigger action while standing on a lever toggles it; while on, it pulses every Lift sharing its group_id at every step. Levers start off. Example:\n[[levers]]\ngroup_id = 0\n[levers.position]\ni = 1\nj = 1\nk = 0",
+      "description": "Lever tile configurations. Taking the Trigger action while standing on a lever toggles it; while on, it pulses every Lift sharing its group_id at every step. Levers start off unless `on = true`. Example:\n[[levers]]\ngroup_id = 0\n[levers.position]\ni = 1\nj = 1\nk = 0",
       "items": {
         "$ref": "#/definitions/LeverConfig"
       },
@@ -434,6 +434,11 @@
           "type": "integer",
           "minimum": 0,
           "description": "The lift group this lever pulses while on. Example: group_id = 0"
+        },
+        "on": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether the lever is on at reset, so that it pulses its group from the first step. Only the TOML format can express it. Example: on = true"
         }
       },
       "required": [

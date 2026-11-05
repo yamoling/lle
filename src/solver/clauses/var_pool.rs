@@ -54,7 +54,7 @@ pub enum VarKey {
         t: usize,
     },
     /// Whether `lever` is on at `t`, i.e. after the toggles of the step from `t - 1` to `t`.
-    /// Levers start off, so no variable exists at `t == 0`.
+    /// Only a lever that starts on has a variable at `t == 0`.
     LeverOn {
         lever: usize,
         t: usize,

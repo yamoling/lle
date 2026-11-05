@@ -2592,3 +2592,66 @@ fn test_lever_and_plate_round_trip_through_the_world_string() {
     let (_, plate) = reparsed.pressure_plates()[0];
     assert_eq!((plate.group_id(), plate.authorized_colour()), (2, None));
 }
+
+const LEVER_ON_WORLD: &str = r#"
+world_string = """
+S0 TU0 . X
+;
+. . . X
+"""
+[[levers]]
+group_id = 0
+position = { i = 0, j = 2, k = 0 }
+on = true
+"#;
+
+#[test]
+fn test_lever_initially_on_pulses_from_the_first_step() {
+    let mut world = World::try_from(LEVER_ON_WORLD).unwrap();
+    world.reset();
+    assert!(world.levers()[0].1.is_on());
+    assert_eq!(world.powered_groups(), vec![0]);
+    // Nobody toggled the lever, yet walking onto the lift lifts the agent.
+    world.step(&[Action::East]).unwrap();
+    assert_eq!(world.agents_positions()[0], Position { i: 0, j: 1, k: 1 });
+}
+
+#[test]
+fn test_lever_initially_on_is_restored_by_reset_and_set_state() {
+    let mut world = World::try_from(LEVER_ON_WORLD).unwrap();
+    world.reset();
+    // Put the agent on the lever and switch it off.
+    let mut state = world.get_state();
+    state.agents_positions = vec![Position { i: 0, j: 2, k: 0 }];
+    world.set_state(&state).unwrap();
+    world.step(&[Action::Trigger]).unwrap();
+    assert!(!world.levers()[0].1.is_on());
+    assert!(world.powered_groups().is_empty());
+    world.reset();
+    assert!(world.levers()[0].1.is_on());
+
+    // A state without lever information restores the initial lever state.
+    world.step(&[Action::East]).unwrap();
+    let mut state = world.get_state();
+    state.levers_on = vec![];
+    state.agents_positions = vec![Position { i: 0, j: 2, k: 0 }];
+    world.set_state(&state).unwrap();
+    world.step(&[Action::Trigger]).unwrap();
+    assert!(!world.levers()[0].1.is_on());
+    let mut state = world.get_state();
+    state.levers_on = vec![];
+    world.set_state(&state).unwrap();
+    assert!(world.levers()[0].1.is_on());
+}
+
+#[test]
+fn test_a_button_press_powers_its_group_until_the_next_step() {
+    let mut world = World::try_from("S0 B0 TU0 X\n;\n. . . X").unwrap();
+    world.reset();
+    assert!(world.powered_groups().is_empty());
+    world.step(&[Action::East]).unwrap();
+    world.step(&[Action::Trigger]).unwrap();
+    assert_eq!(world.powered_groups(), vec![0]);
+    world.step(&[Action::Stay]).unwrap();
+    assert!(world.powered_groups().is_empty());
+}

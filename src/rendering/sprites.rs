@@ -108,6 +108,13 @@ pub static LIFT_DOWN: LazyLock<RgbaImage> = LazyLock::new(|| {
         .to_rgba8()
 });
 
+/// The lift sprites drawn while the lift's group is powered (`World::powered_groups`).
+pub static LIFT_UP_ACTIVE: LazyLock<RgbaImage> =
+    LazyLock::new(|| load_single_rgba(LIFT_UP_ACTIVE_BYTES));
+
+pub static LIFT_DOWN_ACTIVE: LazyLock<RgbaImage> =
+    LazyLock::new(|| load_single_rgba(LIFT_DOWN_ACTIVE_BYTES));
+
 pub static BUTTON_IDLE: LazyLock<RgbaImage> = LazyLock::new(|| {
     image::load_from_memory_with_format(BUTTON_IDLE_BYTES, image::ImageFormat::Png)
         .unwrap()

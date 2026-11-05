@@ -228,6 +228,11 @@ class Lever:
         The (i, j, k) position of the lever.
         """
     @property
+    def initially_on(self) -> builtins.bool:
+        r"""
+        Whether the lever is on after a reset (`on = true` in a TOML map).
+        """
+    @property
     def agent(self) -> typing.Optional[builtins.int]:
         r"""
         The id of the agent currently standing on the tile, if any.
@@ -274,6 +279,12 @@ class Lift:
     def agent(self) -> typing.Optional[builtins.int]:
         r"""
         The id of the agent currently standing on the tile, if any.
+        """
+    @property
+    def is_powered(self) -> builtins.bool:
+        r"""
+        Whether the lift's group is powered: it was pulsed during the last step, or a lever of
+        the group is on, or an authorized agent stands on a pressure plate of the group.
         """
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...

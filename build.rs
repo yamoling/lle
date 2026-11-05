@@ -175,6 +175,12 @@ fn include_sprites_in_binary() {
         "pub const LIFT_DOWN_BYTES: &[u8] = include_bytes!(r#\"{cwd}/{RESOURCES}/lift_down.png\"#);\n",
     ));
     res.push_str(&format!(
+        "pub const LIFT_UP_ACTIVE_BYTES: &[u8] = include_bytes!(r#\"{cwd}/{RESOURCES}/lift_up_active.png\"#);\n",
+    ));
+    res.push_str(&format!(
+        "pub const LIFT_DOWN_ACTIVE_BYTES: &[u8] = include_bytes!(r#\"{cwd}/{RESOURCES}/lift_down_active.png\"#);\n",
+    ));
+    res.push_str(&format!(
         "pub const BUTTON_IDLE_BYTES: &[u8] = include_bytes!(r#\"{cwd}/{RESOURCES}/button_idle.png\"#);\n",
     ));
     res.push_str(&format!(

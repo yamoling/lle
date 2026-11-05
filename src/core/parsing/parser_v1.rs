@@ -169,7 +169,8 @@ impl TryInto<WorldConfig> for ParsingData {
 ///
 /// v1 cannot express several possible start positions for one agent, and it re-derives agent ids
 /// by `(colour, reading order)` on reparse — so a world whose same-colour agents are not already
-/// in reading order would come back with those agents swapped. Both cases return `Err(())`, and
+/// in reading order would come back with those agents swapped. Neither can it express a lever
+/// that starts on. All these cases return `Err(())`, and
 /// `WorldConfig::Display` falls back to TOML (see `.agents/plans/agent-colour-id.md` §3.4d).
 pub fn to_v1_string(config: &WorldConfig) -> Result<String, ()> {
     if config
@@ -177,6 +178,9 @@ pub fn to_v1_string(config: &WorldConfig) -> Result<String, ()> {
         .iter()
         .any(|b| config.gems().contains(b) || config.exits().contains(b))
     {
+        return Err(());
+    }
+    if config.levers().iter().any(|(_, lever)| lever.on) {
         return Err(());
     }
     let mut res =

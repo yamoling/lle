@@ -62,6 +62,14 @@ impl PyLift {
         inner(world, self.pos.into()).unwrap().agent()
     }
 
+    /// Whether the lift's group is powered: it was pulsed during the last step, or a lever of
+    /// the group is on, or an authorized agent stands on a pressure plate of the group.
+    #[getter]
+    pub fn is_powered(&self) -> bool {
+        let world = self.world.lock().unwrap();
+        world.powered_groups().contains(&self.group_id)
+    }
+
     pub fn __str__(&self) -> String {
         format!(
             "Lift(pos={:?}, direction={}, group_id={}, authorized_colour={:?}, agent={:?})",

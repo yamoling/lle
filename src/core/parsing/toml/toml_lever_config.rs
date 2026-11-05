@@ -7,6 +7,9 @@ pub struct TomlLeverConfig {
     pub authorized_colour: Option<Colour>,
     pub position: Position,
     pub group_id: usize,
+    /// Whether the lever is on at reset. Omitted when off.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub on: bool,
 }
 
 impl TomlLeverConfig {
@@ -15,6 +18,7 @@ impl TomlLeverConfig {
             authorized_colour: config.authorized_colour,
             position,
             group_id: config.group_id,
+            on: config.on,
         }
     }
 }
@@ -24,6 +28,7 @@ impl From<&TomlLeverConfig> for LeverConfig {
         LeverConfig {
             group_id: val.group_id,
             authorized_colour: val.authorized_colour,
+            on: val.on,
         }
     }
 }

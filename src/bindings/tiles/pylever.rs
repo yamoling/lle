@@ -27,6 +27,9 @@ pub struct PyLever {
     /// The (i, j, k) position of the lever.
     #[pyo3(get)]
     pos: PyPosition,
+    /// Whether the lever is on after a reset (`on = true` in a TOML map).
+    #[pyo3(get)]
+    initially_on: bool,
     world: Arc<Mutex<World>>,
 }
 
@@ -39,6 +42,7 @@ impl PyLever {
             group_id: lever.group_id(),
             authorized_colour: lever.authorized_colour(),
             pos: PyPosition::from(pos),
+            initially_on: lever.is_initially_on(),
             world,
         }
     }
@@ -67,12 +71,13 @@ impl PyLever {
 
     pub fn __str__(&self) -> String {
         format!(
-            "Lever(pos={:?}, group_id={}, authorized_colour={:?}, agent={:?}, is_on={})",
+            "Lever(pos={:?}, group_id={}, authorized_colour={:?}, agent={:?}, is_on={}, initially_on={})",
             self.pos,
             self.group_id,
             self.authorized_colour,
             self.agent(),
-            self.is_on()
+            self.is_on(),
+            self.initially_on
         )
     }
 

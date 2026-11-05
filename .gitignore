@@ -92,3 +92,7 @@ prompt.md
 todo.md
 .agents
 .playwright-mcp/
+.omc
+
+# external scripts
+scripts
