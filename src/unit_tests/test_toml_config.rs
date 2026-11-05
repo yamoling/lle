@@ -755,3 +755,37 @@ fn lever_initially_on_survives_the_world_string_round_trip() {
     assert!(reparsed.levers()[0].1.is_initially_on());
     assert!(reparsed.levers()[0].1.is_on());
 }
+
+const TOML_LASER: &str = r#"
+width = 3
+height = 2
+exits = [{ i = 0, j = 2, k = 0 }, { i = 1, j = 2, k = 0 }]
+
+[[agents]]
+starts = [{ i = 0, j = 0, k = 0 }]
+
+[[agents]]
+starts = [{ i = 1, j = 0, k = 0 }]
+
+[[lasers]]
+direction = "N"
+agent = 1
+position = { i = 0, j = 1, k = 0 }
+laser_id = 0
+"#;
+
+#[test]
+fn toml_laser_source_is_a_wall() {
+    let source = Position::new2d(0, 1);
+    let world = World::try_from(TOML_LASER).unwrap();
+    assert_eq!(world.walls().iter().filter(|&&p| p == source).count(), 1);
+}
+
+#[test]
+fn toml_laser_source_is_listed_once_after_a_round_trip() {
+    let source = Position::new2d(0, 1);
+    let config = parse(TOML_LASER).unwrap();
+    let toml_string = TomlConfig::from(&config).to_toml_string();
+    let reparsed = World::try_from(toml_string.as_str()).unwrap();
+    assert_eq!(reparsed.walls().iter().filter(|&&p| p == source).count(), 1);
+}

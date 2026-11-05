@@ -177,7 +177,17 @@ impl ConstraintContext {
         let height = world.height();
         let width = world.width();
         let n_agents = world.n_agents();
-        let walls = PositionSet::from_positions(layers, height, width, world.walls().into_iter());
+        // Laser sources are impassable. The v1 parser lists them as walls, but a TOML map with
+        // `[[lasers]]` does not, so they are added explicitly.
+        let walls = PositionSet::from_positions(
+            layers,
+            height,
+            width,
+            world
+                .walls()
+                .into_iter()
+                .chain(world.sources().map(|(pos, _)| pos)),
+        );
         let voids =
             PositionSet::from_positions(layers, height, width, world.void_positions().into_iter());
         let exits =
@@ -332,13 +342,11 @@ impl ConstraintContext {
             }
         }
 
-        let sources: Vec<Position> = world.sources().map(|(pos, _)| pos).collect();
         let box_walkable = PositionSet::from_positions(
             layers,
             height,
             width,
-            grid_positions(layers, height, width)
-                .filter(|pos| !walls.contains(pos) && !sources.contains(pos)),
+            grid_positions(layers, height, width).filter(|pos| !walls.contains(pos)),
         );
         let relevant_box_positions = box_start_pos
             .iter()

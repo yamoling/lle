@@ -1412,6 +1412,37 @@ on = true
 ]
 
 
+TOML_LASER_CASES = [
+    Case(
+        # The `[[lasers]]` source is not listed in `walls`: walking through it is not a shortcut.
+        "toml-laser-source-is-impassable",
+        """
+width = 3
+height = 3
+exits = [{ i = 0, j = 2 }, { i = 2, j = 2 }]
+
+[[agents]]
+starts = [{ i = 0, j = 0 }]
+
+[[agents]]
+starts = [{ i = 2, j = 0 }]
+
+[[lasers]]
+direction = "N"
+agent = 1
+position = { i = 0, j = 1, k = 0 }
+laser_id = 0
+""",
+        shortest=4,
+    ),
+]
+
+
+@pytest.mark.parametrize("case", TOML_LASER_CASES, ids=[case.id for case in TOML_LASER_CASES])
+def test_toml_laser_source(case: Case):
+    check(case)
+
+
 @pytest.mark.parametrize("case", LEVER_ON_CASES, ids=[case.id for case in LEVER_ON_CASES])
 def test_lever_initially_on(case: Case):
     world = World(case.map)

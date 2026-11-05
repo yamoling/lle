@@ -809,6 +809,30 @@ def test_laser_sources_in_wall_pos():
         assert source.pos in world.wall_pos
 
 
+def test_toml_laser_sources_in_wall_pos():
+    world = World(
+        """
+width = 3
+height = 2
+exits = [{ i = 0, j = 2, k = 0 }, { i = 1, j = 2, k = 0 }]
+
+[[agents]]
+starts = [{ i = 0, j = 0, k = 0 }]
+
+[[agents]]
+starts = [{ i = 1, j = 0, k = 0 }]
+
+[[lasers]]
+direction = "N"
+agent = 1
+position = { i = 0, j = 1, k = 0 }
+laser_id = 0
+"""
+    )
+    for source in world.laser_sources:
+        assert world.wall_pos.count(source.pos) == 1
+
+
 def test_laser_num_higher_than_n_agents():
     world = World("S0 L1E X")
     assert world.source_at((0, 1)).agent_id == 1

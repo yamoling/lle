@@ -216,7 +216,14 @@ impl TryInto<WorldConfig> for TomlConfig {
         };
         let layer = self.layers.unwrap_or(1);
         let starts_positions = compute_positions(&self.starts, width, height, layer)?;
-        let walls_positions = compute_positions(&self.walls, width, height, layer)?;
+        let mut walls_positions = compute_positions(&self.walls, width, height, layer)?;
+        // Laser sources are walls, as in `ParsingData::add_laser_source` for the v1 format. A
+        // serialized world already lists them in `walls`, hence the duplicate check.
+        for laser in &self.lasers {
+            if !walls_positions.contains(&laser.position) {
+                walls_positions.push(laser.position);
+            }
+        }
         let exit_positions = compute_positions(&self.exits, width, height, layer)?;
         let agents_random_start_positions = self
             .agents
