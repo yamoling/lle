@@ -4,6 +4,13 @@ use crate::{Action, Position, WorldState, agent::AgentId};
 
 #[derive(Debug)]
 pub enum RuntimeWorldError {
+    InvalidContinuousAction {
+        agent_id: AgentId,
+        action: [f64; 2],
+    },
+    InvalidContinuousState {
+        reason: String,
+    },
     InvalidAction {
         agent_id: AgentId,
         available: Vec<Action>,

@@ -40,6 +40,13 @@ create_exception!(
     "Raised when the solver encounters an illegal state."
 );
 
+create_exception!(
+    lle.exceptions,
+    UnsupportedFeatureError,
+    PyValueError,
+    "Raised for unsupported world features."
+);
+
 pub fn parse_error_to_exception(error: ParseError) -> PyErr {
     if let ParseError::InvalidFileName { file_name } = error {
         return exceptions::PyFileNotFoundError::new_err(file_name);
@@ -53,6 +60,13 @@ pub fn parse_error_to_exception(error: ParseError) -> PyErr {
         ));
     }
     let msg = match error {
+        ParseError::UnsupportedFeature { features } => {
+            return UnsupportedFeatureError::new_err(format!(
+                "Unsupported features: {}",
+                features.join(", ")
+            ));
+        }
+        ParseError::InvalidPhysicsParams { reason } => reason,
         ParseError::Inconsistent2Dimensions {
             row_str,
             expected_n_cols,
@@ -159,6 +173,14 @@ pub fn runtime_error_to_pyexception(error: RuntimeWorldError) -> PyErr {
     }
 
     match error {
+        RuntimeWorldError::InvalidContinuousAction { agent_id, action } => {
+            InvalidActionError::new_err(format!(
+                "Invalid continuous action for agent {agent_id}: {action:?}"
+            ))
+        }
+        RuntimeWorldError::InvalidContinuousState { reason } => {
+            InvalidWorldStateError::new_err(reason)
+        }
         RuntimeWorldError::InvalidNumberOfActions { given, expected } => {
             exceptions::PyValueError::new_err(format!(
                 "Invalid number of actions: given {given}, expected {expected}",
