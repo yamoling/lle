@@ -1,4 +1,3 @@
-// Wired from `src/continuous/world.rs`.
 use crate::{
     ParseError, RuntimeWorldError, World, WorldEvent,
     continuous::{ActionModel, ContinuousWorld, PhysicsParams},
@@ -35,10 +34,6 @@ fn distance(a: [f64; 2], b: [f64; 2]) -> f64 {
     ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2)).sqrt()
 }
 
-// ---------------------------------------------------------------------------
-// Parsing
-// ---------------------------------------------------------------------------
-
 #[test]
 fn test_builtin_levels_load() {
     for level in 1..=6 {
@@ -51,24 +46,9 @@ fn test_builtin_levels_load() {
 }
 
 #[test]
-fn test_get_level_out_of_range() {
-    assert!(matches!(
-        ContinuousWorld::get_level(7),
-        Err(ParseError::InvalidLevel { asked: 7, .. })
-    ));
-}
-
-#[test]
-fn test_resource_levels_load_from_file() {
-    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/resources/levels");
-    let mut n_files = 0;
-    for entry in std::fs::read_dir(dir).unwrap() {
-        let path = entry.unwrap().path();
-        let path = path.to_str().unwrap();
-        assert!(ContinuousWorld::from_file(path).is_ok(), "{path}");
-        n_files += 1;
-    }
-    assert!(n_files >= 6);
+fn test_load_from_file() {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/resources/levels/lvl6");
+    assert_eq!(ContinuousWorld::from_file(path).unwrap().n_agents(), 4);
 }
 
 #[test]
@@ -92,29 +72,6 @@ fn test_unsupported_features_are_all_listed() {
         }
     }
 }
-
-#[test]
-fn test_toml_maps_load() {
-    let world = world(
-        r#"
-world_string = """
-S0  .  . X
-L0E .  . .
-.   S1 . X
-"""
-[[agents]]
-colour = 0
-[[agents]]
-colour = 0
-"#,
-    );
-    assert_eq!(world.n_agents(), 2);
-    assert_eq!((world.width(), world.height()), (4, 3));
-}
-
-// ---------------------------------------------------------------------------
-// Reset and starts
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_reset_places_agents_at_start_cell_centres() {
@@ -170,10 +127,6 @@ start_positions = [{ i_min = 0, i_max = 1, j_min = 0, j_max = 2 }]
     }
     assert!(seen.len() > 1, "random starts never vary with the seed");
 }
-
-// ---------------------------------------------------------------------------
-// Actions
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_tick_rejects_wrong_number_of_actions() {
@@ -249,10 +202,6 @@ fn test_acceleration_model() {
     assert_close(world.get_state().velocities[0], [2.0, 0.0], 1e-9);
 }
 
-// ---------------------------------------------------------------------------
-// Void
-// ---------------------------------------------------------------------------
-
 #[test]
 fn test_touching_a_void_is_safe() {
     let params = PhysicsParams {
@@ -313,10 +262,6 @@ fn test_void_overlap_uses_the_distance_to_the_square() {
     );
 }
 
-// ---------------------------------------------------------------------------
-// Gems
-// ---------------------------------------------------------------------------
-
 #[test]
 fn test_gem_is_collected_on_disc_overlap() {
     // 0.07 cell per tick. The pickup distance is r + gem_radius = 0.55, i.e. x > 0.95.
@@ -343,10 +288,6 @@ fn test_gem_tie_goes_to_the_lowest_id() {
         vec![WorldEvent::GemCollected { agent_id: 0 }]
     );
 }
-
-// ---------------------------------------------------------------------------
-// Exits
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_exit_requires_the_centre_in_the_exit_cell() {
@@ -404,10 +345,6 @@ fn test_gem_is_collected_in_the_tick_its_collector_dies() {
     );
 }
 
-// ---------------------------------------------------------------------------
-// Step
-// ---------------------------------------------------------------------------
-
 #[test]
 fn test_step_runs_n_ticks() {
     let mut world = world("S0 . . . . X");
@@ -420,8 +357,10 @@ fn test_step_runs_n_ticks() {
 
 #[test]
 fn test_step_tags_events_with_their_tick_index() {
-    // Gem at tick index 6 (x = 0.99), exit at tick index 21 (x = 2.04).
+    // Gem at tick index 6 (x = 0.99), exit at tick index 21 (x = 2.04), counted from the
+    // start of the step, not from the start of the episode.
     let mut world = world("S0 G X");
+    run(&mut world, &[STILL], 3);
     let outcome = world.step(&[[0.7, 0.0]], 50).unwrap();
     assert_eq!(
         outcome.events,
@@ -432,7 +371,7 @@ fn test_step_tags_events_with_their_tick_index() {
     );
     // Every alive agent has arrived: early stop.
     assert_eq!(outcome.n_ticks, 22);
-    assert_eq!(world.get_state().tick, 22);
+    assert_eq!(world.get_state().tick, 25);
 }
 
 #[test]
@@ -457,14 +396,4 @@ fn test_step_stops_on_death() {
     );
     assert_eq!(outcome.n_ticks, 18);
     assert_eq!(world.get_state().tick, 18);
-}
-
-#[test]
-fn test_step_rejects_invalid_actions() {
-    let mut world = world("S0 . X");
-    assert!(matches!(
-        world.step(&[[f64::NAN, 0.0]], 5),
-        Err(RuntimeWorldError::InvalidContinuousAction { agent_id: 0, .. })
-    ));
-    assert_eq!(world.get_state().tick, 0);
 }

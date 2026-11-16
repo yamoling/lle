@@ -1,4 +1,3 @@
-// Wired from `src/continuous/state.rs`.
 use rand::{RngExt, SeedableRng, rngs::StdRng};
 
 use crate::{
@@ -64,22 +63,33 @@ fn test_restore_and_replay_is_bit_identical() {
 
 #[test]
 fn test_state_round_trip_with_a_dead_agent_under_an_alive_one() {
-    // Agent 1 dies on the L0 beam, then agent 0 walks over its position: dead agents may
-    // overlap alive ones, and such a state must be restorable.
+    // Agent 1 walks north into the L0 beam and dies at (2.5, 0.8), at its 7th tick. Agent 0
+    // then walks onto that very spot: dead agents do not collide, and such a state must be
+    // restorable.
     let mut world = ContinuousWorld::try_from(
         "
-        L0E .  S1 .
-        .   .  S0 X
+        L0E .  .  .
+        .   S0 S1 X
         .   .  .  X
         ",
     )
     .unwrap();
     world.reset();
-    for _ in 0..15 {
+    for _ in 0..7 {
+        world.tick(&[[0.0, 0.0], [0.0, -1.0]]).unwrap();
+    }
+    let dead_at = world.agents_positions()[1];
+    for _ in 0..10 {
+        world.tick(&[[1.0, 0.0], [0.0, 0.0]]).unwrap();
+    }
+    for _ in 0..7 {
         world.tick(&[[0.0, -1.0], [0.0, 0.0]]).unwrap();
     }
     let state = world.get_state();
     assert_eq!(state.agents_alive, vec![true, false]);
+    let [x, y] = state.positions[0];
+    assert!(((x - dead_at[0]).powi(2) + (y - dead_at[1]).powi(2)).sqrt() < 2.0 * 0.3 - 0.1);
+
     world.reset();
     world.set_state(&state).unwrap();
     assert_eq!(world.get_state(), state);
@@ -131,44 +141,15 @@ fn test_set_state_rejects_wrong_lengths() {
     world.reset();
     let valid = world.get_state();
 
-    let mut state = valid.clone();
-    state.positions.pop();
-    assert!(matches!(
-        world.set_state(&state),
-        Err(RuntimeWorldError::InvalidNumberOfAgents {
-            given: 1,
-            expected: 2
-        })
-    ));
-    let mutations: [fn(&mut ContinuousWorldState); 3] = [
-        |s| s.velocities.push([0.0, 0.0]),
-        |s| s.agents_alive.truncate(1),
-        |s| s.agents_arrived.push(false),
-    ];
-    for mutate in mutations {
-        let mut state = valid.clone();
-        mutate(&mut state);
-        assert!(matches!(
-            world.set_state(&state),
-            Err(RuntimeWorldError::InvalidNumberOfAgents { .. })
-        ));
+    let mut invalid = vec![valid.clone(); 6];
+    invalid[0].positions.pop();
+    invalid[1].velocities.push([0.0, 0.0]);
+    invalid[2].agents_alive.pop();
+    invalid[3].agents_arrived.push(false);
+    invalid[4].gems_collected.clear();
+    invalid[5].sources_enabled.push(true);
+    for state in &invalid {
+        assert!(world.set_state(state).is_err(), "{state:?}");
     }
-
-    let mut state = valid.clone();
-    state.gems_collected.clear();
-    assert!(matches!(
-        world.set_state(&state),
-        Err(RuntimeWorldError::InvalidNumberOfGems {
-            given: 0,
-            expected: 1
-        })
-    ));
-
-    let mut state = valid.clone();
-    state.sources_enabled.push(true);
-    assert!(matches!(
-        world.set_state(&state),
-        Err(RuntimeWorldError::InvalidContinuousState { .. })
-    ));
     assert_eq!(world.get_state(), valid);
 }

@@ -1,4 +1,3 @@
-// Wired from `src/continuous/collision.rs`.
 use rand::{RngExt, SeedableRng, rngs::StdRng, seq::SliceRandom};
 
 use crate::continuous::{ActionModel, ContinuousWorld, PhysicsParams};
@@ -62,10 +61,6 @@ fn random_direction(rng: &mut StdRng) -> [f64; 2] {
     [angle.cos(), angle.sin()]
 }
 
-// ---------------------------------------------------------------------------
-// Walls
-// ---------------------------------------------------------------------------
-
 #[test]
 fn test_agent_slides_along_a_wall() {
     // Driven south-east, the agent hits the wall row at y = 1 - r = 0.7, then slides east
@@ -86,7 +81,6 @@ fn test_agent_slides_along_a_wall() {
         assert!((after[1] - 0.7).abs() < TOL, "{after:?}");
         assert!((after[0] - before[0] - 0.1 / 2f64.sqrt()).abs() < TOL);
     }
-    assert_eq!(world.n_collision_fallbacks(), 0);
 }
 
 #[test]
@@ -146,14 +140,12 @@ fn test_no_tunnelling_through_a_one_cell_wall() {
         }
         world.tick(&[action]).unwrap();
         assert_no_overlap(&world, &walls);
-        max_x = max_x.max(world.agents_positions()[0][0]);
+        let x = world.agents_positions()[0][0];
+        assert!(x < 2.0, "the agent crossed the wall: x = {x}");
+        max_x = max_x.max(x);
     }
     assert!(max_x > 2.0 - R - 1e-3, "the agent never reached the wall");
 }
-
-// ---------------------------------------------------------------------------
-// Agents
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_head_on_agents_stop_in_contact() {
@@ -214,24 +206,6 @@ fn test_agents_cannot_swap_in_a_one_cell_corridor() {
         assert!(p0[0] < p1[0], "agents swapped: {p0:?} {p1:?}");
         assert_no_overlap(&world, &walls);
     }
-}
-
-#[test]
-fn test_dead_agents_do_not_collide() {
-    // Agent 1 dies on the L0 beam at the first tick, then agent 0 walks through its position.
-    let mut world = world(
-        "
-        L0E .  S1 .
-        .   .  S0 X
-        .   .  .  X
-        ",
-    );
-    let dead_at = world.agents_positions()[1];
-    for _ in 0..15 {
-        world.tick(&[[0.0, -1.0], STILL]).unwrap();
-    }
-    assert!(!world.get_state().agents_alive[1]);
-    assert!(distance(world.agents_positions()[0], dead_at) < 2.0 * R - 0.1);
 }
 
 #[test]

@@ -1,4 +1,3 @@
-// Wired from `src/continuous/params.rs`.
 use crate::{
     ParseError,
     continuous::{ActionModel, ContinuousWorld, PhysicsParams},

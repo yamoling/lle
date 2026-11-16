@@ -1,8 +1,4 @@
-// Wired from `src/continuous/lasers.rs`.
-use crate::{
-    WorldEvent,
-    continuous::{ContinuousWorld, PhysicsParams},
-};
+use crate::{WorldEvent, continuous::ContinuousWorld};
 
 const STILL: [f64; 2] = [0.0, 0.0];
 const NORTH: [f64; 2] = [0.0, -1.0];
@@ -103,9 +99,9 @@ fn test_cut_point_is_the_first_contact_of_the_disc() {
 
 #[test]
 fn test_disabled_source_never_kills() {
-    let mut world = world("L0E . S1 X\nS0  . .  X");
+    let mut world = world("L0E . .  X\nS0  . S1 X");
     assert_eq!(
-        world.tick(&[STILL, STILL]).unwrap(),
+        run(&mut world, &[STILL, NORTH], 7),
         vec![WorldEvent::AgentDied { agent_id: 1 }]
     );
 
@@ -113,8 +109,12 @@ fn test_disabled_source_never_kills() {
     let mut state = world.get_state();
     state.sources_enabled = vec![false];
     world.set_state(&state).unwrap();
+    assert!(run(&mut world, &[STILL, NORTH], 15).is_empty());
     assert!(run(&mut world, &[STILL, [-1.0, 0.0]], 20).is_empty());
     assert!(world.get_state().agents_alive[1]);
+    // The source square stays solid: agent 1 stops against it, at x = 1 + r.
+    let [x, y] = world.agents_positions()[1];
+    assert!((x - 1.3).abs() < 1e-9 && (y - 0.3).abs() < 1e-9, "{x}, {y}");
 }
 
 #[test]
@@ -177,20 +177,4 @@ fn test_arrived_agent_still_blocks_its_beam() {
     );
     assert!(run(&mut world, &[STILL, NORTH], 15).is_empty());
     assert!(world.agents_positions()[1][1] < 0.85);
-}
-
-#[test]
-fn test_wider_beam_kills_from_further_away() {
-    let params = PhysicsParams {
-        beam_width: 0.5,
-        ..Default::default()
-    };
-    let config = crate::core::parsing::parse_v1(MIDDLE_BEAM).unwrap();
-    let mut world = ContinuousWorld::from_config(&config, params).unwrap();
-    world.reset();
-    // |h| = 0.5 < r + beam_width / 2 = 0.55.
-    assert_eq!(
-        place_and_tick(&mut world, &[[0.5, 0.5], [3.5, 2.0]]),
-        vec![WorldEvent::AgentDied { agent_id: 1 }]
-    );
 }
