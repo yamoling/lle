@@ -40,13 +40,6 @@ create_exception!(
     "Raised when the solver encounters an illegal state."
 );
 
-create_exception!(
-    lle.exceptions,
-    UnsupportedFeatureError,
-    PyValueError,
-    "Raised for unsupported world features."
-);
-
 pub fn parse_error_to_exception(error: ParseError) -> PyErr {
     if let ParseError::InvalidFileName { file_name } = error {
         return exceptions::PyFileNotFoundError::new_err(file_name);
@@ -61,10 +54,7 @@ pub fn parse_error_to_exception(error: ParseError) -> PyErr {
     }
     let msg = match error {
         ParseError::UnsupportedFeature { features } => {
-            return UnsupportedFeatureError::new_err(format!(
-                "Unsupported features: {}",
-                features.join(", ")
-            ));
+            format!("Unsupported features: {}", features.join(", "))
         }
         ParseError::InvalidPhysicsParams { reason } => reason,
         ParseError::Inconsistent2Dimensions {

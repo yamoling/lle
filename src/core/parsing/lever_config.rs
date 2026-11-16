@@ -3,7 +3,7 @@ use crate::{agent::Colour, tiles::Lever};
 use super::{ParseError, actuator_token::parse_actuator_token};
 
 /// The configuration of a `Lever` tile (token `H`).
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct LeverConfig {
     pub group_id: usize,
     pub authorized_colour: Option<Colour>,

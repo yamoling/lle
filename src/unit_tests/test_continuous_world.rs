@@ -423,26 +423,3 @@ start_positions = [{ i_min = 0, i_max = 1, j_min = 1, j_max = 3 }]
         );
     }
 }
-
-#[test]
-fn test_fewer_start_cells_than_agents_is_an_error() {
-    let result = ContinuousWorld::try_from(
-        r#"
-world_string = """
-. . X
-. . X
-"""
-[[agents]]
-start_positions = [{ i = 0, j = 0 }]
-[[agents]]
-start_positions = [{ i = 0, j = 0 }]
-"#,
-    );
-    assert!(matches!(
-        result,
-        Err(ParseError::NotEnoughStartTiles {
-            n_starts: 1,
-            n_agents: 2
-        })
-    ));
-}

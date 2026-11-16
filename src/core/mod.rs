@@ -1,7 +1,7 @@
 pub mod boxes;
 mod errors;
 mod event;
-mod levels;
+pub(crate) mod levels;
 pub mod parsing;
 pub mod tiles;
 mod world;

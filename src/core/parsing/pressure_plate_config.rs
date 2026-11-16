@@ -3,7 +3,7 @@ use crate::{agent::Colour, tiles::PressurePlate};
 use super::{ParseError, actuator_token::parse_actuator_token};
 
 /// The configuration of a `PressurePlate` tile (token `P`).
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct PressurePlateConfig {
     pub group_id: usize,
     pub authorized_colour: Option<Colour>,

@@ -17,10 +17,12 @@ pub use world_config::WorldConfig;
 use super::World;
 
 pub fn parse(file_content: &str) -> Result<World, ParseError> {
-    let config = match parse_toml(file_content) {
-        Ok(c) => c,
-        Err(ParseError::NotV2) => parse_v1(file_content)?,
-        Err(other) => return Err(other),
-    };
-    config.into_world()
+    parse_config(file_content)?.into_world()
+}
+
+pub(crate) fn parse_config(file_content: &str) -> Result<WorldConfig, ParseError> {
+    match parse_toml(file_content) {
+        Err(ParseError::NotV2) => parse_v1(file_content),
+        other => other,
+    }
 }

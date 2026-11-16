@@ -3,7 +3,10 @@ use super::{
 };
 use crate::{
     ParseError, Position, RuntimeWorldError, WorldEvent,
-    core::parsing::{self, WorldConfig},
+    core::{
+        levels,
+        parsing::{self, WorldConfig},
+    },
 };
 use rand::{SeedableRng, rngs::StdRng};
 
@@ -49,20 +52,7 @@ impl ContinuousWorld {
         if !features.is_empty() {
             return Err(ParseError::UnsupportedFeature { features });
         }
-        if config.n_agents() == 0 {
-            return Err(ParseError::NoAgents);
-        }
-        if config.exits().len() < config.n_agents() {
-            return Err(ParseError::NotEnoughExitTiles {
-                n_starts: config.n_agents(),
-                n_exits: config.exits().len(),
-            });
-        }
-        for (agent_id, starts) in config.random_starts().iter().enumerate() {
-            if starts.is_empty() {
-                return Err(ParseError::AgentWithoutStart { agent_id });
-            }
-        }
+        let starts = config.clone().into_world()?.possible_starts();
         let mut solids = config.walls().clone();
         solids.extend(config.sources().iter().map(|(p, _)| *p));
         let beams = config
@@ -87,7 +77,7 @@ impl ContinuousWorld {
             voids: config.voids().clone(),
             gems: config.gems().clone(),
             exits: config.exits().clone(),
-            starts: config.random_starts().clone(),
+            starts,
             colours: config.colours().clone(),
             beams,
             state: ContinuousWorldState {
@@ -106,24 +96,20 @@ impl ContinuousWorld {
         Ok(world)
     }
     pub fn get_level(level: usize) -> Result<Self, ParseError> {
-        if !(1..=6).contains(&level) {
-            return Err(ParseError::InvalidLevel {
+        let map = level
+            .checked_sub(1)
+            .and_then(|index| levels::LEVELS.get(index))
+            .ok_or(ParseError::InvalidLevel {
                 asked: level,
                 min: 1,
-                max: 6,
-            });
-        }
-        let levels = [
-            include_str!("../../resources/levels/lvl1"),
-            include_str!("../../resources/levels/lvl2"),
-            include_str!("../../resources/levels/lvl3"),
-            include_str!("../../resources/levels/lvl4"),
-            include_str!("../../resources/levels/lvl5"),
-            include_str!("../../resources/levels/lvl6"),
-        ];
-        Self::try_from(levels[level - 1])
+                max: levels::LEVELS.len(),
+            })?;
+        Self::try_from(*map)
     }
     pub fn from_file(file: &str) -> Result<Self, ParseError> {
+        if let Some(map) = levels::get_level_str(file) {
+            return Self::try_from(map);
+        }
         let content = std::fs::read_to_string(file).map_err(|_| ParseError::InvalidFileName {
             file_name: file.into(),
         })?;
@@ -140,12 +126,6 @@ impl ContinuousWorld {
     }
     pub fn agents_positions(&self) -> Vec<[f64; 2]> {
         self.state.positions.clone()
-    }
-    pub fn gems(&self) -> &[Position] {
-        &self.gems
-    }
-    pub fn exits_positions(&self) -> &[Position] {
-        &self.exits
     }
     pub fn seed(&mut self, seed: u64) {
         self.rng = StdRng::seed_from_u64(seed);
@@ -311,10 +291,7 @@ impl ContinuousWorld {
 impl TryFrom<&str> for ContinuousWorld {
     type Error = ParseError;
     fn try_from(s: &str) -> Result<Self, ParseError> {
-        let config = match parsing::parse_toml(s) {
-            Err(ParseError::NotV2) => parsing::parse_v1(s)?,
-            other => other?,
-        };
+        let config = parsing::parse_config(s)?;
         Self::from_config(&config, PhysicsParams::default())
     }
 }

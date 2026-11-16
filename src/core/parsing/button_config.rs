@@ -2,7 +2,7 @@ use crate::{agent::Colour, tiles::Button};
 
 use super::{ParseError, actuator_token::parse_actuator_token};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ButtonConfig {
     pub group_id: usize,
     pub authorized_colour: Option<Colour>,

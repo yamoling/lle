@@ -14,7 +14,7 @@ use super::{
     toml::TomlConfig,
 };
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct WorldConfig {
     width: usize,
     height: usize,

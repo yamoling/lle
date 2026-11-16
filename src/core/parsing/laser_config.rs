@@ -7,7 +7,7 @@ use crate::{
 
 use super::ParseError;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct LaserConfig {
     pub direction: CardinalDirection,
     pub agent_id: AgentId,

@@ -5,7 +5,7 @@ use crate::{
 
 use super::ParseError;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct LiftConfig {
     pub direction: VerticalDirection,
     pub group_id: usize,
