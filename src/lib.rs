@@ -2,6 +2,7 @@ mod action;
 mod agent;
 #[cfg(feature = "python-bindings")]
 pub mod bindings;
+pub mod continuous;
 mod core;
 mod grid;
 mod position;
