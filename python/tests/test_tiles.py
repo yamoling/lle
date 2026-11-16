@@ -11,7 +11,7 @@ from lle import Action, World
 
 def test_lift_and_button_agent_under_a_laser_beam():
     # Agent 1 stands on the button under its own beam, which also covers the lift.
-    world = World("S0 TU0 B0 S1 L1W\n.  .   .  .  X\n;\nX  .   .  .  .\n.  .   .  .  .")
+    world = World("X  .   .  .  .\n.  .   .  .  .\n;\nS0 TU0 B0 S1 L1W\n.  .   .  .  X")
     world.reset()
     world.step([Action.EAST, Action.WEST])
     assert world.buttons[0].agent == 1

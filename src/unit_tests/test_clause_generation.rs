@@ -2141,7 +2141,7 @@ fn formula_still_admits_one_agent_idling_on_its_exit_while_another_travels() {
 
 /// Agent 1 presses the button while agent 0 walks onto the lift and rides it in the same step,
 /// landing on the cell agent 2 is leaving.
-const LIFT_WORLD: &str = "S0 TU0 B0 S1 X\n;\nX S2 . . X";
+const LIFT_WORLD: &str = "X S2 . . X\n;\nS0 TU0 B0 S1 X";
 
 fn at(j: usize, k: usize) -> Position {
     Position { i: 0, j, k }
@@ -2196,7 +2196,7 @@ fn decode_plan_turns_a_pressed_button_into_a_trigger() {
 }
 
 /// Agent 0 rides the lift at `(0, 1, 0)` while agent 1 presses the button; agent 2 walks around.
-const CROWDED_LIFT_WORLD: &str = "S0 TU0 B0 S1 X\n. S2 . . X\n;\nX . . . .\n. . . . .";
+const CROWDED_LIFT_WORLD: &str = "X . . . .\n. . . . .\n;\nS0 TU0 B0 S1 X\n. S2 . . X";
 
 fn at3(i: usize, j: usize, k: usize) -> Position {
     Position { i, j, k }
@@ -2239,7 +2239,7 @@ fn formula_rejects_walking_onto_a_lift_another_agent_is_leaving() {
 #[test]
 fn formula_rejects_walking_onto_a_lift_another_agent_is_entering() {
     // Agent 2 may not ride, so the pulse does not force it off the lift.
-    let world = "S0 TU0A0 B0 S1 X\n. S2 . . X\n;\nX . . . .\n. . . . .";
+    let world = "X . . . .\n. . . . .\n;\nS0 TU0A0 B0 S1 X\n. S2 . . X";
     let mut generator = build(world, 8);
     let (clauses, _) = generator.generate(6, SolveMode::Standard, false);
     let trajectory = vec![
@@ -2279,7 +2279,7 @@ fn formula_rejects_walking_onto_a_lift_another_agent_is_entering() {
 fn formula_admits_pushing_a_box_off_a_lift_and_riding_it() {
     // Agent 0 pushes the box onto the lift, then walks onto the lift, pushing the box further, and
     // rides it in the same step while agent 1 presses the button.
-    let world = "S0 # TU0 . .\n. . B0 S1 X\n;\n. . X . .\n. . . . .";
+    let world = ". . X . .\n. . . . .\n;\nS0 # TU0 . .\n. . B0 S1 X";
     let mut generator = build(world, 6);
     let (clauses, _) = generator.generate(4, SolveMode::Standard, false);
     let trajectory = vec![
@@ -2305,7 +2305,7 @@ fn formula_admits_pushing_a_box_off_a_lift_and_riding_it() {
 fn formula_rejects_walking_onto_a_lift_through_an_active_beam() {
     // Agent 1 walks onto the lift, the first tile of beam 0, and would only leave it by riding the
     // lift: the beam kills it before the lift moves.
-    let world = "L0E TU0 B0 . X\nS0 . S1 . .\n;\n. X . . .\n. . . . .";
+    let world = ". X . . .\n. . . . .\n;\nL0E TU0 B0 . X\nS0 . S1 . .";
     let mut generator = build(world, 9);
     let (clauses, _) = generator.generate(7, SolveMode::Standard, false);
     let trajectory = vec![
@@ -2339,7 +2339,7 @@ fn formula_admits_landing_on_a_lift_pulsed_in_the_same_step() {
     // Agent 0 is lifted onto a lift of group 1 while agent 3 presses button 1 to lift agent 2: a
     // lift moves an agent once per step, so agent 0 stays there and rides it at the next press.
     let world =
-        "S0 TU0 B0 S1 X\n. . . . X\n;\n. TU1 B1 TU1 S2\n. X S3 . .\n;\nX X . X .\n. . . . .";
+        "X X . X .\n. . . . .\n;\n. TU1 B1 TU1 S2\n. X S3 . .\n;\nS0 TU0 B0 S1 X\n. . . . X";
     let mut generator = build(world, 7);
     let (clauses, _) = generator.generate(5, SolveMode::Standard, false);
     let trajectory = vec![

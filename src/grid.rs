@@ -205,7 +205,8 @@ impl From<&Grid<String>> for String {
     // note that for loop are here due to the vector not totaly consistent and order are not correctly done if using .iter or .fold methode
     fn from(val: &Grid<String>) -> Self {
         let mut output = String::new();
-        for k in 0..val.layers {
+        // The top floor comes first, as in the v1 world format and in the rendering.
+        for k in (0..val.layers).rev() {
             for i in 0..val.height {
                 for j in 0..val.width {
                     let pos = Position { i, j, k };
@@ -213,7 +214,7 @@ impl From<&Grid<String>> for String {
                 }
                 output.push('\n');
             }
-            if k < val.layers - 1 {
+            if k > 0 {
                 output.push_str(";\n");
             }
         }

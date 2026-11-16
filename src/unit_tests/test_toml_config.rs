@@ -717,9 +717,9 @@ world_string = "S0 H0A1 P2 X"
 
 const LEVER_ON_TOML: &str = r#"
 world_string = """
-S0 TU0 . X
-;
 . . . X
+;
+S0 TU0 . X
 """
 [[levers]]
 group_id = 0

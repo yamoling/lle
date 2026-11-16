@@ -308,3 +308,82 @@ fn test_lever_and_pressure_plate_round_trip() {
         ["S0", "H0A1", "P2", "TU0", "X"]
     );
 }
+
+/// The map is written like it is drawn: the first floor of the string is the top one, and the
+/// last one is the bottom floor, `k = 0`.
+#[test]
+fn test_first_floor_of_the_string_is_the_top_floor() {
+    let config = parse(
+        "
+        X  .
+        ;
+        .  .
+        ;
+        S0 TU0
+        ",
+    )
+    .unwrap();
+    assert_eq!(config.layers(), 3);
+    assert_eq!(config.height(), 1);
+    assert_eq!(config.width(), 2);
+    assert_eq!(
+        config.random_starts()[0],
+        vec![Position { i: 0, j: 0, k: 0 }]
+    );
+    assert_eq!(config.exits(), &vec![Position { i: 0, j: 0, k: 2 }]);
+    let (lift_pos, lift) = &config.lifts()[0];
+    assert_eq!(*lift_pos, Position { i: 0, j: 1, k: 0 });
+    assert_eq!(lift.direction, VerticalDirection::Up);
+}
+
+/// The tiles are listed from the bottom floor to the top one, each floor in reading order.
+#[test]
+fn test_tiles_are_listed_from_the_bottom_floor() {
+    let config = parse(
+        "
+        G  .  X
+        ;
+        .  G  G
+        ;
+        S0 .  G
+        ",
+    )
+    .unwrap();
+    assert_eq!(
+        config.gems(),
+        &vec![
+            Position { i: 0, j: 2, k: 0 },
+            Position { i: 0, j: 1, k: 1 },
+            Position { i: 0, j: 2, k: 1 },
+            Position { i: 0, j: 0, k: 2 },
+        ]
+    );
+}
+
+/// Agents of the same colour get their ids from the bottom floor up.
+#[test]
+fn test_same_colour_agents_are_numbered_from_the_bottom_floor() {
+    let config = parse("S0 X\n;\nS0 X").unwrap();
+    assert_eq!(
+        config.random_starts(),
+        &vec![
+            vec![Position { i: 0, j: 0, k: 0 }],
+            vec![Position { i: 0, j: 0, k: 1 }],
+        ]
+    );
+}
+
+/// Writing a world back gives the floors in the order they were read, top floor first.
+#[test]
+fn test_multi_floor_round_trip_keeps_the_floor_order() {
+    let map = "X . TD1\n;\nS0 TU0 TD1\n;\nS0 B0 X";
+    let config = parse(map).unwrap();
+    let as_string = super::to_v1_string(&config).unwrap();
+    assert_eq!(
+        as_string.split_whitespace().collect::<Vec<_>>(),
+        map.split_whitespace().collect::<Vec<_>>()
+    );
+    let reparsed = parse(&as_string).unwrap();
+    assert_eq!(reparsed.random_starts(), config.random_starts());
+    assert_eq!(reparsed.exits(), config.exits());
+}

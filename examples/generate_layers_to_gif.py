@@ -1,7 +1,7 @@
 """Generate multi-layer levels, save each one as a PNG and its shortest solution as a GIF.
 
 Every level gets three files in the output directory: the map (`level_<i>.txt`), its picture
-(`level_<i>.png`) and the solution (`level_<i>.gif`). Layers are drawn stacked, layer 0 on top.
+(`level_<i>.png`) and the solution (`level_<i>.gif`). Layers are drawn stacked, the top layer on top and layer 0 at the bottom.
 
     uv run python examples/generate_layers_to_gif.py
     uv run python examples/generate_layers_to_gif.py -n 5 --layers 3 --agents 4 --cooperative
