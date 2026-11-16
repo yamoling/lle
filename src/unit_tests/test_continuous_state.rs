@@ -153,3 +153,29 @@ fn test_set_state_rejects_wrong_lengths() {
     }
     assert_eq!(world.get_state(), valid);
 }
+
+#[test]
+fn test_set_state_accepts_every_state_of_a_crowded_rollout() {
+    // Under the acceleration model, agent-pair corrections must not leave a velocity that
+    // set_state then rejects.
+    let params = PhysicsParams {
+        action_model: ActionModel::Acceleration,
+        ..Default::default()
+    };
+    let map = "S0 . . . . X\nS1 . . . . X\nS2 . . . . X\nS3 . . . . X\n. . . . . .\n. . . . . .";
+    let mut world = ContinuousWorld::from_config(&parse_v1(map).unwrap(), params).unwrap();
+    let mut rng = StdRng::seed_from_u64(148);
+    let mut actions = vec![[0.0, 0.0]; 4];
+    for t in 0..50 {
+        for action in actions.iter_mut() {
+            if rng.random_bool(0.2) {
+                *action = [rng.random_range(-1.0..=1.0), rng.random_range(-1.0..=1.0)];
+            }
+        }
+        world.tick(&actions).unwrap();
+        let state = world.get_state();
+        if let Err(e) = world.set_state(&state) {
+            panic!("tick {t}: {e}");
+        }
+    }
+}

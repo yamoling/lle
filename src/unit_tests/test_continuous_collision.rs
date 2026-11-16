@@ -247,3 +247,31 @@ fn test_no_overlap_under_random_actions_on_random_maps() {
         }
     }
 }
+
+#[test]
+fn test_stationary_agent_is_not_displaced_by_several_agents() {
+    // Agent 2 never moves; the other three wander randomly around it and into each other.
+    let mut world = world(
+        "
+        S0 . .  . .
+        .  . .  . .
+        .  . S2 . .
+        S1 . .  . S3
+        X  X X  X .
+        ",
+    );
+    let walls = [];
+    let stationary = world.agents_positions()[2];
+    let mut rng = StdRng::seed_from_u64(5);
+    let mut actions = vec![STILL; 4];
+    for t in 0..100 {
+        for (agent, action) in actions.iter_mut().enumerate() {
+            if agent != 2 && rng.random_bool(0.2) {
+                *action = [rng.random_range(-1.0..=1.0), rng.random_range(-1.0..=1.0)];
+            }
+        }
+        world.tick(&actions).unwrap();
+        assert_eq!(world.agents_positions()[2], stationary, "tick {t}");
+        assert_no_overlap(&world, &walls);
+    }
+}

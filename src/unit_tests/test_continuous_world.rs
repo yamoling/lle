@@ -397,3 +397,52 @@ fn test_step_stops_on_death() {
     assert_eq!(outcome.n_ticks, 18);
     assert_eq!(world.get_state().tick, 18);
 }
+
+#[test]
+fn test_random_starts_exclude_lethal_beams() {
+    // Row 0 is on the unblocked L0 beam, lethal to agent 1 (colour 1). As in LLE, these cells
+    // are not possible starts.
+    let mut world = world(
+        r#"
+world_string = """
+L0E . . .
+S0  . . X
+.   . . X
+"""
+[[agents]]
+[[agents]]
+start_positions = [{ i_min = 0, i_max = 1, j_min = 1, j_max = 3 }]
+"#,
+    );
+    for seed in 0..20 {
+        world.seed(seed);
+        world.reset();
+        assert!(
+            world.tick(&[STILL, STILL]).unwrap().is_empty(),
+            "seed {seed}"
+        );
+    }
+}
+
+#[test]
+fn test_fewer_start_cells_than_agents_is_an_error() {
+    let result = ContinuousWorld::try_from(
+        r#"
+world_string = """
+. . X
+. . X
+"""
+[[agents]]
+start_positions = [{ i = 0, j = 0 }]
+[[agents]]
+start_positions = [{ i = 0, j = 0 }]
+"#,
+    );
+    assert!(matches!(
+        result,
+        Err(ParseError::NotEnoughStartTiles {
+            n_starts: 1,
+            n_agents: 2
+        })
+    ));
+}
