@@ -1,4 +1,4 @@
-use super::{ActionModel, ContinuousWorld, geometry::*};
+use super::{ContinuousWorld, geometry::*};
 use crate::RuntimeWorldError;
 #[derive(Clone, Debug, PartialEq)]
 pub struct ContinuousWorldState {
@@ -45,18 +45,6 @@ impl ContinuousWorld {
         for (i, (&p, &v)) in state.positions.iter().zip(&state.velocities).enumerate() {
             if p.iter().chain(v.iter()).any(|x| !x.is_finite()) {
                 return Err(invalid("Non-finite position or velocity"));
-            }
-            if (self.params.action_model == ActionModel::Velocity
-                || state.agents_arrived[i]
-                || !state.agents_alive[i])
-                && v != [0.0; 2]
-            {
-                return Err(invalid(
-                    "Inactive or velocity-model agents must have zero velocity",
-                ));
-            }
-            if norm(v) > self.params.max_speed + 1e-12 {
-                return Err(invalid("Velocity exceeds maximum speed"));
             }
             if !state.agents_alive[i] {
                 continue;

@@ -41,8 +41,17 @@ impl ContinuousWorld {
         pairs
     }
     pub(super) fn resolve_collisions(&mut self, old: &[[f64; 2]]) {
-        for i in 0..self.n_agents() {
-            if self.state.agents_alive[i] {
+        let movable: Vec<_> = old
+            .iter()
+            .enumerate()
+            .map(|(i, &p)| {
+                self.state.agents_alive[i]
+                    && !self.state.agents_arrived[i]
+                    && self.state.positions[i] != p
+            })
+            .collect();
+        for (i, &can_move) in movable.iter().enumerate() {
+            if can_move {
                 self.state.positions[i] = self.project_static(self.state.positions[i]);
             }
         }
@@ -56,7 +65,7 @@ impl ContinuousWorld {
         for _ in 0..8 {
             let pairs = self.overlapping_pairs();
             if pairs.is_empty() {
-                return;
+                break;
             }
             let mut corrections = vec![[0.0; 2]; self.n_agents()];
             for (i, j) in pairs {
@@ -67,21 +76,21 @@ impl ContinuousWorld {
                 } else {
                     [delta[0] / d, delta[1] / d]
                 };
-                let wi = if self.state.agents_arrived[i] {
+                let wi = if !movable[i] {
                     0.0
                 } else {
                     dot(displacement[i], n).max(0.0)
                 };
-                let wj = if self.state.agents_arrived[j] {
+                let wj = if !movable[j] {
                     0.0
                 } else {
                     (-dot(displacement[j], n)).max(0.0)
                 };
                 let share = if wi + wj > 0.0 {
                     wi / (wi + wj)
-                } else if self.state.agents_arrived[i] {
+                } else if !movable[i] {
                     0.0
-                } else if self.state.agents_arrived[j] {
+                } else if !movable[j] {
                     1.0
                 } else {
                     0.5
@@ -93,22 +102,45 @@ impl ContinuousWorld {
                 }
             }
             for (i, c) in corrections.iter().enumerate() {
-                if self.state.agents_alive[i] && !self.state.agents_arrived[i] {
+                if movable[i] {
                     let p = self.state.positions[i];
                     self.state.positions[i] = self.project_static([p[0] + c[0], p[1] + c[1]]);
                 }
             }
         }
-        let mut pairs = self.overlapping_pairs();
-        if !pairs.is_empty() {
-            self.collision_fallbacks += 1;
-        }
-        while !pairs.is_empty() {
-            for (i, j) in pairs {
-                self.state.positions[i] = old[i];
-                self.state.positions[j] = old[j];
+        let mut used_fallback = false;
+        loop {
+            let r = self.params.agent_radius;
+            let mut revert: Vec<_> = self
+                .state
+                .positions
+                .iter()
+                .enumerate()
+                .map(|(i, &p)| {
+                    self.state.agents_alive[i]
+                        && (p[0] < r
+                            || p[1] < r
+                            || p[0] > self.width as f64 - r
+                            || p[1] > self.height as f64 - r
+                            || self.solids.iter().any(|cell| distance(p, cell) < r - 1e-12))
+                })
+                .collect();
+            for (i, j) in self.overlapping_pairs() {
+                revert[i] = true;
+                revert[j] = true;
             }
-            pairs = self.overlapping_pairs();
+            if !revert.iter().any(|&r| r) {
+                break;
+            }
+            used_fallback = true;
+            for (i, &revert) in revert.iter().enumerate() {
+                if revert {
+                    self.state.positions[i] = old[i];
+                }
+            }
+        }
+        if used_fallback {
+            self.collision_fallbacks += 1;
         }
     }
 }
