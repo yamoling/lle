@@ -17,9 +17,6 @@ from lle.world import EventType, WorldEvent
 from .observations import ObservationType
 from .world import ContinuousWorld, ContinuousWorldState
 
-TILE_SIZE = 32
-"""The number of pixels per cell of the rendered frames."""
-
 
 def _positive_int(value: Any, name: str) -> int:
     """
@@ -51,8 +48,9 @@ class CLLE(ContinuousMARLEnv):
     length `lidar_range`; observations only) and `RGB_IMAGE`.
 
     With `randomize_lasers`, every reset draws the colour of each laser source, in laser id
-    order, uniformly among the colours that are valid for it (whose beam crosses no possible start
-    of an agent of another colour), with the `random` module. Otherwise, every reset restores the
+    order, uniformly among its `ContinuousWorld.valid_laser_colours` (after the reset of the
+    world, they are the colours whose beam crosses no possible start of an agent of another
+    colour), with the `random` module. Otherwise, every reset restores the
     colours that the sources had when the environment was created.
 
     Example
@@ -130,47 +128,27 @@ class CLLE(ContinuousMARLEnv):
             reward_strategy = SingleObjective(world.n_agents)
         self.reward_strategy = reward_strategy
         self._initial_laser_colours = [(laser_id, colour) for (_, _, colour, laser_id) in world.laser_sources]
-        self._laser_colour_choices = self._valid_laser_colours(world)
+        self._laser_ids = sorted(laser_id for (_, _, _, laser_id) in world.laser_sources)
         super().__init__(
             world.n_agents,
             action_space=ContinuousSpace.from_shape((world.n_agents, 2), low=-1.0, high=1.0),
-            observation_shape=self._shape(ObservationType(obs_type)),
-            state_shape=self._shape(ObservationType(state_type)),
+            observation_shape=self._shape(ObservationType(obs_type), state=False),
+            state_shape=self._shape(ObservationType(state_type), state=True),
             reward_space=self.reward_strategy.reward_space,
         )
         self._name = name
         self.done = False
 
-    @staticmethod
-    def _valid_laser_colours(world: ContinuousWorld):
+    def _shape(self, obs_type: ObservationType, state: bool) -> tuple[int, ...]:
         """
-        For each laser source, in laser id order, its laser id and the colours it may take: those
-        whose beam covers no possible start of an agent of another colour.
-
-        @ai-generated
-        """
-        choices = list[tuple[int, list[int]]]()
-        sources = sorted(zip(world.laser_sources, world.beam_cells), key=lambda source: source[0][3])
-        for (_, _, _, laser_id), beam_cells in sources:
-            cells = set(beam_cells)
-            valid = [
-                colour
-                for colour in range(world.n_colours)
-                if all(
-                    agent_colour == colour or cells.isdisjoint(starts)
-                    for agent_colour, starts in zip(world.agents_colours, world.possible_starts)
-                )
-            ]
-            choices.append((laser_id, valid))
-        return choices
-
-    def _shape(self, obs_type: ObservationType) -> tuple[int, ...]:
-        """
-        The shape of one observation (or of the state) of type `obs_type`.
+        The shape of the state (if `state`) or of the observation of one agent, of type
+        `obs_type`.
 
         @ai-generated
         """
         match obs_type:
+            case ObservationType.STATE if state:
+                return (self._world.state_size_for(self.static_features),)
             case ObservationType.STATE:
                 return (self._world.observation_size_for(self.static_features),)
             case ObservationType.LAYERED:
@@ -178,7 +156,7 @@ class CLLE(ContinuousMARLEnv):
             case ObservationType.LIDAR:
                 return (self._world.lidar_size(self.lidar_n_rays),)
             case ObservationType.RGB_IMAGE:
-                return (self._world.height * TILE_SIZE, self._world.width * TILE_SIZE, 3)
+                return self._world.image_shape
 
     @property
     def name(self):
@@ -248,7 +226,9 @@ class CLLE(ContinuousMARLEnv):
             self.seed(seed)
         self._world.reset()
         if self.randomize_lasers:
-            for laser_id, colours in self._laser_colour_choices:
+            # The colours valid for a source come from the world, which also checks them.
+            for laser_id in self._laser_ids:
+                colours = self._world.valid_laser_colours(laser_id)
                 if len(colours) > 0:
                     self._world.set_laser_colour(laser_id, random.choice(colours))
         else:

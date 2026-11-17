@@ -155,9 +155,10 @@ class Builder:
 
     def randomize_lasers(self):
         """
-        Draw the colour of each laser source at every reset, uniformly among the colours valid for
-        it (whose beam crosses no possible start of an agent of another colour). The draws use the
-        `random` module, seeded by `reset(seed=...)` and `seed(...)`.
+        Draw the colour of each laser source at every reset, uniformly among its
+        `ContinuousWorld.valid_laser_colours` (whose beam crosses no possible start of an agent of
+        another colour). The draws use the `random` module, seeded by `reset(seed=...)` and
+        `seed(...)`.
         """
         self._randomize_lasers = True
         return self
