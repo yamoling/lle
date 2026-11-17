@@ -28,6 +28,25 @@ impl Action {
         }
     }
 
+    /// The action that moves an agent from `from` to the adjacent cell `to` on the same layer.
+    ///
+    /// `between(p, p)` is [`Action::Stay`], and the four neighbours of `from` give
+    /// [`Action::North`] (`i - 1`), [`Action::South`], [`Action::East`] and [`Action::West`].
+    ///
+    /// # Errors
+    /// [`RuntimeWorldError::InvalidActionDelta`] when `to` is neither `from` nor one of its four
+    /// neighbours, or when `to` is on another layer than `from`.
+    ///
+    /// @ai-generated
+    pub fn between(from: Position, to: Position) -> Result<Action, RuntimeWorldError> {
+        let di = to.i as i32 - from.i as i32;
+        let dj = to.j as i32 - from.j as i32;
+        if from.k != to.k {
+            return Err(RuntimeWorldError::InvalidActionDelta { di, dj });
+        }
+        Action::try_from((di, dj))
+    }
+
     pub fn opposite(&self) -> Action {
         match self {
             Action::North => Action::South,

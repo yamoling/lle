@@ -404,11 +404,19 @@ impl VarPool {
             let mut row = Vec::with_capacity(self.n_agents);
             for agent in 0..self.n_agents {
                 let (prev, current) = (position_at(agent, t)?, position_at(agent, t + 1)?);
-                let action = (current - prev).map_err(|_| SolverError::InvalidTrajectory {
-                    prev_pos: prev,
-                    current_pos: current,
-                    agent,
-                    index: t + 1,
+                // A lift may move the agent to another layer during the step: the action is the
+                // walk that happened on the layer of `prev`.
+                let walked_to = Position {
+                    k: prev.k,
+                    ..current
+                };
+                let action = Action::between(prev, walked_to).map_err(|_| {
+                    SolverError::InvalidTrajectory {
+                        prev_pos: prev,
+                        current_pos: current,
+                        agent,
+                        index: t + 1,
+                    }
                 })?;
                 row.push(action);
             }

@@ -1,4 +1,4 @@
-use std::ops::{Add, Sub};
+use std::ops::Add;
 
 use serde::{Deserialize, Serialize};
 
@@ -125,16 +125,6 @@ impl From<Position> for (usize, usize, usize) {
 impl PartialEq<(usize, usize, usize)> for Position {
     fn eq(&self, other: &(usize, usize, usize)) -> bool {
         self.i == other.0 && self.j == other.1 && self.k == other.2
-    }
-}
-
-impl Sub<Position> for Position {
-    type Output = Result<Action, RuntimeWorldError>;
-
-    fn sub(self, rhs: Position) -> Self::Output {
-        let di = self.i as i32 - rhs.i as i32;
-        let dj = self.j as i32 - rhs.j as i32;
-        Action::try_from((di, dj))
     }
 }
 
