@@ -4,7 +4,7 @@ use crate::{Grid, Position, agent::Colour};
 
 use super::{
     ParseError, button_config::ButtonConfig, laser_config::LaserConfig, lever_config::LeverConfig,
-    lift_config::LiftConfig, pressure_plate_config::PressurePlateConfig, world_config::WorldConfig,
+    lift_config::LiftConfig, map_spec::MapSpec, pressure_plate_config::PressurePlateConfig,
 };
 
 #[derive(Default)]
@@ -126,9 +126,9 @@ impl ParsingData {
     }
 }
 
-impl TryInto<WorldConfig> for ParsingData {
+impl TryInto<MapSpec> for ParsingData {
     type Error = ParseError;
-    fn try_into(self) -> Result<WorldConfig, Self::Error> {
+    fn try_into(self) -> Result<MapSpec, Self::Error> {
         if self.height == 0 {
             return Err(ParseError::EmptyWorld);
         }
@@ -142,7 +142,7 @@ impl TryInto<WorldConfig> for ParsingData {
             .flatten()
             .map(|pos| vec![pos])
             .collect();
-        Ok(WorldConfig::new(
+        Ok(MapSpec::new(
             width,
             self.height,
             layers,
@@ -168,8 +168,8 @@ impl TryInto<WorldConfig> for ParsingData {
 /// by `(colour, floor from the bottom, reading order)` on reparse — so a world whose same-colour agents are not already
 /// in reading order would come back with those agents swapped. Neither can it express a lever
 /// that starts on. All these cases return `Err(())`, and
-/// `WorldConfig::Display` falls back to TOML (see `.agents/plans/agent-colour-id.md` §3.4d).
-pub fn to_v1_string(config: &WorldConfig) -> Result<String, ()> {
+/// `MapSpec::Display` falls back to TOML (see `.agents/plans/agent-colour-id.md` §3.4d).
+pub fn to_v1_string(config: &MapSpec) -> Result<String, ()> {
     if config
         .boxes()
         .iter()
@@ -264,7 +264,7 @@ fn split_floors(world_str: &str) -> Vec<Vec<&str>> {
 ///
 /// Fails when the rows of a floor do not have the same length, when the floors do not have the
 /// same size, when the world is empty or when a token is invalid.
-pub fn parse(world_str: &str) -> Result<WorldConfig, ParseError> {
+pub fn parse(world_str: &str) -> Result<MapSpec, ParseError> {
     let floors = split_floors(world_str);
     let mut data = ParsingData::default();
 
