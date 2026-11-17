@@ -42,6 +42,13 @@ impl ContinuousWorld {
     /// @ai-edited
     pub fn from_map(map: &ValidMap, params: PhysicsParams) -> Result<Self, ContinuousError> {
         check_supported(map.spec(), &params)?;
+        Ok(Self::from_validated_map(map, params))
+    }
+    /// Build the world of `map`, whose features and `params` are already checked by
+    /// [`check_supported`].
+    ///
+    /// @ai-generated
+    fn from_validated_map(map: &ValidMap, params: PhysicsParams) -> Self {
         let config = map.spec();
         let starts = map.starts().clone();
         let mut solids = config.walls().clone();
@@ -84,7 +91,7 @@ impl ContinuousWorld {
             collision_fallbacks: 0,
         };
         world.reset();
-        Ok(world)
+        world
     }
     /// The built-in level `level` (numbered from 1), with the default physics parameters.
     ///
@@ -100,12 +107,14 @@ impl ContinuousWorld {
         Self::from_spec(MapSpec::from_file(file)?, PhysicsParams::default())
     }
     /// Check `params` and the features of `spec` before validating it, so that an unsupported
-    /// map is reported as such even when it would not validate.
+    /// map is reported as such even when it would not validate: the errors come in the order
+    /// [`ContinuousError::InvalidParams`], [`ContinuousError::UnsupportedFeature`], then
+    /// [`ContinuousError::Parse`].
     ///
     /// @ai-generated
     fn from_spec(spec: MapSpec, params: PhysicsParams) -> Result<Self, ContinuousError> {
         check_supported(&spec, &params)?;
-        Self::from_map(&spec.validate()?, params)
+        Ok(Self::from_validated_map(&spec.validate()?, params))
     }
     /// The possible start positions of each agent, as validated by [`MapSpec::validate`].
     pub fn possible_starts(&self) -> &[Vec<Position>] {

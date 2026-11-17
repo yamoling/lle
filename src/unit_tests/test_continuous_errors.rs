@@ -183,6 +183,37 @@ fn parse_and_validation_failures_are_wrapped_in_parse() {
         ContinuousWorld::from_file("/this/file/does/not/exist"),
         Err(ContinuousError::Parse(ParseError::InvalidFileName { .. }))
     ));
+    // A valid TOML document that is not a valid map.
+    assert!(matches!(
+        ContinuousWorld::try_from("width = \"wide\"\nheight = 2\nworld_string = \"S0 X\"\n"),
+        Err(ContinuousError::Parse(
+            ParseError::InvalidTomlDocument { .. }
+        ))
+    ));
+}
+
+#[test]
+fn errors_are_reported_in_the_order_params_features_then_parse() {
+    // The map has a box and does not validate (2 starts, 1 exit): the unsupported feature wins.
+    let spec = MapSpec::parse("S0 S1 # X").unwrap();
+    assert!(matches!(
+        spec.clone().validate(),
+        Err(ParseError::NotEnoughExitTiles { .. })
+    ));
+    match ContinuousWorld::try_from("S0 S1 # X") {
+        Err(ContinuousError::UnsupportedFeature { features }) => assert_eq!(features, ["boxes"]),
+        other => panic!("expected UnsupportedFeature, got {other:?}"),
+    }
+    // Invalid params win over unsupported features.
+    let valid = MapSpec::parse("S0 # X").unwrap().validate().unwrap();
+    let params = PhysicsParams {
+        dt: 0.0,
+        ..Default::default()
+    };
+    assert!(matches!(
+        ContinuousWorld::from_map(&valid, params),
+        Err(ContinuousError::InvalidParams { .. })
+    ));
 }
 
 #[test]
