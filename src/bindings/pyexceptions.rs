@@ -26,12 +26,40 @@ create_exception!(
     "Raised when there is a problem while parsing a world string."
 );
 
-create_exception!(
+// `pyo3_stub_gen::create_exception!` writes the base of an exception as `builtins.<base>`, which
+// is wrong for a base defined in `lle.exceptions`. This is the same expansion, with the base
+// written unqualified in the stub.
+pyo3::create_exception!(
     lle.exceptions,
     UnsupportedFeatureError,
     ParsingError,
     "Raised when a map uses features that the engine does not support."
 );
+
+impl pyo3_stub_gen::PyStubType for UnsupportedFeatureError {
+    fn type_output() -> pyo3_stub_gen::TypeInfo {
+        pyo3_stub_gen::TypeInfo::builtin("UnsupportedFeatureError")
+    }
+}
+
+pyo3_stub_gen::impl_py_runtime_type!(UnsupportedFeatureError);
+
+pyo3_stub_gen::inventory::submit! {
+    pyo3_stub_gen::type_info::PyClassInfo {
+        pyclass_name: "UnsupportedFeatureError",
+        struct_id: std::any::TypeId::of::<UnsupportedFeatureError>,
+        getters: &[],
+        setters: &[],
+        module: Some("lle.exceptions"),
+        doc: "Raised when a map uses features that the engine does not support.",
+        bases: &[|| pyo3_stub_gen::TypeInfo::unqualified("ParsingError")],
+        has_eq: false,
+        has_ord: false,
+        has_hash: false,
+        has_str: false,
+        subclass: true,
+    }
+}
 
 create_exception!(
     lle.exceptions,
