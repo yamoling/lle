@@ -149,6 +149,12 @@ class PotentialShaped(RewardStrategy):
         pos_to_reward: Sequence[Collection[Position]],
         agents_positions: Callable[[], Sequence[Position]] | None = None,
     ):
+        """
+        See the class documentation for the arguments. The objectives are those of `strategy`,
+        plus `"PBRS"` when it has several.
+
+        @ai-generated
+        """
         self._agents_positions = agents_positions
         self.reward_value = reward_value
         self.gamma = gamma
@@ -226,6 +232,12 @@ class PotentialShapedLLE(PotentialShaped):
         reward_value: float,
         lasers_to_reward: Iterable[tiles.LaserSource],
     ):
+        """
+        Shape `strategy` with the beam cells of `lasers_to_reward`, read from `world`, whose
+        agents' positions are read at every step.
+
+        @ai-edited
+        """
         self._world = world
         super().__init__(
             strategy,

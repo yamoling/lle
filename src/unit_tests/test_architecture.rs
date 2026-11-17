@@ -203,6 +203,8 @@ fn rust_files(dir: &Path, files: &mut Vec<PathBuf>) {
 }
 
 /// The module path of `file`, relative to `src/`: `src/shared/map/mod.rs` is `["shared", "map"]`.
+///
+/// @ai-generated
 fn module_path(src_dir: &Path, file: &Path) -> Vec<String> {
     let relative = file.strip_prefix(src_dir).unwrap().with_extension("");
     let mut module: Vec<String> = relative
@@ -215,6 +217,8 @@ fn module_path(src_dir: &Path, file: &Path) -> Vec<String> {
     module
 }
 
+/// Assert that no file under `src/<tree>/` breaks the rule of `tree`, listing every violation.
+///
 /// @ai-generated
 fn assert_tree_respects_the_rule(tree: Tree) {
     let src_dir = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src"));
