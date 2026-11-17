@@ -148,11 +148,11 @@ S1 L1N X"""
 def test_lift_moved_event():
     world = World(
         """
-        S0 .  TU0
-        S1 B0 X
-        ;
         .  .  .
         .  .  X
+        ;
+        S0 .  TU0
+        S1 B0 X
         """
     )
     world.reset()
@@ -1011,9 +1011,9 @@ def test_set_state_after_a_death_restores_a_beam_blocker():
 def test_lever_toggles_and_keeps_pulsing():
     world = World(
         """
-        S0 H0 TU0 . X
-        ;
         .  .  .   . X
+        ;
+        S0 H0 TU0 . X
         """
     )
     world.reset()
@@ -1030,7 +1030,7 @@ def test_lever_toggles_and_keeps_pulsing():
 
 
 def test_lever_state_round_trip():
-    world = World("S0 H0 TU0 . X\n;\n. . . . X")
+    world = World(". . . . X\n;\nS0 H0 TU0 . X")
     world.reset()
     initial = world.get_state()
     world.step([Action.EAST])
@@ -1051,9 +1051,9 @@ def test_lever_state_round_trip():
 def test_pressure_plate_pulses_without_trigger():
     world = World(
         """
-        S0 TU0 P0 S1 X
-        ;
         X  .   .  .  .
+        ;
+        S0 TU0 P0 S1 X
         """
     )
     world.reset()
@@ -1077,6 +1077,6 @@ def test_world_state_pickles_levers_on():
 
 
 def test_state_env_round_trips_on_a_world_with_a_lever():
-    env = lle.from_str("S0 TU0 H0 S1 X\n;\nX . . . .").state_type("state").build()
+    env = lle.from_str("X . . . .\n;\nS0 TU0 H0 S1 X").state_type("state").build()
     env.reset()
     env.set_state(env.get_state())

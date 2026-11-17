@@ -5,6 +5,7 @@ pub(crate) mod levels;
 pub mod parsing;
 pub mod tiles;
 mod world;
+mod world_build;
 mod world_state;
 
 pub use boxes::BoxId;

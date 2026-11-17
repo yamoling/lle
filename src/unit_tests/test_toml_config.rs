@@ -416,7 +416,7 @@ j = 5
     assert!(parse_boxes(toml).is_err());
 }
 
-/// Plain TOML -> WorldConfig -> TOML -> WorldConfig keeps the boxes.
+/// Plain TOML -> MapSpec -> TOML -> MapSpec keeps the boxes.
 #[test]
 fn test_toml_boxes_round_trip_through_toml_config() {
     use super::TomlConfig;
@@ -717,9 +717,9 @@ world_string = "S0 H0A1 P2 X"
 
 const LEVER_ON_TOML: &str = r#"
 world_string = """
-S0 TU0 . X
-;
 . . . X
+;
+S0 TU0 . X
 """
 [[levers]]
 group_id = 0

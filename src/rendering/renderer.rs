@@ -1,7 +1,7 @@
 use image::{GenericImage, Rgb, RgbImage, RgbaImage};
 use itertools::izip;
 
-use super::{BLACK, GRID_GREY, sprites};
+use super::{BLACK, FLOOR_SEPARATOR, FLOOR_SEPARATOR_HEIGHT, GRID_GREY, sprites};
 use crate::{
     agent::Colour,
     core::World,
@@ -20,7 +20,7 @@ pub struct VisitorData<'a> {
 }
 
 ///The Renderer struct is responsible for rendering the world as an image. It has a static frame which contains the floor, walls, laser sources, start and exit tiles. The dynamic elements such as lasers, gems and agents are rendered on top of the static frame in the update method.
-/// The addition of vector of RgbImage allows us to have a separate static frame for each layer of the world, give us the ability to render each layer independently and then diplay them in any ways that we want.
+/// There is one static frame per layer of the world, indexed by `k` (the bottom floor first): each layer is rendered independently, and the layers are then stacked with the top floor at the top of the image.
 #[derive(Clone)]
 pub struct Renderer {
     static_frame: Vec<RgbImage>,
@@ -167,14 +167,25 @@ impl Renderer {
         self.concate_single_image(frame_stack)
     }
 
-    /// Stack the layers vertically, bottom layer first, one pixel apart.
+    /// Stack the floors vertically like a building seen from the side: the top floor at the
+    /// top of the image and the bottom floor (`k = 0`) at the bottom, with a
+    /// `FLOOR_SEPARATOR_HEIGHT` band between two floors.
     fn concate_single_image(&self, frame_stack: Vec<RgbImage>) -> RgbImage {
-        let mut panel = RgbImage::new(self.pixel_width(), self.pixel_height());
-        for (i, frame) in frame_stack.iter().enumerate() {
-            let y_offset = i as u32 * (self.pixel_height + 1);
-            panel.copy_from(frame, 0, y_offset).unwrap();
+        let mut panel =
+            RgbImage::from_pixel(self.pixel_width(), self.pixel_height(), FLOOR_SEPARATOR);
+        for (layer, frame) in frame_stack.iter().enumerate() {
+            panel
+                .copy_from(frame, 0, self.layer_y_offset(layer))
+                .unwrap();
         }
         panel
+    }
+
+    /// The `y` pixel at which the floor `layer` starts in the rendered image.
+    pub fn layer_y_offset(&self, layer: usize) -> u32 {
+        let n_layers = self.static_frame.len();
+        let floors_above = (n_layers - 1 - layer) as u32;
+        floors_above * (self.pixel_height + FLOOR_SEPARATOR_HEIGHT)
     }
 
     pub fn pixel_width(&self) -> u32 {
@@ -183,7 +194,7 @@ impl Renderer {
 
     pub fn pixel_height(&self) -> u32 {
         let layers = self.static_frame.len() as u32;
-        self.pixel_height * layers + layers - 1
+        self.pixel_height * layers + FLOOR_SEPARATOR_HEIGHT * (layers - 1)
     }
 }
 

@@ -4,7 +4,7 @@ use crate::{Grid, Position, agent::Colour};
 
 use super::{
     ParseError, button_config::ButtonConfig, laser_config::LaserConfig, lever_config::LeverConfig,
-    lift_config::LiftConfig, pressure_plate_config::PressurePlateConfig, world_config::WorldConfig,
+    lift_config::LiftConfig, map_spec::MapSpec, pressure_plate_config::PressurePlateConfig,
 };
 
 #[derive(Default)]
@@ -13,7 +13,8 @@ pub struct ParsingData {
     pub height: usize,
     pub layers: usize,
     pub gem_positions: Vec<Position>,
-    /// Start positions grouped by colour, in reading order. `k` occurrences of `S<c>` declare `k`
+    /// Start positions grouped by colour, in parsing order (bottom floor first, each floor in
+    /// reading order). `k` occurrences of `S<c>` declare `k`
     /// agents of colour `c`. Ordered by colour so that flattening yields colour-major agent ids
     /// (see `.agents/plans/agent-colour-id.md` §3.4a): with unique tokens this reproduces the
     /// historical "agent id = token number" assignment exactly.
@@ -89,10 +90,6 @@ impl ParsingData {
         self.laser_configs.len()
     }
 
-    fn increase_height(&mut self) {
-        self.height += 1;
-    }
-
     pub fn add_row(&mut self, n_cols: usize, line: &str, row: usize) -> Result<(), ParseError> {
         if let Some(w) = self.width {
             if w != n_cols {
@@ -129,9 +126,9 @@ impl ParsingData {
     }
 }
 
-impl TryInto<WorldConfig> for ParsingData {
+impl TryInto<MapSpec> for ParsingData {
     type Error = ParseError;
-    fn try_into(self) -> Result<WorldConfig, Self::Error> {
+    fn try_into(self) -> Result<MapSpec, Self::Error> {
         if self.height == 0 {
             return Err(ParseError::EmptyWorld);
         }
@@ -145,7 +142,7 @@ impl TryInto<WorldConfig> for ParsingData {
             .flatten()
             .map(|pos| vec![pos])
             .collect();
-        Ok(WorldConfig::new(
+        Ok(MapSpec::new(
             width,
             self.height,
             layers,
@@ -168,11 +165,11 @@ impl TryInto<WorldConfig> for ParsingData {
 /// Render a config as a v1 ASCII world string, or `Err(())` when v1 cannot express it.
 ///
 /// v1 cannot express several possible start positions for one agent, and it re-derives agent ids
-/// by `(colour, reading order)` on reparse — so a world whose same-colour agents are not already
+/// by `(colour, floor from the bottom, reading order)` on reparse — so a world whose same-colour agents are not already
 /// in reading order would come back with those agents swapped. Neither can it express a lever
 /// that starts on. All these cases return `Err(())`, and
-/// `WorldConfig::Display` falls back to TOML (see `.agents/plans/agent-colour-id.md` §3.4d).
-pub fn to_v1_string(config: &WorldConfig) -> Result<String, ()> {
+/// `MapSpec::Display` falls back to TOML (see `.agents/plans/agent-colour-id.md` §3.4d).
+pub fn to_v1_string(config: &MapSpec) -> Result<String, ()> {
     if config
         .boxes()
         .iter()
@@ -193,9 +190,10 @@ pub fn to_v1_string(config: &WorldConfig) -> Result<String, ()> {
         }
         let pos = pos[0];
         let colour = *config.colours().get(agent_num).ok_or(())?;
-        // Agents of one colour must already be in reading order, or the emission is lossy.
+        // Agents of one colour must already be in parsing order (bottom floor first, then
+        // reading order), or the emission is lossy.
         if let Some(previous) = previous_of_colour.insert(colour, pos)
-            && (previous.i, previous.j) > (pos.i, pos.j)
+            && (previous.k, previous.i, previous.j) > (pos.k, pos.i, pos.j)
         {
             return Err(());
         }
@@ -235,81 +233,108 @@ pub fn to_v1_string(config: &WorldConfig) -> Result<String, ()> {
     Ok((&res).into())
 }
 
-pub fn parse(world_str: &str) -> Result<WorldConfig, ParseError> {
+/// Split a v1 world string into its floors, in text order: the **top** floor first.
+///
+/// Every floor is the list of its non-empty rows; a line starting with `;` closes the current
+/// floor, so there is always one floor more than there are separators.
+fn split_floors(world_str: &str) -> Vec<Vec<&str>> {
+    let mut floors = vec![Vec::new()];
+    for line in world_str.lines().map(str::trim) {
+        if line.starts_with(';') {
+            floors.push(Vec::new());
+        } else if !line.is_empty() {
+            floors.last_mut().unwrap().push(line);
+        }
+    }
+    floors
+}
+
+/// Parse a v1 world string.
+///
+/// The string is written the way the world is rendered: the first floor is the **top** one, and
+/// each line starting with `;` starts the floor below. Positions count floors from the bottom
+/// (`k = 0` is the bottom floor, a `TU` lift goes to `k + 1`), so the last floor of the string
+/// gets `k = 0`. That index depends on the number of floors, which is only known once the whole
+/// string has been read: the string is thus split into floors first, and their tiles are read
+/// afterwards.
+///
+/// The tiles are read from the bottom floor to the top one, each floor in reading order. This
+/// is the order of every list of the config (gems, boxes, laser ids, ...), and the order in
+/// which agents of the same colour get their ids.
+///
+/// Fails when the rows of a floor do not have the same length, when the floors do not have the
+/// same size, when the world is empty or when a token is invalid.
+pub fn parse(world_str: &str) -> Result<MapSpec, ParseError> {
+    let floors = split_floors(world_str);
     let mut data = ParsingData::default();
 
-    let mut layer = 0usize; // there must be at least one layer but the index of the first layer is 0
-    let mut row = 0usize;
-    let mut n_cols = 0usize;
-    for line in world_str.lines() {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
+    // Shape of the world, checked in text order so that errors refer to the string as written.
+    for rows in &floors {
+        let mut n_cols = 0usize;
+        for (row, line) in rows.iter().enumerate() {
+            n_cols = line.split_whitespace().count();
+            data.add_row(n_cols, line, row)?;
         }
-        if line.starts_with(';') {
-            data.add_layer((row, n_cols))?;
-            row = 0;
-            layer += 1;
-            continue;
+        if data.layers == 0 {
+            data.height = rows.len();
         }
-        let tokens = line.split_whitespace();
-        n_cols = 0usize;
-        for (col, token) in tokens.enumerate() {
-            n_cols += 1;
-            let pos = Position {
-                i: row,
-                j: col,
-                k: layer,
-            };
-            match token.to_uppercase().chars().next().unwrap() {
-                '.' => {}
-                'G' => data.add_gem(pos),
-                '@' => data.add_wall(pos),
-                'X' => data.add_exit(pos),
-                'V' => data.add_void(pos),
-                '#' => data.add_box(pos),
-                'S' => {
-                    let colour = token[1..].parse().map_err(|_| ParseError::InvalidAgentId {
-                        given_agent_id: token[1..].into(),
-                    })?;
-                    data.add_start_position(colour, pos);
-                }
-                'L' => {
-                    let source_config = LaserConfig::from_str(token, data.n_lasers())?;
-                    data.add_laser_source(pos, source_config);
-                }
-                'T' => {
-                    let lift_config = LiftConfig::from_str(token)?;
-                    data.add_lift(pos, lift_config);
-                }
-                'B' => {
-                    let button_config = ButtonConfig::from_str(token)?;
-                    data.add_button(pos, button_config);
-                }
-                'H' => {
-                    let lever_config = LeverConfig::from_str(token)?;
-                    data.add_lever(pos, lever_config);
-                }
-                'P' => {
-                    let plate_config = PressurePlateConfig::from_str(token)?;
-                    data.add_pressure_plate(pos, plate_config);
-                }
-                _ => {
-                    return Err(ParseError::InvalidTile {
-                        tile_str: token.into(),
-                        line: pos.i,
-                        col: pos.j,
-                    });
+        data.add_layer((rows.len(), n_cols))?;
+    }
+
+    // Tiles, from the bottom floor (last in the string, `k = 0`) to the top one.
+    for (layer, rows) in floors.iter().rev().enumerate() {
+        for (row, line) in rows.iter().enumerate() {
+            for (col, token) in line.split_whitespace().enumerate() {
+                let pos = Position {
+                    i: row,
+                    j: col,
+                    k: layer,
+                };
+                match token.to_uppercase().chars().next().unwrap() {
+                    '.' => {}
+                    'G' => data.add_gem(pos),
+                    '@' => data.add_wall(pos),
+                    'X' => data.add_exit(pos),
+                    'V' => data.add_void(pos),
+                    '#' => data.add_box(pos),
+                    'S' => {
+                        let colour =
+                            token[1..].parse().map_err(|_| ParseError::InvalidAgentId {
+                                given_agent_id: token[1..].into(),
+                            })?;
+                        data.add_start_position(colour, pos);
+                    }
+                    'L' => {
+                        let source_config = LaserConfig::from_str(token, data.n_lasers())?;
+                        data.add_laser_source(pos, source_config);
+                    }
+                    'T' => {
+                        let lift_config = LiftConfig::from_str(token)?;
+                        data.add_lift(pos, lift_config);
+                    }
+                    'B' => {
+                        let button_config = ButtonConfig::from_str(token)?;
+                        data.add_button(pos, button_config);
+                    }
+                    'H' => {
+                        let lever_config = LeverConfig::from_str(token)?;
+                        data.add_lever(pos, lever_config);
+                    }
+                    'P' => {
+                        let plate_config = PressurePlateConfig::from_str(token)?;
+                        data.add_pressure_plate(pos, plate_config);
+                    }
+                    _ => {
+                        return Err(ParseError::InvalidTile {
+                            tile_str: token.into(),
+                            line: pos.i,
+                            col: pos.j,
+                        });
+                    }
                 }
             }
         }
-        data.add_row(n_cols, line, row)?;
-        if layer == 0 {
-            data.increase_height();
-        }
-        row += 1;
     }
-    data.add_layer((row, n_cols))?;
     data.try_into()
 }
 

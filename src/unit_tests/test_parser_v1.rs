@@ -1,5 +1,5 @@
 use crate::{
-    ParseError, Position,
+    ParseError, Position, World,
     tiles::{CardinalDirection, Tile, VerticalDirection},
 };
 
@@ -21,7 +21,7 @@ fn test_multi_digit_laser_source_agent_id() {
     let config = parse("L10E S0 S1 S2 S3 S4 S5 S6 S7 S8 S9 S10 X").unwrap();
     let (_, source) = &config.sources()[0];
 
-    assert_eq!(source.agent_id, 10);
+    assert_eq!(source.colour, 10);
     assert_eq!(source.direction, CardinalDirection::East);
 }
 
@@ -49,12 +49,12 @@ fn test_multi_digit_agents_and_laser_sources_world() {
     assert_eq!(config.n_agents(), 14);
     assert_eq!(config.sources().len(), 14);
     for (agent_id, (source_pos, source)) in config.sources().iter().enumerate() {
-        assert_eq!(source.agent_id, agent_id);
+        assert_eq!(source.colour, agent_id);
         assert_eq!(source.direction, CardinalDirection::West);
         assert_eq!(*source_pos, Position::new2d(agent_id + 1, 1));
     }
 
-    config.into_world().unwrap();
+    World::try_from(config).unwrap();
 }
 
 #[test]
@@ -67,7 +67,7 @@ fn test_parse_lift_and_button() {
         ",
     )
     .unwrap();
-    let world = config.into_world().unwrap();
+    let world = World::try_from(config).unwrap();
 
     match world.at(&Position { i: 0, j: 2, k: 0 }) {
         Some(Tile::Lift(lift)) => {
@@ -112,7 +112,7 @@ fn test_lift_button_round_trip() {
     .unwrap();
     let as_string = super::to_v1_string(&config).unwrap();
     let reparsed = parse(&as_string).unwrap();
-    let world = reparsed.into_world().unwrap();
+    let world = World::try_from(reparsed).unwrap();
 
     match world.at(&Position { i: 0, j: 2, k: 0 }) {
         Some(Tile::Lift(lift)) => {
@@ -186,7 +186,7 @@ fn test_laser_kill_on_spawn() {
     ",
     )
     .unwrap();
-    let world = config.into_world();
+    let world = World::try_from(config);
     match world {
         Ok(_) => panic!(
             "The start location of agent 0 should have been removed and no remaining start position remains for agent 0"
@@ -206,7 +206,7 @@ fn test_laser_blocked_on_spawn() {
     ",
     )
     .unwrap();
-    let world = config.into_world();
+    let world = World::try_from(config);
     match world {
         Ok(_) => {}
         Err(ParseError::AgentWithoutStart { .. }) => panic!(
@@ -266,7 +266,7 @@ fn test_parse_lever_and_pressure_plate() {
         ",
     )
     .unwrap();
-    let world = config.into_world().unwrap();
+    let world = World::try_from(config).unwrap();
 
     match world.at(&Position { i: 0, j: 1, k: 0 }) {
         Some(Tile::Lever(lever)) => {
@@ -307,4 +307,83 @@ fn test_lever_and_pressure_plate_round_trip() {
         as_string.split_whitespace().collect::<Vec<_>>(),
         ["S0", "H0A1", "P2", "TU0", "X"]
     );
+}
+
+/// The map is written like it is drawn: the first floor of the string is the top one, and the
+/// last one is the bottom floor, `k = 0`.
+#[test]
+fn test_first_floor_of_the_string_is_the_top_floor() {
+    let config = parse(
+        "
+        X  .
+        ;
+        .  .
+        ;
+        S0 TU0
+        ",
+    )
+    .unwrap();
+    assert_eq!(config.layers(), 3);
+    assert_eq!(config.height(), 1);
+    assert_eq!(config.width(), 2);
+    assert_eq!(
+        config.random_starts()[0],
+        vec![Position { i: 0, j: 0, k: 0 }]
+    );
+    assert_eq!(config.exits(), &vec![Position { i: 0, j: 0, k: 2 }]);
+    let (lift_pos, lift) = &config.lifts()[0];
+    assert_eq!(*lift_pos, Position { i: 0, j: 1, k: 0 });
+    assert_eq!(lift.direction, VerticalDirection::Up);
+}
+
+/// The tiles are listed from the bottom floor to the top one, each floor in reading order.
+#[test]
+fn test_tiles_are_listed_from_the_bottom_floor() {
+    let config = parse(
+        "
+        G  .  X
+        ;
+        .  G  G
+        ;
+        S0 .  G
+        ",
+    )
+    .unwrap();
+    assert_eq!(
+        config.gems(),
+        &vec![
+            Position { i: 0, j: 2, k: 0 },
+            Position { i: 0, j: 1, k: 1 },
+            Position { i: 0, j: 2, k: 1 },
+            Position { i: 0, j: 0, k: 2 },
+        ]
+    );
+}
+
+/// Agents of the same colour get their ids from the bottom floor up.
+#[test]
+fn test_same_colour_agents_are_numbered_from_the_bottom_floor() {
+    let config = parse("S0 X\n;\nS0 X").unwrap();
+    assert_eq!(
+        config.random_starts(),
+        &vec![
+            vec![Position { i: 0, j: 0, k: 0 }],
+            vec![Position { i: 0, j: 0, k: 1 }],
+        ]
+    );
+}
+
+/// Writing a world back gives the floors in the order they were read, top floor first.
+#[test]
+fn test_multi_floor_round_trip_keeps_the_floor_order() {
+    let map = "X . TD1\n;\nS0 TU0 TD1\n;\nS0 B0 X";
+    let config = parse(map).unwrap();
+    let as_string = super::to_v1_string(&config).unwrap();
+    assert_eq!(
+        as_string.split_whitespace().collect::<Vec<_>>(),
+        map.split_whitespace().collect::<Vec<_>>()
+    );
+    let reparsed = parse(&as_string).unwrap();
+    assert_eq!(reparsed.random_starts(), config.random_starts());
+    assert_eq!(reparsed.exits(), config.exits());
 }

@@ -18,7 +18,7 @@ impl TomlLaserConfig {
     pub fn from_laser_config(laser: &LaserConfig, position: Position) -> Self {
         Self {
             direction: laser.direction,
-            agent: laser.agent_id,
+            agent: laser.colour,
             position,
             laser_id: laser.laser_id,
         }
@@ -29,7 +29,7 @@ impl From<&TomlLaserConfig> for LaserConfig {
     fn from(val: &TomlLaserConfig) -> Self {
         LaserConfig {
             direction: val.direction,
-            agent_id: val.agent,
+            colour: val.agent,
             laser_id: val.laser_id,
         }
     }

@@ -43,17 +43,19 @@ world.step([Action.EAST])
 print(world.boxes_positions)   # [(0, 2)]
 ```
 
-A world can have several floors: in a map string, a line starting with `;` starts the next
-floor, and every floor has the same size. Agents change floors with lifts. When an agent takes
+A world can have several floors, and every floor has the same size. A map string is written
+the way the world is drawn: the top floor comes first, and a line starting with `;` starts the
+floor below. In a position `(i, j, k)`, floors are counted from the bottom: `k = 0` is the bottom
+floor, i.e. the last one of the map string. Agents change floors with lifts. When an agent takes
 the `TRIGGER` action on a button, every lift of the button's group moves the agent standing on it
 one floor up (`TU`) or down (`TD`). Lifts and buttons can be restricted to one colour.
 ```python
 from lle import Action, World
 
 world = World('''
-S0 TU0 B0 S1 X
-;
 X  .   .  .  .
+;
+S0 TU0 B0 S1 X
 ''')
 world.reset()
 world.step([Action.EAST, Action.WEST])     # agent 0 onto the lift, agent 1 onto the button
@@ -74,9 +76,9 @@ below); a lift whose group is powered (`Lift.is_powered`) is drawn lit.
 from lle import Action, World
 
 world = World('''
-S0 TU0 P0 S1 X
-;
 X  .   .  .  .
+;
+S0 TU0 P0 S1 X
 ''')
 world.reset()
 world.step([Action.EAST, Action.WEST])  # agent 1 steps on the plate: agent 0 goes one floor up
@@ -180,7 +182,7 @@ separate tiles.
 | `B<g>` | Button | Yes | A button of group `g`. Taking the `TRIGGER` action on it moves every lift of group `g`. `B<g>A<c>` can only be pressed by agents of colour `c`. |
 | `H<g>` | Lever | Yes | A lever of group `g`. Taking the `TRIGGER` action on it switches it on or off; while on, it moves every lift of group `g` at every step. `H<g>A<c>` can only be toggled by agents of colour `c`. |
 | `P<g>` | Pressure plate | Yes | A pressure plate of group `g`. It moves every lift of group `g` at every step an agent stands on it. `P<g>A<c>` only reacts to agents of colour `c`. |
-| `;` | Floor separator | - | A line starting with `;` starts the next floor. |
+| `;` | Floor separator | - | A line starting with `;` starts the floor below: the top floor is written first. |
 
 For instance, the following map string yields the image shown below.
 

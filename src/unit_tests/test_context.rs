@@ -775,7 +775,7 @@ fn laser_owner_is_the_agent_of_its_colour() {
 
 #[test]
 fn test_neighbours_stay_on_their_layer() {
-    let world = World::try_from("S0 . X\n;\n. . .").unwrap();
+    let world = World::try_from(". . .\n;\nS0 . X").unwrap();
     let ctx = ConstraintContext::new(&world, 5);
     let upper = Position { i: 0, j: 1, k: 1 };
     let upper_neighbours: HashSet<Position> = ctx.neighbours[1][0][1].iter().collect();
@@ -792,7 +792,7 @@ fn test_neighbours_stay_on_their_layer() {
 
 #[test]
 fn test_lift_makes_an_upper_exit_reachable() {
-    let world = World::try_from("S0 TU0 B0\n;\n. . X").unwrap();
+    let world = World::try_from(". . X\n;\nS0 TU0 B0").unwrap();
     let mut ctx = ConstraintContext::new(&world, 5);
     let lift_dest = Position { i: 0, j: 1, k: 1 };
     // Walking onto the lift and riding it happen in the same step.
@@ -802,7 +802,7 @@ fn test_lift_makes_an_upper_exit_reachable() {
 
 #[test]
 fn test_lift_and_button_colours_restrict_agents() {
-    let world = World::try_from("S0 S1 TU0A1 B0A0\n;\n. X X .").unwrap();
+    let world = World::try_from(". X X .\n;\nS0 S1 TU0A1 B0A0").unwrap();
     let ctx = ConstraintContext::new(&world, 5);
     assert_eq!(ctx.lifts.len(), 1);
     assert_eq!(ctx.lifts[0].riders, vec![1]);
@@ -813,7 +813,7 @@ fn test_lift_and_button_colours_restrict_agents() {
 
 #[test]
 fn test_lift_onto_a_wall_is_dropped() {
-    let world = World::try_from("S0 TU0 X\n;\n. @ .").unwrap();
+    let world = World::try_from(". @ .\n;\nS0 TU0 X").unwrap();
     let ctx = ConstraintContext::new(&world, 5);
     assert!(ctx.lifts.is_empty());
 }
@@ -824,7 +824,7 @@ fn test_lift_onto_a_wall_is_dropped() {
 #[test]
 fn test_forced_exit_holds_over_the_whole_horizon() {
     let world =
-        World::try_from(". # TU0 X\n. S0 . .\n. S2 . .\n;\n. . X X\nB0 . TD0 .\nS1 . . .").unwrap();
+        World::try_from(". . X X\nB0 . TD0 .\nS1 . . .\n;\n. # TU0 X\n. S0 . .\n. S2 . .").unwrap();
     let mut ctx = ConstraintContext::new(&world, 9);
     ctx.update(3);
     let upper_exit = Position { i: 0, j: 2, k: 1 };

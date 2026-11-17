@@ -1,13 +1,7 @@
 use super::{
     ActionModel, ContinuousAction, ContinuousWorldState, PhysicsParams, geometry::*, lasers::Beam,
 };
-use crate::{
-    ParseError, Position, RuntimeWorldError, WorldEvent,
-    core::{
-        levels,
-        parsing::{self, WorldConfig},
-    },
-};
+use crate::{ParseError, Position, RuntimeWorldError, WorldEvent, core::parsing::MapSpec};
 use rand::{SeedableRng, rngs::StdRng};
 
 #[derive(Debug)]
@@ -34,7 +28,7 @@ pub struct StepOutcome {
 }
 
 impl ContinuousWorld {
-    pub fn from_config(config: &WorldConfig, params: PhysicsParams) -> Result<Self, ParseError> {
+    pub fn from_config(config: &MapSpec, params: PhysicsParams) -> Result<Self, ParseError> {
         params.validate()?;
         let mut features = Vec::new();
         for (name, present) in [
@@ -52,7 +46,7 @@ impl ContinuousWorld {
         if !features.is_empty() {
             return Err(ParseError::UnsupportedFeature { features });
         }
-        let starts = config.clone().into_world()?.possible_starts();
+        let starts = config.clone().validate()?.starts().to_vec();
         let mut solids = config.walls().clone();
         solids.extend(config.sources().iter().map(|(p, _)| *p));
         let beams = config
@@ -62,7 +56,7 @@ impl ContinuousWorld {
                 Beam::new(
                     *p,
                     source.direction.delta(),
-                    source.agent_id,
+                    source.colour,
                     config.width(),
                     config.height(),
                     &solids,
@@ -96,24 +90,10 @@ impl ContinuousWorld {
         Ok(world)
     }
     pub fn get_level(level: usize) -> Result<Self, ParseError> {
-        let map = level
-            .checked_sub(1)
-            .and_then(|index| levels::LEVELS.get(index))
-            .ok_or(ParseError::InvalidLevel {
-                asked: level,
-                min: 1,
-                max: levels::LEVELS.len(),
-            })?;
-        Self::try_from(*map)
+        Self::from_config(&MapSpec::level(level)?, PhysicsParams::default())
     }
     pub fn from_file(file: &str) -> Result<Self, ParseError> {
-        if let Some(map) = levels::get_level_str(file) {
-            return Self::try_from(map);
-        }
-        let content = std::fs::read_to_string(file).map_err(|_| ParseError::InvalidFileName {
-            file_name: file.into(),
-        })?;
-        Self::try_from(content.as_str())
+        Self::from_config(&MapSpec::from_file(file)?, PhysicsParams::default())
     }
     pub fn n_agents(&self) -> usize {
         self.starts.len()
@@ -291,7 +271,7 @@ impl ContinuousWorld {
 impl TryFrom<&str> for ContinuousWorld {
     type Error = ParseError;
     fn try_from(s: &str) -> Result<Self, ParseError> {
-        let config = parsing::parse_config(s)?;
+        let config = MapSpec::parse(s)?;
         Self::from_config(&config, PhysicsParams::default())
     }
 }
