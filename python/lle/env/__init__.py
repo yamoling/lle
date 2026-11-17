@@ -6,16 +6,19 @@ handling before calling `build()`.
 """
 
 from .builder import Builder
+from .common import DeathStrategy
 from .env import LLE
 from .extras_generators import ExtraGenerator, LaserSubgoal, NoExtras
-from .reward_strategy import MultiObjective, RewardStrategy, SingleObjective
+from .reward_strategy import MultiObjective, PotentialShaped, RewardStrategy, SingleObjective
 
 __all__ = [
     "LLE",
     "Builder",
+    "DeathStrategy",
     "RewardStrategy",
     "SingleObjective",
     "MultiObjective",
+    "PotentialShaped",
     "ExtraGenerator",
     "NoExtras",
     "LaserSubgoal",
