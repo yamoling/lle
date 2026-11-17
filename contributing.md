@@ -33,11 +33,11 @@ You should run `cargo fmt` and `cargo clippy` before committing.
 
 ### Rust unit tests
 
-Unlike the common convention, unit tests live in `src/unit_tests/`, one file per tested module. Each file is wired via a `#[path="..."]` directive by its tested module. Example from `src/solver/context.rs`:
+Unlike the common convention, unit tests live in `src/unit_tests/`, one file per tested module. Each file is wired via a `#[path="..."]` directive by its tested module. Example from `src/discrete/solver/context.rs`:
 
 ```rust
 #[cfg(test)]
-#[path = "../unit_tests/test_context.rs"]
+#[path = "../../unit_tests/test_context.rs"]
 mod tests;
 ```
 

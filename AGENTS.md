@@ -16,7 +16,14 @@ Each Rust type gets a `Py*` wrapper in `src/bindings/` deriving `#[pyclass]`. Cu
 - **Plain-text (v1):** Space-separated tokens per row, newline-separated rows. Explained in `python/lle/__init__.py`.
   - Tokens: `S[id]` (Start), `G` (Gem), `X` (Exit), `.` (Floor), `@` (Wall), `V` (Void), `#` (Box), `L[id][direction]` (Laser source: N/E/S/W).
 - **TOML (v2):** Richer format supporting random start positions. Automatically detected by the presence of a `[world]` header.
-- Built-in levels 1–6 are statically embedded via `build.rs` and `src/core/levels.rs`.
+- Built-in levels 1–6 are statically embedded via `build.rs` and `src/shared/map/levels.rs`.
+
+## Crate layout
+
+- `src/shared/`: physics-agnostic code (ids, `Position`, `Grid`, directions, `WorldEvent`, sprites, and the map layer `MapSpec`/`ValidMap` in `src/shared/map/`). Every `crate::` path in it starts with `crate::shared`.
+- `src/discrete/`: the grid engine (`World`, `Action`, tiles, the SAT solver in `src/discrete/solver/`, the renderer). It never references `crate::continuous`.
+- `src/continuous/`: the continuous engine. Every `crate::` path in it starts with `crate::shared` or `crate::continuous`, so root re-exports such as `crate::Position` are forbidden there.
+- `src/unit_tests/test_architecture.rs` enforces these dependency rules.
 
 ## Constraints
 
