@@ -96,3 +96,14 @@ def test_env_without_static_features_keeps_the_round_a_shapes():
     world = ContinuousWorld(MAP)
     assert env.observation_shape == (world.observation_size,)
     assert env.state_shape == (world.state_size,)
+
+
+def test_size_helpers_count_the_static_block():
+    world = ContinuousWorld(MAP)
+    assert world.state_size_for(False) == world.state_size
+    assert world.observation_size_for(False) == world.observation_size
+    assert world.state_size_for(True) == world.state_size + world.static_features_size
+    assert world.observation_size_for(True) == world.observation_size + world.static_features_size
+    env = clle.from_str(MAP).include_static_features().build()
+    assert env.state_shape == (world.state_size_for(True),)
+    assert env.observation_shape == (world.observation_size_for(True),)

@@ -121,11 +121,6 @@ def test_lidar_state_type_is_a_value_error():
         clle.from_str(TWO_AGENTS).state_type(ObservationType.LIDAR).build()
 
 
-def test_unknown_observation_type_is_still_a_value_error():
-    with pytest.raises(ValueError):
-        clle.from_str(TWO_AGENTS).obs_type("perspective").build()  # type: ignore[arg-type]
-
-
 @pytest.mark.parametrize(
     "configure",
     [
@@ -161,8 +156,8 @@ def test_invalid_observation_options_raise_at_build(configure: Any):
 @pytest.mark.parametrize("obs_type", ["state", "layered", "lidar", "rgb"])
 @pytest.mark.parametrize("duplicate", ["deepcopy", "pickle"])
 def test_copies_of_envs_are_independent_for_every_observation_type(obs_type: str, duplicate: str):
-    # At res 4, the agent always lights a pixel of the layered observation: at res 2, a disc of
-    # radius 0.3 at a cell centre contains no pixel centre, so the corridor would look empty.
+    # The agent is the only thing that moves in the corridor: the layered observation changes with
+    # it at every resolution (its disc lights every pixel it overlaps).
     env = clle.from_str(CORRIDOR).obs_type(obs_type).state_type("layered").layered_resolution(4).lidar(n_rays=4).build()  # type: ignore[arg-type]
     env.reset()
     env.step([EAST])
@@ -190,12 +185,10 @@ def test_copies_keep_the_randomized_colours_and_static_features():
         np.testing.assert_array_equal(other.get_state().data, env.get_state().data)
 
 
-def test_default_observation_options_reach_the_world():
-    # Default resolution 4, default lidar of 16 rays with a range of 5.
+def test_default_lidar_options_reach_the_world():
+    # The default shapes are checked by `test_observation_shapes_are_known_before_reset`; the
+    # default range (5) is only visible in the values.
     world = ContinuousWorld(TWO_AGENTS)
-    layered = clle.from_str(TWO_AGENTS).obs_type("layered").build()
-    assert layered.observation_shape == tuple(world.layered_shape(4))
     lidar = clle.from_str(TWO_AGENTS).obs_type("lidar").build()
-    assert lidar.observation_shape == (world.lidar_size(16),)
     obs, _ = lidar.reset()
     np.testing.assert_array_equal(obs.data[1], world.lidar(1, n_rays=16, range=5.0))

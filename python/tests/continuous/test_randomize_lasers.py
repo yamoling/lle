@@ -1,9 +1,11 @@
 """Tests of `ContinuousWorld.set_laser_colour` and of the `randomize_lasers` builder option (round B, §4).
 
-A colour is valid for a source when it is below `n_colours` and no possible start of an agent of
-another colour lies in the full beam cells of that source. With `.randomize_lasers()`,
-`CLLE.reset()` draws, for each source in laser id order, a colour uniformly among its valid ones,
-with the Python `random` module seeded by `reset(seed=...)` and `seed()`.
+`ContinuousWorld.valid_laser_colours(laser_id)` is the single rule: a colour is valid for a source
+when it is below `n_colours`, no possible start of an agent of another colour lies in the full beam
+cells of that source, and its current beam would not kill an alive agent of another colour where it
+stands. `set_laser_colour` accepts exactly these colours. With `.randomize_lasers()`, `CLLE.reset()`
+draws, for each source in laser id order, a colour uniformly among its valid ones, with the Python
+`random` module seeded by `reset(seed=...)` and `seed()`.
 """
 
 import copy
@@ -15,7 +17,7 @@ import pytest
 from lle.continuous import ContinuousWorld
 from lle.exceptions import InvalidWorldStateError
 
-from .common import EAST, STILL, TWO_AGENTS, cells
+from .common import EAST, STILL, TWO_AGENTS
 
 MAP = """
 S0  .   .  .  X
@@ -42,22 +44,8 @@ def laser_id_at(world: ContinuousWorld, cell: tuple[int, int]) -> int:
 
 
 def valid_colours(world: ContinuousWorld, source_index: int) -> set[int]:
-    """
-    The colours that the source at `source_index` (in laser order) may take: those below
-    `n_colours` such that no possible start of an agent of another colour lies in its beam.
-
-    @ai-generated
-    """
-    beam = set(cells(world.beam_cells[source_index]))
-    valid = set[int]()
-    for colour in range(world.n_colours):
-        conflicts = (
-            agent_colour != colour and any(start in beam for start in cells(starts))
-            for agent_colour, starts in zip(world.agents_colours, world.possible_starts)
-        )
-        if not any(conflicts):
-            valid.add(colour)
-    return valid
+    """The colours that the source at `source_index` (in laser order) may take, from the world."""
+    return set(world.valid_laser_colours(world.laser_sources[source_index][3]))
 
 
 def test_valid_colours_of_the_map():
@@ -66,6 +54,25 @@ def test_valid_colours_of_the_map():
     by_cell = {tuple(cell)[:2]: index for index, (cell, *_) in enumerate(world.laser_sources)}
     assert valid_colours(world, by_cell[CONSTRAINED]) == {1}
     assert valid_colours(world, by_cell[FREE]) == {0, 1, 2}
+
+
+def test_set_laser_colour_accepts_exactly_the_valid_colours():
+    # On every built-in level and on MAP, after a reset and after a few random steps.
+    worlds = [ContinuousWorld.level(n) for n in range(1, 7)] + [ContinuousWorld(MAP)]
+    rng = np.random.default_rng(0)
+    for world in worlds:
+        for _ in range(3):
+            for _, _, _, laser_id in world.laser_sources:
+                valid = world.valid_laser_colours(laser_id)
+                for colour in range(world.n_colours + 1):
+                    copy_ = copy.deepcopy(world)
+                    try:
+                        copy_.set_laser_colour(laser_id, colour)
+                        accepted = True
+                    except InvalidWorldStateError:
+                        accepted = False
+                    assert accepted == (colour in valid), (laser_id, colour, valid)
+            world.step(rng.uniform(-1, 1, (world.n_agents, 2)), 5)
 
 
 def test_reset_draws_only_valid_colours():
@@ -166,20 +173,100 @@ def test_set_laser_colour_recomputes_the_beam():
 
 @pytest.mark.parametrize(
     "source, colour",
-    [(FREE, 3), (CONSTRAINED, 0), (CONSTRAINED, 2), (None, 0)],
-    ids=["colour-out-of-range", "start-of-another-colour-0", "start-of-another-colour-2", "unknown-laser"],
+    [(FREE, 3), (FREE, -1), (CONSTRAINED, 0), (CONSTRAINED, 2), (None, 0), (-1, 0)],
+    ids=[
+        "colour-out-of-range",
+        "negative-colour",
+        "start-of-another-colour-0",
+        "start-of-another-colour-2",
+        "unknown-laser",
+        "negative-laser-id",
+    ],
 )
-def test_invalid_colour_changes_raise_and_change_nothing(source: tuple[int, int] | None, colour: int):
+def test_invalid_colour_changes_raise_and_change_nothing(source: tuple[int, int] | int | None, colour: int):
     world = ContinuousWorld(MAP)
-    laser_id = 42 if source is None else laser_id_at(world, source)
+    world.get_image()  # an already-rendered frame must not change either
+    laser_id = 42 if source is None else source if isinstance(source, int) else laser_id_at(world, source)
     sources = world.laser_sources
     state = world.get_state()
     layered = world.layered(1)
+    image = world.get_image()
     with pytest.raises(InvalidWorldStateError):
         world.set_laser_colour(laser_id, colour)
     assert world.laser_sources == sources
     assert world.get_state() == state
     np.testing.assert_array_equal(world.layered(1), layered)
+    np.testing.assert_array_equal(world.get_image(), image)
+
+
+@pytest.mark.parametrize("laser_id", [42, -1])
+def test_valid_colours_of_an_unknown_laser_raise(laser_id: int):
+    with pytest.raises(InvalidWorldStateError):
+        ContinuousWorld(MAP).valid_laser_colours(laser_id)
+
+
+UNSELECTED_START = """
+world_string = \"\"\"
+.   . . X
+L0E . . .
+.   . . X
+\"\"\"
+[[agents]]
+start_positions = [{ i = 0, j = 0 }, { i = 1, j = 2 }]
+[[agents]]
+start_positions = [{ i = 2, j = 0 }]
+"""
+# Width 4, height 3, n_colours = 2. The beam of colour 0 runs over (1, 1) to (1, 3). Agent 0
+# (colour 0) may start on (0, 0), outside the beam, or on (1, 2), inside it; agent 1 (colour 1)
+# starts on (2, 0). Colour 1 would cross the possible start (1, 2) of agent 0, even when agent 0
+# was drawn on (0, 0): colour 0 is the only valid one.
+
+
+def test_recolouring_checks_the_starts_that_were_not_drawn():
+    world = ContinuousWorld(UNSELECTED_START)
+    # Draw starts until agent 0 starts outside the beam, on (0, 0).
+    for seed in range(100):
+        world.seed(seed)
+        world.reset()
+        if world.agents_positions[0] == (0.5, 0.5):
+            break
+    assert world.agents_positions[0] == (0.5, 0.5)
+    assert world.valid_laser_colours(0) == [0]
+    sources, state = world.laser_sources, world.get_state()
+    layered, image = world.layered(2), world.get_image()
+    with pytest.raises(InvalidWorldStateError):
+        world.set_laser_colour(0, 1)
+    assert world.laser_sources == sources
+    assert world.get_state() == state
+    np.testing.assert_array_equal(world.layered(2), layered)
+    np.testing.assert_array_equal(world.get_image(), image)
+    # Randomized resets never draw colour 1, whichever start agent 0 is drawn on.
+    env = clle.from_str(UNSELECTED_START).randomize_lasers().build()
+    starts = set()
+    for seed in range(30):
+        env.reset(seed=seed)
+        starts.add(tuple(env.world.agents_cells[0])[:2])
+        assert env.world.laser_sources[0][2] == 0
+    assert starts == {(0, 0), (1, 2)}
+
+
+def test_recolouring_never_puts_an_alive_agent_in_a_lethal_beam():
+    # Mid-episode (through set_state), agent 1 (colour 1) stands at (2.5, 0.5) in the beam of
+    # colour 0 of L0N (laser 0) in TWO_AGENTS: the beam would kill it at the next tick, so colour 1
+    # is the only valid one, and setting it saves agent 1.
+    world = ContinuousWorld(TWO_AGENTS)
+    state = world.get_state()
+    state.positions = [state.positions[0], (2.5, 0.5)]
+    world.set_state(state)
+    assert world.valid_laser_colours(0) == [1]
+    world.set_laser_colour(0, 1)
+    world.step([STILL, STILL], 1)
+    assert world.agents_alive == [True, True]
+    # Agent 1 now blocks its own beam: switching back to colour 0 would kill it where it stands.
+    sources = world.laser_sources
+    with pytest.raises(InvalidWorldStateError):
+        world.set_laser_colour(0, 0)
+    assert world.laser_sources == sources
 
 
 def test_laser_colours_survive_copies_and_set_state():

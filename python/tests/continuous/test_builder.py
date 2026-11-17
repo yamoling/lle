@@ -131,6 +131,8 @@ def test_unknown_observation_type_is_a_value_error_when_set():
     with pytest.raises(ValueError):
         clle.from_str(CORRIDOR).obs_type("sonar")  # type: ignore[arg-type]
     with pytest.raises(ValueError):
+        clle.from_str(CORRIDOR).obs_type("perspective")  # type: ignore[arg-type]  # an LLE-only type
+    with pytest.raises(ValueError):
         clle.from_str(CORRIDOR).state_type("rgb-array")  # type: ignore[arg-type]
 
 

@@ -6,6 +6,7 @@ only compare frames with one another; the exact pixel values are checked by the 
 """
 
 import copy
+import gc
 import pickle
 
 import lle.continuous as clle
@@ -142,8 +143,29 @@ def test_render_human_shows_the_frame_in_an_opencv_window(monkeypatch: pytest.Mo
     monkeypatch.setattr(cv2, "namedWindow", lambda *args, **kwargs: None)
     monkeypatch.setattr(cv2, "imshow", lambda name, image: shown.append(np.array(image)))
     monkeypatch.setattr(cv2, "waitKey", lambda *args, **kwargs: -1)
+    destroyed = []
+    monkeypatch.setattr(cv2, "destroyWindow", lambda name: destroyed.append(name))
     env = clle.from_str(TWO_AGENTS).build()
     env.reset()
     env.render("human")
     assert len(shown) == 1
     np.testing.assert_array_equal(shown[0], env.get_image())
+    # Dispose of the env while the mocks are active: `MARLEnv.__del__` destroys its window.
+    name = env.name
+    del env
+    gc.collect()
+    assert destroyed == [name]
+
+
+def test_render_with_an_unknown_mode_is_a_value_error():
+    env = clle.from_str(TWO_AGENTS).build()
+    env.reset()
+    with pytest.raises(ValueError):
+        env.render("bogus")  # type: ignore[arg-type]
+
+
+def test_image_shape_is_known_without_rendering():
+    world = ContinuousWorld(TWO_AGENTS)
+    assert world.image_shape == (2 * 32, 3 * 32, 3)
+    assert world.get_image().shape == world.image_shape
+    assert clle.from_str(TWO_AGENTS).obs_type("rgb").build().observation_shape == world.image_shape

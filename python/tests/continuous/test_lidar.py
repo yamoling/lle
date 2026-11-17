@@ -5,15 +5,15 @@ over 360°: ray 0 points east (+x), and the next ones turn counter-clockwise on 
 the north (-y) first. Ray `k` has the direction `(cos(2πk/n), -sin(2πk/n))`. For each ray and each
 category, the value is the distance to the first hit divided by `range`, or `1.0` without a hit
 within `range`. The categories are:
-0. wall or laser source (cells); 1. void (cells); 2. other alive agents (discs of radius 0.3);
+0. wall or laser source (cells), and the grid boundary; 1. void (cells); 2. other alive agents (discs of radius 0.3);
 3. uncollected gems (circles of radius 0.25); 4. exits (cells); then 5 + c. the beams of colour `c`
 after their cuts, as segments of width `beam_width` (0.1 by default).
 
 The layout is ray-major (`[ray 0: cat 0..N, ray 1: ...]`), followed by the observer's own STATE
 block (`6 + n_colours` values, as at the start of `world.observation(agent)`).
 
-Whether the grid boundary counts as a wall is not specified: the expected values below never
-depend on it (`None` marks the entries that would).
+The grid boundary is solid for the agents, so the rays hit it in the wall category, from inside
+the grid. A hit at exactly `range` is clipped to `1.0`, like no hit.
 """
 
 import math
@@ -56,12 +56,12 @@ L1E .  .  .  .  .  .  .  .
 # - east: the gem (3, 7), centred at x = 7.5: 3 - 0.25 = 2.75; the wall (3, 8) at x = 8: 3.5;
 # - north: the beam at y = 1.55: 1.95; the wall (0, 4), whose bottom edge is y = 1: 2.5;
 # - west: agent 1, centred at x = 1.5: 3 - 0.3 = 2.7; the wall (3, 0) at x = 1: 3.5;
-# - south: the void (5, 4) at y = 5: 1.5; the exit (6, 4) at y = 6: 2.5; then the grid edge.
+# - south: the void (5, 4) at y = 5: 1.5; the exit (6, 4) at y = 6: 2.5; the grid edge y = 7: 3.5.
 # From agent 1:
 # - east: agent 0 at 2.7; the gem at 6 - 0.25 = 5.75 and the wall (3, 8) at 6.5, out of range;
-# - north: its own beam at 1.95, then the grid edge;
+# - north: its own beam at 1.95, then the grid edge y = 0: 3.5;
 # - west: the wall (3, 0) at x = 1: 0.5;
-# - south: nothing before the grid edge.
+# - south: nothing before the grid edge y = 7: 3.5.
 WALL, VOID, AGENT, GEM, EXIT, BEAM_0, BEAM_1 = range(7)
 
 DIAGONAL = """
@@ -80,17 +80,16 @@ def rays(lidar: np.ndarray, n_rays: int, n_categories: int) -> np.ndarray:
     return lidar[: n_rays * n_categories].reshape(n_rays, n_categories)
 
 
-def assert_rays(actual: np.ndarray, expected: list[list[float | None]]):
+def assert_rays(actual: np.ndarray, expected: list[list[float]]):
     """
-    Check every entry of the `(n_rays, n_categories)` array `actual` against `expected`, except the
-    `None` ones. The distances are computed in `f64` and exported as `f32`.
+    Check every entry of the `(n_rays, n_categories)` array `actual` against `expected`. The
+    distances are computed in `f64` and exported as `f32`.
 
     @ai-generated
     """
-    expected_array = np.array([[np.nan if v is None else v for v in row] for row in expected], dtype=np.float64)
+    expected_array = np.array(expected, dtype=np.float64)
     assert actual.shape == expected_array.shape
-    mask = ~np.isnan(expected_array)
-    np.testing.assert_allclose(actual[mask], expected_array[mask], rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(actual, expected_array, rtol=1e-6, atol=1e-6)
 
 
 def test_lidar_size_and_dtype():
@@ -139,7 +138,7 @@ def test_each_category_is_hit_at_its_own_distance():
             [0.7, 1, 1, 0.55, 1, 1, 1],  # east: wall 3.5, gem 2.75
             [0.5, 1, 1, 1, 1, 1, 0.39],  # north: wall 2.5, beam of colour 1 at 1.95
             [0.7, 1, 0.54, 1, 1, 1, 1],  # west: wall 3.5, agent 1 at 2.7
-            [None, 0.3, 1, 1, 0.5, 1, 1],  # south: void 1.5, exit 2.5
+            [0.7, 0.3, 1, 1, 0.5, 1, 1],  # south: grid edge 3.5, void 1.5, exit 2.5
         ],
     )
 
@@ -152,9 +151,9 @@ def test_hits_beyond_the_range_read_one():
         rays(world.lidar(1, n_rays=4, range=5.0), 4, 7),
         [
             [1, 1, 0.54, 1, 1, 1, 1],
-            [None, 1, 1, 1, 1, 1, 0.39],
+            [0.7, 1, 1, 1, 1, 1, 0.39],
             [0.1, 1, 1, 1, 1, 1, 1],
-            [None, 1, 1, 1, 1, 1, 1],
+            [0.7, 1, 1, 1, 1, 1, 1],
         ],
     )
 
@@ -262,7 +261,41 @@ def test_invalid_lidar_sizes_are_value_errors():
         world.lidar_size(0)
 
 
-def test_unknown_agent_is_an_index_error():
+@pytest.mark.parametrize("agent", [2, -1, 2**64])
+def test_unknown_agent_is_an_index_error(agent: int):
     world = ContinuousWorld(MIXED)
     with pytest.raises(IndexError):
-        world.lidar(2)
+        world.lidar(agent)
+
+
+def test_the_grid_boundary_is_hit_as_a_wall():
+    # No wall at all: from (0.5, 0.5) in the 3 × 2 grid, the boundary is 2.5 away to the east, 0.5
+    # to the north and to the west, and 1.5 to the south. The diagonal rays leave through the top
+    # or left edge, 0.5·sqrt(2) away, except the south-east one, through the bottom edge.
+    world = ContinuousWorld("S0 . X\n. . .")
+    r = rays(world.lidar(0, n_rays=8, range=5.0), 8, 6)
+    s2 = math.sqrt(2)
+    expected = [2.5, 0.5 * s2, 0.5, 0.5 * s2, 0.5, 0.5 * s2, 1.5, 1.5 * s2]
+    np.testing.assert_allclose(r[:, WALL], np.array(expected) / 5, rtol=1e-6)
+    # Nothing else is hit, except the exit (0, 2) to the east, 1.5 away.
+    np.testing.assert_allclose(r[0, 1:], [1, 1, 1, 0.3, 1], rtol=1e-6)
+
+
+def test_a_hit_at_exactly_the_range_reads_one():
+    # The void (5, 4) starts exactly 1.5 south of agent 0: with a range of 1.5, the value is clipped
+    # to 1, like no hit; with a slightly longer range, it is just below 1.
+    world = ContinuousWorld(MIXED)
+    assert rays(world.lidar(0, n_rays=4, range=1.5), 4, 7)[3, VOID] == 1.0
+    assert rays(world.lidar(0, n_rays=4, range=1.5 + 1e-6), 4, 7)[3, VOID] < 1.0
+
+
+def test_a_blocker_sees_its_own_beam_end_at_its_disc():
+    # Agent 1 (colour 1) stands in its own beam at (3.5, 1.5): the segment ends at its disc, 0.3 to
+    # the west (towards the source). To the east, the beam is cut: nothing.
+    world = ContinuousWorld(MIXED)
+    state = world.get_state()
+    state.positions = [(4.5, 3.5), (3.5, 1.5)]
+    world.set_state(state)
+    r = rays(world.lidar(1, n_rays=4, range=5.0), 4, 7)
+    assert r[2, BEAM_1] == pytest.approx(0.3 / 5)
+    assert r[0, BEAM_1] == 1.0
