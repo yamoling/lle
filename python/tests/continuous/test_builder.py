@@ -107,10 +107,38 @@ def test_obs_and_state_type_accept_state(value: Any):
     assert env.state_shape == (world.state_size,)
 
 
-def test_end_death_strategy_is_accepted():
-    env = clle.from_str(CORRIDOR).death_strategy("end").build()
-    env.reset()
-    assert not env.step([EAST]).done
+def test_unknown_death_strategy_is_a_value_error_at_build():
+    builder = clle.from_str(CORRIDOR).death_strategy("teleport")  # type: ignore[arg-type]
+    with pytest.raises(ValueError):
+        builder.build()
+
+
+@pytest.mark.parametrize("value", [0, -1, 1.5, True], ids=["zero", "negative", "fractional", "bool"])
+def test_invalid_action_repeat_is_a_value_error_at_build(value: Any):
+    builder = clle.from_str(CORRIDOR).action_repeat(value)
+    with pytest.raises(ValueError):
+        builder.build()
+
+
+def test_invalid_pbrs_laser_id_is_a_value_error_at_build():
+    builder = clle.level(6).pbrs(lasers_to_reward=[0, 42])
+    with pytest.raises(ValueError):
+        builder.build()
+
+
+def test_unknown_observation_type_is_a_value_error_when_set():
+    # Unlike the physics setters, the observation types are checked right away, as in `lle.Builder`.
+    with pytest.raises(ValueError):
+        clle.from_str(CORRIDOR).obs_type("lidar")  # type: ignore[arg-type]
+    with pytest.raises(ValueError):
+        clle.from_str(CORRIDOR).state_type("layered")  # type: ignore[arg-type]
+
+
+def test_from_file_accepts_a_built_in_level_name():
+    env = clle.from_file("lvl6").build()
+    assert env.name == "CLLE-lvl6"
+    assert env.world.get_state() == ContinuousWorld.level(6).get_state()
+    assert ContinuousWorld.from_file("lvl6").get_state() == ContinuousWorld.level(6).get_state()
 
 
 def test_respawn_death_strategy_is_not_implemented():

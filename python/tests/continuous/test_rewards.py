@@ -11,7 +11,7 @@ import pytest
 from lle.continuous import ContinuousWorld
 from lle.env.reward_strategy import REWARD_DONE, REWARD_EXIT, REWARD_GEM, MultiObjective, SingleObjective
 
-from .common import EAST, GEM_THEN_EXIT, SOUTH
+from .common import EAST, GEM_THEN_EXIT, NORTH, SOUTH
 
 PBRS_MAP = """
 S0  . .
@@ -110,6 +110,27 @@ def test_pbrs_with_multi_objective_adds_an_objective():
     second = env.step([SOUTH]).reward
     np.testing.assert_allclose(first, [0, 0, 0, 0, 0.99 - 1.0], atol=1e-6)
     np.testing.assert_allclose(second, [0, 0, 0, 0, 0.99 - 0.5], atol=1e-6)
+
+
+# Reach laser 0, leave it, come back, leave it again, then reach laser 1.
+PBRS_DETOUR = [EAST, SOUTH, SOUTH, NORTH, SOUTH, SOUTH]
+PBRS_DETOUR_REWARDS = [0.99 - 1.0, 0.99 - 0.5, 0.99 * 0.5 - 0.5, 0.99 * 0.5 - 0.5, 0.99 * 0.5 - 0.5, 0.99 * 0.5]
+
+
+@pytest.mark.parametrize("copy_after", [2, 3, 4])
+@pytest.mark.parametrize("duplicate", [copy.deepcopy, lambda env: pickle.loads(pickle.dumps(env))], ids=["deepcopy", "pickle"])
+def test_pbrs_copies_keep_the_reached_lasers(duplicate, copy_after: int):
+    """A copy made after laser 0 was reached keeps that history and the previous potential: it
+    rewards the rest of the detour like an uninterrupted run, and so does the original."""
+    env = clle.from_str(PBRS_MAP).pbrs(gamma=0.99, reward_value=0.5).build()
+    env.reset()
+    rewards = [env.step([action]).reward[0] for action in PBRS_DETOUR[:copy_after]]
+    clone = duplicate(env)
+    clone_rewards = [clone.step([action]).reward[0] for action in PBRS_DETOUR[copy_after:]]
+    env_rewards = [env.step([action]).reward[0] for action in PBRS_DETOUR[copy_after:]]
+    assert rewards + clone_rewards == pytest.approx(PBRS_DETOUR_REWARDS, abs=1e-6)
+    assert rewards + env_rewards == pytest.approx(PBRS_DETOUR_REWARDS, abs=1e-6)
+    assert tuple(clone.world.agents_cells[0]) == tuple(env.world.agents_cells[0]) == (3, 1, 0)
 
 
 @pytest.mark.parametrize("duplicate", [copy.deepcopy, lambda env: pickle.loads(pickle.dumps(env))], ids=["deepcopy", "pickle"])

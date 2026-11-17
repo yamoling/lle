@@ -84,9 +84,13 @@ def test_params_repr_pickle_and_deepcopy():
 
 
 def test_params_unknown_action_model_is_a_value_error():
-    # The contract does not say whether the constructor or the world raises: both are accepted.
+    # Contract §3: the constructor and the setter raise, not only the world.
     with pytest.raises(ValueError):
-        ContinuousWorld(CORRIDOR, PhysicsParams(action_model="unicycle"))
+        PhysicsParams(action_model="unicycle")
+    params = PhysicsParams()
+    with pytest.raises(ValueError):
+        params.action_model = "unicycle"
+    assert params.action_model == "velocity"
 
 
 # ---------------------------------------------------------------------------------------------
@@ -139,8 +143,16 @@ def test_world_matches_the_discrete_world_on_level_6():
         direction, colour, laser_id = sources[tuple(source.pos)]
         assert (direction, colour, laser_id) == (source.direction, source.colour, source.laser_id)
         discrete_beam = [laser.pos for laser in discrete.lasers if laser.laser_id == source.laser_id]
-        # The order of the cells within a beam is not specified.
-        assert sorted(cells(world.beam_cells[laser_id])) == sorted(cells(discrete_beam))
+        beam = cells(world.beam_cells[laser_id])
+        assert sorted(beam) == sorted(cells(discrete_beam))
+        # The beam cells are ordered from the source outwards.
+        (i, j, k), (di, dj) = tuple(source.pos), direction.delta
+        assert beam == [(i + n * di, j + n * dj, k) for n in range(1, len(beam) + 1)]
+
+
+def test_beam_cells_are_ordered_from_the_source_outwards():
+    world = ContinuousWorld("S0 . . L0W\nX . . .")
+    assert cells(world.beam_cells[0]) == [(0, 2, 0), (0, 1, 0), (0, 0, 0)]
 
 
 def test_level_and_from_file_accept_params(tmp_path):
@@ -302,6 +314,14 @@ def test_non_integer_arguments_are_a_type_error(bad):
 # ---------------------------------------------------------------------------------------------
 # Stepping
 # ---------------------------------------------------------------------------------------------
+
+
+def test_diagonal_action_is_capped_at_full_speed():
+    # The action is clipped to the unit disc: (1, 1) moves by 0.1 / sqrt(2) per axis per tick.
+    world = ContinuousWorld("S0 . . .\n. . . .\n. . . X")
+    world.step([(1.0, 1.0)], 3)
+    expected = 0.5 + 3 * 0.1 / np.sqrt(2)
+    np.testing.assert_allclose(xy(world.agents_positions), [(expected, expected)], rtol=1e-9)
 
 
 def test_step_runs_one_tick_by_default():
@@ -536,11 +556,12 @@ def test_seed_gives_reproducible_random_starts():
     assert len(seen) > 1, "the random starts never depend on the seed"
 
 
-def test_deepcopy_is_independent_and_copies_the_rng():
+@pytest.mark.parametrize("duplicate", [copy.deepcopy, lambda world: pickle.loads(pickle.dumps(world))], ids=["deepcopy", "pickle"])
+def test_copies_are_independent_and_copy_the_rng(duplicate):
     world = ContinuousWorld(RANDOM_STARTS)
     world.seed(3)
     world.reset()
-    clone = copy.deepcopy(world)
+    clone = duplicate(world)
     assert clone.get_state() == world.get_state()
     # Same RNG state: the next random starts are the same.
     for _ in range(5):
@@ -549,16 +570,26 @@ def test_deepcopy_is_independent_and_copies_the_rng():
         assert clone.get_state() == world.get_state()
     # Independent: reseeding, resetting or stepping the clone leaves the original untouched,
     # including its RNG.
-    reference = copy.deepcopy(world)
+    reference = duplicate(world)
     before = world.get_state()
     clone.seed(1000)
     clone.reset()
     clone.step([SOUTH, STILL], 3)
     assert world.get_state() == before
+    starts = set()
     for _ in range(5):
         world.reset()
         reference.reset()
         assert world.get_state() == reference.get_state()
+        starts.add(tuple(xy(world.agents_positions)))
+    assert len(starts) > 1, "the starts are not random: the test would not detect a lost RNG"
+    # Reseeding the copy and the original alike gives the same starts again.
+    world.seed(7)
+    clone.seed(7)
+    for _ in range(5):
+        world.reset()
+        clone.reset()
+        assert clone.get_state() == world.get_state()
 
 
 def test_pickle_preserves_the_map_params_and_state():
