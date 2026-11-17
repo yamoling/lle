@@ -344,21 +344,65 @@ fn test_layered_at_reset_with_res_1() {
 }
 
 #[test]
-fn test_layered_beam_is_cut_before_the_cell_of_the_blocker() {
+fn test_layered_beam_is_cut_at_the_disc_of_the_blocker() {
     let mut world = layered_world();
     let mut state = world.get_state();
-    // Agent 1 (colour 1) stands in the beam, at the centre of the cell (1, 2).
+    // Agent 1 (colour 1) stands in the beam, at the centre of the cell (1, 2): the beam stops at
+    // its disc, at x = 2.2, so it reaches into the cell (1, 2), unlike in LLE, which turns the
+    // beam off from the cell of the blocker on.
     state.positions[1] = [2.5, 1.5];
     world.set_state(&state).unwrap();
     let laser = channel(&world, 1, LASER_1);
-    assert_eq!(cells_with(&laser, 1.0), vec![(1, 1)]);
+    assert_eq!(cells_with(&laser, 1.0), vec![(1, 1), (1, 2)]);
     assert_eq!(cells_with(&channel(&world, 1, A1), 1.0), vec![(1, 2)]);
+    // At res 4, the pixel spanning [2, 2.25] overlaps the beam, the next one does not.
+    let laser = channel(&world, 4, LASER_1);
+    let expected: Vec<_> = [5, 6]
+        .into_iter()
+        .flat_map(|row| (4..=8).map(move |col| (row, col)))
+        .collect();
+    assert_eq!(cells_with(&laser, 1.0), expected);
     // A disabled source keeps its -1 but has no beam.
     state.sources_enabled[0] = false;
     world.set_state(&state).unwrap();
     let laser = channel(&world, 1, LASER_1);
     assert_eq!(cells_with(&laser, 1.0), vec![]);
     assert_eq!(cells_with(&laser, -1.0), vec![(1, 0)]);
+}
+
+#[test]
+fn test_layered_beam_overlaps_pixels_with_a_positive_area() {
+    let world = layered_world();
+    // The beam spans x in [1, 5] and y in [1.45, 1.55].
+    let beam = |res: usize, rows: Vec<usize>, cols: std::ops::Range<usize>| {
+        let expected: Vec<_> = rows
+            .into_iter()
+            .flat_map(|row| cols.clone().map(move |col| (row, col)))
+            .collect();
+        assert_eq!(
+            cells_with(&channel(&world, res, LASER_1), 1.0),
+            expected,
+            "res {res}"
+        );
+    };
+    // res 1: the cells of the beam.
+    beam(1, vec![1], 1..5);
+    // res 3: the middle row of the cells, [4/3, 5/3]; the pixels that only touch x = 1 or
+    // x = 5 are excluded.
+    beam(3, vec![4], 3..15);
+    // res 4: the axis y = 1.5 is a pixel edge, so the two rows on either side are lit.
+    beam(4, vec![5, 6], 4..20);
+    // A wider beam covers more rows.
+    let params = PhysicsParams {
+        beam_width: 0.6,
+        ..PhysicsParams::default()
+    };
+    let wide = ContinuousWorld::from_spec(MapSpec::parse(LAYERED_MAP).unwrap(), params).unwrap();
+    assert_eq!(
+        cells_with(&channel(&wide, 4, LASER_1), 1.0).len(),
+        4 * 16,
+        "y in [1.2, 1.8] overlaps the rows 4 to 7"
+    );
 }
 
 #[test]
@@ -399,14 +443,8 @@ fn test_layered_with_res_4() {
         cells_with(&channel(&world, 4, GEM), 1.0),
         centre_square(0, 2)
     );
-    // The beam, along y = 1.5, is two pixels wide (rows 5 and 6), from x = 1 to the end.
-    let laser = channel(&world, 4, LASER_1);
-    let expected: Vec<_> = [5, 6]
-        .into_iter()
-        .flat_map(|row| (4..20).map(move |col| (row, col)))
-        .collect();
-    assert_eq!(cells_with(&laser, 1.0), expected);
-    assert_eq!(cells_with(&laser, -1.0).len(), 16);
+    // The source cell is -1 (the beam itself is checked above).
+    assert_eq!(cells_with(&channel(&world, 4, LASER_1), -1.0).len(), 16);
     // Cells are filled entirely.
     assert_eq!(cells_with(&channel(&world, 4, WALL), 1.0).len(), 2 * 16);
     assert_eq!(cells_with(&channel(&world, 4, EXIT), 1.0).len(), 2 * 16);

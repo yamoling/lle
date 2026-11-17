@@ -27,23 +27,25 @@
 //! when its centre is:
 //! - inside the disc of an alive agent of the channel's colour (dead agents are not drawn, but
 //!   arrived agents are);
-//! - on the current segment of an enabled beam of the channel's colour (after the cut by an
-//!   agent of its colour; see below);
 //! - in a wall or a laser source (as LLE, whose `wall_pos` contains the sources), in a void or
 //!   in an exit;
 //! - inside the pickup circle of a gem that is not collected.
 //!
+//! **Beams** follow another rule, since a beam (`beam_width` wide) is much thinner than a pixel
+//! and would otherwise vanish whenever its axis runs between two pixel centres: a pixel of the
+//! laser channel of the beam's colour is 1 when its square overlaps, with a positive area, the
+//! rectangle of the current segment of an enabled beam, from the edge of the source to the cut
+//! by an agent of its colour, `beam_width` wide. With `res = 1` the beam lights its cells; with
+//! an odd `res` one pixel row (or column); with an even `res` the two rows on either side of its
+//! axis.
+//!
 //! The pixels of a laser source are `-1` in the laser channel of its colour, as in LLE.
 //!
-//! A beam is a rectangle `beam_width` wide, much thinner than a pixel. Its pixels are those
-//! whose centre projects onto the segment, between the edge of the source and the cut, and lies
-//! within `max(beam_width, 1 / res) / 2` of its axis: the beam is always at least one pixel wide
-//! (two when `res` is even, since the axis then runs between two pixels).
-//!
 //! With `res = 1`, after a reset, this is LLE's `Layered` observation of the same map: the
-//! agents and the gems mark the cells that contain their centre, and a beam marks the cells
-//! from its source to the first agent of its colour, excluded, exactly as LLE turns the beam off
-//! from the cell of that agent.
+//! agents and the gems mark the cells that contain their centre, and the beams mark their cells.
+//! The only difference is the cell of an agent standing in a beam of its own colour: the beam
+//! reaches into that cell up to the agent's disc, so the cell is 1 in the laser channel, while
+//! LLE turns the beam off from that cell on. The cells beyond it are 0 in both.
 //!
 //! # `LIDAR`
 //!
@@ -236,9 +238,7 @@ impl ContinuousWorld {
                 layers.fill_disc(gem, centre(pos), self.params.gem_radius);
             }
         }
-        // The beam is at least one pixel wide; the epsilon keeps the pixels whose centre is
-        // exactly half a pixel away from the axis (when `res` is even).
-        let half_width = (self.params.beam_width / 2.0).max(0.5 / res as f64) + 1e-9;
+        let half_width = self.params.beam_width / 2.0;
         for (beam, segment) in self.beams.iter().zip(self.beam_segments()) {
             if let Some(cut) = segment {
                 layers.fill_beam(
@@ -350,18 +350,32 @@ impl ContinuousWorld {
         let half_width = self.params.beam_width / 2.0;
         for (beam, segment) in self.beams.iter().zip(self.beam_segments()) {
             let Some(cut) = segment else { continue };
-            let end = [
-                beam.origin[0] + beam.direction[0] * cut,
-                beam.origin[1] + beam.direction[1] * cut,
-            ];
-            // Beams are axis-aligned: widen the segment across its direction.
-            let across = [beam.direction[1].abs(), beam.direction[0].abs()];
-            let lo = std::array::from_fn(|d| beam.origin[d].min(end[d]) - across[d] * half_width);
-            let hi = std::array::from_fn(|d| beam.origin[d].max(end[d]) + across[d] * half_width);
+            let (lo, hi) = beam_rectangle(beam.origin, beam.direction, cut, half_width);
             shapes[LIDAR_CELL_AND_DISC_CATEGORIES + beam.colour].push(Shape::Box(lo, hi));
         }
         shapes
     }
+}
+
+/// The corners `(lo, hi)` of the rectangle of a beam from `origin` to `cut` along the axis
+/// `direction`, `half_width` on each side of its axis.
+///
+/// @ai-generated
+pub(super) fn beam_rectangle(
+    origin: [f64; 2],
+    direction: [f64; 2],
+    cut: f64,
+    half_width: f64,
+) -> ([f64; 2], [f64; 2]) {
+    let end = [
+        origin[0] + direction[0] * cut,
+        origin[1] + direction[1] * cut,
+    ];
+    // Beams are axis-aligned: widen the segment across its direction only.
+    let across = [direction[1].abs(), direction[0].abs()];
+    let lo = std::array::from_fn(|d| origin[d].min(end[d]) - across[d] * half_width);
+    let hi = std::array::from_fn(|d| origin[d].max(end[d]) + across[d] * half_width);
+    (lo, hi)
 }
 
 /// The unit direction of the ray `ray` out of `n_rays`, in world coordinates: ray 0 points east
@@ -454,8 +468,8 @@ impl Layers {
         }
     }
 
-    /// Set to 1 the pixels whose centre projects onto the beam between its origin and `cut`,
-    /// within `half_width` of its axis.
+    /// Set to 1 the pixels whose square overlaps, with a positive area, the rectangle of the beam
+    /// from its origin to `cut`, `half_width` on each side of its axis. Beams are axis-aligned.
     ///
     /// @ai-generated
     fn fill_beam(
@@ -466,25 +480,16 @@ impl Layers {
         cut: f64,
         half_width: f64,
     ) {
-        let end = [
-            origin[0] + direction[0] * cut,
-            origin[1] + direction[1] * cut,
-        ];
-        let lo = [
-            origin[0].min(end[0]) - half_width,
-            origin[1].min(end[1]) - half_width,
-        ];
-        let hi = [
-            origin[0].max(end[0]) + half_width,
-            origin[1].max(end[1]) + half_width,
-        ];
+        let (lo, hi) = beam_rectangle(origin, direction, cut, half_width);
+        let res = self.res as f64;
+        // The pixel `k` spans `[k / res, (k + 1) / res]`, exactly at integer coordinates.
+        let overlaps = |k: usize, lo: f64, hi: f64| {
+            ((k + 1) as f64 / res).min(hi) - (k as f64 / res).max(lo) > 0.0
+        };
         let (rows, cols) = self.pixel_ranges(lo, hi);
         for row in rows {
             for col in cols.clone() {
-                let delta = sub(self.pixel_centre(row, col), origin);
-                let along = dot(delta, direction);
-                let across = (delta[0] * direction[1] - delta[1] * direction[0]).abs();
-                if (0.0..=cut).contains(&along) && across <= half_width {
+                if overlaps(col, lo[0], hi[0]) && overlaps(row, lo[1], hi[1]) {
                     self.set(channel, row, col, 1.0);
                 }
             }

@@ -21,7 +21,7 @@ use std::{
 
 use image::{GenericImage, Rgb, RgbImage, RgbaImage};
 
-use super::{ContinuousWorld, geometry::*};
+use super::{ContinuousWorld, geometry::*, observations::beam_rectangle};
 use crate::shared::{
     CardinalDirection, Position,
     sprites::{self, BACKGROUND_GREY, BLACK, GRID_GREY, TILE_SIZE},
@@ -146,21 +146,8 @@ impl ContinuousWorld {
         let half_width = (self.params.beam_width * PX).max(MIN_BEAM_WIDTH) / 2.0;
         for (beam, segment) in self.beams.iter().zip(self.beam_segments()) {
             let Some(cut) = segment else { continue };
-            let start = [beam.origin[0] * PX, beam.origin[1] * PX];
-            let end = [
-                start[0] + beam.direction[0] * cut * PX,
-                start[1] + beam.direction[1] * cut * PX,
-            ];
-            // Beams are axis-aligned: widen the segment across its direction.
-            let across = [beam.direction[1].abs(), beam.direction[0].abs()];
-            let lo = [
-                start[0].min(end[0]) - across[0] * half_width,
-                start[1].min(end[1]) - across[1] * half_width,
-            ];
-            let hi = [
-                start[0].max(end[0]) + across[0] * half_width,
-                start[1].max(end[1]) + across[1] * half_width,
-            ];
+            let origin = [beam.origin[0] * PX, beam.origin[1] * PX];
+            let (lo, hi) = beam_rectangle(origin, beam.direction, cut * PX, half_width);
             let colour = sprites::agent_colour(beam.colour);
             for_pixels(frame, lo, hi, |frame, x, y| {
                 let coverage = overlap(x as f64, lo[0], hi[0]) * overlap(y as f64, lo[1], hi[1]);
