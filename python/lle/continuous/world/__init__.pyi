@@ -119,6 +119,8 @@ class ContinuousWorld:
     def laser_sources(self) -> builtins.list[tuple[builtins.tuple[int, int, int], tiles.Direction, builtins.int, builtins.int]]:
         r"""
         The `(cell, direction, colour, laser_id)` of each laser source, in laser order.
+        
+        @ai-generated
         """
     @property
     def state_size(self) -> builtins.int:
@@ -152,6 +154,8 @@ class ContinuousWorld:
         Raises:
             InvalidLevelError: if the level does not exist.
             UnsupportedFeatureError, ValueError: as the constructor.
+        
+        @ai-generated
         """
     @staticmethod
     def from_file(path: builtins.str | os.PathLike | pathlib.Path, params: typing.Optional[PhysicsParams] = None) -> ContinuousWorld:
@@ -171,6 +175,11 @@ class ContinuousWorld:
     def seed(self, seed: builtins.int) -> None:
         r"""
         Seed the random number generator that draws the starts at reset.
+        
+        Raises:
+            ValueError: if `seed` is negative or does not fit in 64 bits.
+        
+        @ai-generated
         """
     def step(self, actions: numpy.typing.ArrayLike, n_ticks: builtins.int = 1) -> StepOutcome:
         r"""
@@ -183,7 +192,8 @@ class ContinuousWorld:
             n_ticks: The maximal number of ticks to run (at least 1).
         
         Raises:
-            ValueError: if `actions` does not have the shape `(n_agents, 2)`, or `n_ticks` is 0.
+            ValueError: if `actions` does not have the shape `(n_agents, 2)`, or `n_ticks` is not
+                positive.
             InvalidActionError: if an action is not finite.
         
         @ai-generated
@@ -216,7 +226,9 @@ class ContinuousWorld:
         flags. See `state_vector`.
         
         Raises:
-            IndexError: if `agent` is not the id of an agent.
+            IndexError: if `agent` is not the id of an agent (negative values included).
+        
+        @ai-generated
         """
     def __deepcopy__(self, _memo: dict) -> ContinuousWorld:
         r"""
@@ -236,7 +248,12 @@ class ContinuousWorld:
         
         @ai-generated
         """
-    def __repr__(self) -> builtins.str: ...
+    def __repr__(self) -> builtins.str:
+        r"""
+        The size of the world and the current tick.
+        
+        @ai-generated
+        """
 
 @typing.final
 class ContinuousWorldState:
@@ -321,7 +338,12 @@ class ContinuousWorldState:
         """
     def __eq__(self, other: builtins.object, /) -> builtins.bool: ...
     def __new__(cls, positions: typing.Sequence[tuple[builtins.float, builtins.float]], velocities: typing.Sequence[tuple[builtins.float, builtins.float]], gems_collected: typing.Sequence[builtins.bool], agents_alive: typing.Sequence[builtins.bool], agents_arrived: typing.Sequence[builtins.bool], sources_enabled: typing.Sequence[builtins.bool], tick: builtins.int) -> ContinuousWorldState: ...
-    def __repr__(self) -> builtins.str: ...
+    def __repr__(self) -> builtins.str:
+        r"""
+        A representation that reads as the Python call building the same state.
+        
+        @ai-generated
+        """
     def __deepcopy__(self, _memo: dict) -> ContinuousWorldState: ...
     def __copy__(self) -> ContinuousWorldState: ...
     def __getnewargs__(self) -> tuple[builtins.list[tuple[builtins.float, builtins.float]], builtins.list[tuple[builtins.float, builtins.float]], builtins.list[builtins.bool], builtins.list[builtins.bool], builtins.list[builtins.bool], builtins.list[builtins.bool], builtins.int]:
@@ -415,11 +437,21 @@ class PhysicsParams:
         
         @ai-generated
         """
-    def __repr__(self) -> builtins.str: ...
+    def __repr__(self) -> builtins.str:
+        r"""
+        A representation that reads as the Python call building the same parameters.
+        
+        @ai-generated
+        """
     def __deepcopy__(self, _memo: dict) -> PhysicsParams: ...
     def __copy__(self) -> PhysicsParams: ...
     def __getstate__(self) -> tuple[builtins.float, builtins.float, builtins.float, builtins.str, builtins.float, builtins.float, builtins.float, builtins.float]: ...
-    def __setstate__(self, state: tuple[builtins.float, builtins.float, builtins.float, builtins.str, builtins.float, builtins.float, builtins.float, builtins.float]) -> None: ...
+    def __setstate__(self, state: tuple[builtins.float, builtins.float, builtins.float, builtins.str, builtins.float, builtins.float, builtins.float, builtins.float]) -> None:
+        r"""
+        Restore pickled parameters.
+        
+        @ai-generated
+        """
 
 @typing.final
 class StepOutcome:
@@ -442,5 +474,10 @@ class StepOutcome:
         The number of ticks actually run: fewer than asked when the episode ended early (an agent
         died, or every alive agent has arrived).
         """
-    def __repr__(self) -> builtins.str: ...
+    def __repr__(self) -> builtins.str:
+        r"""
+        The number of ticks and every event with its tick index.
+        
+        @ai-generated
+        """
 

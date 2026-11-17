@@ -175,6 +175,9 @@ impl PyPhysicsParams {
         self.inner.beam_width = value;
     }
 
+    /// A representation that reads as the Python call building the same parameters.
+    ///
+    /// @ai-generated
     fn __repr__(&self) -> String {
         let p = &self.inner;
         format!(
@@ -212,6 +215,9 @@ impl PyPhysicsParams {
         )
     }
 
+    /// Restore pickled parameters.
+    ///
+    /// @ai-generated
     fn __setstate__(&mut self, state: PickledParams) -> PyResult<()> {
         let (
             dt,

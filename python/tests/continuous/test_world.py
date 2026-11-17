@@ -213,7 +213,7 @@ def test_invalid_params_are_a_value_error(kwargs: dict[str, float]):
     assert error.type is ValueError
 
 
-@pytest.mark.parametrize("level", [0, 7])
+@pytest.mark.parametrize("level", [0, 7, -1, 2**64, 2**70], ids=["zero", "seven", "negative", "u64-overflow", "huge"])
 def test_unknown_level_is_an_invalid_level_error(level: int):
     with pytest.raises(InvalidLevelError):
         ContinuousWorld.level(level)
@@ -252,12 +252,51 @@ def test_non_finite_action_is_an_invalid_action_error_without_side_effect(bad: f
     assert world.get_state() == before
 
 
-def test_zero_ticks_is_a_value_error():
+@pytest.mark.parametrize("n_ticks", [0, -1, -(2**70), 2**70], ids=["zero", "negative", "very-negative", "huge"])
+def test_non_positive_or_huge_ticks_is_a_value_error(n_ticks: int):
     world = ContinuousWorld(TWO_AGENTS)
     before = world.get_state()
-    with pytest.raises(ValueError):
-        world.step([EAST, STILL], 0)
+    with pytest.raises(ValueError) as error:
+        world.step([EAST, STILL], n_ticks)
+    assert error.type is ValueError
     assert world.get_state() == before
+
+
+@pytest.mark.parametrize("agent", [2, 3, -1, 2**64, 2**70], ids=["n_agents", "beyond", "negative", "u64-overflow", "huge"])
+def test_observation_of_an_unknown_agent_is_an_index_error(agent: int):
+    world = ContinuousWorld(TWO_AGENTS)
+    with pytest.raises(IndexError):
+        world.observation(agent)
+
+
+def test_observation_accepts_numpy_integers():
+    world = ContinuousWorld(TWO_AGENTS)
+    np.testing.assert_array_equal(world.observation(np.int64(1)), world.observation(1))
+
+
+@pytest.mark.parametrize("seed", [-1, 2**64, 2**70], ids=["negative", "u64-overflow", "huge"])
+def test_seed_out_of_range_is_a_value_error(seed: int):
+    world = ContinuousWorld(RANDOM_STARTS)
+    with pytest.raises(ValueError) as error:
+        world.seed(seed)
+    assert error.type is ValueError
+
+
+def test_largest_seed_is_accepted():
+    world = ContinuousWorld(RANDOM_STARTS)
+    world.seed(2**64 - 1)
+    world.reset()
+
+
+@pytest.mark.parametrize("bad", [1.0, "1", None])
+def test_non_integer_arguments_are_a_type_error(bad):
+    world = ContinuousWorld(TWO_AGENTS)
+    with pytest.raises(TypeError):
+        world.observation(bad)
+    with pytest.raises(TypeError):
+        world.seed(bad)
+    with pytest.raises(TypeError):
+        ContinuousWorld.level(bad)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -362,7 +401,10 @@ def test_state_constructor_and_read_write_attributes():
     assert list(state.agents_arrived) == [True, False]
     assert list(state.sources_enabled) == [False]
     assert state.tick == 7
-    assert "ContinuousWorldState" in repr(state)
+    assert repr(state) == (
+        "ContinuousWorldState(positions=[(0.5, 0.5), (1.5, 0.75)], velocities=[(0.0, 0.0), (0.0, 1.0)], "
+        "gems_collected=[True], agents_alive=[True, False], agents_arrived=[True, False], sources_enabled=[False], tick=7)"
+    )
 
 
 def test_state_equality_is_exact():

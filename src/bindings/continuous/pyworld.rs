@@ -1,19 +1,23 @@
 use numpy::{PyArray1, PyArray2, PyArrayMethods};
 use pyo3::{
+    IntoPyObjectExt,
     exceptions::{PyIndexError, PyValueError},
     prelude::*,
     types::{PyDict, PyTuple},
 };
-use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
+use pyo3_stub_gen::{
+    PyStubType, TypeInfo,
+    derive::{gen_stub_pyclass, gen_stub_pymethods},
+};
 
 use super::{PyContinuousWorldState, PyPhysicsParams};
 use crate::bindings::{
-    pyexceptions::{continuous_error_to_pyexception, parse_error_to_exception},
+    pyexceptions::{InvalidLevelError, continuous_error_to_pyexception, parse_error_to_exception},
     tiles::PyDirection,
     world::{PyPosition, PyWorldEvent},
 };
 use crate::continuous::{ContinuousAction, ContinuousWorld, RNG_STATE_SIZE};
-use crate::shared::{MapSpec, ParseError, Position};
+use crate::shared::{MapSpec, ParseError, Position, map::levels::LEVELS};
 
 /// What `ContinuousWorld.__getstate__` returns: the map string, the parameters, the state and the
 /// state of the random number generator.
@@ -42,6 +46,9 @@ pub struct PyStepOutcome {
 #[gen_stub_pymethods]
 #[pymethods]
 impl PyStepOutcome {
+    /// The number of ticks and every event with its tick index.
+    ///
+    /// @ai-generated
     fn __repr__(&self) -> String {
         let events: Vec<String> = self
             .events
@@ -127,6 +134,57 @@ impl PyContinuousWorld {
     }
 }
 
+/// A Python integer read as a `u64`: `Some(value)` when it fits, `None` for any other integer
+/// (negative or too large), so that each method raises its own error instead of
+/// `OverflowError`. A value that is not an integer (no `__index__`) raises `TypeError`.
+#[derive(Clone, Copy, Debug)]
+struct UnsignedInt(Option<u64>);
+
+impl UnsignedInt {
+    fn as_usize(self) -> Option<usize> {
+        self.0.and_then(|v| usize::try_from(v).ok())
+    }
+}
+
+impl FromPyObject<'_, '_> for UnsignedInt {
+    type Error = PyErr;
+
+    /// `Some` for an integer that fits in a `u64`, `None` for another integer, and `TypeError`
+    /// for a value that is not an integer.
+    ///
+    /// @ai-generated
+    fn extract(value: Borrowed<'_, '_, PyAny>) -> Result<Self, Self::Error> {
+        if let Ok(value) = value.extract::<u64>() {
+            return Ok(Self(Some(value)));
+        }
+        // An integer out of range, or not an integer at all: `operator.index` tells them apart.
+        value
+            .py()
+            .import("operator")?
+            .call_method1("index", (value,))?;
+        Ok(Self(None))
+    }
+}
+
+impl<'py> IntoPyObject<'py> for UnsignedInt {
+    type Target = PyAny;
+    type Output = Bound<'py, PyAny>;
+    type Error = PyErr;
+
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        match self.0 {
+            Some(value) => value.into_bound_py_any(py),
+            None => Ok(py.None().into_bound(py)),
+        }
+    }
+}
+
+impl PyStubType for UnsignedInt {
+    fn type_output() -> TypeInfo {
+        TypeInfo::builtin("int")
+    }
+}
+
 fn positions(cells: &[Position]) -> Vec<PyPosition> {
     cells.iter().map(|&p| p.into()).collect()
 }
@@ -156,10 +214,21 @@ impl PyContinuousWorld {
     /// Raises:
     ///     InvalidLevelError: if the level does not exist.
     ///     UnsupportedFeatureError, ValueError: as the constructor.
+    ///
+    /// @ai-generated
     #[staticmethod]
     #[pyo3(signature = (n, params=None))]
-    fn level(n: usize, params: Option<PyPhysicsParams>) -> PyResult<Self> {
-        Self::build(MapSpec::level(n), params)
+    fn level(
+        #[gen_stub(override_type(type_repr = "builtins.int"))] n: &Bound<'_, PyAny>,
+        params: Option<PyPhysicsParams>,
+    ) -> PyResult<Self> {
+        match n.extract::<UnsignedInt>()?.as_usize() {
+            Some(n) => Self::build(MapSpec::level(n), params),
+            None => Err(InvalidLevelError::new_err(format!(
+                "Invalid level: {n}. Expected a level between 1 and {}.",
+                LEVELS.len()
+            ))),
+        }
     }
 
     /// The map stored in the file at `path` (or the built-in level it names, such as `"lvl6"`),
@@ -279,6 +348,8 @@ impl PyContinuousWorld {
     }
 
     /// The `(cell, direction, colour, laser_id)` of each laser source, in laser order.
+    ///
+    /// @ai-generated
     #[getter]
     fn laser_sources(&self) -> Vec<(PyPosition, PyDirection, usize, usize)> {
         self.world
@@ -307,8 +378,22 @@ impl PyContinuousWorld {
     }
 
     /// Seed the random number generator that draws the starts at reset.
-    fn seed(&mut self, seed: u64) {
-        self.world.seed(seed);
+    ///
+    /// Raises:
+    ///     ValueError: if `seed` is negative or does not fit in 64 bits.
+    ///
+    /// @ai-generated
+    fn seed(
+        &mut self,
+        #[gen_stub(override_type(type_repr = "builtins.int"))] seed: &Bound<'_, PyAny>,
+    ) -> PyResult<()> {
+        let value = seed.extract::<UnsignedInt>()?.0.ok_or_else(|| {
+            PyValueError::new_err(format!(
+                "Invalid seed {seed}: expected an integer in [0, 2**64)"
+            ))
+        })?;
+        self.world.seed(value);
+        Ok(())
     }
 
     /// Apply the joint action `actions` for `n_ticks` ticks, and stop early when the episode is
@@ -320,20 +405,26 @@ impl PyContinuousWorld {
     ///     n_ticks: The maximal number of ticks to run (at least 1).
     ///
     /// Raises:
-    ///     ValueError: if `actions` does not have the shape `(n_agents, 2)`, or `n_ticks` is 0.
+    ///     ValueError: if `actions` does not have the shape `(n_agents, 2)`, or `n_ticks` is not
+    ///         positive.
     ///     InvalidActionError: if an action is not finite.
     ///
     /// @ai-generated
-    #[pyo3(signature = (actions, n_ticks=1))]
+    #[pyo3(signature = (actions, n_ticks=UnsignedInt(Some(1))))]
     fn step(
         &mut self,
         #[gen_stub(override_type(type_repr = "numpy.typing.ArrayLike", imports = ("numpy.typing",)))]
         actions: &Bound<'_, PyAny>,
-        n_ticks: usize,
+        n_ticks: UnsignedInt,
     ) -> PyResult<PyStepOutcome> {
-        if n_ticks == 0 {
-            return Err(PyValueError::new_err("n_ticks must be at least 1"));
-        }
+        let n_ticks = match n_ticks.as_usize() {
+            Some(n) if n > 0 => n,
+            _ => {
+                return Err(PyValueError::new_err(
+                    "n_ticks must be a positive integer that fits in 64 bits",
+                ));
+            }
+        };
         let actions = Self::extract_actions(actions)?;
         let outcome = self
             .world
@@ -382,22 +473,25 @@ impl PyContinuousWorld {
     /// flags. See `state_vector`.
     ///
     /// Raises:
-    ///     IndexError: if `agent` is not the id of an agent.
+    ///     IndexError: if `agent` is not the id of an agent (negative values included).
+    ///
+    /// @ai-generated
     fn observation<'py>(
         &self,
         py: Python<'py>,
-        agent: usize,
+        #[gen_stub(override_type(type_repr = "builtins.int"))] agent: &Bound<'_, PyAny>,
     ) -> PyResult<Bound<'py, PyArray1<f32>>> {
-        if agent >= self.world.n_agents() {
-            return Err(PyIndexError::new_err(format!(
+        let observation = agent
+            .extract::<UnsignedInt>()?
+            .as_usize()
+            .and_then(|id| self.world.observation(id));
+        match observation {
+            Some(observation) => Ok(PyArray1::from_vec(py, observation)),
+            None => Err(PyIndexError::new_err(format!(
                 "Invalid agent id {agent}: the world has {} agents",
                 self.world.n_agents()
-            )));
+            ))),
         }
-        Ok(PyArray1::from_vec(
-            py,
-            self.world.observation(agent).unwrap_or_default(),
-        ))
     }
 
     /// An independent copy of the world, including its state and its random number generator.
@@ -441,6 +535,9 @@ impl PyContinuousWorld {
         Ok(())
     }
 
+    /// The size of the world and the current tick.
+    ///
+    /// @ai-generated
     fn __repr__(&self) -> String {
         format!(
             "ContinuousWorld(n_agents={}, width={}, height={}, tick={})",

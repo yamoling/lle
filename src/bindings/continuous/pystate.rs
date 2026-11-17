@@ -75,15 +75,18 @@ impl PyContinuousWorldState {
         }
     }
 
+    /// A representation that reads as the Python call building the same state.
+    ///
+    /// @ai-generated
     fn __repr__(&self) -> String {
         format!(
-            "ContinuousWorldState(positions={:?}, velocities={:?}, gems_collected={:?}, agents_alive={:?}, agents_arrived={:?}, sources_enabled={:?}, tick={})",
+            "ContinuousWorldState(positions={:?}, velocities={:?}, gems_collected={}, agents_alive={}, agents_arrived={}, sources_enabled={}, tick={})",
             self.positions,
             self.velocities,
-            self.gems_collected,
-            self.agents_alive,
-            self.agents_arrived,
-            self.sources_enabled,
+            py_bools(&self.gems_collected),
+            py_bools(&self.agents_alive),
+            py_bools(&self.agents_arrived),
+            py_bools(&self.sources_enabled),
             self.tick
         )
     }
@@ -108,6 +111,15 @@ impl PyContinuousWorldState {
             self.tick,
         )
     }
+}
+
+/// A list of booleans as Python writes it, e.g. `[True, False]`.
+fn py_bools(values: &[bool]) -> String {
+    let values: Vec<&str> = values
+        .iter()
+        .map(|&v| if v { "True" } else { "False" })
+        .collect();
+    format!("[{}]", values.join(", "))
 }
 
 impl From<ContinuousWorldState> for PyContinuousWorldState {
