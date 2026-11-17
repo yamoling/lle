@@ -1,7 +1,7 @@
 use crate::{
     World, WorldEvent,
     continuous::{ActionModel, ContinuousError, ContinuousWorld, PhysicsParams},
-    core::parsing::parse_v1,
+    shared::map::parse_v1,
 };
 
 const R: f64 = 0.3;

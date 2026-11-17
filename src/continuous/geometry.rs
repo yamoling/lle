@@ -1,4 +1,4 @@
-use crate::Position;
+use crate::shared::Position;
 pub(super) fn centre(p: &Position) -> [f64; 2] {
     [p.j as f64 + 0.5, p.i as f64 + 0.5]
 }

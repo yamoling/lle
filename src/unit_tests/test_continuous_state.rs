@@ -5,7 +5,7 @@ use crate::{
     continuous::{
         ActionModel, ContinuousError, ContinuousWorld, ContinuousWorldState, PhysicsParams,
     },
-    core::parsing::parse_v1,
+    shared::map::parse_v1,
 };
 
 const LEVEL_6: &str = include_str!("../../resources/levels/lvl6");

@@ -1,6 +1,6 @@
 use std::{error::Error, fmt::Display};
 
-use crate::{AgentId, ParseError};
+use crate::shared::{AgentId, ParseError};
 
 /// Every failure of the continuous engine: map loading, physics parameters, actions and states.
 #[derive(Debug)]

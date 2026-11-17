@@ -2,10 +2,7 @@ use super::{
     ActionModel, ContinuousAction, ContinuousError, ContinuousWorldState, PhysicsParams,
     geometry::*, lasers::Beam,
 };
-use crate::{
-    Position, WorldEvent,
-    core::parsing::{MapSpec, ValidMap},
-};
+use crate::shared::{MapSpec, Position, ValidMap, WorldEvent};
 use rand::{SeedableRng, rngs::StdRng};
 
 #[derive(Debug)]
@@ -92,7 +89,7 @@ impl ContinuousWorld {
     /// The built-in level `level` (numbered from 1), with the default physics parameters.
     ///
     /// # Errors
-    /// [`ContinuousError::Parse`] wrapping [`crate::ParseError::InvalidLevel`] when the level
+    /// [`ContinuousError::Parse`] wrapping [`crate::shared::ParseError::InvalidLevel`] when the level
     /// does not exist.
     pub fn get_level(level: usize) -> Result<Self, ContinuousError> {
         Self::from_spec(MapSpec::level(level)?, PhysicsParams::default())
@@ -130,7 +127,7 @@ impl ContinuousWorld {
         self.rng = StdRng::seed_from_u64(seed);
     }
     pub fn reset(&mut self) {
-        let positions = crate::utils::sample_different(&mut self.rng, &self.starts)
+        let positions = crate::shared::utils::sample_different(&mut self.rng, &self.starts)
             .iter()
             .map(centre)
             .collect();

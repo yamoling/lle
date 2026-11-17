@@ -9,8 +9,8 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use crate::{
     Position, Tile, World,
-    agent::Colour,
     bindings::{PyPosition, tiles::PyDirection},
+    shared::Colour,
     tiles::{LaserId, LaserSource},
 };
 

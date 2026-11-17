@@ -3,12 +3,7 @@ use std::sync::{Arc, Mutex};
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
-use crate::{
-    Position, World,
-    agent::{AgentId, Colour},
-    bindings::PyPosition,
-    tiles::Lift,
-};
+use crate::{AgentId, Position, World, bindings::PyPosition, shared::Colour, tiles::Lift};
 
 use super::inner;
 

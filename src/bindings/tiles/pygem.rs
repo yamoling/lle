@@ -6,7 +6,7 @@ use std::{
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
-use crate::{Tile, World, agent::AgentId, bindings::PyPosition, tiles::Gem};
+use crate::{AgentId, Tile, World, bindings::PyPosition, tiles::Gem};
 
 use super::inner;
 

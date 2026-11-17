@@ -2,9 +2,8 @@ use core::panic;
 use std::vec;
 
 use crate::{
-    Action, Grid, ParseError, Position, RuntimeWorldError, WorldEvent,
-    agent::{Agent, Colour},
-    core::WorldState,
+    Action, Agent, Grid, ParseError, Position, RuntimeWorldError, WorldEvent, WorldState,
+    shared::Colour,
     tiles::{Button, Laser, Lever, Lift, PressurePlate, Tile, VerticalDirection},
 };
 

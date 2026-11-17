@@ -1,7 +1,7 @@
 use crate::{
     continuous::ContinuousError,
     continuous::{ActionModel, ContinuousWorld, PhysicsParams},
-    core::parsing::parse_v1,
+    shared::map::parse_v1,
 };
 
 #[test]

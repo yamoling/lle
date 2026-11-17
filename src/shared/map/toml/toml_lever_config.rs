@@ -1,0 +1,34 @@
+use crate::shared::{Colour, Position, map::LeverConfig};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct TomlLeverConfig {
+    pub authorized_colour: Option<Colour>,
+    pub position: Position,
+    pub group_id: usize,
+    /// Whether the lever is on at reset. Omitted when off.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub on: bool,
+}
+
+impl TomlLeverConfig {
+    pub fn from_lever_config(config: &LeverConfig, position: Position) -> Self {
+        Self {
+            authorized_colour: config.authorized_colour,
+            position,
+            group_id: config.group_id,
+            on: config.on,
+        }
+    }
+}
+
+impl From<&TomlLeverConfig> for LeverConfig {
+    fn from(val: &TomlLeverConfig) -> Self {
+        LeverConfig {
+            group_id: val.group_id,
+            authorized_colour: val.authorized_colour,
+            on: val.on,
+        }
+    }
+}

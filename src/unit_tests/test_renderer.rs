@@ -1,6 +1,6 @@
 use crate::{
     Action, Renderer, World,
-    rendering::{TILE_SIZE, sprites},
+    shared::sprites::{self, TILE_SIZE},
 };
 use image::RgbImage;
 
@@ -9,7 +9,7 @@ use image::RgbImage;
 /// which is the colour a restriction badge is meant to echo.
 fn sprite_accent(colour: usize) -> image::Rgb<u8> {
     use std::collections::HashMap;
-    let sprite = &crate::rendering::sprites::AGENTS[colour];
+    let sprite = &crate::shared::sprites::AGENTS[colour];
     let mut counts: HashMap<[u8; 3], usize> = HashMap::new();
     for pixel in sprite.pixels() {
         let [r, g, b, a] = pixel.0;
@@ -421,7 +421,7 @@ fn test_a_powered_lift_is_drawn_lit() {
 /// floor (`k = 0`) at the bottom, and a uniform band between them.
 #[test]
 fn floors_are_drawn_top_first_with_a_separator() {
-    use crate::rendering::{FLOOR_SEPARATOR, FLOOR_SEPARATOR_HEIGHT};
+    use crate::shared::sprites::{FLOOR_SEPARATOR, FLOOR_SEPARATOR_HEIGHT};
     let render = |map: &str| {
         let mut world = World::try_from(map).unwrap();
         world.reset();
