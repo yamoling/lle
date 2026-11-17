@@ -1,4 +1,4 @@
-use crate::{ParseError, RuntimeWorldError};
+use crate::{ParseError, RuntimeWorldError, continuous::ContinuousError};
 use pyo3::{
     PyErr,
     exceptions::{self, PyValueError},
@@ -28,6 +28,13 @@ create_exception!(
 
 create_exception!(
     lle.exceptions,
+    UnsupportedFeatureError,
+    ParsingError,
+    "Raised when a map uses features that the engine does not support."
+);
+
+create_exception!(
+    lle.exceptions,
     InvalidLevelError,
     PyValueError,
     "Raised when the level asked does not exist."
@@ -53,10 +60,6 @@ pub fn parse_error_to_exception(error: ParseError) -> PyErr {
         ));
     }
     let msg = match error {
-        ParseError::UnsupportedFeature { features } => {
-            format!("Unsupported features: {}", features.join(", "))
-        }
-        ParseError::InvalidPhysicsParams { reason } => reason,
         ParseError::Inconsistent2Dimensions {
             row_str,
             expected_n_cols,
@@ -163,14 +166,6 @@ pub fn runtime_error_to_pyexception(error: RuntimeWorldError) -> PyErr {
     }
 
     match error {
-        RuntimeWorldError::InvalidContinuousAction { agent_id, action } => {
-            InvalidActionError::new_err(format!(
-                "Invalid continuous action for agent {agent_id}: {action:?}"
-            ))
-        }
-        RuntimeWorldError::InvalidContinuousState { reason } => {
-            InvalidWorldStateError::new_err(reason)
-        }
         RuntimeWorldError::InvalidNumberOfActions { given, expected } => {
             exceptions::PyValueError::new_err(format!(
                 "Invalid number of actions: given {given}, expected {expected}",
@@ -220,6 +215,26 @@ pub fn runtime_error_to_pyexception(error: RuntimeWorldError) -> PyErr {
         RuntimeWorldError::PositionsNotAdjacent { pos_0, pos1 } => {
             PyValueError::new_err(format!("Positions are not adjacent: {pos_0:?} vs {pos1:?}"))
         }
+    }
+}
+
+/// Convert an error of the continuous engine into the matching Python exception.
+///
+/// @ai-generated
+pub fn continuous_error_to_pyexception(error: ContinuousError) -> PyErr {
+    match error {
+        ContinuousError::Parse(error) => parse_error_to_exception(error),
+        ContinuousError::UnsupportedFeature { features } => UnsupportedFeatureError::new_err(
+            format!("Unsupported features: {}", features.join(", ")),
+        ),
+        ContinuousError::InvalidParams { reason } => PyValueError::new_err(reason),
+        ContinuousError::InvalidNumberOfActions { given, expected } => PyValueError::new_err(
+            format!("Invalid number of actions: given {given}, expected {expected}"),
+        ),
+        ContinuousError::InvalidAction { agent_id, action } => InvalidActionError::new_err(
+            format!("Invalid continuous action for agent {agent_id}: {action:?}"),
+        ),
+        ContinuousError::InvalidState { reason } => InvalidWorldStateError::new_err(reason),
     }
 }
 

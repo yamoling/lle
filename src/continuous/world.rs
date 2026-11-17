@@ -1,7 +1,11 @@
 use super::{
-    ActionModel, ContinuousAction, ContinuousWorldState, PhysicsParams, geometry::*, lasers::Beam,
+    ActionModel, ContinuousAction, ContinuousError, ContinuousWorldState, PhysicsParams,
+    geometry::*, lasers::Beam,
 };
-use crate::{ParseError, Position, RuntimeWorldError, WorldEvent, core::parsing::MapSpec};
+use crate::{
+    Position, WorldEvent,
+    core::parsing::{MapSpec, ValidMap},
+};
 use rand::{SeedableRng, rngs::StdRng};
 
 #[derive(Debug)]
@@ -28,25 +32,21 @@ pub struct StepOutcome {
 }
 
 impl ContinuousWorld {
-    pub fn from_config(config: &MapSpec, params: PhysicsParams) -> Result<Self, ParseError> {
-        params.validate()?;
-        let mut features = Vec::new();
-        for (name, present) in [
-            ("boxes", !config.boxes().is_empty()),
-            ("lifts", !config.lifts().is_empty()),
-            ("buttons", !config.buttons().is_empty()),
-            ("levers", !config.levers().is_empty()),
-            ("pressure_plates", !config.pressure_plates().is_empty()),
-            ("layers", config.layers() > 1),
-        ] {
-            if present {
-                features.push(name.to_string());
-            }
-        }
-        if !features.is_empty() {
-            return Err(ParseError::UnsupportedFeature { features });
-        }
-        let starts = config.clone().validate()?.starts().to_vec();
+    /// Build a continuous world from a validated map.
+    ///
+    /// The effective starts are those computed by [`MapSpec::validate`], so the map is neither
+    /// cloned nor validated again.
+    ///
+    /// # Errors
+    /// - [`ContinuousError::InvalidParams`] when `params` are invalid;
+    /// - [`ContinuousError::UnsupportedFeature`] when the map has boxes, lifts, buttons, levers,
+    ///   pressure plates or more than one layer.
+    ///
+    /// @ai-edited
+    pub fn from_map(map: &ValidMap, params: PhysicsParams) -> Result<Self, ContinuousError> {
+        check_supported(map.spec(), &params)?;
+        let config = map.spec();
+        let starts = map.starts().clone();
         let mut solids = config.walls().clone();
         solids.extend(config.sources().iter().map(|(p, _)| *p));
         let beams = config
@@ -89,11 +89,30 @@ impl ContinuousWorld {
         world.reset();
         Ok(world)
     }
-    pub fn get_level(level: usize) -> Result<Self, ParseError> {
-        Self::from_config(&MapSpec::level(level)?, PhysicsParams::default())
+    /// The built-in level `level` (numbered from 1), with the default physics parameters.
+    ///
+    /// # Errors
+    /// [`ContinuousError::Parse`] wrapping [`crate::ParseError::InvalidLevel`] when the level
+    /// does not exist.
+    pub fn get_level(level: usize) -> Result<Self, ContinuousError> {
+        Self::from_spec(MapSpec::level(level)?, PhysicsParams::default())
     }
-    pub fn from_file(file: &str) -> Result<Self, ParseError> {
-        Self::from_config(&MapSpec::from_file(file)?, PhysicsParams::default())
+    /// The map stored in `file` (or the built-in level it names), with the default physics
+    /// parameters.
+    pub fn from_file(file: &str) -> Result<Self, ContinuousError> {
+        Self::from_spec(MapSpec::from_file(file)?, PhysicsParams::default())
+    }
+    /// Check `params` and the features of `spec` before validating it, so that an unsupported
+    /// map is reported as such even when it would not validate.
+    ///
+    /// @ai-generated
+    fn from_spec(spec: MapSpec, params: PhysicsParams) -> Result<Self, ContinuousError> {
+        check_supported(&spec, &params)?;
+        Self::from_map(&spec.validate()?, params)
+    }
+    /// The possible start positions of each agent, as validated by [`MapSpec::validate`].
+    pub fn possible_starts(&self) -> &[Vec<Position>] {
+        &self.starts
     }
     pub fn n_agents(&self) -> usize {
         self.starts.len()
@@ -126,16 +145,16 @@ impl ContinuousWorld {
         };
         self.collision_fallbacks = 0;
     }
-    fn validate_actions(&self, actions: &[ContinuousAction]) -> Result<(), RuntimeWorldError> {
+    fn validate_actions(&self, actions: &[ContinuousAction]) -> Result<(), ContinuousError> {
         if actions.len() != self.n_agents() {
-            return Err(RuntimeWorldError::InvalidNumberOfActions {
+            return Err(ContinuousError::InvalidNumberOfActions {
                 given: actions.len(),
                 expected: self.n_agents(),
             });
         }
         for (agent_id, &action) in actions.iter().enumerate() {
             if action.iter().any(|x| !x.is_finite()) {
-                return Err(RuntimeWorldError::InvalidContinuousAction { agent_id, action });
+                return Err(ContinuousError::InvalidAction { agent_id, action });
             }
         }
         Ok(())
@@ -143,7 +162,7 @@ impl ContinuousWorld {
     pub fn tick(
         &mut self,
         actions: &[ContinuousAction],
-    ) -> Result<Vec<WorldEvent>, RuntimeWorldError> {
+    ) -> Result<Vec<WorldEvent>, ContinuousError> {
         self.validate_actions(actions)?;
         let old = self.state.positions.clone();
         for (i, &action) in actions.iter().enumerate() {
@@ -235,7 +254,7 @@ impl ContinuousWorld {
         &mut self,
         actions: &[ContinuousAction],
         n_ticks: usize,
-    ) -> Result<StepOutcome, RuntimeWorldError> {
+    ) -> Result<StepOutcome, ContinuousError> {
         self.validate_actions(actions)?;
         let mut outcome = StepOutcome {
             events: vec![],
@@ -269,12 +288,40 @@ impl ContinuousWorld {
     }
 }
 impl TryFrom<&str> for ContinuousWorld {
-    type Error = ParseError;
-    fn try_from(s: &str) -> Result<Self, ParseError> {
-        let config = MapSpec::parse(s)?;
-        Self::from_config(&config, PhysicsParams::default())
+    type Error = ContinuousError;
+    fn try_from(s: &str) -> Result<Self, ContinuousError> {
+        Self::from_spec(MapSpec::parse(s)?, PhysicsParams::default())
     }
 }
+
+/// Reject invalid `params`, then any feature of `spec` the continuous engine does not support,
+/// all listed at once in the order `boxes, lifts, buttons, levers, pressure_plates, layers`.
+///
+/// @ai-generated
+fn check_supported(spec: &MapSpec, params: &PhysicsParams) -> Result<(), ContinuousError> {
+    params.validate()?;
+    let features: Vec<String> = [
+        ("boxes", !spec.boxes().is_empty()),
+        ("lifts", !spec.lifts().is_empty()),
+        ("buttons", !spec.buttons().is_empty()),
+        ("levers", !spec.levers().is_empty()),
+        ("pressure_plates", !spec.pressure_plates().is_empty()),
+        ("layers", spec.layers() > 1),
+    ]
+    .into_iter()
+    .filter(|(_, present)| *present)
+    .map(|(name, _)| name.to_string())
+    .collect();
+    if !features.is_empty() {
+        return Err(ContinuousError::UnsupportedFeature { features });
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 #[path = "../unit_tests/test_continuous_world.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "../unit_tests/test_continuous_starts.rs"]
+mod test_continuous_starts;

@@ -7,12 +7,14 @@
 //! Void contact is safe, but overlap kills: skirting a void requires radius clearance.
 //! Between two voids, a one-cell corridor leaves 0.5 minus the radius on each side.
 mod collision;
+mod errors;
 mod geometry;
 mod lasers;
 mod params;
 mod state;
 mod world;
 
+pub use errors::ContinuousError;
 pub use params::{ActionModel, PhysicsParams};
 pub use state::ContinuousWorldState;
 pub use world::{ContinuousWorld, StepOutcome};

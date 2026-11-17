@@ -8,6 +8,7 @@ mod utils;
 mod world;
 pub use pyexceptions::{
     InvalidActionError, InvalidLevelError, InvalidWorldStateError, ParsingError,
+    UnsupportedFeatureError, continuous_error_to_pyexception,
 };
 pub use solver::{PyClauseGenerator, PySatSolver, PySolveMode, PySolver};
 pub use tiles::{PyButton, PyLaser, PyLaserSource, PyLever, PyLift, PyPressurePlate};
@@ -89,6 +90,8 @@ mod lle {
         use super::super::pyexceptions::ParsingError;
         #[pymodule_export]
         use super::super::pyexceptions::SolverError;
+        #[pymodule_export]
+        use super::super::pyexceptions::UnsupportedFeatureError;
     }
 
     #[pymodule_init]

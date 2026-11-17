@@ -1,4 +1,4 @@
-use crate::ParseError;
+use super::ContinuousError;
 
 #[derive(Clone, Copy, Debug, PartialEq, Default)]
 pub enum ActionModel {
@@ -34,7 +34,7 @@ impl Default for PhysicsParams {
 }
 impl PhysicsParams {
     /// Rejects non-finite values, invalid dimensions and speeds that permit tunnelling.
-    pub fn validate(&self) -> Result<(), ParseError> {
+    pub fn validate(&self) -> Result<(), ContinuousError> {
         let positive = [
             self.dt,
             self.agent_radius,
@@ -49,7 +49,7 @@ impl PhysicsParams {
             || !(0.0..=1.0).contains(&self.damping)
             || self.max_speed * self.dt > self.agent_radius / 2.0
         {
-            return Err(ParseError::InvalidPhysicsParams { reason: "Expected finite positive dimensions and rates, radius < 0.5, damping in [0, 1], and max_speed * dt <= radius / 2".into() });
+            return Err(ContinuousError::InvalidParams { reason: "Expected finite positive dimensions and rates, radius < 0.5, damping in [0, 1], and max_speed * dt <= radius / 2".into() });
         }
         Ok(())
     }

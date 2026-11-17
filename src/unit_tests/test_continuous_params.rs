@@ -1,5 +1,5 @@
 use crate::{
-    ParseError,
+    continuous::ContinuousError,
     continuous::{ActionModel, ContinuousWorld, PhysicsParams},
     core::parsing::parse_v1,
 };
@@ -34,7 +34,7 @@ fn test_anti_tunnelling_invariant() {
     };
     assert!(matches!(
         too_fast.validate(),
-        Err(ParseError::InvalidPhysicsParams { .. })
+        Err(ContinuousError::InvalidParams { .. })
     ));
 }
 
@@ -66,7 +66,7 @@ fn test_invalid_params_are_rejected() {
         assert!(
             matches!(
                 params.validate(),
-                Err(ParseError::InvalidPhysicsParams { .. })
+                Err(ContinuousError::InvalidParams { .. })
             ),
             "{params:?}"
         );
@@ -83,7 +83,7 @@ fn test_world_construction_validates_params() {
         ..Default::default()
     };
     assert!(matches!(
-        ContinuousWorld::from_config(&parse_v1("S0 . X").unwrap(), params),
-        Err(ParseError::InvalidPhysicsParams { .. })
+        ContinuousWorld::from_map(&parse_v1("S0 . X").unwrap().validate().unwrap(), params),
+        Err(ContinuousError::InvalidParams { .. })
     ));
 }

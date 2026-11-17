@@ -90,7 +90,7 @@ fn test_acceleration_model_loses_the_normal_velocity_against_a_wall() {
         ..Default::default()
     };
     let config = crate::core::parsing::parse_v1("S0 . . . . . X\n@ @ @ @ @ @ @").unwrap();
-    let mut world = ContinuousWorld::from_config(&config, params).unwrap();
+    let mut world = ContinuousWorld::from_map(&config.validate().unwrap(), params).unwrap();
     world.reset();
     for _ in 0..10 {
         world.tick(&[[1.0, 1.0]]).unwrap();

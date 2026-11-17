@@ -4,12 +4,6 @@ use crate::{Position, agent::AgentId};
 
 #[derive(Debug)]
 pub enum ParseError {
-    UnsupportedFeature {
-        features: Vec<String>,
-    },
-    InvalidPhysicsParams {
-        reason: String,
-    },
     EmptyWorld,
     NoAgents,
     InvalidTile {

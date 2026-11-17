@@ -1,5 +1,5 @@
+use super::ContinuousError;
 use super::{ContinuousWorld, geometry::*};
-use crate::RuntimeWorldError;
 #[derive(Clone, Debug, PartialEq)]
 pub struct ContinuousWorldState {
     pub positions: Vec<[f64; 2]>,
@@ -15,8 +15,15 @@ impl ContinuousWorld {
         self.state.clone()
     }
     /// Validates atomically; hazards are processed on the next tick, without events here.
-    pub fn set_state(&mut self, state: &ContinuousWorldState) -> Result<(), RuntimeWorldError> {
-        let invalid = |reason: &str| RuntimeWorldError::InvalidContinuousState {
+    ///
+    /// # Errors
+    /// [`ContinuousError::InvalidState`] when the sizes of the state do not match the world, or
+    /// when a value is not finite, an agent penetrates a solid or the boundary, or two agents
+    /// overlap. The world is left unchanged.
+    ///
+    /// @ai-edited
+    pub fn set_state(&mut self, state: &ContinuousWorldState) -> Result<(), ContinuousError> {
+        let invalid = |reason: &str| ContinuousError::InvalidState {
             reason: reason.into(),
         };
         for given in [
@@ -26,17 +33,18 @@ impl ContinuousWorld {
             state.agents_arrived.len(),
         ] {
             if given != self.n_agents() {
-                return Err(RuntimeWorldError::InvalidNumberOfAgents {
-                    given,
-                    expected: self.n_agents(),
-                });
+                return Err(invalid(&format!(
+                    "Invalid number of agents: given {given}, expected {}",
+                    self.n_agents()
+                )));
             }
         }
         if state.gems_collected.len() != self.state.gems_collected.len() {
-            return Err(RuntimeWorldError::InvalidNumberOfGems {
-                given: state.gems_collected.len(),
-                expected: self.state.gems_collected.len(),
-            });
+            return Err(invalid(&format!(
+                "Invalid number of gems: given {}, expected {}",
+                state.gems_collected.len(),
+                self.state.gems_collected.len()
+            )));
         }
         if state.sources_enabled.len() != self.beams.len() {
             return Err(invalid("Incorrect number of sources"));

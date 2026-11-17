@@ -1,6 +1,6 @@
 use crate::{
-    ParseError, RuntimeWorldError, World, WorldEvent,
-    continuous::{ActionModel, ContinuousWorld, PhysicsParams},
+    World, WorldEvent,
+    continuous::{ActionModel, ContinuousError, ContinuousWorld, PhysicsParams},
     core::parsing::parse_v1,
 };
 
@@ -14,7 +14,8 @@ fn world(map: &str) -> ContinuousWorld {
 }
 
 fn world_with(map: &str, params: PhysicsParams) -> ContinuousWorld {
-    let mut world = ContinuousWorld::from_config(&parse_v1(map).unwrap(), params).unwrap();
+    let mut world =
+        ContinuousWorld::from_map(&parse_v1(map).unwrap().validate().unwrap(), params).unwrap();
     world.reset();
     world
 }
@@ -64,7 +65,7 @@ fn test_unsupported_features_are_all_listed() {
     ];
     for (map, expected) in cases {
         match ContinuousWorld::try_from(map) {
-            Err(ParseError::UnsupportedFeature { mut features }) => {
+            Err(ContinuousError::UnsupportedFeature { mut features }) => {
                 features.sort();
                 assert_eq!(features, expected, "{map:?}");
             }
@@ -134,7 +135,7 @@ fn test_tick_rejects_wrong_number_of_actions() {
     let state = world.get_state();
     assert!(matches!(
         world.tick(&[STILL]),
-        Err(RuntimeWorldError::InvalidNumberOfActions {
+        Err(ContinuousError::InvalidNumberOfActions {
             given: 1,
             expected: 2
         })
@@ -153,7 +154,7 @@ fn test_tick_rejects_non_finite_actions() {
     ] {
         assert!(matches!(
             world.tick(&[STILL, bad]),
-            Err(RuntimeWorldError::InvalidContinuousAction { agent_id: 1, .. })
+            Err(ContinuousError::InvalidAction { agent_id: 1, .. })
         ));
         assert_eq!(world.get_state(), state);
     }

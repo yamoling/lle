@@ -1,8 +1,10 @@
 use rand::{RngExt, SeedableRng, rngs::StdRng};
 
 use crate::{
-    RuntimeWorldError, WorldEvent,
-    continuous::{ActionModel, ContinuousWorld, ContinuousWorldState, PhysicsParams},
+    WorldEvent,
+    continuous::{
+        ActionModel, ContinuousError, ContinuousWorld, ContinuousWorldState, PhysicsParams,
+    },
     core::parsing::parse_v1,
 };
 
@@ -13,7 +15,8 @@ fn level_6(action_model: ActionModel) -> ContinuousWorld {
         action_model,
         ..Default::default()
     };
-    let mut world = ContinuousWorld::from_config(&parse_v1(LEVEL_6).unwrap(), params).unwrap();
+    let mut world =
+        ContinuousWorld::from_map(&parse_v1(LEVEL_6).unwrap().validate().unwrap(), params).unwrap();
     world.reset();
     world
 }
@@ -102,15 +105,18 @@ fn test_set_state_rejects_overlapping_agents() {
         agent_radius: 0.3125,
         ..Default::default()
     };
-    let mut world =
-        ContinuousWorld::from_config(&parse_v1("S0 . . X\nS1 . . X").unwrap(), params).unwrap();
+    let mut world = ContinuousWorld::from_map(
+        &parse_v1("S0 . . X\nS1 . . X").unwrap().validate().unwrap(),
+        params,
+    )
+    .unwrap();
     world.reset();
     let valid = world.get_state();
     let mut state = valid.clone();
     state.positions = vec![[1.5, 0.5], [1.5, 1.05]];
     assert!(matches!(
         world.set_state(&state),
-        Err(RuntimeWorldError::InvalidContinuousState { .. })
+        Err(ContinuousError::InvalidState { .. })
     ));
     assert_eq!(world.get_state(), valid);
 
@@ -128,7 +134,7 @@ fn test_set_state_rejects_agents_in_walls_or_outside_the_grid() {
         assert!(
             matches!(
                 world.set_state(&state),
-                Err(RuntimeWorldError::InvalidContinuousState { .. })
+                Err(ContinuousError::InvalidState { .. })
             ),
             "{position:?}"
         );
@@ -163,7 +169,8 @@ fn test_set_state_accepts_every_state_of_a_crowded_rollout() {
         ..Default::default()
     };
     let map = "S0 . . . . X\nS1 . . . . X\nS2 . . . . X\nS3 . . . . X\n. . . . . .\n. . . . . .";
-    let mut world = ContinuousWorld::from_config(&parse_v1(map).unwrap(), params).unwrap();
+    let mut world =
+        ContinuousWorld::from_map(&parse_v1(map).unwrap().validate().unwrap(), params).unwrap();
     let mut rng = StdRng::seed_from_u64(148);
     let mut actions = vec![[0.0, 0.0]; 4];
     for t in 0..50 {
