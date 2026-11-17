@@ -1,3 +1,4 @@
+use super::checked_array_len;
 use crate::{
     continuous::{
         ContinuousError, ContinuousWorld, ContinuousWorldState, LaserSourceInfo, PhysicsParams,
@@ -46,10 +47,10 @@ fn test_sizes_are_known_after_construction() {
     // 2 agent blocks, 1 gem, 1 source.
     assert_eq!(world.state_size(), 2 * 8 + 1 + 1);
     assert_eq!(world.observation_size(), world.state_size());
-    assert_eq!(world.state_vector().len(), world.state_size());
+    assert_eq!(world.state_vector(false).len(), world.state_size());
     for agent in 0..world.n_agents() {
         assert_eq!(
-            world.observation(agent).unwrap().len(),
+            world.observation(agent, false).unwrap().len(),
             world.observation_size()
         );
     }
@@ -67,7 +68,7 @@ fn test_state_vector_at_reset() {
         // Gem not collected, source enabled.
         0.0, 1.0,
     ];
-    assert_eq!(world.state_vector(), expected);
+    assert_eq!(world.state_vector(false), expected);
 }
 
 #[test]
@@ -81,7 +82,7 @@ fn test_state_vector_layout() {
         4.5 / WIDTH, 1.25 / HEIGHT, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0,
         1.0, 0.0,
     ];
-    assert_eq!(world.state_vector(), expected);
+    assert_eq!(world.state_vector(false), expected);
 }
 
 #[test]
@@ -89,13 +90,13 @@ fn test_observation_is_ego_first_with_relative_positions() {
     let mut world = world();
     world.set_state(&custom_state()).unwrap();
     let max_speed = PhysicsParams::default().max_speed as f32;
-    let state = world.state_vector();
+    let state = world.state_vector(false);
     // Agent 0 observes itself first: its observation is the state with relative coordinates
     // for agent 1.
     let mut expected_0 = state.clone();
     expected_0[8] = (4.5 - 1.5) / WIDTH;
     expected_0[9] = (1.25 - 0.5) / HEIGHT;
-    assert_eq!(world.observation(0), Some(expected_0));
+    assert_eq!(world.observation(0, false), Some(expected_0));
 
     #[rustfmt::skip]
     let expected_1 = vec![
@@ -106,7 +107,7 @@ fn test_observation_is_ego_first_with_relative_positions() {
         // Global block.
         1.0, 0.0,
     ];
-    assert_eq!(world.observation(1), Some(expected_1));
+    assert_eq!(world.observation(1, false), Some(expected_1));
 }
 
 #[test]
@@ -115,13 +116,13 @@ fn test_dead_agent_flag() {
     let mut state = custom_state();
     state.agents_alive[0] = false;
     world.set_state(&state).unwrap();
-    assert_eq!(world.state_vector()[4], 0.0);
-    assert_eq!(world.observation(1).unwrap()[8 + 4], 0.0);
+    assert_eq!(world.state_vector(false)[4], 0.0);
+    assert_eq!(world.observation(1, false).unwrap()[8 + 4], 0.0);
 }
 
 #[test]
 fn test_observation_of_unknown_agent_is_none() {
-    assert_eq!(world().observation(2), None);
+    assert_eq!(world().observation(2, false), None);
 }
 
 #[test]
@@ -421,27 +422,27 @@ fn test_layered_hides_dead_agents_and_collected_gems() {
 #[test]
 fn test_layered_with_res_4() {
     let world = layered_world();
-    // A disc of radius 0.3 at a cell centre covers the 4 central pixels of the cell (their
-    // centres are 0.177 away), and so does the pickup circle of radius 0.25.
-    let centre_square = |i: usize, j: usize| {
-        vec![
-            (4 * i + 1, 4 * j + 1),
-            (4 * i + 1, 4 * j + 2),
-            (4 * i + 2, 4 * j + 1),
-            (4 * i + 2, 4 * j + 2),
-        ]
+    // A disc of radius 0.3 at a cell centre overlaps the 4 central pixels of the cell (they touch
+    // the centre) and the 8 pixels beside them (0.25 away), but not the corners (0.354 away).
+    let disc = |i: usize, j: usize| {
+        let mut pixels = vec![];
+        for row in 4 * i..4 * i + 4 {
+            for col in 4 * j..4 * j + 4 {
+                let corner = (row % 4 == 0 || row % 4 == 3) && (col % 4 == 0 || col % 4 == 3);
+                if !corner {
+                    pixels.push((row, col));
+                }
+            }
+        }
+        pixels
     };
-    assert_eq!(
-        cells_with(&channel(&world, 4, A0), 1.0),
-        centre_square(0, 0)
-    );
-    assert_eq!(
-        cells_with(&channel(&world, 4, A1), 1.0),
-        centre_square(2, 0)
-    );
+    assert_eq!(cells_with(&channel(&world, 4, A0), 1.0), disc(0, 0));
+    assert_eq!(cells_with(&channel(&world, 4, A1), 1.0), disc(2, 0));
+    // The pickup circle of radius 0.25 only overlaps the 4 central pixels: the next ones are
+    // exactly 0.25 away, which is not strictly within the radius.
     assert_eq!(
         cells_with(&channel(&world, 4, GEM), 1.0),
-        centre_square(0, 2)
+        vec![(1, 9), (1, 10), (2, 9), (2, 10)]
     );
     // The source cell is -1 (the beam itself is checked above).
     assert_eq!(cells_with(&channel(&world, 4, LASER_1), -1.0).len(), 16);
@@ -454,13 +455,32 @@ fn test_layered_with_res_4() {
 fn test_layered_disc_between_cells() {
     let mut world = layered_world();
     let mut state = world.get_state();
-    // Agent 0 between the cells (0, 0) and (0, 1): its disc covers the pixel centres within
-    // 0.3 of (1.0, 0.5) at res 4: x in {0.875, 1.125} and y in {0.375, 0.625}.
+    // Agent 0 between the cells (0, 0) and (0, 1), at (1.0, 0.5). At res 4, a pixel overlaps its
+    // disc unless it is 0.25 away along both axes: the columns 2 to 5 of the rows 1 and 2, and
+    // the columns 3 and 4 of the rows 0 and 3.
     state.positions[0] = [1.0, 0.5];
     world.set_state(&state).unwrap();
     assert_eq!(
         cells_with(&channel(&world, 4, A0), 1.0),
-        vec![(1, 3), (1, 4), (2, 3), (2, 4)]
+        vec![
+            (0, 3),
+            (0, 4),
+            (1, 2),
+            (1, 3),
+            (1, 4),
+            (1, 5),
+            (2, 2),
+            (2, 3),
+            (2, 4),
+            (2, 5),
+            (3, 3),
+            (3, 4)
+        ]
+    );
+    // At res 1, it overlaps both cells.
+    assert_eq!(
+        cells_with(&channel(&world, 1, A0), 1.0),
+        vec![(0, 0), (0, 1)]
     );
 }
 
@@ -505,7 +525,7 @@ fn test_lidar_size_and_layout() {
     let lidar = world.lidar(0, 16, 5.0).unwrap().unwrap();
     assert_eq!(lidar.len(), world.lidar_size(16).unwrap());
     // The own block of the observer comes last, in absolute coordinates.
-    let observation = world.observation(0).unwrap();
+    let observation = world.observation(0, false).unwrap();
     assert_eq!(&lidar[16 * 7..], &observation[..8]);
     assert!(lidar.iter().all(|v| (0.0..=1.0).contains(v)));
 }
@@ -526,10 +546,12 @@ fn test_lidar_axis_aligned_rays() {
     assert_lidar(east(5), 1.0);
     // The beam of colour 1, 0.1 wide, along x = 6.5.
     assert_lidar(east(6), 5.95 / range);
-    // Ray 2 points north (nothing, the boundary is not a wall), ray 4 west and ray 6 south.
-    for category in 0..7 {
-        assert_lidar(lidar_value(&world, 0, 8, range, 2, category), 1.0);
-        assert_lidar(lidar_value(&world, 0, 8, range, 4, category), 1.0);
+    // Ray 2 points north and ray 4 west: only the grid boundary, 0.5 away, is hit.
+    for ray in [2, 4] {
+        assert_lidar(lidar_value(&world, 0, 8, range, ray, 0), 0.5 / range);
+        for category in 1..7 {
+            assert_lidar(lidar_value(&world, 0, 8, range, ray, category), 1.0);
+        }
     }
     assert_lidar(lidar_value(&world, 0, 8, range, 6, 4), 0.5 / range);
     // With a shorter range, far hits are out of range.
@@ -547,14 +569,16 @@ fn test_lidar_diagonal_rays() {
     assert_lidar(south_east(0), 0.5 * sqrt2 / 5.0);
     assert_lidar(south_east(3), (2.0 * sqrt2 - 0.25) / 5.0);
     assert_lidar(south_east(4), 2.5 * sqrt2 / 5.0);
-    assert_lidar(lidar_value(&world, 0, 8, 5.0, 1, 0), 1.0);
+    // North-east, the ray leaves the grid through its corner (0, 1).
+    assert_lidar(lidar_value(&world, 0, 8, 5.0, 1, 0), 0.5 * sqrt2 / 5.0);
 
     // Along the same diagonal: a void, agent 1 and a beam of colour 1 (going south along
     // x = 3.5).
     let world =
         ContinuousWorld::try_from("S0 . . L1S\n. V . .\n. . S1 .\n. . . X\nX . . .").unwrap();
     let south_east = |category| lidar_value(&world, 0, 8, 5.0, 7, category);
-    assert_lidar(south_east(0), 1.0);
+    // No wall: the ray leaves the grid (4 wide) at x = 4.
+    assert_lidar(south_east(0), 3.5 * sqrt2 / 5.0);
     assert_lidar(south_east(1), 0.5 * sqrt2 / 5.0);
     assert_lidar(south_east(2), (2.0 * sqrt2 - 0.3) / 5.0);
     assert_lidar(south_east(4), 2.5 * sqrt2 / 5.0);
@@ -567,11 +591,12 @@ fn test_lidar_rays_turn_counter_clockwise_on_screen() {
     // An exit to the north-east of agent 0 at (1.5, 1.5) and walls north and west.
     let world = ContinuousWorld::try_from(". @ X\n@ S0 .\n. . X").unwrap();
     let hit = |ray| lidar_value(&world, 0, 4, 5.0, ray, 0);
-    // East: nothing; north: the wall (0, 1); west: the wall (1, 0); south: nothing.
-    assert_lidar(hit(0), 1.0);
+    // East: the boundary x = 3; north: the wall (0, 1); west: the wall (1, 0); south: the
+    // boundary y = 3.
+    assert_lidar(hit(0), 0.3);
     assert_lidar(hit(1), 0.1);
     assert_lidar(hit(2), 0.1);
-    assert_lidar(hit(3), 1.0);
+    assert_lidar(hit(3), 0.3);
     // Ray 1 of 8 points north-east, to the exit (0, 2).
     let exit = lidar_value(&world, 0, 8, 5.0, 1, 4);
     assert_lidar(exit, 0.5 * 2.0_f64.sqrt() / 5.0);
@@ -621,13 +646,129 @@ fn test_lidar_errors() {
 }
 
 #[test]
-fn test_layered_discs_vanish_below_res_3() {
-    // With the default radius 0.3, agent 0 at the centre of its cell lights the centre pixel at
-    // res 1, none at res 2 (the pixel centres are 0.354 away), and some at every res from 3.
+fn test_layered_discs_are_visible_anywhere_at_every_res() {
+    // Agent 0 slides along the first row, and gems of several radii sit at cell centres: every
+    // disc lights at least one pixel at every resolution, and never one that it does not touch.
+    let mut world = layered_world();
+    for res in 1..=6 {
+        for step in 0..=40 {
+            let x = 0.3 + 1.4 * step as f64 / 40.0;
+            let mut state = world.get_state();
+            state.positions[0] = [x, 0.5];
+            world.set_state(&state).unwrap();
+            let lit = cells_with(&channel(&world, res, A0), 1.0);
+            assert!(!lit.is_empty(), "agent at x = {x} invisible at res {res}");
+            for (row, col) in lit {
+                let (lo, hi) = (col as f64 / res as f64, (col + 1) as f64 / res as f64);
+                assert!(
+                    lo < x + 0.3 && hi > x - 0.3,
+                    "pixel {row}, {col} at res {res}"
+                );
+            }
+        }
+    }
+    for gem_radius in [0.05, 0.25, 0.3] {
+        let params = PhysicsParams {
+            gem_radius,
+            ..PhysicsParams::default()
+        };
+        let world =
+            ContinuousWorld::from_spec(MapSpec::parse(LAYERED_MAP).unwrap(), params).unwrap();
+        for res in 1..=6 {
+            assert!(
+                !cells_with(&channel(&world, res, GEM), 1.0).is_empty(),
+                "gem of radius {gem_radius} invisible at res {res}"
+            );
+        }
+    }
+    // At res 2, the four pixels of a cell touch its centre.
     let world = layered_world();
-    let lit = |res| cells_with(&channel(&world, res, A0), 1.0).len();
-    assert_eq!(lit(1), 1);
-    assert_eq!(lit(2), 0);
-    assert_eq!(lit(3), 1);
-    assert_eq!(lit(4), 4);
+    assert_eq!(
+        cells_with(&channel(&world, 2, A0), 1.0),
+        vec![(0, 0), (0, 1), (1, 0), (1, 1)]
+    );
+}
+
+// ----- Sizes -----
+
+#[test]
+fn test_unrepresentable_sizes_are_invalid_params() {
+    let world = layered_world();
+    fn invalid<T>(r: Result<T, ContinuousError>) -> bool {
+        matches!(r, Err(ContinuousError::InvalidParams { .. }))
+    }
+    // `height * res` overflows, then the element count, then the number of bytes. Nothing is
+    // allocated: the sizes are checked first.
+    for res in [usize::MAX, usize::MAX / 3 + 1, 1 << 40, 1 << 31] {
+        assert!(invalid(world.layered_shape(res)), "res {res}");
+        assert!(invalid(world.layered(res)), "res {res}");
+    }
+    for n_rays in [usize::MAX, usize::MAX / 7 + 1, isize::MAX as usize / 28 + 1] {
+        assert!(invalid(world.lidar_size(n_rays)), "n_rays {n_rays}");
+        assert!(
+            invalid(world.lidar(0, n_rays, 5.0).map(|_| ())),
+            "n_rays {n_rays}"
+        );
+    }
+    // The largest number of rays whose vector fits: n_rays * 7 + 8 values of 4 bytes.
+    let max_rays = (isize::MAX as usize / 4 - 8) / 7;
+    assert_eq!(world.lidar_size(max_rays).unwrap(), max_rays * 7 + 8);
+    assert!(invalid(world.lidar_size(max_rays + 1)));
+    // The boundary of the byte count.
+    assert_eq!(
+        checked_array_len(&[isize::MAX as usize / 4]),
+        Some(isize::MAX as usize / 4)
+    );
+    assert_eq!(checked_array_len(&[isize::MAX as usize / 4 + 1]), None);
+    assert_eq!(checked_array_len(&[2, usize::MAX]), None);
+}
+
+#[test]
+fn test_lidar_hits_the_grid_boundary_as_a_wall() {
+    // No wall: every ray of the wall category ends on the boundary of the 3 × 2 grid.
+    let mut world = ContinuousWorld::try_from("S0 . X\n. . .").unwrap();
+    let sqrt2 = 2.0_f64.sqrt();
+    let wall = |world: &ContinuousWorld, ray| lidar_value(world, 0, 8, 5.0, ray, 0);
+    // From (0.5, 0.5): east 2.5, north-east 0.5·√2 (the corner), north and west 0.5, south 1.5.
+    assert_lidar(wall(&world, 0), 2.5 / 5.0);
+    assert_lidar(wall(&world, 1), 0.5 * sqrt2 / 5.0);
+    assert_lidar(wall(&world, 2), 0.1);
+    assert_lidar(wall(&world, 4), 0.1);
+    assert_lidar(wall(&world, 6), 1.5 / 5.0);
+    // South-east: the ray leaves through the bottom edge y = 2, 1.5·√2 away.
+    assert_lidar(wall(&world, 7), 1.5 * sqrt2 / 5.0);
+    // Beyond the range, it reads 1.
+    assert_lidar(lidar_value(&world, 0, 8, 2.0, 0, 0), 1.0);
+    // A dead observer outside the grid reads 0.
+    let mut state = world.get_state();
+    state.positions[0] = [-1.0, 0.5];
+    state.agents_alive[0] = false;
+    world.set_state(&state).unwrap();
+    assert_lidar(wall(&world, 0), 0.0);
+}
+
+#[test]
+fn test_lidar_hit_at_exactly_the_range_reads_1() {
+    // The void of LIDAR_ROW starts exactly 1.5 east of agent 0: with a range of 1.5, the value is
+    // clipped to 1, like no hit.
+    let world = ContinuousWorld::try_from(LIDAR_ROW).unwrap();
+    assert_lidar(lidar_value(&world, 0, 8, 1.5, 0, 1), 1.0);
+    assert_lidar(
+        lidar_value(&world, 0, 8, 1.5 + 1e-9, 0, 1),
+        1.5 / (1.5 + 1e-9),
+    );
+}
+
+#[test]
+fn test_lidar_reading_of_the_own_beam_of_a_blocker() {
+    // Agent 1 (colour 1) stands in the beam of colour 1 that goes north from (1, 6), at
+    // (6.5, 0.5): the segment ends at its disc, at y = 0.8. Towards the source (south) it sees
+    // the segment 0.3 away; away from it (north), nothing.
+    let mut world = ContinuousWorld::try_from(LIDAR_ROW).unwrap();
+    let mut state = world.get_state();
+    state.positions[1] = [6.5, 0.5];
+    world.set_state(&state).unwrap();
+    let beam_1 = 6;
+    assert_lidar(lidar_value(&world, 1, 4, 5.0, 3, beam_1), 0.3 / 5.0);
+    assert_lidar(lidar_value(&world, 1, 4, 5.0, 1, beam_1), 1.0);
 }

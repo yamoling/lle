@@ -1,8 +1,11 @@
 use image::Rgb;
 
 use crate::{
-    continuous::{ContinuousWorld, ContinuousWorldState},
-    shared::sprites::{BACKGROUND_GREY, BLACK, TILE_SIZE, agent_colour},
+    continuous::{ContinuousWorld, ContinuousWorldState, PhysicsParams},
+    shared::{
+        MapSpec,
+        sprites::{BACKGROUND_GREY, BLACK, TILE_SIZE, agent_colour},
+    },
 };
 
 /// A beam of colour 1 along row 0, a wall, a gem, and agents of colours 0 and 1.
@@ -57,8 +60,8 @@ fn test_rendering_costs_nothing_until_an_image_is_requested() {
     let state = world.get_state();
     world.set_state(&state).unwrap();
     world.reset();
-    world.state_vector();
-    world.observation(0);
+    world.state_vector(false);
+    world.observation(0, false);
     world.layered(4).unwrap();
     world.lidar(0, 16, 5.0).unwrap();
     world.set_laser_colour(0, 1).unwrap();
@@ -180,4 +183,44 @@ fn test_collected_gems_disappear() {
     };
     assert_ne!(cell(&with_gem), cell(&without_gem));
     assert_eq!(cell_centre_pixel(&world, 1, 3), BACKGROUND_GREY);
+}
+
+#[test]
+fn test_off_grid_disc_has_a_partially_blended_edge() {
+    let mut world = world();
+    // Agent 0 at (1.25, 1.5): its centre is the pixel point (40, 48), its radius 9.6 pixels.
+    let s = state(&world, vec![[1.25, 1.5], [0.5, 2.5]]);
+    world.set_state(&s).unwrap();
+    // The pixel (49, 48) has its centre (49.5, 48.5) at sqrt(9.5² + 0.5²) = 9.5131 from it: its
+    // coverage is 9.6 + 0.5 - 9.5131 = 0.5869, so it blends the background (218) with the red
+    // of colour 0 (203, 52, 52): 218 · 0.4131 + 203 · 0.5869 = 209.2 and
+    // 218 · 0.4131 + 52 · 0.5869 = 120.6.
+    assert_eq!(pixel(&world, 49, 48), Rgb([209, 121, 121]));
+    // Inside, the colour is exact; one pixel further, the background is untouched.
+    assert_eq!(pixel(&world, 47, 48), agent_colour(0));
+    assert_eq!(pixel(&world, 50, 48), BACKGROUND_GREY);
+}
+
+#[test]
+fn test_narrow_beam_is_drawn_3_pixels_wide() {
+    // A beam 0.01 wide would be 0.32 pixels wide: it is drawn 3 pixels wide around y = 16, i.e.
+    // over [14.5, 17.5]. The rows 15 and 16 are covered, the rows 14 and 17 half covered.
+    let params = PhysicsParams {
+        beam_width: 0.01,
+        ..PhysicsParams::default()
+    };
+    let world = ContinuousWorld::from_spec(MapSpec::parse(MAP).unwrap(), params).unwrap();
+    let colour = agent_colour(1);
+    let half = Rgb(std::array::from_fn(|c| {
+        ((BACKGROUND_GREY.0[c] as f64 + colour.0[c] as f64) / 2.0).round() as u8
+    }));
+    assert_eq!(half, Rgb([211, 198, 135]));
+    for x in [40, 100] {
+        assert_eq!(pixel(&world, x, 13), BACKGROUND_GREY);
+        assert_eq!(pixel(&world, x, 14), half);
+        assert_eq!(pixel(&world, x, 15), colour);
+        assert_eq!(pixel(&world, x, 16), colour);
+        assert_eq!(pixel(&world, x, 17), half);
+        assert_eq!(pixel(&world, x, 18), BACKGROUND_GREY);
+    }
 }

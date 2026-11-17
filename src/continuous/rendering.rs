@@ -217,11 +217,15 @@ fn pixel_centre(x: u32, y: u32) -> [f64; 2] {
 }
 
 /// The length of the overlap of the pixel span `[p, p + 1]` with `[lo, hi]`.
+///
+/// @ai-generated
 fn overlap(p: f64, lo: f64, hi: f64) -> f64 {
     ((p + 1.0).min(hi) - p.max(lo)).max(0.0)
 }
 
 /// The distance from `p` to the segment `[a, b]`.
+///
+/// @ai-generated
 fn segment_distance(p: [f64; 2], a: [f64; 2], b: [f64; 2]) -> f64 {
     let ab = sub(b, a);
     let t = (dot(sub(p, a), ab) / dot(ab, ab)).clamp(0.0, 1.0);
@@ -229,6 +233,8 @@ fn segment_distance(p: [f64; 2], a: [f64; 2], b: [f64; 2]) -> f64 {
 }
 
 /// Call `f` on every pixel of `frame` that overlaps the box `[lo, hi]` (in pixels).
+///
+/// @ai-generated
 fn for_pixels(
     frame: &mut RgbImage,
     lo: [f64; 2],
@@ -248,6 +254,8 @@ fn for_pixels(
 }
 
 /// Blend `colour` over the pixel `(x, y)` with the opacity `alpha` in `[0, 1]`.
+///
+/// @ai-generated
 fn blend(frame: &mut RgbImage, x: u32, y: u32, colour: Rgb<u8>, alpha: f64) {
     if alpha <= 0.0 {
         return;
@@ -259,6 +267,8 @@ fn blend(frame: &mut RgbImage, x: u32, y: u32, colour: Rgb<u8>, alpha: f64) {
 }
 
 /// Blend `sprite` over `frame` with its alpha channel, at the offset `(x, y)`.
+///
+/// @ai-generated
 fn add_transparent_image(frame: &mut RgbImage, sprite: &RgbaImage, x: u32, y: u32) {
     for (sx, sy, pixel) in sprite.enumerate_pixels() {
         let [r, g, b, a] = pixel.0;
@@ -267,6 +277,8 @@ fn add_transparent_image(frame: &mut RgbImage, sprite: &RgbaImage, x: u32, y: u3
 }
 
 /// Draw the outline of the cell whose top-left pixel is `(x, y)`, `thickness` pixels thick.
+///
+/// @ai-generated
 fn draw_square_outline(frame: &mut RgbImage, x: u32, y: u32, colour: Rgb<u8>, thickness: u32) {
     for dy in 0..TILE_SIZE {
         for dx in 0..TILE_SIZE {

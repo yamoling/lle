@@ -77,3 +77,19 @@ pub(super) fn ray_disc(
     let discriminant = b * b - c;
     (discriminant >= 0.0).then(|| -b - discriminant.sqrt())
 }
+/// The distance along the ray from `origin` in the unit direction `direction` to the point
+/// where it leaves the box `[lo, hi]`, or 0 when `origin` is not strictly inside the box.
+///
+/// @ai-generated
+pub(super) fn ray_exit(origin: [f64; 2], direction: [f64; 2], lo: [f64; 2], hi: [f64; 2]) -> f64 {
+    if (0..2).any(|d| origin[d] <= lo[d] || origin[d] >= hi[d]) {
+        return 0.0;
+    }
+    (0..2)
+        .filter_map(|d| match direction[d] {
+            v if v > 0.0 => Some((hi[d] - origin[d]) / v),
+            v if v < 0.0 => Some((lo[d] - origin[d]) / v),
+            _ => None,
+        })
+        .fold(f64::INFINITY, f64::min)
+}
