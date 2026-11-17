@@ -46,7 +46,10 @@ fn test_sizes_are_known_after_construction() {
     assert_eq!(world.observation_size(), world.state_size());
     assert_eq!(world.state_vector().len(), world.state_size());
     for agent in 0..world.n_agents() {
-        assert_eq!(world.observation(agent).len(), world.observation_size());
+        assert_eq!(
+            world.observation(agent).unwrap().len(),
+            world.observation_size()
+        );
     }
 }
 
@@ -90,7 +93,7 @@ fn test_observation_is_ego_first_with_relative_positions() {
     let mut expected_0 = state.clone();
     expected_0[8] = (4.5 - 1.5) / WIDTH;
     expected_0[9] = (1.25 - 0.5) / HEIGHT;
-    assert_eq!(world.observation(0), expected_0);
+    assert_eq!(world.observation(0), Some(expected_0));
 
     #[rustfmt::skip]
     let expected_1 = vec![
@@ -101,7 +104,7 @@ fn test_observation_is_ego_first_with_relative_positions() {
         // Global block.
         1.0, 0.0,
     ];
-    assert_eq!(world.observation(1), expected_1);
+    assert_eq!(world.observation(1), Some(expected_1));
 }
 
 #[test]
@@ -111,13 +114,12 @@ fn test_dead_agent_flag() {
     state.agents_alive[0] = false;
     world.set_state(&state).unwrap();
     assert_eq!(world.state_vector()[4], 0.0);
-    assert_eq!(world.observation(1)[8 + 4], 0.0);
+    assert_eq!(world.observation(1).unwrap()[8 + 4], 0.0);
 }
 
 #[test]
-#[should_panic]
-fn test_observation_of_unknown_agent_panics() {
-    world().observation(2);
+fn test_observation_of_unknown_agent_is_none() {
+    assert_eq!(world().observation(2), None);
 }
 
 #[test]

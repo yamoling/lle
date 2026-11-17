@@ -394,7 +394,10 @@ impl PyContinuousWorld {
                 self.world.n_agents()
             )));
         }
-        Ok(PyArray1::from_vec(py, self.world.observation(agent)))
+        Ok(PyArray1::from_vec(
+            py,
+            self.world.observation(agent).unwrap_or_default(),
+        ))
     }
 
     /// An independent copy of the world, including its state and its random number generator.

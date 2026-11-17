@@ -2,7 +2,8 @@
 //! world.
 //!
 //! - **Agent block** (`6 + n_colours` values): `x / width`, `y / height`, `vx / max_speed`,
-//!   `vy / max_speed`, `alive`, `arrived`, then the one-hot colour of the agent.
+//!   `vy / max_speed`, `alive`, `arrived`, then the one-hot colour of the agent. The velocity is
+//!   that of the state: the displacement of the last tick divided by `dt`.
 //! - **Global block**: one flag per gem (1 when collected), then one flag per laser source (1
 //!   when enabled), in laser order.
 //!
@@ -49,16 +50,13 @@ impl ContinuousWorld {
     /// blocks of the other agents in increasing id order, whose `x` and `y` are relative to
     /// `agent`, then the global block (see the module documentation).
     ///
-    /// # Panics
-    /// When `agent` is not the id of an agent of the world.
+    /// `None` when `agent` is not the id of an agent of the world.
     ///
     /// @ai-generated
-    pub fn observation(&self, agent: AgentId) -> Vec<f32> {
-        assert!(
-            agent < self.n_agents(),
-            "Invalid agent id {agent}: the world has {} agents",
-            self.n_agents()
-        );
+    pub fn observation(&self, agent: AgentId) -> Option<Vec<f32>> {
+        if agent >= self.n_agents() {
+            return None;
+        }
         let mut res = Vec::with_capacity(self.observation_size());
         self.push_agent_block(&mut res, agent, [0.0, 0.0]);
         let origin = self.state.positions[agent];
@@ -66,7 +64,7 @@ impl ContinuousWorld {
             self.push_agent_block(&mut res, other, origin);
         }
         self.push_global_block(&mut res);
-        res
+        Some(res)
     }
 
     /// Append the block of `agent` to `res`, with its position relative to `origin`.
