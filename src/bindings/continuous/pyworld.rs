@@ -1,4 +1,4 @@
-use numpy::{PyArray1, PyArray2, PyArrayMethods};
+use numpy::{PyArray1, PyArray2, PyArray3, PyArrayMethods};
 use pyo3::{
     IntoPyObjectExt,
     exceptions::{PyIndexError, PyValueError},
@@ -12,16 +12,25 @@ use pyo3_stub_gen::{
 
 use super::{PyContinuousWorldState, PyPhysicsParams};
 use crate::bindings::{
-    pyexceptions::{InvalidLevelError, continuous_error_to_pyexception, parse_error_to_exception},
+    pyexceptions::{
+        InvalidLevelError, InvalidWorldStateError, continuous_error_to_pyexception,
+        parse_error_to_exception,
+    },
     tiles::PyDirection,
     world::{PyPosition, PyWorldEvent},
 };
 use crate::continuous::{ContinuousAction, ContinuousWorld, RNG_STATE_SIZE};
 use crate::shared::{MapSpec, ParseError, Position, map::levels::LEVELS};
 
-/// What `ContinuousWorld.__getstate__` returns: the map string, the parameters, the state and the
-/// state of the random number generator.
-type PickledWorld = (String, PyPhysicsParams, PyContinuousWorldState, Vec<u8>);
+/// What `ContinuousWorld.__getstate__` returns: the map string, the parameters, the state, the
+/// state of the random number generator and the colour of each laser source (in laser order).
+type PickledWorld = (
+    String,
+    PyPhysicsParams,
+    PyContinuousWorldState,
+    Vec<u8>,
+    Vec<usize>,
+);
 
 /// The outcome of `ContinuousWorld.step`: the events of every tick, in order.
 #[gen_stub_pyclass]
@@ -101,6 +110,15 @@ impl PyContinuousWorld {
         let world =
             ContinuousWorld::from_spec(spec, params).map_err(continuous_error_to_pyexception)?;
         Ok(Self { world, map_str })
+    }
+
+    /// The size of the static features if `static_features` is true, else 0.
+    fn static_size(&self, static_features: bool) -> usize {
+        if static_features {
+            self.world.static_features_size()
+        } else {
+            0
+        }
     }
 
     /// Convert an array-like of shape `(n_agents, 2)` into actions.
@@ -183,6 +201,20 @@ impl PyStubType for UnsignedInt {
     fn type_output() -> TypeInfo {
         TypeInfo::builtin("int")
     }
+}
+
+/// `value` as a `usize`, or a `ValueError` naming `what` when it is negative or too large.
+fn unsigned(value: UnsignedInt, what: &str) -> PyResult<usize> {
+    value
+        .as_usize()
+        .ok_or_else(|| PyValueError::new_err(format!("{what} must be a positive integer")))
+}
+
+/// An `IndexError` for the invalid agent id `agent` of a world of `n_agents` agents.
+fn invalid_agent(agent: &Bound<'_, PyAny>, n_agents: usize) -> PyErr {
+    PyIndexError::new_err(format!(
+        "Invalid agent id {agent}: the world has {n_agents} agents"
+    ))
 }
 
 fn positions(cells: &[Position]) -> Vec<PyPosition> {
@@ -459,39 +491,228 @@ impl PyContinuousWorld {
             .map_err(continuous_error_to_pyexception)
     }
 
-    /// The `STATE` vector of the world, of length `state_size`: the block of every agent in id
-    /// order, then one flag per gem (1 if collected) and one flag per laser source (1 if
-    /// enabled). The block of an agent is `x / width, y / height, vx / max_speed,
-    /// vy / max_speed, alive, arrived`, followed by its one-hot colour over `n_colours`.
-    fn state_vector<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<f32>> {
-        PyArray1::from_vec(py, self.world.state_vector())
+    /// The `STATE` vector of the world, of length `state_size` (plus `static_features_size`
+    /// with the static features): the block of every agent in id order, then one flag per gem
+    /// (1 if collected) and one flag per laser source (1 if enabled), then the static features
+    /// if `static_features` is true. The block of an agent is `x / width, y / height,
+    /// vx / max_speed, vy / max_speed, alive, arrived`, followed by its one-hot colour over
+    /// `n_colours`.
+    ///
+    /// @ai-edited
+    #[pyo3(signature = (static_features=false))]
+    fn state_vector<'py>(
+        &self,
+        py: Python<'py>,
+        static_features: bool,
+    ) -> Bound<'py, PyArray1<f32>> {
+        let mut res = self.world.state_vector();
+        if static_features {
+            res.extend(self.world.static_features());
+        }
+        PyArray1::from_vec(py, res)
     }
 
-    /// The `STATE` observation of `agent`, of length `observation_size`: its own block first,
-    /// then the blocks of the other agents in increasing id order, whose `x` and `y` are relative
-    /// to `agent` (`(x_k - x_agent) / width`, and likewise for `y`), then the gem and source
-    /// flags. See `state_vector`.
+    /// The static features, of length `static_features_size`, in absolute coordinates: the
+    /// centre `(x / width, y / height)` of each exit, then of each gem, then of each laser source
+    /// followed by its one-hot direction `[N, E, S, W]` (in laser order).
+    fn static_features<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<f32>> {
+        PyArray1::from_vec(py, self.world.static_features())
+    }
+
+    /// The length of `state_vector(static_features)`: `state_size`, plus
+    /// `static_features_size` if `static_features` is true.
+    #[pyo3(signature = (static_features=false))]
+    fn state_size_for(&self, static_features: bool) -> usize {
+        self.world.state_size() + self.static_size(static_features)
+    }
+
+    /// The length of `observation(agent, static_features)`: `observation_size`, plus
+    /// `static_features_size` if `static_features` is true.
+    #[pyo3(signature = (static_features=false))]
+    fn observation_size_for(&self, static_features: bool) -> usize {
+        self.world.observation_size() + self.static_size(static_features)
+    }
+
+    /// The length of `static_features()`: 2 per exit and per gem, and 6 per laser source.
+    #[getter]
+    fn static_features_size(&self) -> usize {
+        self.world.static_features_size()
+    }
+
+    /// The `STATE` observation of `agent`, of length `observation_size` (plus
+    /// `static_features_size` with the static features): its own block first, then the blocks
+    /// of the other agents in increasing id order, whose `x` and `y` are relative to `agent`
+    /// (`(x_k - x_agent) / width`, and likewise for `y`), then the gem and source flags, then
+    /// the static features (absolute) if `static_features` is true. See `state_vector`.
     ///
     /// Raises:
     ///     IndexError: if `agent` is not the id of an agent (negative values included).
     ///
     /// @ai-generated
+    #[pyo3(signature = (agent, static_features=false))]
     fn observation<'py>(
         &self,
         py: Python<'py>,
         #[gen_stub(override_type(type_repr = "builtins.int"))] agent: &Bound<'_, PyAny>,
+        static_features: bool,
     ) -> PyResult<Bound<'py, PyArray1<f32>>> {
         let observation = agent
             .extract::<UnsignedInt>()?
             .as_usize()
             .and_then(|id| self.world.observation(id));
         match observation {
-            Some(observation) => Ok(PyArray1::from_vec(py, observation)),
-            None => Err(PyIndexError::new_err(format!(
-                "Invalid agent id {agent}: the world has {} agents",
-                self.world.n_agents()
-            ))),
+            Some(mut observation) => {
+                if static_features {
+                    observation.extend(self.world.static_features());
+                }
+                Ok(PyArray1::from_vec(py, observation))
+            }
+            None => Err(invalid_agent(agent, self.world.n_agents())),
         }
+    }
+
+    /// The shape `(C, height * res, width * res)` of `layered(res)`, with
+    /// `C = 2 * n_colours + 4`.
+    ///
+    /// Raises:
+    ///     ValueError: if `res` is not a positive integer.
+    #[pyo3(signature = (res=UnsignedInt(Some(4))))]
+    fn layered_shape(&self, res: UnsignedInt) -> PyResult<(usize, usize, usize)> {
+        let [c, h, w] = self
+            .world
+            .layered_shape(unsigned(res, "res")?)
+            .map_err(continuous_error_to_pyexception)?;
+        Ok((c, h, w))
+    }
+
+    /// The `LAYERED` observation, of shape `(C, height * res, width * res)`, where each cell is
+    /// split into `res × res` pixels. The `C = 2 * n_colours + 4` channels follow LLE's
+    /// `Layered` observation: one agent channel per colour, one laser channel per colour, then
+    /// `WALL`, `VOID`, `GEM` and `EXIT`.
+    ///
+    /// A pixel is 1 when its centre is inside the disc of an alive agent, on the current segment
+    /// of a beam (after the cut by an agent of its colour; a beam is at least one pixel wide),
+    /// in a wall or a laser source, a void or an exit, or inside the pickup circle of a gem that
+    /// is not collected. The pixels of a laser source are -1 in the laser channel of its colour.
+    ///
+    /// Raises:
+    ///     ValueError: if `res` is not a positive integer.
+    ///
+    /// @ai-generated
+    #[pyo3(signature = (res=UnsignedInt(Some(4))))]
+    fn layered<'py>(
+        &self,
+        py: Python<'py>,
+        res: UnsignedInt,
+    ) -> PyResult<Bound<'py, PyArray3<f32>>> {
+        let res = unsigned(res, "res")?;
+        let [c, h, w] = self
+            .world
+            .layered_shape(res)
+            .map_err(continuous_error_to_pyexception)?;
+        let data = self
+            .world
+            .layered(res)
+            .map_err(continuous_error_to_pyexception)?;
+        PyArray1::from_vec(py, data).reshape([c, h, w])
+    }
+
+    /// The number of lidar categories: `5 + n_colours` (walls and sources, voids, other agents,
+    /// gems, exits, then one per laser colour).
+    #[getter]
+    fn lidar_categories(&self) -> usize {
+        self.world.lidar_categories()
+    }
+
+    /// The length of `lidar(agent, n_rays)`: `n_rays * (5 + n_colours)`, plus the size of the
+    /// block of an agent (`6 + n_colours`).
+    ///
+    /// Raises:
+    ///     ValueError: if `n_rays` is not a positive integer.
+    #[pyo3(signature = (n_rays=UnsignedInt(Some(16))))]
+    fn lidar_size(&self, n_rays: UnsignedInt) -> PyResult<usize> {
+        self.world
+            .lidar_size(unsigned(n_rays, "n_rays")?)
+            .map_err(continuous_error_to_pyexception)
+    }
+
+    /// The `LIDAR` observation of `agent`: `n_rays` rays from its centre, evenly spaced over
+    /// 360°, ray 0 pointing east and the next ones turning counter-clockwise on screen (towards
+    /// the north first). For each ray, and each of the `lidar_categories` categories (walls and
+    /// sources, voids, other alive agents, gems not collected, exits, then the current beams of
+    /// each colour), the distance to the first hit divided by `range`, or 1 without any hit
+    /// within `range`. The categories are cast independently (no occlusion), ray-major, and
+    /// followed by the `STATE` block of `agent` (absolute coordinates).
+    ///
+    /// Raises:
+    ///     ValueError: if `n_rays` is not a positive integer or `range` is not positive and
+    ///         finite.
+    ///     IndexError: if `agent` is not the id of an agent.
+    ///
+    /// @ai-generated
+    #[pyo3(signature = (agent, n_rays=UnsignedInt(Some(16)), range=5.0))]
+    fn lidar<'py>(
+        &self,
+        py: Python<'py>,
+        #[gen_stub(override_type(type_repr = "builtins.int"))] agent: &Bound<'_, PyAny>,
+        n_rays: UnsignedInt,
+        range: f64,
+    ) -> PyResult<Bound<'py, PyArray1<f32>>> {
+        let n_rays = unsigned(n_rays, "n_rays")?;
+        let agent_id = agent.extract::<UnsignedInt>()?.as_usize();
+        // Check the arguments of the lidar first, with any agent id.
+        let lidar = self
+            .world
+            .lidar(agent_id.unwrap_or(usize::MAX), n_rays, range)
+            .map_err(continuous_error_to_pyexception)?;
+        match lidar {
+            Some(lidar) => Ok(PyArray1::from_vec(py, lidar)),
+            None => Err(invalid_agent(agent, self.world.n_agents())),
+        }
+    }
+
+    /// The current frame, of shape `(height * 32, width * 32, 3)` and dtype `uint8` (RGB). The
+    /// static background (floor, walls, exits, voids, laser sources and grid) is rendered by the
+    /// first call and cached; the gems, beams and agents are drawn at each call.
+    ///
+    /// @ai-generated
+    fn get_image<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray3<u8>>> {
+        let image = self.world.get_image();
+        let (width, height) = image.dimensions();
+        PyArray1::from_vec(py, image.into_raw()).reshape([height as usize, width as usize, 3])
+    }
+
+    /// Change the colour of the laser source `laser_id`: the agents of `colour` then block and
+    /// cross its beam, and the others die in it. The colour persists through `reset` and
+    /// `set_state`, and is copied and pickled with the world. `n_colours` never changes.
+    ///
+    /// Raises:
+    ///     InvalidWorldStateError: if `colour` is not below `n_colours`, no laser source has the
+    ///         id `laser_id`, or the full beam of the source would cover a possible start of an
+    ///         agent of another colour. The world is then left unchanged.
+    ///
+    /// @ai-generated
+    fn set_laser_colour(
+        &mut self,
+        #[gen_stub(override_type(type_repr = "builtins.int"))] laser_id: &Bound<'_, PyAny>,
+        #[gen_stub(override_type(type_repr = "builtins.int"))] colour: &Bound<'_, PyAny>,
+    ) -> PyResult<()> {
+        let invalid = || {
+            InvalidWorldStateError::new_err(format!(
+                "Invalid laser id {laser_id} or colour {colour}"
+            ))
+        };
+        let laser_id = laser_id
+            .extract::<UnsignedInt>()?
+            .as_usize()
+            .ok_or_else(invalid)?;
+        let colour = colour
+            .extract::<UnsignedInt>()?
+            .as_usize()
+            .ok_or_else(invalid)?;
+        self.world
+            .set_laser_colour(laser_id, colour)
+            .map_err(continuous_error_to_pyexception)
     }
 
     /// An independent copy of the world, including its state and its random number generator.
@@ -507,13 +728,21 @@ impl PyContinuousWorld {
         PyTuple::new(py, ["S0 X"])
     }
 
-    /// Pickle the map, the parameters, the state and the random number generator.
+    /// Pickle the map, the parameters, the state, the random number generator and the colours
+    /// of the laser sources.
+    ///
+    /// @ai-edited
     fn __getstate__(&self) -> PickledWorld {
         (
             self.map_str.clone(),
             self.world.params().into(),
             self.world.get_state().into(),
             self.world.rng_state().to_vec(),
+            self.world
+                .laser_sources()
+                .iter()
+                .map(|s| s.colour)
+                .collect(),
         )
     }
 
@@ -521,8 +750,21 @@ impl PyContinuousWorld {
     ///
     /// @ai-generated
     fn __setstate__(&mut self, pickled: PickledWorld) -> PyResult<()> {
-        let (map_str, params, state, rng_state) = pickled;
+        let (map_str, params, state, rng_state, colours) = pickled;
         let mut restored = Self::build(MapSpec::parse(&map_str), Some(params))?;
+        let sources = restored.world.laser_sources().to_vec();
+        if colours.len() != sources.len() {
+            return Err(PyValueError::new_err("Invalid pickled laser colours"));
+        }
+        for (source, colour) in sources.iter().zip(colours) {
+            // Only the colours that changed: the colour of the map is valid by construction.
+            if source.colour != colour {
+                restored
+                    .world
+                    .set_laser_colour(source.laser_id, colour)
+                    .map_err(continuous_error_to_pyexception)?;
+            }
+        }
         restored
             .world
             .set_state(&(&state).into())
