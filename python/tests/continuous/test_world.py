@@ -270,7 +270,7 @@ def test_step_runs_one_tick_by_default():
     outcome = world.step([EAST])
     assert outcome.n_ticks == 1
     assert list(outcome.events) == [] and list(outcome.ticks) == []
-    assert xy(world.agents_positions) == pytest.approx([(0.6, 0.5)])
+    np.testing.assert_allclose(xy(world.agents_positions), [(0.6, 0.5)], rtol=1e-6)
     assert world.get_state().tick == 1
 
 
@@ -278,7 +278,7 @@ def test_step_accepts_lists_and_float32_or_float64_arrays():
     for actions in ([EAST], np.array([EAST], dtype=np.float32), np.array([EAST], dtype=np.float64)):
         world = ContinuousWorld(CORRIDOR)
         assert world.step(actions, 3).n_ticks == 3
-        assert xy(world.agents_positions) == pytest.approx([(0.8, 0.5)])
+        np.testing.assert_allclose(xy(world.agents_positions), [(0.8, 0.5)], rtol=1e-6)
 
 
 def test_step_events_are_lle_world_events_tagged_with_their_tick():

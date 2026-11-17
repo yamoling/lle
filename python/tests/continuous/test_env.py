@@ -54,7 +54,7 @@ def test_step_repeats_the_action_for_action_repeat_ticks():
     env.reset()
     step = env.step(np.array([EAST], dtype=np.float32))
     assert step.info["n_ticks"] == 10
-    assert xy(env.world.agents_positions) == pytest.approx([(1.5, 0.5)])
+    np.testing.assert_allclose(xy(env.world.agents_positions), [(1.5, 0.5)], rtol=1e-6)
     assert step.reward.tolist() == [0.0]
     assert not step.done
     np.testing.assert_array_equal(step.obs.data, env.get_observation().data)
