@@ -305,3 +305,7 @@ pub fn solver_error_to_exception(error: crate::solver::errors::SolverError) -> P
         }
     }
 }
+
+#[cfg(all(test, feature = "python-bindings"))]
+#[path = "../unit_tests/test_pyexceptions.rs"]
+mod tests;

@@ -31,3 +31,4 @@ Each Rust type gets a `Py*` wrapper in `src/bindings/` deriving `#[pyclass]`. Cu
   - `timeout 60 pytest; [ $? -eq 124 ] && echo "=== Timeout reached ! ==="`
   - `timeout 60 cargo test; [ $? -eq 124 ] && echo "=== Timeout reached ! ==="`
 - For Rust tests, you should use the short output format with `cargo test -- --format terse`, unless you are debugging a specific test case.
+- The Rust tests of the Python bindings (`src/bindings/`, e.g. `test_pyexceptions.rs`) only compile with the `python-bindings` feature: run `cargo test --features python-bindings -- --format terse` after changing the bindings.
