@@ -1,5 +1,5 @@
 use crate::{
-    World, WorldEvent,
+    Position, World, WorldEvent,
     continuous::{ActionModel, ContinuousError, ContinuousWorld, PhysicsParams},
     shared::map::parse_v1,
 };
@@ -423,4 +423,43 @@ start_positions = [{ i_min = 0, i_max = 1, j_min = 1, j_max = 3 }]
             "seed {seed}"
         );
     }
+}
+
+/// Agent 0 has the single start (2, 2), agent 1 may start on (2, 3) or (3, 3): `L1E` leaves
+/// agent 0 with (2, 2), which then blocks `L0E`.
+const SEQUENTIAL_STARTS: &str = r#"
+world_string = """
+L1E . . . .
+.   . . . .
+L0E . . . X
+.   . . . X
+"""
+[[agents]]
+start_positions = [{i=0,j=2},{i=2,j=2}]
+[[agents]]
+start_positions = [{i=2,j=3},{i=3,j=3}]
+"#;
+
+#[test]
+fn reset_only_uses_and_eventually_uses_every_possible_start() {
+    let mut world = ContinuousWorld::try_from(SEQUENTIAL_STARTS).unwrap();
+    let centre = |p: &Position| [p.j as f64 + 0.5, p.i as f64 + 0.5];
+    let starts: Vec<Vec<[f64; 2]>> = world
+        .possible_starts()
+        .iter()
+        .map(|s| s.iter().map(centre).collect())
+        .collect();
+    let mut seen: Vec<Vec<bool>> = starts.iter().map(|s| vec![false; s.len()]).collect();
+    for seed in 0..64 {
+        world.seed(seed);
+        world.reset();
+        for (agent, position) in world.agents_positions().iter().enumerate() {
+            let index = starts[agent].iter().position(|s| s == position);
+            let index = index.unwrap_or_else(|| {
+                panic!("seed {seed}: agent {agent} reset on {position:?}, not a possible start")
+            });
+            seen[agent][index] = true;
+        }
+    }
+    assert_eq!(seen, [vec![true], vec![true, true]]);
 }
