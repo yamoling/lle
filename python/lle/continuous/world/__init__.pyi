@@ -143,6 +143,11 @@ class ContinuousWorld:
         The number of lidar categories: `5 + n_colours` (walls and sources, voids, other agents,
         gems, exits, then one per laser colour).
         """
+    @property
+    def image_shape(self) -> tuple[builtins.int, builtins.int, builtins.int]:
+        r"""
+        The shape `(height * 32, width * 32, 3)` of `get_image()`.
+        """
     def __new__(cls, map_str: builtins.str, params: typing.Optional[PhysicsParams] = None) -> ContinuousWorld:
         r"""
         Create a world from a map string (v1 or TOML) and physics parameters (the default ones if
@@ -230,8 +235,6 @@ class ContinuousWorld:
         if `static_features` is true. The block of an agent is `x / width, y / height,
         vx / max_speed, vy / max_speed, alive, arrived`, followed by its one-hot colour over
         `n_colours`.
-        
-        @ai-edited
         """
     def static_features(self) -> numpy.typing.NDArray[numpy.float32]:
         r"""
@@ -268,22 +271,29 @@ class ContinuousWorld:
         `C = 2 * n_colours + 4`.
         
         Raises:
-            ValueError: if `res` is not a positive integer.
+            ValueError: if `res` is not a positive integer, or so large that the array would not
+                fit in memory.
         """
     def layered(self, res: builtins.int = 4) -> numpy.typing.NDArray[numpy.float32]:
         r"""
         The `LAYERED` observation, of shape `(C, height * res, width * res)`, where each cell is
-        split into `res × res` pixels. The `C = 2 * n_colours + 4` channels follow LLE's
+        split into `res × res` square pixels. The `C = 2 * n_colours + 4` channels follow LLE's
         `Layered` observation: one agent channel per colour, one laser channel per colour, then
         `WALL`, `VOID`, `GEM` and `EXIT`.
         
-        A pixel is 1 when its centre is inside the disc of an alive agent, on the current segment
-        of a beam (after the cut by an agent of its colour; a beam is at least one pixel wide),
-        in a wall or a laser source, a void or an exit, or inside the pickup circle of a gem that
-        is not collected. The pixels of a laser source are -1 in the laser channel of its colour.
+        A pixel is 1 when its square overlaps, with a positive area, the disc of an alive agent
+        of the channel's colour, the current segment of an enabled beam of the channel's colour
+        (a rectangle `beam_width` wide from the edge of its source to the cut by an agent of its
+        colour), a wall or a laser source, a void, an exit, or the pickup circle of a gem that is
+        not collected. So every agent, gem and beam lights at least one pixel, whatever `res`. The
+        pixels of a laser source are -1 in the laser channel of its colour.
+        
+        With `res = 1` and every agent at a cell centre, this is LLE's `Layered` observation,
+        except for the cell of an agent standing in a beam of its own colour: the beam reaches
+        into that cell up to the agent's disc, while LLE turns it off from that cell on.
         
         Raises:
-            ValueError: if `res` is not a positive integer.
+            ValueError: if `res` is not a positive integer, or too large (see `layered_shape`).
         
         @ai-generated
         """
@@ -293,22 +303,24 @@ class ContinuousWorld:
         block of an agent (`6 + n_colours`).
         
         Raises:
-            ValueError: if `n_rays` is not a positive integer.
+            ValueError: if `n_rays` is not a positive integer, or so large that the vector would
+                not fit in memory.
         """
     def lidar(self, agent: builtins.int, n_rays: builtins.int = 16, range: builtins.float = 5.0) -> numpy.typing.NDArray[numpy.float32]:
         r"""
         The `LIDAR` observation of `agent`: `n_rays` rays from its centre, evenly spaced over
         360°, ray 0 pointing east and the next ones turning counter-clockwise on screen (towards
-        the north first). For each ray, and each of the `lidar_categories` categories (walls and
-        sources, voids, other alive agents, gems not collected, exits, then the current beams of
-        each colour), the distance to the first hit divided by `range`, or 1 without any hit
-        within `range`. The categories are cast independently (no occlusion), ray-major, and
-        followed by the `STATE` block of `agent` (absolute coordinates).
+        the north first). For each ray, and each of the `lidar_categories` categories (walls,
+        sources and the grid boundary; voids; other alive agents; gems not collected; exits; then
+        the current beams of each colour), the distance to the first hit divided by `range`,
+        clipped to 1: it is 1 without any hit within `range`, and also for a hit at exactly
+        `range`. The categories are cast independently (no occlusion), ray-major, and followed by
+        the `STATE` block of `agent` (absolute coordinates).
         
         Raises:
-            ValueError: if `n_rays` is not a positive integer or `range` is not positive and
-                finite.
-            IndexError: if `agent` is not the id of an agent.
+            ValueError: if `n_rays` is not a positive integer (or too large, see `lidar_size`) or
+                `range` is not positive and finite.
+            IndexError: if `agent` is not the id of an agent (negative values included).
         
         @ai-generated
         """
@@ -320,6 +332,17 @@ class ContinuousWorld:
         
         @ai-generated
         """
+    def valid_laser_colours(self, laser_id: builtins.int) -> builtins.list[builtins.int]:
+        r"""
+        The colours that the laser source `laser_id` may take (see `set_laser_colour`), in
+        increasing order.
+        
+        Raises:
+            InvalidWorldStateError: if no laser source has the id `laser_id` (negative values
+                included).
+        
+        @ai-generated
+        """
     def set_laser_colour(self, laser_id: builtins.int, colour: builtins.int) -> None:
         r"""
         Change the colour of the laser source `laser_id`: the agents of `colour` then block and
@@ -327,9 +350,11 @@ class ContinuousWorld:
         `set_state`, and is copied and pickled with the world. `n_colours` never changes.
         
         Raises:
-            InvalidWorldStateError: if `colour` is not below `n_colours`, no laser source has the
-                id `laser_id`, or the full beam of the source would cover a possible start of an
-                agent of another colour. The world is then left unchanged.
+            InvalidWorldStateError: if no laser source has the id `laser_id`, or `colour` is not
+                one of its `valid_laser_colours`: not below `n_colours`, or its full beam would
+                cover a possible start of an agent of another colour, or its current beam would
+                kill an alive agent of another colour where it stands. The world is then left
+                unchanged.
         
         @ai-generated
         """

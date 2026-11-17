@@ -112,15 +112,6 @@ impl PyContinuousWorld {
         Ok(Self { world, map_str })
     }
 
-    /// The size of the static features if `static_features` is true, else 0.
-    fn static_size(&self, static_features: bool) -> usize {
-        if static_features {
-            self.world.static_features_size()
-        } else {
-            0
-        }
-    }
-
     /// Convert an array-like of shape `(n_agents, 2)` into actions.
     ///
     /// @ai-generated
@@ -497,19 +488,13 @@ impl PyContinuousWorld {
     /// if `static_features` is true. The block of an agent is `x / width, y / height,
     /// vx / max_speed, vy / max_speed, alive, arrived`, followed by its one-hot colour over
     /// `n_colours`.
-    ///
-    /// @ai-edited
     #[pyo3(signature = (static_features=false))]
     fn state_vector<'py>(
         &self,
         py: Python<'py>,
         static_features: bool,
     ) -> Bound<'py, PyArray1<f32>> {
-        let mut res = self.world.state_vector();
-        if static_features {
-            res.extend(self.world.static_features());
-        }
-        PyArray1::from_vec(py, res)
+        PyArray1::from_vec(py, self.world.state_vector(static_features))
     }
 
     /// The static features, of length `static_features_size`, in absolute coordinates: the
@@ -523,14 +508,14 @@ impl PyContinuousWorld {
     /// `static_features_size` if `static_features` is true.
     #[pyo3(signature = (static_features=false))]
     fn state_size_for(&self, static_features: bool) -> usize {
-        self.world.state_size() + self.static_size(static_features)
+        self.world.state_size_for(static_features)
     }
 
     /// The length of `observation(agent, static_features)`: `observation_size`, plus
     /// `static_features_size` if `static_features` is true.
     #[pyo3(signature = (static_features=false))]
     fn observation_size_for(&self, static_features: bool) -> usize {
-        self.world.observation_size() + self.static_size(static_features)
+        self.world.observation_size_for(static_features)
     }
 
     /// The length of `static_features()`: 2 per exit and per gem, and 6 per laser source.
@@ -559,14 +544,9 @@ impl PyContinuousWorld {
         let observation = agent
             .extract::<UnsignedInt>()?
             .as_usize()
-            .and_then(|id| self.world.observation(id));
+            .and_then(|id| self.world.observation(id, static_features));
         match observation {
-            Some(mut observation) => {
-                if static_features {
-                    observation.extend(self.world.static_features());
-                }
-                Ok(PyArray1::from_vec(py, observation))
-            }
+            Some(observation) => Ok(PyArray1::from_vec(py, observation)),
             None => Err(invalid_agent(agent, self.world.n_agents())),
         }
     }
@@ -575,7 +555,8 @@ impl PyContinuousWorld {
     /// `C = 2 * n_colours + 4`.
     ///
     /// Raises:
-    ///     ValueError: if `res` is not a positive integer.
+    ///     ValueError: if `res` is not a positive integer, or so large that the array would not
+    ///         fit in memory.
     #[pyo3(signature = (res=UnsignedInt(Some(4))))]
     fn layered_shape(&self, res: UnsignedInt) -> PyResult<(usize, usize, usize)> {
         let [c, h, w] = self
@@ -586,17 +567,23 @@ impl PyContinuousWorld {
     }
 
     /// The `LAYERED` observation, of shape `(C, height * res, width * res)`, where each cell is
-    /// split into `res × res` pixels. The `C = 2 * n_colours + 4` channels follow LLE's
+    /// split into `res × res` square pixels. The `C = 2 * n_colours + 4` channels follow LLE's
     /// `Layered` observation: one agent channel per colour, one laser channel per colour, then
     /// `WALL`, `VOID`, `GEM` and `EXIT`.
     ///
-    /// A pixel is 1 when its centre is inside the disc of an alive agent, on the current segment
-    /// of a beam (after the cut by an agent of its colour; a beam is at least one pixel wide),
-    /// in a wall or a laser source, a void or an exit, or inside the pickup circle of a gem that
-    /// is not collected. The pixels of a laser source are -1 in the laser channel of its colour.
+    /// A pixel is 1 when its square overlaps, with a positive area, the disc of an alive agent
+    /// of the channel's colour, the current segment of an enabled beam of the channel's colour
+    /// (a rectangle `beam_width` wide from the edge of its source to the cut by an agent of its
+    /// colour), a wall or a laser source, a void, an exit, or the pickup circle of a gem that is
+    /// not collected. So every agent, gem and beam lights at least one pixel, whatever `res`. The
+    /// pixels of a laser source are -1 in the laser channel of its colour.
+    ///
+    /// With `res = 1` and every agent at a cell centre, this is LLE's `Layered` observation,
+    /// except for the cell of an agent standing in a beam of its own colour: the beam reaches
+    /// into that cell up to the agent's disc, while LLE turns it off from that cell on.
     ///
     /// Raises:
-    ///     ValueError: if `res` is not a positive integer.
+    ///     ValueError: if `res` is not a positive integer, or too large (see `layered_shape`).
     ///
     /// @ai-generated
     #[pyo3(signature = (res=UnsignedInt(Some(4))))]
@@ -628,7 +615,8 @@ impl PyContinuousWorld {
     /// block of an agent (`6 + n_colours`).
     ///
     /// Raises:
-    ///     ValueError: if `n_rays` is not a positive integer.
+    ///     ValueError: if `n_rays` is not a positive integer, or so large that the vector would
+    ///         not fit in memory.
     #[pyo3(signature = (n_rays=UnsignedInt(Some(16))))]
     fn lidar_size(&self, n_rays: UnsignedInt) -> PyResult<usize> {
         self.world
@@ -638,16 +626,17 @@ impl PyContinuousWorld {
 
     /// The `LIDAR` observation of `agent`: `n_rays` rays from its centre, evenly spaced over
     /// 360°, ray 0 pointing east and the next ones turning counter-clockwise on screen (towards
-    /// the north first). For each ray, and each of the `lidar_categories` categories (walls and
-    /// sources, voids, other alive agents, gems not collected, exits, then the current beams of
-    /// each colour), the distance to the first hit divided by `range`, or 1 without any hit
-    /// within `range`. The categories are cast independently (no occlusion), ray-major, and
-    /// followed by the `STATE` block of `agent` (absolute coordinates).
+    /// the north first). For each ray, and each of the `lidar_categories` categories (walls,
+    /// sources and the grid boundary; voids; other alive agents; gems not collected; exits; then
+    /// the current beams of each colour), the distance to the first hit divided by `range`,
+    /// clipped to 1: it is 1 without any hit within `range`, and also for a hit at exactly
+    /// `range`. The categories are cast independently (no occlusion), ray-major, and followed by
+    /// the `STATE` block of `agent` (absolute coordinates).
     ///
     /// Raises:
-    ///     ValueError: if `n_rays` is not a positive integer or `range` is not positive and
-    ///         finite.
-    ///     IndexError: if `agent` is not the id of an agent.
+    ///     ValueError: if `n_rays` is not a positive integer (or too large, see `lidar_size`) or
+    ///         `range` is not positive and finite.
+    ///     IndexError: if `agent` is not the id of an agent (negative values included).
     ///
     /// @ai-generated
     #[pyo3(signature = (agent, n_rays=UnsignedInt(Some(16)), range=5.0))]
@@ -659,16 +648,24 @@ impl PyContinuousWorld {
         range: f64,
     ) -> PyResult<Bound<'py, PyArray1<f32>>> {
         let n_rays = unsigned(n_rays, "n_rays")?;
-        let agent_id = agent.extract::<UnsignedInt>()?.as_usize();
-        // Check the arguments of the lidar first, with any agent id.
+        let agent_id = agent
+            .extract::<UnsignedInt>()?
+            .as_usize()
+            .filter(|&id| id < self.world.n_agents())
+            .ok_or_else(|| invalid_agent(agent, self.world.n_agents()))?;
         let lidar = self
             .world
-            .lidar(agent_id.unwrap_or(usize::MAX), n_rays, range)
-            .map_err(continuous_error_to_pyexception)?;
-        match lidar {
-            Some(lidar) => Ok(PyArray1::from_vec(py, lidar)),
-            None => Err(invalid_agent(agent, self.world.n_agents())),
-        }
+            .lidar(agent_id, n_rays, range)
+            .map_err(continuous_error_to_pyexception)?
+            .expect("the agent id is valid");
+        Ok(PyArray1::from_vec(py, lidar))
+    }
+
+    /// The shape `(height * 32, width * 32, 3)` of `get_image()`.
+    #[getter]
+    fn image_shape(&self) -> (usize, usize, usize) {
+        let (width, height) = self.world.image_dimensions();
+        (height as usize, width as usize, 3)
     }
 
     /// The current frame, of shape `(height * 32, width * 32, 3)` and dtype `uint8` (RGB). The
@@ -682,14 +679,39 @@ impl PyContinuousWorld {
         PyArray1::from_vec(py, image.into_raw()).reshape([height as usize, width as usize, 3])
     }
 
+    /// The colours that the laser source `laser_id` may take (see `set_laser_colour`), in
+    /// increasing order.
+    ///
+    /// Raises:
+    ///     InvalidWorldStateError: if no laser source has the id `laser_id` (negative values
+    ///         included).
+    ///
+    /// @ai-generated
+    fn valid_laser_colours(
+        &self,
+        #[gen_stub(override_type(type_repr = "builtins.int"))] laser_id: &Bound<'_, PyAny>,
+    ) -> PyResult<Vec<usize>> {
+        let id = laser_id
+            .extract::<UnsignedInt>()?
+            .as_usize()
+            .ok_or_else(|| {
+                InvalidWorldStateError::new_err(format!("No laser source has the id {laser_id}"))
+            })?;
+        self.world
+            .valid_laser_colours(id)
+            .map_err(continuous_error_to_pyexception)
+    }
+
     /// Change the colour of the laser source `laser_id`: the agents of `colour` then block and
     /// cross its beam, and the others die in it. The colour persists through `reset` and
     /// `set_state`, and is copied and pickled with the world. `n_colours` never changes.
     ///
     /// Raises:
-    ///     InvalidWorldStateError: if `colour` is not below `n_colours`, no laser source has the
-    ///         id `laser_id`, or the full beam of the source would cover a possible start of an
-    ///         agent of another colour. The world is then left unchanged.
+    ///     InvalidWorldStateError: if no laser source has the id `laser_id`, or `colour` is not
+    ///         one of its `valid_laser_colours`: not below `n_colours`, or its full beam would
+    ///         cover a possible start of an agent of another colour, or its current beam would
+    ///         kill an alive agent of another colour where it stands. The world is then left
+    ///         unchanged.
     ///
     /// @ai-generated
     fn set_laser_colour(
