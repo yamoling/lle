@@ -51,6 +51,10 @@ class Builder:
         self._death_strategy: Literal["end", "respawn"] = "end"
         self._multi_objective = False
         self._pbrs: tuple[float, float, list[int] | None] | None = None
+        self._layered_resolution: int = 4
+        self._lidar: tuple[int, float] = (16, 5.0)
+        self._static_features = False
+        self._randomize_lasers = False
 
     @staticmethod
     def from_str(map_str: str):
@@ -113,13 +117,49 @@ class Builder:
         return self
 
     def obs_type(self, obs_type: ObservationTypeLiteral | ObservationType):
-        """Set the observation type (`ObservationType.STATE` by default)."""
+        """
+        Set the observation type (`ObservationType.STATE` by default).
+
+        Raises a `ValueError` right away if `obs_type` is not the name of an observation type.
+        """
         self._obs_type = ObservationType.from_str(obs_type) if isinstance(obs_type, str) else obs_type
         return self
 
     def state_type(self, state_type: ObservationTypeLiteral | ObservationType):
-        """Set the state type (`ObservationType.STATE` by default)."""
+        """
+        Set the state type (`ObservationType.STATE` by default). `LIDAR` is a per-agent
+        observation, so `build()` refuses it.
+
+        Raises a `ValueError` right away if `state_type` is not the name of an observation type.
+        """
         self._state_type = ObservationType.from_str(state_type) if isinstance(state_type, str) else state_type
+        return self
+
+    def layered_resolution(self, res: int):
+        """Set the number of pixels per cell, along each axis, of the `LAYERED` observation (4 by default)."""
+        self._layered_resolution = res
+        return self
+
+    def lidar(self, n_rays: int = 16, range: float = 5.0):
+        """Set the number of rays of the `LIDAR` observation and their range, in cells."""
+        self._lidar = (n_rays, range)
+        return self
+
+    def include_static_features(self):
+        """
+        Append the static features (the centres of the exits, of the gems and of the laser
+        sources, with the direction of the sources) to the `STATE` observation and state.
+        """
+        self._static_features = True
+        return self
+
+    def randomize_lasers(self):
+        """
+        Draw the colour of each laser source at every reset, uniformly among the colours valid for
+        it (whose beam crosses no possible start of an agent of another colour). The draws use the
+        `random` module, seeded by `reset(seed=...)` and `seed(...)`.
+        """
+        self._randomize_lasers = True
         return self
 
     def death_strategy(self, death_strategy: Literal["end", "respawn"]):
@@ -152,8 +192,9 @@ class Builder:
         Build the environment.
 
         Raises:
-            ValueError: if the physics parameters, `action_repeat`, the death strategy or a laser
-                id of `pbrs` are invalid.
+            ValueError: if the physics parameters, `action_repeat`, the layered resolution, the
+                lidar parameters, the death strategy or a laser id of `pbrs` are invalid, or if
+                the state type is `LIDAR`.
             NotImplementedError: if the death strategy is `"respawn"`.
 
         @ai-generated
@@ -178,4 +219,9 @@ class Builder:
             state_type=self._state_type,
             name=self._env_name,
             death_strategy=self._death_strategy,
+            layered_resolution=self._layered_resolution,
+            lidar_n_rays=self._lidar[0],
+            lidar_range=self._lidar[1],
+            static_features=self._static_features,
+            randomize_lasers=self._randomize_lasers,
         )

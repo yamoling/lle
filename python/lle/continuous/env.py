@@ -1,9 +1,10 @@
 """The `CLLE` environment: the `marlenv` interface of a `ContinuousWorld`."""
 
+import math
 import random
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 import numpy.typing as npt
@@ -15,6 +16,20 @@ from lle.world import EventType, WorldEvent
 
 from .observations import ObservationType
 from .world import ContinuousWorld, ContinuousWorldState
+
+TILE_SIZE = 32
+"""The number of pixels per cell of the rendered frames."""
+
+
+def _positive_int(value: Any, name: str) -> int:
+    """
+    `value` as an `int`, or a `ValueError` if it is not a positive integer (booleans excluded).
+
+    @ai-generated
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, np.integer)) or value < 1:
+        raise ValueError(f"{name} must be a positive integer, got {value!r}")
+    return int(value)
 
 
 @dataclass
@@ -29,6 +44,16 @@ class CLLE(ContinuousMARLEnv):
     agent, `ax` towards the east and `ay` towards the south. One step of the environment applies
     the joint action for `action_repeat` ticks of the world (fewer if the episode ends earlier),
     and the reward is computed from the events of all these ticks.
+
+    The observations and the state are computed by the world, according to `obs_type` and
+    `state_type` (see `ObservationType`): `STATE` (optionally with the static features),
+    `LAYERED` (with `layered_resolution` pixels per cell), `LIDAR` (with `lidar_n_rays` rays of
+    length `lidar_range`; observations only) and `RGB_IMAGE`.
+
+    With `randomize_lasers`, every reset draws the colour of each laser source, in laser id
+    order, uniformly among the colours that are valid for it (whose beam crosses no possible start
+    of an agent of another colour), with the `random` module. Otherwise, every reset restores the
+    colours that the sources had when the environment was created.
 
     Example
     -------
@@ -47,6 +72,11 @@ class CLLE(ContinuousMARLEnv):
     death_strategy: DeathStrategy
     action_repeat: int
     reward_strategy: RewardStrategy
+    layered_resolution: int
+    lidar_n_rays: int
+    lidar_range: float
+    static_features: bool
+    randomize_lasers: bool
 
     def __init__(
         self,
@@ -57,17 +87,36 @@ class CLLE(ContinuousMARLEnv):
         state_type: ObservationType = ObservationType.STATE,
         name: str | None = None,
         death_strategy: Literal["respawn", "end"] = "end",
+        layered_resolution: int = 4,
+        lidar_n_rays: int = 16,
+        lidar_range: float = 5.0,
+        static_features: bool = False,
+        randomize_lasers: bool = False,
     ):
         """
         Raises:
-            ValueError: if `action_repeat` is not a positive integer or `death_strategy` is
-                unknown.
+            ValueError: if `action_repeat`, `layered_resolution` or `lidar_n_rays` is not a
+                positive integer, `lidar_range` is not positive and finite, `death_strategy` is
+                unknown, or `state_type` is `LIDAR`.
             NotImplementedError: if `death_strategy` is `"respawn"`.
 
         @ai-generated
         """
-        if isinstance(action_repeat, bool) or not isinstance(action_repeat, (int, np.integer)) or action_repeat < 1:
-            raise ValueError(f"action_repeat must be a positive integer, got {action_repeat!r}")
+        action_repeat = _positive_int(action_repeat, "action_repeat")
+        self.layered_resolution = _positive_int(layered_resolution, "layered_resolution")
+        self.lidar_n_rays = _positive_int(lidar_n_rays, "lidar_n_rays")
+        if (
+            isinstance(lidar_range, bool)
+            or not isinstance(lidar_range, (int, float, np.integer, np.floating))
+            or not math.isfinite(lidar_range)
+            or lidar_range <= 0
+        ):
+            raise ValueError(f"lidar_range must be positive and finite, got {lidar_range!r}")
+        self.lidar_range = float(lidar_range)
+        if ObservationType(state_type) == ObservationType.LIDAR:
+            raise ValueError("The state type cannot be LIDAR, a per-agent observation: use STATE, LAYERED or RGB_IMAGE")
+        self.static_features = bool(static_features)
+        self.randomize_lasers = bool(randomize_lasers)
         match DeathStrategy.from_str(death_strategy):
             case DeathStrategy.END:
                 self.death_strategy = DeathStrategy.END
@@ -80,15 +129,56 @@ class CLLE(ContinuousMARLEnv):
         if reward_strategy is None:
             reward_strategy = SingleObjective(world.n_agents)
         self.reward_strategy = reward_strategy
+        self._initial_laser_colours = [(laser_id, colour) for (_, _, colour, laser_id) in world.laser_sources]
+        self._laser_colour_choices = self._valid_laser_colours(world)
         super().__init__(
             world.n_agents,
             action_space=ContinuousSpace.from_shape((world.n_agents, 2), low=-1.0, high=1.0),
-            observation_shape=(world.observation_size,),
-            state_shape=(world.state_size,),
+            observation_shape=self._shape(ObservationType(obs_type)),
+            state_shape=self._shape(ObservationType(state_type)),
             reward_space=self.reward_strategy.reward_space,
         )
         self._name = name
         self.done = False
+
+    @staticmethod
+    def _valid_laser_colours(world: ContinuousWorld):
+        """
+        For each laser source, in laser id order, its laser id and the colours it may take: those
+        whose beam covers no possible start of an agent of another colour.
+
+        @ai-generated
+        """
+        choices = list[tuple[int, list[int]]]()
+        sources = sorted(zip(world.laser_sources, world.beam_cells), key=lambda source: source[0][3])
+        for (_, _, _, laser_id), beam_cells in sources:
+            cells = set(beam_cells)
+            valid = [
+                colour
+                for colour in range(world.n_colours)
+                if all(
+                    agent_colour == colour or cells.isdisjoint(starts)
+                    for agent_colour, starts in zip(world.agents_colours, world.possible_starts)
+                )
+            ]
+            choices.append((laser_id, valid))
+        return choices
+
+    def _shape(self, obs_type: ObservationType) -> tuple[int, ...]:
+        """
+        The shape of one observation (or of the state) of type `obs_type`.
+
+        @ai-generated
+        """
+        match obs_type:
+            case ObservationType.STATE:
+                return (self._world.observation_size_for(self.static_features),)
+            case ObservationType.LAYERED:
+                return self._world.layered_shape(self.layered_resolution)
+            case ObservationType.LIDAR:
+                return (self._world.lidar_size(self.lidar_n_rays),)
+            case ObservationType.RGB_IMAGE:
+                return (self._world.height * TILE_SIZE, self._world.width * TILE_SIZE, 3)
 
     @property
     def name(self):
@@ -157,9 +247,26 @@ class CLLE(ContinuousMARLEnv):
         if seed is not None:
             self.seed(seed)
         self._world.reset()
+        if self.randomize_lasers:
+            for laser_id, colours in self._laser_colour_choices:
+                if len(colours) > 0:
+                    self._world.set_laser_colour(laser_id, random.choice(colours))
+        else:
+            self._restore_laser_colours()
         self.reward_strategy.reset()
         self.done = False
         return self.get_observation(), self.get_state()
+
+    def _restore_laser_colours(self):
+        """
+        Give back to each laser source the colour it had when the environment was created.
+
+        @ai-generated
+        """
+        current = {laser_id: colour for (_, _, colour, laser_id) in self._world.laser_sources}
+        for laser_id, colour in self._initial_laser_colours:
+            if current[laser_id] != colour:
+                self._world.set_laser_colour(laser_id, colour)
 
     def seed(self, seed_value: int):
         random.seed(seed_value)
@@ -167,16 +274,37 @@ class CLLE(ContinuousMARLEnv):
 
     def get_observation(self):
         """
-        The `STATE` observation of every agent, stacked into an `(n_agents, observation_size)`
-        `float32` array, without extras.
+        The observation of every agent, of shape `(n_agents, *observation_shape)` and dtype
+        `float32`, without extras.
 
         @ai-generated
         """
-        data = np.stack([self._world.observation(i) for i in range(self.n_agents)])
+        world = self._world
+        match ObservationType[self.obs_type]:
+            case ObservationType.STATE:
+                data = np.stack([world.observation(i, self.static_features) for i in range(self.n_agents)])
+            case ObservationType.LAYERED:
+                data = np.tile(world.layered(self.layered_resolution), (self.n_agents, 1, 1, 1))
+            case ObservationType.LIDAR:
+                data = np.stack([world.lidar(i, self.lidar_n_rays, self.lidar_range) for i in range(self.n_agents)])
+            case ObservationType.RGB_IMAGE:
+                data = np.tile(world.get_image(), (self.n_agents, 1, 1, 1)).astype(np.float32)
         return Observation(data, self.available_actions())
 
     def get_state(self):
-        return State(self._world.state_vector())
+        """
+        The state of the world, of shape `state_shape` and dtype `float32`.
+
+        @ai-generated
+        """
+        match ObservationType[self.state_type]:
+            case ObservationType.LAYERED:
+                data = self._world.layered(self.layered_resolution)
+            case ObservationType.RGB_IMAGE:
+                data = self._world.get_image().astype(np.float32)
+            case _:
+                data = self._world.state_vector(self.static_features)
+        return State(data)
 
     def set_state(self, state: State | ContinuousWorldState):
         """
@@ -204,7 +332,24 @@ class CLLE(ContinuousMARLEnv):
         self.done = self.compute_done()
 
     def get_image(self):
-        raise NotImplementedError("Rendering is not implemented for CLLE yet")
+        """The current frame, of shape `(height * 32, width * 32, 3)` and dtype `uint8`."""
+        return self._world.get_image()
+
+    def render(self, mode: Literal["human", "rgb_array"] = "human"):
+        """
+        Render the environment: `"human"` shows the frame in an OpenCV window (as `marlenv`
+        does), and `"rgb_array"` returns it (see `get_image`).
+
+        Raises a `ValueError` for any other mode.
+
+        @ai-generated
+        """
+        match mode:
+            case "human":
+                return super().render()
+            case "rgb_array":
+                return self.get_image()
+        raise ValueError(f"Unknown render mode {mode!r}: expected 'human' or 'rgb_array'")
 
     def compute_done(self):
         """
