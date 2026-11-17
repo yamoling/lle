@@ -6,13 +6,23 @@
 //!   `crate::continuous`. Root re-exports such as `crate::Position` are forbidden.
 //! - In `src/discrete/`, no `crate::` path starts with `crate::continuous`.
 //!
-//! The check is a small hand-written scanner: comments and the contents of string and character
-//! literals are blanked out, then every `crate::` path is reduced to its first segment. A grouped
-//! import `use crate::{a::b, c::{d, e}}` yields one first segment per top-level item (`a`, `c`).
-//! `super::` paths are not checked.
+//! Each file is parsed with `syn`, so comments and literals are never mistaken for code. The
+//! guard checks the first segment after `crate` in every path and `use` tree (one per top-level
+//! item of a grouped import), and in the tokens of macro invocations. A `super::` path that climbs
+//! out of the tree up to the crate root is checked like a `crate::` path: in
+//! `src/continuous/world.rs`, `super::super::Position` is `crate::Position`.
+//!
+//! The test files wired with `#[path]` from `src/unit_tests/` are not under these directories, so
+//! they are not checked: tests may use any part of the crate.
 use std::{
     fs,
     path::{Path, PathBuf},
+};
+
+use proc_macro2::{TokenStream, TokenTree};
+use syn::{
+    ItemMod, ItemUse, Macro, UseTree,
+    visit::{self, Visit},
 };
 
 /// The three source trees and the first segments allowed after `crate::` in each of them.
@@ -41,210 +51,148 @@ impl Tree {
     }
 }
 
-fn is_ident_char(c: char) -> bool {
-    c.is_alphanumeric() || c == '_'
-}
-
-/// Replace comments (line, doc and nested block comments) and the contents of string, raw string
-/// and character literals with spaces. Newlines are kept so that line numbers are preserved, and
-/// lifetimes (`'a`) are left untouched.
+/// Collects the first segment after the crate root of every path of a file.
 ///
 /// @ai-generated
-fn blank_comments_and_literals(src: &str) -> String {
-    let chars: Vec<char> = src.chars().collect();
-    let blank = |c: char| if c == '\n' { '\n' } else { ' ' };
-    let mut out = String::with_capacity(src.len());
-    let mut i = 0;
-    while i < chars.len() {
-        let c = chars[i];
-        let next = chars.get(i + 1).copied();
-        // Line comment, including `///` and `//!`.
-        if c == '/' && next == Some('/') {
-            while i < chars.len() && chars[i] != '\n' {
-                out.push(' ');
-                i += 1;
+struct HeadCollector {
+    /// The module path of the code being visited, from the crate root (e.g. `["continuous",
+    /// "world"]`), extended by the inline `mod` blocks entered so far.
+    module: Vec<String>,
+    /// `(head, path)` for every path that reaches the crate root.
+    heads: Vec<(String, String)>,
+}
+
+impl HeadCollector {
+    /// Record the path `segments` if it reaches the crate root: either it starts with `crate`, or
+    /// it starts with as many `super` as the depth of the current module (or more).
+    ///
+    /// @ai-generated
+    fn record(&mut self, segments: &[String]) {
+        let n_root = match segments.first().map(String::as_str) {
+            Some("crate") => 1,
+            Some("super") => {
+                let n_super = segments.iter().take_while(|s| *s == "super").count();
+                if n_super < self.module.len() {
+                    return;
+                }
+                n_super
             }
-            continue;
+            _ => return,
+        };
+        // A bare `crate` (e.g. `pub(crate)`) names the root itself, and the items of a group
+        // such as `use crate::{...}` are recorded one by one.
+        if let Some(head) = segments.get(n_root) {
+            self.heads.push((head.clone(), segments.join("::")));
         }
-        // Block comment, possibly nested.
-        if c == '/' && next == Some('*') {
-            let mut depth = 0;
-            while i < chars.len() {
-                if chars[i] == '/' && chars.get(i + 1) == Some(&'*') {
-                    depth += 1;
-                    out.push_str("  ");
-                    i += 2;
-                } else if chars[i] == '*' && chars.get(i + 1) == Some(&'/') {
-                    depth -= 1;
-                    out.push_str("  ");
-                    i += 2;
-                    if depth == 0 {
-                        break;
+    }
+
+    /// Walk a `use` tree under the path `prefix`.
+    ///
+    /// @ai-generated
+    fn use_tree(&mut self, prefix: &mut Vec<String>, tree: &UseTree) {
+        match tree {
+            UseTree::Path(path) => {
+                prefix.push(path.ident.to_string());
+                self.use_tree(prefix, &path.tree);
+                prefix.pop();
+            }
+            UseTree::Name(name) => self.leaf(prefix, name.ident.to_string()),
+            UseTree::Rename(rename) => self.leaf(prefix, rename.ident.to_string()),
+            UseTree::Glob(_) => self.leaf(prefix, "*".to_string()),
+            UseTree::Group(group) => {
+                for item in &group.items {
+                    self.use_tree(prefix, item);
+                }
+            }
+        }
+    }
+
+    fn leaf(&mut self, prefix: &mut Vec<String>, name: String) {
+        prefix.push(name);
+        self.record(prefix);
+        prefix.pop();
+    }
+
+    /// Record every `crate :: ident` sequence in the tokens of a macro invocation.
+    ///
+    /// @ai-generated
+    fn tokens(&mut self, tokens: TokenStream) {
+        let tokens: Vec<TokenTree> = tokens.into_iter().collect();
+        for (i, token) in tokens.iter().enumerate() {
+            match token {
+                TokenTree::Group(group) => self.tokens(group.stream()),
+                TokenTree::Ident(ident) if ident == "crate" => {
+                    if let [
+                        TokenTree::Punct(a),
+                        TokenTree::Punct(b),
+                        TokenTree::Ident(head),
+                        ..,
+                    ] = &tokens[i + 1..]
+                        && a.as_char() == ':'
+                        && b.as_char() == ':'
+                    {
+                        self.heads
+                            .push((head.to_string(), format!("crate::{head} (in a macro)")));
                     }
-                } else {
-                    out.push(blank(chars[i]));
-                    i += 1;
                 }
-            }
-            continue;
-        }
-        // Raw string `r"..."`, `r#"..."#`, `br"..."`: no escapes, ends with `"` and as many `#`.
-        let starts_word = i == 0
-            || !is_ident_char(chars[i - 1])
-            || (chars[i - 1] == 'b' && (i == 1 || !is_ident_char(chars[i - 2])));
-        if c == 'r' && starts_word {
-            let mut j = i + 1;
-            while chars.get(j) == Some(&'#') {
-                j += 1;
-            }
-            if chars.get(j) == Some(&'"') {
-                let hashes = j - i - 1;
-                out.push_str(&" ".repeat(j - i + 1));
-                i = j + 1;
-                while i < chars.len() {
-                    let closes =
-                        chars[i] == '"' && (1..=hashes).all(|h| chars.get(i + h) == Some(&'#'));
-                    if closes {
-                        out.push_str(&" ".repeat(hashes + 1));
-                        i += hashes + 1;
-                        break;
-                    }
-                    out.push(blank(chars[i]));
-                    i += 1;
-                }
-                continue;
+                _ => {}
             }
         }
-        // String literal with escapes.
-        if c == '"' {
-            out.push(' ');
-            i += 1;
-            while i < chars.len() && chars[i] != '"' {
-                if chars[i] == '\\' {
-                    out.push(' ');
-                    i += 1;
-                }
-                if i < chars.len() {
-                    out.push(blank(chars[i]));
-                    i += 1;
-                }
-            }
-            out.push(' ');
-            i += 1;
-            continue;
-        }
-        // Character literal: `'x'` or `'\…'`. Anything else starting with `'` is a lifetime.
-        if c == '\'' {
-            if next == Some('\\') {
-                // Skip the escaped character, which may itself be a quote: `'\''`.
-                let mut j = i + 3;
-                while j < chars.len() && chars[j] != '\'' {
-                    j += 1;
-                }
-                out.push_str(&" ".repeat(j + 1 - i));
-                i = j + 1;
-                continue;
-            }
-            if next.is_some() && chars.get(i + 2) == Some(&'\'') {
-                out.push_str("   ");
-                i += 3;
-                continue;
-            }
-        }
-        out.push(c);
-        i += 1;
     }
-    out
 }
 
-fn skip_whitespace(chars: &[char], mut i: usize) -> usize {
-    while i < chars.len() && chars[i].is_whitespace() {
-        i += 1;
+impl<'ast> Visit<'ast> for HeadCollector {
+    fn visit_item_use(&mut self, item: &'ast ItemUse) {
+        self.use_tree(&mut Vec::new(), &item.tree);
     }
-    i
+
+    fn visit_path(&mut self, path: &'ast syn::Path) {
+        if path.leading_colon.is_none() {
+            let segments: Vec<String> = path.segments.iter().map(|s| s.ident.to_string()).collect();
+            self.record(&segments);
+        }
+        visit::visit_path(self, path);
+    }
+
+    fn visit_item_mod(&mut self, item: &'ast ItemMod) {
+        if item.content.is_some() {
+            self.module.push(item.ident.to_string());
+            visit::visit_item_mod(self, item);
+            self.module.pop();
+        }
+    }
+
+    fn visit_macro(&mut self, mac: &'ast Macro) {
+        self.tokens(mac.tokens.clone());
+        visit::visit_macro(self, mac);
+    }
 }
 
-fn read_ident(chars: &[char], mut i: usize) -> (String, usize) {
-    let start = i;
-    while i < chars.len() && is_ident_char(chars[i]) {
-        i += 1;
-    }
-    (chars[start..i].iter().collect(), i)
-}
-
-/// The first segment after `crate::` of every `crate::` path in `code` (already blanked by
-/// [`blank_comments_and_literals`]), with the line where that segment is. A grouped import
-/// yields the first segment of each of its top-level items; a glob `crate::*` yields `*`.
+/// The `(head, path)` of every path of `src` that reaches the crate root, for a file whose module
+/// path is `module` (e.g. `["continuous", "world"]` for `src/continuous/world.rs`).
 ///
 /// @ai-generated
-fn crate_path_heads(code: &str) -> Vec<(usize, String)> {
-    let chars: Vec<char> = code.chars().collect();
-    let line_at = |offset: usize| chars[..offset].iter().filter(|&&c| c == '\n').count() + 1;
-    let mut heads = Vec::new();
-    let mut i = 0;
-    while i < chars.len() {
-        let is_crate_keyword = chars[i..].starts_with(&['c', 'r', 'a', 't', 'e'])
-            && (i == 0 || !is_ident_char(chars[i - 1]))
-            && !chars.get(i + 5).is_some_and(|&c| is_ident_char(c));
-        if !is_crate_keyword {
-            i += 1;
-            continue;
-        }
-        let j = skip_whitespace(&chars, i + 5);
-        if !chars[j..].starts_with(&[':', ':']) {
-            i += 5;
-            continue;
-        }
-        let k = skip_whitespace(&chars, j + 2);
-        match chars.get(k) {
-            Some('{') => {
-                // Top-level items of the group are at brace depth 1.
-                let mut depth = 1;
-                let mut item_head: Option<(usize, String)> = None;
-                let mut m = k + 1;
-                while m < chars.len() && depth > 0 {
-                    match chars[m] {
-                        '{' => depth += 1,
-                        c @ ('}' | ',') if depth == 1 => {
-                            heads.extend(item_head.take());
-                            if c == '}' {
-                                depth = 0;
-                            }
-                        }
-                        '}' => depth -= 1,
-                        '*' if depth == 1 && item_head.is_none() => {
-                            item_head = Some((line_at(m), "*".into()));
-                        }
-                        c if depth == 1 && item_head.is_none() && is_ident_char(c) => {
-                            let (ident, end) = read_ident(&chars, m);
-                            item_head = Some((line_at(m), ident));
-                            m = end;
-                            continue;
-                        }
-                        _ => {}
-                    }
-                    m += 1;
-                }
-            }
-            Some('*') => heads.push((line_at(k), "*".into())),
-            Some(&c) if is_ident_char(c) => heads.push((line_at(k), read_ident(&chars, k).0)),
-            _ => {}
-        }
-        i += 5;
-    }
-    heads
+fn root_heads(module: &[&str], src: &str) -> Vec<(String, String)> {
+    let file = syn::parse_file(src).unwrap_or_else(|e| panic!("cannot parse: {e}"));
+    let mut collector = HeadCollector {
+        module: module.iter().map(|s| s.to_string()).collect(),
+        heads: Vec::new(),
+    };
+    collector.visit_file(&file);
+    collector.heads
 }
 
-/// The forbidden `crate::` heads of `src` for `tree`, as `(line, head)`.
-fn violations(tree: Tree, src: &str) -> Vec<(usize, String)> {
-    crate_path_heads(&blank_comments_and_literals(src))
+/// The paths of `src` that break the rule of `tree`.
+fn violations(tree: Tree, module: &[&str], src: &str) -> Vec<String> {
+    root_heads(module, src)
         .into_iter()
-        .filter(|(_, head)| !tree.allows(head))
+        .filter(|(head, _)| !tree.allows(head))
+        .map(|(_, path)| path)
         .collect()
 }
 
 fn rust_files(dir: &Path, files: &mut Vec<PathBuf>) {
-    for entry in fs::read_dir(dir).unwrap_or_else(|e| panic!("cannot read {dir:?}: {e}")) {
+    for entry in fs::read_dir(dir).unwrap() {
         let path = entry.unwrap().path();
         if path.is_dir() {
             rust_files(&path, files);
@@ -254,29 +202,42 @@ fn rust_files(dir: &Path, files: &mut Vec<PathBuf>) {
     }
 }
 
-/// Check every `.rs` file of `src/<tree>` and report all the violations at once.
-///
+/// The module path of `file`, relative to `src/`: `src/shared/map/mod.rs` is `["shared", "map"]`.
+fn module_path(src_dir: &Path, file: &Path) -> Vec<String> {
+    let relative = file.strip_prefix(src_dir).unwrap().with_extension("");
+    let mut module: Vec<String> = relative
+        .components()
+        .map(|c| c.as_os_str().to_string_lossy().into_owned())
+        .collect();
+    if module.last().is_some_and(|last| last == "mod") {
+        module.pop();
+    }
+    module
+}
+
 /// @ai-generated
 fn assert_tree_respects_the_rule(tree: Tree) {
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("src")
-        .join(tree.dir_name());
+    let src_dir = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src"));
     let mut files = Vec::new();
-    rust_files(&dir, &mut files);
-    assert!(!files.is_empty(), "no Rust file found in {dir:?}");
+    rust_files(&src_dir.join(tree.dir_name()), &mut files);
+    files.sort();
+    assert!(
+        !files.is_empty(),
+        "no Rust file under src/{}",
+        tree.dir_name()
+    );
     let mut report = Vec::new();
-    for file in files {
-        let src = fs::read_to_string(&file).unwrap();
-        for (line, head) in violations(tree, &src) {
-            let relative = file
-                .strip_prefix(env!("CARGO_MANIFEST_DIR"))
-                .unwrap_or(&file);
-            report.push(format!("{}:{line}: crate::{head}", relative.display()));
+    for file in &files {
+        let module = module_path(src_dir, file);
+        let module: Vec<&str> = module.iter().map(String::as_str).collect();
+        let src = fs::read_to_string(file).unwrap();
+        for path in violations(tree, &module, &src) {
+            report.push(format!("{}: {path}", file.display()));
         }
     }
     assert!(
         report.is_empty(),
-        "forbidden `crate::` paths in src/{}:\n{}",
+        "dependency rule broken in src/{}:\n{}",
         tree.dir_name(),
         report.join("\n")
     );
@@ -301,106 +262,75 @@ fn discrete_never_references_continuous() {
 // Self-tests of the guard
 // ---------------------------------------------------------------------------
 
-fn heads(src: &str) -> Vec<String> {
-    crate_path_heads(&blank_comments_and_literals(src))
-        .into_iter()
-        .map(|(_, head)| head)
-        .collect()
-}
+const CONTINUOUS_WORLD: &[&str] = &["continuous", "world"];
 
 #[test]
-fn guard_extracts_heads_of_nested_multi_line_groups_and_inline_paths() {
+fn guard_reports_root_re_exports_in_groups_paths_and_macros_but_not_in_comments() {
     let src = r#"
-use crate::{
-    shared::{map::{MapSpec, ValidMap}, Position},
-    continuous :: geometry::*,
-    self,
-};
-use crate::*;
-pub(crate) fn f() -> usize {
-    let spec = crate::shared::map::MapSpec::parse("S0 X").unwrap();
-    crate :: continuous::helper(&spec)
-}
-"#;
-    assert_eq!(
-        heads(src),
-        ["shared", "continuous", "self", "*", "shared", "continuous"]
-    );
-}
-
-#[test]
-fn guard_accepts_a_compliant_continuous_file() {
-    let src = r##"
-//! Unlike `crate::core::World`, this module only uses `crate::shared`.
+//! Unlike `crate::discrete::World`, this module only uses `crate::shared`.
 use super::{geometry::*, lasers::Beam};
 use crate::{
     continuous::ContinuousError,
     shared::{event::WorldEvent, map::ValidMap},
-};
-/* A block comment with crate::World, /* nested: crate::Action */ still a comment. */
-pub(crate) struct S<'a> {
-    name: &'a str,
-}
-fn f<'a>(s: &'a str) -> &'a str {
-    let quote = '"';
-    let escaped = '\'';
-    let text = "crate::discrete::World \" crate::Position";
-    let raw = r#"crate::World "quoted" crate::Action"#;
-    let map = crate::shared::map::MapSpec::parse(raw);
-    super::super::helper(s)
-}
-"##;
-    assert!(violations(Tree::Continuous, src).is_empty());
-}
-
-#[test]
-fn guard_reports_root_re_exports_and_discrete_items_in_continuous() {
-    let src = r#"
-use crate::{
-    shared::Grid,
     discrete::{
         World,
         Action,
     },
 };
-fn f() {
+/* A block comment with crate::World, /* nested: crate::Action */ still a comment. */
+pub(crate) fn f() {
+    let text = "crate::discrete::World";
+    let map = crate::shared::map::MapSpec::parse(text);
     let p = crate::Position::new2d(0, 0);
+    let v = vec![crate::Action::Stay];
 }
 "#;
     assert_eq!(
-        violations(Tree::Continuous, src),
-        [(4, "discrete".to_string()), (10, "Position".to_string())]
+        violations(Tree::Continuous, CONTINUOUS_WORLD, src),
+        [
+            "crate::discrete::World",
+            "crate::discrete::Action",
+            "crate::Position::new2d",
+            "crate::Action (in a macro)",
+        ]
     );
 }
 
 #[test]
-fn guard_sees_code_after_a_nested_comment_and_quote_char() {
-    // If nested comments or the `'"'` char literal were mishandled, the `use` would be swallowed.
-    let src = "/* outer /* inner */ still outer */ use crate::core::World;\n\
-               let q = '\"'; use crate::Action;";
+fn guard_reports_super_paths_that_climb_to_the_crate_root() {
+    // In `continuous::world`, one `super` stays in `continuous`, two reach the crate root.
+    let src = "
+use super::geometry::centre;
+use super::super::shared::Position;
+use super::super::{continuous::ContinuousError, Action};
+mod inner {
+    // In `continuous::world::inner`, two `super` only reach `continuous`.
+    use super::super::geometry::norm;
+    fn f() { super::super::super::World::get_level(1); }
+}
+";
     assert_eq!(
-        violations(Tree::Continuous, src),
-        [(1, "core".to_string()), (2, "Action".to_string())]
+        violations(Tree::Continuous, CONTINUOUS_WORLD, src),
+        [
+            "super::super::Action",
+            "super::super::super::World::get_level"
+        ]
     );
 }
 
 #[test]
-fn guard_reports_shared_depending_on_another_tree() {
+fn guard_reports_shared_and_discrete_depending_on_another_tree() {
     let src = "use crate::shared::map::MapSpec;\nuse crate::continuous::ContinuousWorld;\n\
                fn f() { crate::discrete::World::get_level(1); }";
     assert_eq!(
-        violations(Tree::Shared, src),
-        [(2, "continuous".to_string()), (3, "discrete".to_string())]
+        violations(Tree::Shared, &["shared", "map"], src),
+        [
+            "crate::continuous::ContinuousWorld",
+            "crate::discrete::World::get_level"
+        ]
     );
-}
-
-#[test]
-fn guard_reports_discrete_depending_on_continuous_only() {
-    let src = "use crate::{Position, shared::Grid, discrete::World};\n\
-               use crate::{\n    continuous::ContinuousWorld,\n};\n\
-               fn f() { let _ = crate :: continuous :: PhysicsParams::default(); }";
     assert_eq!(
-        violations(Tree::Discrete, src),
-        [(3, "continuous".to_string()), (5, "continuous".to_string())]
+        violations(Tree::Discrete, &["discrete", "world"], src),
+        ["crate::continuous::ContinuousWorld"]
     );
 }

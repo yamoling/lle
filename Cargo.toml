@@ -39,6 +39,9 @@ boon = "0.6.1"
 rstest = "0.26.1"
 rstest_reuse = "0.7.0"
 serde_json = "1.0"
+# Used by the architecture guard (src/unit_tests/test_architecture.rs) to parse the sources.
+proc-macro2 = "1.0.107"
+syn = { version = "2.0.119", features = ["full", "visit"] }
 
 [build-dependencies]
 image = { version = "0.25.5", default-features = false, features = ["png"] }
