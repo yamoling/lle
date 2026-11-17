@@ -8,8 +8,8 @@ pub mod grid;
 pub mod ids;
 pub mod map;
 pub mod position;
-pub mod sprites;
-pub mod utils;
+pub(crate) mod sprites;
+pub(crate) mod utils;
 
 pub use direction::{CardinalDirection, Direction, VerticalDirection};
 pub use event::WorldEvent;
