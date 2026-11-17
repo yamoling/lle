@@ -91,6 +91,36 @@ def test_death_ends_the_episode():
     assert step.info["gems_collected"] == 0
 
 
+LASER_DEATH = """
+S0 . . X
+.  . . L1W
+S1 . . X
+"""
+"""Agent 0 (colour 0) walks south into the beam of L1W, along y = 1.5: its disc touches the beam
+when y > 1.5 - (r + beam_width / 2) = 1.15, i.e. at tick index 6 (y = 1.2). Agent 1 is safe."""
+
+
+def test_laser_death_ends_the_episode():
+    env = clle.from_str(LASER_DEATH).build()
+    env.reset()
+    step = env.step([SOUTH, STILL])
+    assert step.reward.tolist() == [REWARD_DEATH]
+    assert step.done
+    assert step.info["n_ticks"] == 7
+    assert not step.info["is-alive-0"]
+    assert step.info["is-alive-1"]
+
+
+def test_stepping_a_done_env_is_a_value_error():
+    env = clle.from_str(INTO_VOID).build()
+    env.reset()
+    assert env.step([EAST]).done
+    before = env.world.get_state()
+    with pytest.raises(ValueError):
+        env.step([EAST])
+    assert env.world.get_state() == before
+
+
 def test_episode_is_not_done_until_every_agent_has_arrived():
     env = clle.from_str("S0 X .\nS1 . X").action_repeat(20).build()
     env.reset()
@@ -159,6 +189,59 @@ def test_set_state_accepts_a_world_state_and_resets_the_rewards():
     assert step.reward.tolist() == [REWARD_GEM + REWARD_EXIT + REWARD_DONE]
 
 
+PARTIAL = """
+S0 X . .
+S1 . . X
+.  . L1N .
+"""
+"""Agent 0 reaches the exit (0, 1) in the first step of `PARTIAL_FIRST`. Then agent 1 walks east
+along row 1: it enters its own beam (L1N on (2, 2) covers (1, 2) and (0, 2)) in the first step of
+`PARTIAL_SECOND`, and the exit (1, 3) in the second step."""
+PARTIAL_FIRST = [(0.7, 0.0), STILL]
+PARTIAL_SECOND = [STILL, EAST]
+
+
+def partial_builder(reward: str):
+    builder = clle.from_str(PARTIAL).action_repeat(20)
+    if "multi" in reward:
+        builder = builder.multi_objective()
+    if "pbrs" in reward:
+        builder = builder.pbrs(gamma=0.99, reward_value=0.5)
+    return builder
+
+
+def finish(env: CLLE):
+    rewards = []
+    while not env.done:
+        rewards.append(env.step(PARTIAL_SECOND).reward)
+    return rewards
+
+
+@pytest.mark.parametrize("reward", ["single", "multi", "single-pbrs", "multi-pbrs"])
+def test_set_state_after_a_partial_completion_keeps_the_completion_reward(reward: str):
+    """An agent that arrived before the snapshot still counts: finishing the restored episode
+    gives the same rewards (the DONE bonus included) as finishing it without interruption."""
+    uninterrupted = partial_builder(reward).build()
+    uninterrupted.reset()
+    uninterrupted.step(PARTIAL_FIRST)
+    snapshot = uninterrupted.world.get_state()
+    assert list(snapshot.agents_arrived) == [True, False]
+    copies = [copy.deepcopy(uninterrupted), pickle.loads(pickle.dumps(uninterrupted))]
+    expected = finish(uninterrupted)
+    assert len(expected) == 2
+
+    restored = partial_builder(reward).build()
+    restored.reset()
+    # Another history before the restoration: agent 1 has already entered its beam.
+    restored.step(PARTIAL_SECOND)
+    restored.set_state(snapshot)
+    assert not restored.done
+    for env in [restored, *copies]:
+        np.testing.assert_allclose(finish(env), expected, atol=1e-6)
+    if reward == "single":
+        assert [r.tolist() for r in expected] == [[0.0], [REWARD_EXIT + REWARD_DONE]]
+
+
 def test_set_state_recomputes_done_from_the_world_flags():
     env = clle.from_str(TWO_AGENTS).build()
     env.reset()
@@ -203,6 +286,20 @@ def test_copies_are_independent_envs(duplicate):
     clone.step([WEST, SOUTH])
     np.testing.assert_array_equal(env.get_state().data, before)
     assert clone.world is not env.world
+
+
+@pytest.mark.parametrize("duplicate", [copy.deepcopy, lambda env: pickle.loads(pickle.dumps(env))], ids=["deepcopy", "pickle"])
+def test_copies_keep_the_random_starts(duplicate):
+    env = clle.from_str(RANDOM_STARTS).build()
+    env.reset(seed=3)
+    clone = duplicate(env)
+    states = set()
+    for _ in range(5):
+        _, state = env.reset()
+        _, clone_state = clone.reset()
+        np.testing.assert_array_equal(clone_state.data, state.data)
+        states.add(state.data.tobytes())
+    assert len(states) > 1
 
 
 def test_get_image_is_not_implemented():

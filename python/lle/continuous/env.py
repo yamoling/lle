@@ -11,6 +11,7 @@ from marlenv.models import ContinuousMARLEnv, ContinuousSpace, Observation, Stat
 
 from lle.env.common import DeathStrategy
 from lle.env.reward_strategy import RewardStrategy, SingleObjective
+from lle.world import EventType, WorldEvent
 
 from .observations import ObservationType
 from .world import ContinuousWorld, ContinuousWorldState
@@ -182,6 +183,11 @@ class CLLE(ContinuousMARLEnv):
         Restore a `ContinuousWorldState`, reset the reward strategy and recompute `done` from the
         flags of the world.
 
+        After the reset, the strategy is fed one `AGENT_EXIT` event per agent that has already
+        arrived (the reward is discarded), like `LLE.set_state` feeds the events of the restored
+        state. Its arrival count then matches the world, so that the agents who arrive later still
+        earn the completion reward, and a shaping wrapper starts from the restored positions.
+
         Raises:
             NotImplementedError: if `state` is a `State`: its normalized vector cannot be
                 inverted exactly.
@@ -193,6 +199,8 @@ class CLLE(ContinuousMARLEnv):
             raise NotImplementedError("CLLE.set_state only accepts a ContinuousWorldState: a normalized State vector cannot be inverted.")
         self._world.set_state(state)
         self.reward_strategy.reset()
+        arrivals = [WorldEvent(EventType.AGENT_EXIT, agent_id=i) for i, arrived in enumerate(self._world.agents_arrived) if arrived]
+        self.reward_strategy.compute_reward(arrivals)
         self.done = self.compute_done()
 
     def get_image(self):
