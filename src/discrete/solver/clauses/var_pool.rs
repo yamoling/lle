@@ -369,7 +369,10 @@ impl VarPool {
     ///
     /// Returns [`SolverError::MissingPosition`] if the model does not pin down every agent's
     /// position at each step `0..=t_end`, and [`SolverError::InvalidTrajectory`] if two
-    /// consecutive positions are not connected by a single action.
+    /// consecutive positions are not connected by a single action. When a lift moved an agent to
+    /// another layer, the action is the walk on the layer the agent left.
+    ///
+    /// @ai-edited
     pub fn decode_plan(
         &self,
         literals: &[Literal],

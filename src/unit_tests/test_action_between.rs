@@ -52,11 +52,75 @@ fn between_non_adjacent_cells_is_an_invalid_delta() {
 }
 
 #[test]
-fn between_cells_on_different_layers_is_an_error() {
+fn between_cells_on_different_layers_is_not_adjacent() {
     // Same (i, j) on another layer, and a planar neighbour on another layer.
     let from = pos(1, 1, 0);
     for to in [pos(1, 1, 1), pos(0, 1, 1), pos(1, 2, 2)] {
-        assert!(Action::between(from, to).is_err(), "{to:?}");
-        assert!(Action::between(to, from).is_err(), "reversed {to:?}");
+        for (a, b) in [(from, to), (to, from)] {
+            match Action::between(a, b) {
+                Err(RuntimeWorldError::PositionsNotAdjacent { pos_0, pos1 }) => {
+                    assert_eq!((pos_0, pos1), (a, b));
+                }
+                other => panic!("{a:?} -> {b:?}: expected PositionsNotAdjacent, got {other:?}"),
+            }
+        }
     }
+}
+
+#[test]
+fn between_large_coordinates_neither_aliases_nor_overflows() {
+    let max = usize::MAX;
+    // Neighbours at the edges of the `usize` range.
+    assert_eq!(
+        Action::between(pos(max, 0, 0), pos(max - 1, 0, 0)).unwrap(),
+        Action::North
+    );
+    assert_eq!(
+        Action::between(pos(max - 1, 0, 0), pos(max, 0, 0)).unwrap(),
+        Action::South
+    );
+    assert_eq!(
+        Action::between(pos(0, max - 1, 0), pos(0, max, 0)).unwrap(),
+        Action::East
+    );
+    assert_eq!(
+        Action::between(pos(0, max, 0), pos(0, max - 1, 0)).unwrap(),
+        Action::West
+    );
+    // Neighbours around `i32::MAX`, which a cast to `i32` would wrap.
+    let edge = i32::MAX as usize;
+    assert_eq!(
+        Action::between(pos(edge, 0, 0), pos(edge + 1, 0, 0)).unwrap(),
+        Action::South
+    );
+    assert_eq!(
+        Action::between(pos(0, edge + 1, 0), pos(0, edge, 0)).unwrap(),
+        Action::West
+    );
+    // A large but representable delta keeps its value.
+    match Action::between(pos(0, 0, 0), pos(edge, 0, 0)) {
+        Err(RuntimeWorldError::InvalidActionDelta { di, dj }) => {
+            assert_eq!((di, dj), (i32::MAX, 0))
+        }
+        other => panic!("expected InvalidActionDelta, got {other:?}"),
+    }
+    // Deltas that do not fit in an `i32`, including one that a 32-bit truncation would turn into
+    // `Stay` (2^32) or into `South` (2^32 + 1).
+    for to in [
+        pos(edge + 1, 0, 0),
+        pos(1 << 32, 0, 0),
+        pos((1 << 32) + 1, 0, 0),
+        pos(0, max, 0),
+    ] {
+        match Action::between(pos(0, 0, 0), to) {
+            Err(RuntimeWorldError::PositionsNotAdjacent { pos_0, pos1 }) => {
+                assert_eq!((pos_0, pos1), (pos(0, 0, 0), to));
+            }
+            other => panic!("{to:?}: expected PositionsNotAdjacent, got {other:?}"),
+        }
+    }
+    assert!(matches!(
+        Action::between(pos(max, max, 0), pos(0, 0, 0)),
+        Err(RuntimeWorldError::PositionsNotAdjacent { .. })
+    ));
 }

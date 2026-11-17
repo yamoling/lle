@@ -33,18 +33,46 @@ impl Action {
     /// `between(p, p)` is [`Action::Stay`], and the four neighbours of `from` give
     /// [`Action::North`] (`i - 1`), [`Action::South`], [`Action::East`] and [`Action::West`].
     ///
+    /// Adjacency is checked on the `usize` coordinates, so distant cells never alias to an
+    /// action and no coordinate overflows.
+    ///
     /// # Errors
-    /// [`RuntimeWorldError::InvalidActionDelta`] when `to` is neither `from` nor one of its four
-    /// neighbours, or when `to` is on another layer than `from`.
+    /// - [`RuntimeWorldError::InvalidActionDelta`] with `(di, dj) = to - from` when `to` is on the
+    ///   same layer as `from` but is neither `from` nor one of its four neighbours;
+    /// - [`RuntimeWorldError::PositionsNotAdjacent`] when `to` is on another layer than `from`,
+    ///   or when `di` or `dj` does not fit in an `i32`.
     ///
     /// @ai-generated
     pub fn between(from: Position, to: Position) -> Result<Action, RuntimeWorldError> {
-        let di = to.i as i32 - from.i as i32;
-        let dj = to.j as i32 - from.j as i32;
+        let not_adjacent = RuntimeWorldError::PositionsNotAdjacent {
+            pos_0: from,
+            pos1: to,
+        };
         if from.k != to.k {
-            return Err(RuntimeWorldError::InvalidActionDelta { di, dj });
+            return Err(not_adjacent);
         }
-        Action::try_from((di, dj))
+        if from.j == to.j {
+            if from.i == to.i {
+                return Ok(Action::Stay);
+            }
+            if from.i.checked_sub(1) == Some(to.i) {
+                return Ok(Action::North);
+            }
+            if from.i.checked_add(1) == Some(to.i) {
+                return Ok(Action::South);
+            }
+        } else if from.i == to.i {
+            if from.j.checked_add(1) == Some(to.j) {
+                return Ok(Action::East);
+            }
+            if from.j.checked_sub(1) == Some(to.j) {
+                return Ok(Action::West);
+            }
+        }
+        match (signed_delta(from.i, to.i), signed_delta(from.j, to.j)) {
+            (Some(di), Some(dj)) => Err(RuntimeWorldError::InvalidActionDelta { di, dj }),
+            _ => Err(not_adjacent),
+        }
     }
 
     pub fn opposite(&self) -> Action {
@@ -56,6 +84,17 @@ impl Action {
             Action::Stay => Action::Stay,
             Action::Trigger => Action::Stay,
         }
+    }
+}
+
+/// `to - from` as an `i32`, or `None` when it does not fit.
+///
+/// @ai-generated
+fn signed_delta(from: usize, to: usize) -> Option<i32> {
+    if to >= from {
+        i32::try_from(to - from).ok()
+    } else {
+        i32::try_from(from - to).ok().map(|d| -d)
     }
 }
 
