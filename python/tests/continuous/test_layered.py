@@ -10,8 +10,12 @@ sub-cells per cell, the pixel centres of a cell are at the offsets `(k + 0.5) / 
 
 With the default physics, a disc of radius `0.3` centred in a cell covers the central pixel at
 `res = 3` (the next ones are `1/3` away) and the central 2 × 2 pixels at `res = 4` (`0.177` away,
-the next ones `0.395`); so does a gem of radius `0.25`. A beam of width `0.1` only lights the pixels
-whose centre is within `0.05` of its centre line, i.e. the centre row (or column) at odd `res`.
+the next ones `0.395`); so does a gem of radius `0.25`. At `res = 2`, the pixel centres are `0.354`
+away from the cell centre, so such a disc lights no pixel.
+
+Beams follow another rule: a pixel is lit when its square overlaps the beam rectangle (`0.1` wide,
+from the source edge to the cut) with a positive area, i.e. the centre row (or column) at odd `res`
+and the two rows on either side of the centre line at even `res`.
 """
 
 import lle
@@ -77,10 +81,11 @@ def test_layered_at_res_1_equals_lle_on_every_level(level: int):
     np.testing.assert_array_equal(layered, expected)
 
 
-def test_layered_at_res_1_equals_lle_with_a_cut_beam_and_a_collected_gem():
+def test_layered_at_res_1_differs_from_lle_only_in_the_cell_of_a_beam_blocker():
     # Agent 1 stands on (1, 2), in the beam of its own colour. In LLE, the beam is off from its cell
-    # on. In CLLE, the beam is cut at s = 1.5 - r = 1.2 from the source edge (x = 2.2): the pixel
-    # centre of (1, 1) (s = 0.5) is lit, those of (1, 2) and beyond are not.
+    # on. In CLLE, the beam is cut at s = 1.5 - r = 1.2 from the source edge (x = 2.2): it overlaps
+    # the cells (1, 1) and (1, 2), so the cell of the blocker is lit in CLLE and not in LLE. This is
+    # the only (documented) difference; the gem, collected in both, is absent in both.
     world = lle.World(MAP)
     world.reset()
     world.set_state(WorldState([(0, 0), (1, 2)], [True]))
@@ -91,7 +96,10 @@ def test_layered_at_res_1_equals_lle_with_a_cut_beam_and_a_collected_gem():
     cworld.set_state(state)
     expected = lle_layered(world)
     assert expected[L1, 1].tolist() == [-1, 1, 0, 0, 0]
-    np.testing.assert_array_equal(cworld.layered(1), expected)
+    layered = cworld.layered(1)
+    assert layered[L1, 1].tolist() == [-1, 1, 1, 0, 0]
+    expected[L1, 1, 2] = 1.0
+    np.testing.assert_array_equal(layered, expected)
 
 
 def test_layered_at_res_3_matches_the_hand_derived_rasterization():

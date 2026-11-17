@@ -129,9 +129,9 @@ def test_invalid_pbrs_laser_id_is_a_value_error_at_build():
 def test_unknown_observation_type_is_a_value_error_when_set():
     # Unlike the physics setters, the observation types are checked right away, as in `lle.Builder`.
     with pytest.raises(ValueError):
-        clle.from_str(CORRIDOR).obs_type("lidar")  # type: ignore[arg-type]
+        clle.from_str(CORRIDOR).obs_type("sonar")  # type: ignore[arg-type]
     with pytest.raises(ValueError):
-        clle.from_str(CORRIDOR).state_type("layered")  # type: ignore[arg-type]
+        clle.from_str(CORRIDOR).state_type("rgb-array")  # type: ignore[arg-type]
 
 
 def test_from_file_accepts_a_built_in_level_name():

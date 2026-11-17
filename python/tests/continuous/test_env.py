@@ -300,10 +300,3 @@ def test_copies_keep_the_random_starts(duplicate):
         np.testing.assert_array_equal(clone_state.data, state.data)
         states.add(state.data.tobytes())
     assert len(states) > 1
-
-
-def test_get_image_is_not_implemented():
-    env = clle.from_str(TWO_AGENTS).build()
-    env.reset()
-    with pytest.raises(NotImplementedError):
-        env.get_image()

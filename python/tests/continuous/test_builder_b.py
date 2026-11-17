@@ -161,7 +161,9 @@ def test_invalid_observation_options_raise_at_build(configure: Any):
 @pytest.mark.parametrize("obs_type", ["state", "layered", "lidar", "rgb"])
 @pytest.mark.parametrize("duplicate", ["deepcopy", "pickle"])
 def test_copies_of_envs_are_independent_for_every_observation_type(obs_type: str, duplicate: str):
-    env = clle.from_str(CORRIDOR).obs_type(obs_type).state_type("layered").layered_resolution(2).lidar(n_rays=4).build()  # type: ignore[arg-type]
+    # At res 4, the agent always lights a pixel of the layered observation: at res 2, a disc of
+    # radius 0.3 at a cell centre contains no pixel centre, so the corridor would look empty.
+    env = clle.from_str(CORRIDOR).obs_type(obs_type).state_type("layered").layered_resolution(4).lidar(n_rays=4).build()  # type: ignore[arg-type]
     env.reset()
     env.step([EAST])
     other = copy.deepcopy(env) if duplicate == "deepcopy" else pickle.loads(pickle.dumps(env))

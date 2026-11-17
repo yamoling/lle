@@ -31,6 +31,11 @@
 //!   in an exit;
 //! - inside the pickup circle of a gem that is not collected.
 //!
+//! A disc wherever it is always contains a pixel centre only when its radius exceeds half the
+//! diagonal of a pixel, `sqrt(2) / (2 * res)`. With the default radius 0.3, that holds from
+//! `res = 3` on; at `res = 2`, an agent at the centre of a cell lights no pixel (the pixel
+//! centres are 0.354 away), and at `res = 1` an agent between two cells lights none either.
+//!
 //! **Beams** follow another rule, since a beam (`beam_width` wide) is much thinner than a pixel
 //! and would otherwise vanish whenever its axis runs between two pixel centres: a pixel of the
 //! laser channel of the beam's colour is 1 when its square overlaps, with a positive area, the

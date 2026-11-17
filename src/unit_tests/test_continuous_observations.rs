@@ -619,3 +619,15 @@ fn test_lidar_errors() {
     ));
     assert_eq!(world.lidar(2, 8, 5.0).unwrap(), None);
 }
+
+#[test]
+fn test_layered_discs_vanish_below_res_3() {
+    // With the default radius 0.3, agent 0 at the centre of its cell lights the centre pixel at
+    // res 1, none at res 2 (the pixel centres are 0.354 away), and some at every res from 3.
+    let world = layered_world();
+    let lit = |res| cells_with(&channel(&world, res, A0), 1.0).len();
+    assert_eq!(lit(1), 1);
+    assert_eq!(lit(2), 0);
+    assert_eq!(lit(3), 1);
+    assert_eq!(lit(4), 4);
+}
