@@ -1,11 +1,15 @@
 """Tests of the physics-agnostic parts of the env layer: `lle.env.common`, the generic
 `PotentialShaped` reward strategy, and the `UnsupportedFeatureError` exception."""
 
+import pickle
 from collections.abc import Collection, Sequence
+from copy import deepcopy
+from pathlib import Path
 
+import lle
 import numpy as np
 import pytest
-from lle import EventType, World, WorldEvent
+from lle import LLE, EventType, World, WorldEvent
 from lle.env import DeathStrategy, PotentialShaped
 from lle.env.reward_strategy import MultiObjective, PotentialShapedLLE, RewardStrategy, SingleObjective
 from lle.exceptions import ParsingError, UnsupportedFeatureError
@@ -143,3 +147,115 @@ def test_potential_shaped_lle_matches_potential_shaped_on_level_6(strategy_class
             shaped.reset()
     # The random walk does cross some lasers, so the comparison covers changes of potential.
     assert len(potentials) > 1
+
+
+class Constant(RewardStrategy):
+    """A custom strategy, neither `SingleObjective` nor `MultiObjective`: always rewards 1."""
+
+    def __init__(self, n_agents: int):
+        super().__init__(n_agents, ["constant"])
+
+    def compute_reward(self, events: Sequence[WorldEvent]):
+        return np.array([1.0], dtype=np.float32)
+
+
+class Pair(RewardStrategy):
+    """A custom strategy with two objectives: always rewards [1, 2]."""
+
+    def __init__(self, n_agents: int):
+        super().__init__(n_agents, ["one", "two"])
+
+    def compute_reward(self, events: Sequence[WorldEvent]):
+        return np.array([1.0, 2.0], dtype=np.float32)
+
+
+def test_potential_shaped_wraps_a_custom_single_objective_strategy():
+    shaped, positions = make_shaped(Constant(2), CELLS)
+    assert shaped.objectives == ["constant"]
+    assert shaped.n_objectives == 1
+    for (new_positions, events), s in zip(EPISODE, SHAPING):
+        positions[:] = new_positions
+        assert shaped.compute_reward(events) == pytest.approx([1.0 + s])
+
+
+def test_potential_shaped_wraps_a_custom_multi_objective_strategy():
+    shaped, positions = make_shaped(Pair(2), CELLS)
+    assert shaped.objectives == ["one", "two", "PBRS"]
+    assert shaped.n_objectives == 3
+    for (new_positions, events), s in zip(EPISODE, SHAPING):
+        positions[:] = new_positions
+        assert shaped.compute_reward(events) == pytest.approx([1.0, 2.0, s])
+
+
+def test_potential_shaped_wraps_a_potential_shaped_strategy():
+    # The inner strategy shapes with group 0 only, the outer one with group 1 only, both reading
+    # the same positions. The inner one has a single objective, so the outer one adds to it.
+    positions = list(START)
+    inner = PotentialShaped(SingleObjective(2), GAMMA, REWARD_VALUE, [CELLS[0]], lambda: positions)
+    outer = PotentialShaped(inner, GAMMA, REWARD_VALUE, [CELLS[1]], lambda: positions)
+    assert outer.objectives == ["reward"]
+    # Per-group potentials (2 agents per group, 0.5 each) along EPISODE:
+    # group 0: 1.0, 0.5, 0.5, 0.5, 0.0 and group 1: 1.0, 1.0, 1.0, 0.5, 0.5, both from 1.0.
+    inner_shaping = [0.75 * 1.0 - 1.0, 0.75 * 1.0 - 0.5, 0.75 * 0.5 - 0.5, 0.75 * 0.5 - 0.5, 0.75 * 0.5 - 0.0]
+    outer_shaping = [0.75 * 1.0 - 1.0, 0.75 * 1.0 - 1.0, 0.75 * 1.0 - 1.0, 0.75 * 1.0 - 0.5, 0.75 * 0.5 - 0.5]
+    base = [0, 0, 0, 1, -1]
+    for (new_positions, events), b, i, o in zip(EPISODE, base, inner_shaping, outer_shaping):
+        positions[:] = new_positions
+        assert outer.compute_reward(events) == pytest.approx([b + i + o])
+    assert (outer.n_deads, outer.n_arrived) == (1, 0)
+
+
+def test_potential_shaped_without_callback_must_be_subclassed():
+    with pytest.raises(NotImplementedError):
+        PotentialShaped(SingleObjective(1), GAMMA, REWARD_VALUE, CELLS)
+
+
+def _move_agent_into_the_beam(env: LLE):
+    """Put the single agent of `PBRS_MAP` on the first cell of the beam of `L0S`."""
+    state = env.world.get_state()
+    state.agents_positions = [(1, 1)]
+    env.world.set_state(state)
+
+
+PBRS_MAP = """
+S0 L0S X
+.  .   .
+"""
+
+
+def test_deepcopy_of_a_pbrs_env_shapes_with_its_own_world():
+    env = lle.from_str(PBRS_MAP).pbrs().build()
+    env.reset()
+    copy = deepcopy(env)
+    initial_potential = copy.reward_strategy.compute_potential()
+
+    # Moving the agent of the original world into the beam changes the original's potential only.
+    _move_agent_into_the_beam(env)
+    assert env.reward_strategy.compute_potential() < initial_potential
+    assert copy.reward_strategy.get_agents_positions() == copy.world.agents_positions == [(0, 0)]
+    assert copy.reward_strategy.compute_potential() == initial_potential
+
+    # The same move in the copy gives the copy the same shaping as the original.
+    _move_agent_into_the_beam(copy)
+    assert copy.reward_strategy.compute_potential() == env.reward_strategy.compute_potential()
+
+
+def test_pbrs_env_pickles_and_shapes_with_its_own_world():
+    env = lle.from_str(PBRS_MAP).pbrs().build()
+    env.reset()
+    restored = pickle.loads(pickle.dumps(env))
+    initial_potential = restored.reward_strategy.compute_potential()
+
+    _move_agent_into_the_beam(restored)
+    assert env.world.agents_positions == [(0, 0)]
+    assert restored.reward_strategy.compute_potential() < initial_potential
+    assert env.reward_strategy.compute_potential() == initial_potential
+
+
+def test_stub_declares_unsupported_feature_error_as_a_parsing_error():
+    # `UnsupportedFeatureError` is declared by hand in `src/bindings/pyexceptions.rs` because
+    # `pyo3_stub_gen::create_exception!` writes the base as `builtins.ParsingError`. This pins the
+    # committed stub, so that an upgrade of `pyo3-stub-gen` that breaks the workaround is noticed
+    # after running `cargo stub-gen`.
+    stub = Path(lle.__file__).parent / "exceptions" / "__init__.pyi"
+    assert "class UnsupportedFeatureError(ParsingError):" in stub.read_text()

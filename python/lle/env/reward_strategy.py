@@ -118,16 +118,20 @@ class PotentialShaped(RewardStrategy):
     number of (agent, set of cells) pairs such that the agent has not yet reached any cell of the
     set since the last reset, times `reward_value`.
 
-    It does not depend on the kind of world: the positions of the agents are read from the
-    `agents_positions` callback.
+    It does not depend on the kind of world: the positions of the agents are read by
+    `get_agents_positions`, which calls the `agents_positions` callback. A subclass may override
+    `get_agents_positions` instead of giving a callback. Note that `copy.deepcopy` does not copy a
+    function, so a callback that captures a world (such as a lambda) keeps reading that world in
+    a copy, and a lambda cannot be pickled.
 
     Args:
-        strategy: the wrapped strategy. With a `MultiObjective` strategy, the shaping term is an
-            additional objective named `"PBRS"`; otherwise it is added to the single reward.
+        strategy: the wrapped strategy. With a single objective, the shaping term is added to it;
+            with several objectives, the shaping term is an additional objective named `"PBRS"`.
         gamma: the discount factor of the shaping term.
         reward_value: the potential of each (agent, set of cells) pair not reached yet.
         pos_to_reward: the sets of cells to reward.
-        agents_positions: returns the current position of each agent.
+        agents_positions: returns the current position of each agent. It may only be omitted by
+            a subclass that overrides `get_agents_positions`.
 
     @ai-generated
     """
@@ -143,17 +147,15 @@ class PotentialShaped(RewardStrategy):
         gamma: float,
         reward_value: float,
         pos_to_reward: Sequence[Collection[Position]],
-        agents_positions: Callable[[], Sequence[Position]],
+        agents_positions: Callable[[], Sequence[Position]] | None = None,
     ):
         self._agents_positions = agents_positions
         self.reward_value = reward_value
         self.gamma = gamma
-        match strategy:
-            case SingleObjective():
-                super().__init__(strategy.n_agents, strategy.objectives)
-            case MultiObjective():
-                objectives = strategy.objectives + ["PBRS"]
-                super().__init__(strategy.n_agents, objectives)
+        objectives = list(strategy.objectives)
+        if len(objectives) > 1:
+            objectives.append("PBRS")
+        super().__init__(strategy.n_agents, objectives)
         self.strategy = strategy
         self.pos_to_reward = [set(cells) for cells in pos_to_reward]
         self._agents_pos_reached = np.full((strategy.n_agents, len(self.pos_to_reward)), False, dtype=np.bool)
@@ -173,8 +175,27 @@ class PotentialShaped(RewardStrategy):
         self.n_arrived = self.strategy.n_arrived
         return reward
 
+    def get_agents_positions(self) -> Sequence[Position]:
+        """
+        The current position of each agent, as returned by the `agents_positions` callback.
+
+        Raises a `NotImplementedError` when no callback was given and a subclass does not
+        override this method.
+
+        @ai-generated
+        """
+        if self._agents_positions is None:
+            raise NotImplementedError("Give an `agents_positions` callback or override `get_agents_positions`.")
+        return self._agents_positions()
+
     def compute_potential(self):
-        for agent_num, agent_pos in enumerate(self._agents_positions()):
+        """
+        Mark the groups of cells that each agent currently stands on as reached, and return the
+        potential: `reward_value` times the number of (agent, group) pairs not reached yet.
+
+        @ai-edited
+        """
+        for agent_num, agent_pos in enumerate(self.get_agents_positions()):
             for j, rewarded_positions in enumerate(self.pos_to_reward):
                 if agent_pos in rewarded_positions:
                     self._agents_pos_reached[agent_num, j] = True
@@ -211,8 +232,16 @@ class PotentialShapedLLE(PotentialShaped):
             gamma,
             reward_value,
             self._compute_positions_to_reward(world, lasers_to_reward),
-            lambda: world.agents_positions,
         )
+
+    def get_agents_positions(self):
+        """
+        The positions of the agents of `self._world`. Reading the world through `self` (rather
+        than a closure) keeps `copy.deepcopy` and `pickle` of the environment consistent.
+
+        @ai-generated
+        """
+        return self._world.agents_positions
 
     @staticmethod
     def _compute_positions_to_reward(world: World, lasers_to_reward: Iterable[tiles.LaserSource]):
