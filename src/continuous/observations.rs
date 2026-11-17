@@ -47,7 +47,9 @@
 //! cell centre only overlaps its cell, and the beams mark their cells. The only difference is the
 //! cell of an agent standing in a beam of its own colour: the beam reaches into that cell up to
 //! the agent's disc, so the cell is 1 in the laser channel, while LLE turns the beam off from
-//! that cell on. The cells beyond it are 0 in both.
+//! that cell on. The cells beyond it are 0 in both. Note that an arrived agent does not stand at
+//! a cell centre: it stops as soon as its centre enters the exit, so its disc also overlaps the
+//! cell it came from, while LLE puts it at the centre of the exit.
 //!
 //! # `LIDAR`
 //!
