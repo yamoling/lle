@@ -1,6 +1,6 @@
 use super::{geometry::*, world::ContinuousWorld};
 use crate::shared::{Position, WorldEvent};
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(super) struct Beam {
     origin: [f64; 2],
     direction: [f64; 2],

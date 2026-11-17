@@ -28,7 +28,8 @@ itertools = "0.14.0"
 numpy = { version = "0.28.0", optional = true }
 pyo3 = { version = "0.28.0", features = ["generate-import-lib"], optional = true }
 pyo3-stub-gen = { version = "0.22.0", optional = true }
-rand = "0.10.1"
+# `chacha` exposes `ChaCha12Rng`, whose state can be copied and serialized (unlike `StdRng`).
+rand = { version = "0.10.1", features = ["chacha"] }
 cadical = "0.1.16"
 serde = { version = "1.0.217", features = ["derive"] }
 strum = { version = "0.28.0", features = ["derive"] }

@@ -2,8 +2,22 @@ use super::{
     ActionModel, ContinuousAction, ContinuousError, ContinuousWorldState, PhysicsParams,
     geometry::*, lasers::Beam,
 };
-use crate::shared::{MapSpec, Position, ValidMap, WorldEvent};
-use rand::{SeedableRng, rngs::StdRng};
+use crate::shared::{CardinalDirection, Colour, LaserId, MapSpec, Position, ValidMap, WorldEvent};
+use rand::{SeedableRng, rngs::ChaCha12Rng};
+
+/// The size of the serialized state of the random number generator (see
+/// [`ContinuousWorld::rng_state`]).
+pub const RNG_STATE_SIZE: usize = 49;
+
+/// A laser source, as seen by the continuous world: its cell, the direction of its beam, its
+/// colour and its laser id.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LaserSourceInfo {
+    pub position: Position,
+    pub direction: CardinalDirection,
+    pub colour: Colour,
+    pub laser_id: LaserId,
+}
 
 #[derive(Debug)]
 pub struct ContinuousWorld {
@@ -12,14 +26,45 @@ pub struct ContinuousWorld {
     pub(super) params: PhysicsParams,
     pub(super) solids: Vec<Position>,
     voids: Vec<Position>,
-    gems: Vec<Position>,
+    pub(super) gems: Vec<Position>,
     exits: Vec<Position>,
     starts: Vec<Vec<Position>>,
     pub(super) colours: Vec<usize>,
     pub(super) beams: Vec<Beam>,
+    /// The laser sources, in the order of `beams`.
+    sources: Vec<LaserSourceInfo>,
+    /// The unblocked beam cells of each source, in the order of `beams`.
+    beam_cells: Vec<Vec<Position>>,
     pub(super) state: ContinuousWorldState,
-    rng: StdRng,
+    /// A `ChaCha12Rng` rather than a `StdRng`: it gives the same sequence for the same seed, and
+    /// its state can be serialized, so a copy of the world draws the same starts.
+    rng: ChaCha12Rng,
     pub(super) collision_fallbacks: u64,
+}
+
+impl Clone for ContinuousWorld {
+    /// An independent copy of the world, including the state of its random number generator.
+    ///
+    /// @ai-generated
+    fn clone(&self) -> Self {
+        Self {
+            width: self.width,
+            height: self.height,
+            params: self.params,
+            solids: self.solids.clone(),
+            voids: self.voids.clone(),
+            gems: self.gems.clone(),
+            exits: self.exits.clone(),
+            starts: self.starts.clone(),
+            colours: self.colours.clone(),
+            beams: self.beams.clone(),
+            sources: self.sources.clone(),
+            beam_cells: self.beam_cells.clone(),
+            state: self.state.clone(),
+            rng: ChaCha12Rng::deserialize_state(&self.rng.serialize_state()),
+            collision_fallbacks: self.collision_fallbacks,
+        }
+    }
 }
 
 pub struct StepOutcome {
@@ -67,6 +112,21 @@ impl ContinuousWorld {
                 )
             })
             .collect();
+        let sources = config
+            .sources()
+            .iter()
+            .map(|(p, source)| LaserSourceInfo {
+                position: *p,
+                direction: source.direction,
+                colour: source.colour,
+                laser_id: source.laser_id,
+            })
+            .collect();
+        let beam_cells = config
+            .sources()
+            .iter()
+            .map(|(p, source)| config.beam_cells(*p, source.direction))
+            .collect();
         let mut world = Self {
             width: config.width(),
             height: config.height(),
@@ -78,6 +138,8 @@ impl ContinuousWorld {
             starts,
             colours: config.colours().clone(),
             beams,
+            sources,
+            beam_cells,
             state: ContinuousWorldState {
                 positions: vec![],
                 velocities: vec![],
@@ -87,7 +149,7 @@ impl ContinuousWorld {
                 sources_enabled: vec![],
                 tick: 0,
             },
-            rng: StdRng::seed_from_u64(0),
+            rng: ChaCha12Rng::seed_from_u64(0),
             collision_fallbacks: 0,
         };
         world.reset();
@@ -106,13 +168,17 @@ impl ContinuousWorld {
     pub fn from_file(file: &str) -> Result<Self, ContinuousError> {
         Self::from_spec(MapSpec::from_file(file)?, PhysicsParams::default())
     }
-    /// Check `params` and the features of `spec` before validating it, so that an unsupported
-    /// map is reported as such even when it would not validate: the errors come in the order
-    /// [`ContinuousError::InvalidParams`], [`ContinuousError::UnsupportedFeature`], then
-    /// [`ContinuousError::Parse`].
+    /// Build the world of `spec` with `params`.
+    ///
+    /// `params` and the features of `spec` are checked before validating it, so that an
+    /// unsupported map is reported as such even when it would not validate.
+    ///
+    /// # Errors
+    /// In this order: [`ContinuousError::InvalidParams`], [`ContinuousError::UnsupportedFeature`],
+    /// then [`ContinuousError::Parse`] when `spec` does not validate.
     ///
     /// @ai-generated
-    fn from_spec(spec: MapSpec, params: PhysicsParams) -> Result<Self, ContinuousError> {
+    pub fn from_spec(spec: MapSpec, params: PhysicsParams) -> Result<Self, ContinuousError> {
         check_supported(&spec, &params)?;
         Ok(Self::from_validated_map(&spec.validate()?, params))
     }
@@ -132,8 +198,73 @@ impl ContinuousWorld {
     pub fn agents_positions(&self) -> Vec<[f64; 2]> {
         self.state.positions.clone()
     }
+    /// The cell that contains the centre of each agent (on layer 0), indexed by agent id.
+    ///
+    /// @ai-generated
+    pub fn agents_cells(&self) -> Vec<Position> {
+        self.state
+            .positions
+            .iter()
+            .map(|&[x, y]| Position {
+                i: y.floor().max(0.0) as usize,
+                j: x.floor().max(0.0) as usize,
+                k: 0,
+            })
+            .collect()
+    }
+    pub fn params(&self) -> PhysicsParams {
+        self.params
+    }
+    /// The cell of each gem, indexed by gem id.
+    pub fn gems_positions(&self) -> Vec<Position> {
+        self.gems.clone()
+    }
+    pub fn gems_collected(&self) -> Vec<bool> {
+        self.state.gems_collected.clone()
+    }
+    pub fn exits_positions(&self) -> Vec<Position> {
+        self.exits.clone()
+    }
+    /// The colour of each agent, indexed by agent id.
+    pub fn agents_colours(&self) -> Vec<Colour> {
+        self.colours.clone()
+    }
+    /// The number of colours: the greatest colour of the agents and of the laser sources, plus 1
+    /// (0 without agents nor sources), as `World::n_colours`.
+    ///
+    /// @ai-generated
+    pub fn n_colours(&self) -> usize {
+        self.colours
+            .iter()
+            .chain(self.sources.iter().map(|s| &s.colour))
+            .max()
+            .map_or(0, |max| max + 1)
+    }
+    /// The laser sources, in laser order (the order of `sources_enabled` in the state).
+    pub fn laser_sources(&self) -> &[LaserSourceInfo] {
+        &self.sources
+    }
+    /// The cells of the full (unblocked) beam of each laser source, in laser order and in beam
+    /// order (closest to the source first). They do not depend on the state.
+    pub fn beam_cells(&self) -> &[Vec<Position>] {
+        &self.beam_cells
+    }
+    pub fn agents_alive(&self) -> Vec<bool> {
+        self.state.agents_alive.clone()
+    }
+    pub fn agents_arrived(&self) -> Vec<bool> {
+        self.state.agents_arrived.clone()
+    }
     pub fn seed(&mut self, seed: u64) {
-        self.rng = StdRng::seed_from_u64(seed);
+        self.rng = ChaCha12Rng::seed_from_u64(seed);
+    }
+    /// The state of the random number generator that draws the starts, to restore it later
+    /// with [`ContinuousWorld::set_rng_state`] (e.g. to pickle the world).
+    pub fn rng_state(&self) -> [u8; RNG_STATE_SIZE] {
+        self.rng.serialize_state()
+    }
+    pub fn set_rng_state(&mut self, state: &[u8; RNG_STATE_SIZE]) {
+        self.rng = ChaCha12Rng::deserialize_state(state);
     }
     pub fn reset(&mut self) {
         let positions = crate::shared::utils::sample_different(&mut self.rng, &self.starts)
