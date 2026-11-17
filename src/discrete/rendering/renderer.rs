@@ -3,6 +3,7 @@ use itertools::izip;
 
 use crate::shared::sprites::{
     self, BACKGROUND_GREY, BLACK, FLOOR_SEPARATOR, FLOOR_SEPARATOR_HEIGHT, GRID_GREY, TILE_SIZE,
+    agent_colour as agent_color,
 };
 use crate::{
     World,
@@ -268,37 +269,6 @@ fn tint_image(sprite: &RgbaImage, color: Rgb<u8>) -> RgbaImage {
             p[3],
         ])
     })
-}
-
-/// Badge tints for the lift/button restriction badge, indexed by `Colour`.
-///
-/// Each entry is the flat accent colour of the matching `agents/<c>.png` sprite,
-/// so a badge is tinted like the agents it authorizes. Sprite 11 is neutral and
-/// has no accent, so it falls through to `AGENT_COLOR_FALLBACK` along with every
-/// colour past the numbered sprites - `S10` declares colour 10, and a colour has
-/// no upper bound, so index this through `agent_color` and never directly.
-const AGENT_COLORS: [Rgb<u8>; 11] = [
-    Rgb([203, 52, 52]),  // 0  red
-    Rgb([203, 178, 52]), // 1  yellow
-    Rgb([52, 203, 77]),  // 2  green
-    Rgb([51, 38, 190]),  // 3  blue
-    Rgb([203, 52, 148]), // 4  magenta
-    Rgb([203, 122, 52]), // 5  orange
-    Rgb([140, 52, 203]), // 6  purple
-    Rgb([52, 190, 203]), // 7  cyan
-    Rgb([126, 73, 32]),  // 8  brown
-    Rgb([148, 203, 52]), // 9  lime
-    Rgb([52, 203, 173]), // 10 teal
-];
-
-/// Badge tint for a colour past the numbered sprites. Those colours all share
-/// one fallback agent sprite, so their badges share one fallback tint.
-const AGENT_COLOR_FALLBACK: Rgb<u8> = Rgb([150, 150, 150]);
-
-/// The badge tint for `colour`, falling back instead of panicking when the
-/// colour runs past the table - the same contract as `sprites::agent`.
-fn agent_color(colour: Colour) -> Rgb<u8> {
-    *AGENT_COLORS.get(colour).unwrap_or(&AGENT_COLOR_FALLBACK)
 }
 
 /// A deterministic, visually distinct color for a given `group_id`, obtained by

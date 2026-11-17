@@ -206,3 +206,34 @@ pub fn laser_source_south(agent_id: usize) -> &'static RgbImage {
 pub fn laser_source_west(agent_id: usize) -> &'static RgbImage {
     rgb_or_fallback(&LASER_SOURCES_WEST, &LASER_SOURCE_WEST_FALLBACK, agent_id)
 }
+
+/// The flat accent colour of each numbered agent sprite (`agents/<c>.png`), indexed by
+/// `Colour`: red, yellow, green, blue, magenta, orange, purple, cyan, brown, lime and teal.
+///
+/// It tints the lift/button restriction badges of the grid renderer and draws the agents and
+/// beams of the continuous renderer. Sprite 11 is neutral and has no accent, so it falls
+/// through to [`AGENT_COLOUR_FALLBACK`] along with every colour past the numbered sprites: a
+/// colour has no upper bound, so index this through [`agent_colour`] and never directly.
+pub const AGENT_COLOURS: [Rgb<u8>; 11] = [
+    Rgb([203, 52, 52]),  // 0  red
+    Rgb([203, 178, 52]), // 1  yellow
+    Rgb([52, 203, 77]),  // 2  green
+    Rgb([51, 38, 190]),  // 3  blue
+    Rgb([203, 52, 148]), // 4  magenta
+    Rgb([203, 122, 52]), // 5  orange
+    Rgb([140, 52, 203]), // 6  purple
+    Rgb([52, 190, 203]), // 7  cyan
+    Rgb([126, 73, 32]),  // 8  brown
+    Rgb([148, 203, 52]), // 9  lime
+    Rgb([52, 203, 173]), // 10 teal
+];
+
+/// The tint of a colour past the numbered sprites. Those colours all share one fallback agent
+/// sprite, so they share one fallback tint.
+pub const AGENT_COLOUR_FALLBACK: Rgb<u8> = Rgb([150, 150, 150]);
+
+/// The accent colour of `colour`, falling back instead of panicking when the colour runs past
+/// the table, with the same contract as [`agent`].
+pub fn agent_colour(colour: usize) -> Rgb<u8> {
+    *AGENT_COLOURS.get(colour).unwrap_or(&AGENT_COLOUR_FALLBACK)
+}
