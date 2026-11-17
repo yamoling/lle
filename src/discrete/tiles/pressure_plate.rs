@@ -63,10 +63,10 @@ impl PressurePlate {
     }
 }
 
-impl PressurePlateConfig {
-    pub fn build(&self) -> PressurePlate {
-        let tile = PressurePlate::new(self.group_id);
-        match self.authorized_colour {
+impl From<&PressurePlateConfig> for PressurePlate {
+    fn from(config: &PressurePlateConfig) -> Self {
+        let tile = PressurePlate::new(config.group_id);
+        match config.authorized_colour {
             Some(colour) => tile.restricted_to(colour),
             None => tile,
         }

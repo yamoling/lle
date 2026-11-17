@@ -76,10 +76,10 @@ impl Button {
     }
 }
 
-impl ButtonConfig {
-    pub fn build(&self) -> Button {
-        let button = Button::new(self.group_id);
-        match self.authorized_colour {
+impl From<&ButtonConfig> for Button {
+    fn from(config: &ButtonConfig) -> Self {
+        let button = Button::new(config.group_id);
+        match config.authorized_colour {
             Some(colour) => button.restricted_to(colour),
             None => button,
         }

@@ -61,13 +61,14 @@ impl LaserSource {
     }
 }
 
-impl LaserConfig {
-    pub fn build(&self, beam_length: usize) -> LaserSource {
+impl LaserSource {
+    /// The source described by `config`, whose beam covers `beam_length` cells.
+    pub fn from_config(config: &LaserConfig, beam_length: usize) -> Self {
         let beam = Rc::new(LaserBeam::new(
             beam_length,
-            self.colour,
-            self.direction,
-            self.laser_id,
+            config.colour,
+            config.direction,
+            config.laser_id,
         ));
         LaserSource::new(beam)
     }

@@ -2,7 +2,7 @@
 use crate::{
     Grid, ParseError, Position, World,
     shared::map::{MapSpec, ValidMap},
-    tiles::{Gem, Laser, Tile, Void},
+    tiles::{Gem, Laser, LaserSource, Tile, Void},
 };
 
 impl World {
@@ -63,16 +63,16 @@ fn make_grid(spec: &MapSpec) -> (Grid<Tile>, Vec<Position>) {
         grid.replace_at(pos, Tile::Wall);
     }
     for (pos, config) in spec.lifts() {
-        grid.replace_at(pos, Tile::Lift(config.build()));
+        grid.replace_at(pos, Tile::Lift(config.into()));
     }
     for (pos, config) in spec.buttons() {
-        grid.replace_at(pos, Tile::Button(config.build()));
+        grid.replace_at(pos, Tile::Button(config.into()));
     }
     for (pos, config) in spec.levers() {
-        grid.replace_at(pos, Tile::Lever(config.build()));
+        grid.replace_at(pos, Tile::Lever(config.into()));
     }
     for (pos, config) in spec.pressure_plates() {
-        grid.replace_at(pos, Tile::PressurePlate(config.build()));
+        grid.replace_at(pos, Tile::PressurePlate(config.into()));
     }
     let mut laser_positions = vec![];
     for (source_pos, config) in spec.sources() {
@@ -80,7 +80,7 @@ fn make_grid(spec: &MapSpec) -> (Grid<Tile>, Vec<Position>) {
             continue; // Invalid layer, skip this laser
         }
         let beam = spec.beam_cells(*source_pos, config.direction);
-        let source = config.build(beam.len());
+        let source = LaserSource::from_config(config, beam.len());
         for (i, pos) in beam.into_iter().enumerate() {
             let wrapped = grid.pop(&pos);
             grid.replace_at(&pos, Tile::Laser(Laser::new(wrapped, source.beam(), i)));

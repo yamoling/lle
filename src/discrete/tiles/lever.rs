@@ -102,10 +102,10 @@ impl Lever {
     }
 }
 
-impl LeverConfig {
-    pub fn build(&self) -> Lever {
-        let tile = Lever::new(self.group_id).initially_on(self.on);
-        match self.authorized_colour {
+impl From<&LeverConfig> for Lever {
+    fn from(config: &LeverConfig) -> Self {
+        let tile = Lever::new(config.group_id).initially_on(config.on);
+        match config.authorized_colour {
             Some(colour) => tile.restricted_to(colour),
             None => tile,
         }

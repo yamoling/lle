@@ -71,9 +71,9 @@ impl Lift {
     }
 }
 
-impl LiftConfig {
-    pub fn build(&self) -> Lift {
-        Lift::new(self.direction, self.authorized_colour, self.group_id)
+impl From<&LiftConfig> for Lift {
+    fn from(config: &LiftConfig) -> Self {
+        Lift::new(config.direction, config.authorized_colour, config.group_id)
     }
 }
 
