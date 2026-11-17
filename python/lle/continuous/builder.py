@@ -39,8 +39,10 @@ class Builder:
 
         @ai-generated
         """
+        # Load the map once to report an invalid map right away; the world is built again, with
+        # the final parameters, by `build()`.
+        load(None)
         self._load = load
-        self._world = load(None)
         self._env_name = name
         self._params = dict[str, float | str]()
         self._action_repeat = 10
