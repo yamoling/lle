@@ -1,6 +1,6 @@
 use super::{
     ActionModel, ContinuousAction, ContinuousError, ContinuousWorldState, PhysicsParams,
-    geometry::*, lasers::Beam,
+    geometry::*, lasers::Beam, rendering::Background,
 };
 use crate::shared::{CardinalDirection, Colour, LaserId, MapSpec, Position, ValidMap, WorldEvent};
 use rand::{SeedableRng, rngs::ChaCha12Rng};
@@ -24,15 +24,18 @@ pub struct ContinuousWorld {
     pub(super) width: usize,
     pub(super) height: usize,
     pub(super) params: PhysicsParams,
+    /// The walls, then the laser sources (in laser order).
     pub(super) solids: Vec<Position>,
-    voids: Vec<Position>,
+    pub(super) voids: Vec<Position>,
     pub(super) gems: Vec<Position>,
-    exits: Vec<Position>,
+    pub(super) exits: Vec<Position>,
     starts: Vec<Vec<Position>>,
     pub(super) colours: Vec<usize>,
     pub(super) beams: Vec<Beam>,
     /// The laser sources, in the order of `beams`.
-    sources: Vec<LaserSourceInfo>,
+    pub(super) sources: Vec<LaserSourceInfo>,
+    /// The number of colours, fixed at construction (see [`ContinuousWorld::n_colours`]).
+    n_colours: usize,
     /// The unblocked beam cells of each source, in the order of `beams`.
     beam_cells: Vec<Vec<Position>>,
     pub(super) state: ContinuousWorldState,
@@ -40,6 +43,8 @@ pub struct ContinuousWorld {
     /// its state can be serialized, so a copy of the world draws the same starts.
     rng: ChaCha12Rng,
     pub(super) collision_fallbacks: u64,
+    /// The static background of the frames, rendered by the first call to `get_image`.
+    pub(super) background: Background,
 }
 
 impl Clone for ContinuousWorld {
@@ -60,9 +65,11 @@ impl Clone for ContinuousWorld {
             beams: self.beams.clone(),
             sources: self.sources.clone(),
             beam_cells: self.beam_cells.clone(),
+            n_colours: self.n_colours,
             state: self.state.clone(),
             rng: ChaCha12Rng::deserialize_state(&self.rng.serialize_state()),
             collision_fallbacks: self.collision_fallbacks,
+            background: self.background.clone(),
         }
     }
 }
@@ -127,6 +134,12 @@ impl ContinuousWorld {
             .iter()
             .map(|(p, source)| config.beam_cells(*p, source.direction))
             .collect();
+        let n_colours = config
+            .colours()
+            .iter()
+            .chain(config.sources().iter().map(|(_, source)| &source.colour))
+            .max()
+            .map_or(0, |max| max + 1);
         let mut world = Self {
             width: config.width(),
             height: config.height(),
@@ -140,6 +153,7 @@ impl ContinuousWorld {
             beams,
             sources,
             beam_cells,
+            n_colours,
             state: ContinuousWorldState {
                 positions: vec![],
                 velocities: vec![],
@@ -151,6 +165,7 @@ impl ContinuousWorld {
             },
             rng: ChaCha12Rng::seed_from_u64(0),
             collision_fallbacks: 0,
+            background: Background::default(),
         };
         world.reset();
         world
@@ -229,16 +244,68 @@ impl ContinuousWorld {
     pub fn agents_colours(&self) -> Vec<Colour> {
         self.colours.clone()
     }
-    /// The number of colours: the greatest colour of the agents and of the laser sources, plus 1
-    /// (0 without agents nor sources), as `World::n_colours`.
+    /// The number of colours: the greatest colour of the agents and of the laser sources of the
+    /// map, plus 1 (0 without agents nor sources), as `World::n_colours`. It is fixed at
+    /// construction: [`ContinuousWorld::set_laser_colour`] never changes it, so neither do the
+    /// sizes of the observations.
+    pub fn n_colours(&self) -> usize {
+        self.n_colours
+    }
+    /// The cells of the walls, without the laser sources.
+    pub(super) fn walls(&self) -> &[Position] {
+        &self.solids[..self.solids.len() - self.sources.len()]
+    }
+    /// Change the colour of the laser source `laser_id`: the agents of `colour` then block and
+    /// cross its beam, and the others die in it. The colour is part of the configuration of the
+    /// world, not of its state: `reset` and `set_state` keep it.
+    ///
+    /// # Errors
+    /// [`ContinuousError::InvalidState`], without changing the world, when `colour` is not
+    /// below [`ContinuousWorld::n_colours`], when no source has the id `laser_id`, or when the
+    /// full beam of the source would cover a possible start of an agent of another colour (who
+    /// would die there on reset), as `LaserSource.set_colour` checks in LLE.
     ///
     /// @ai-generated
-    pub fn n_colours(&self) -> usize {
-        self.colours
-            .iter()
-            .chain(self.sources.iter().map(|s| &s.colour))
-            .max()
-            .map_or(0, |max| max + 1)
+    pub fn set_laser_colour(
+        &mut self,
+        laser_id: LaserId,
+        colour: Colour,
+    ) -> Result<(), ContinuousError> {
+        if colour >= self.n_colours {
+            return Err(ContinuousError::InvalidState {
+                reason: format!(
+                    "Invalid laser colour {colour}: expected a colour below {}",
+                    self.n_colours
+                ),
+            });
+        }
+        let Some(index) = self.sources.iter().position(|s| s.laser_id == laser_id) else {
+            return Err(ContinuousError::InvalidState {
+                reason: format!("No laser source has the id {laser_id}"),
+            });
+        };
+        let beam_cells = &self.beam_cells[index];
+        for (agent, starts) in self.starts.iter().enumerate() {
+            if self.colours[agent] == colour {
+                continue;
+            }
+            if let Some(start) = starts.iter().find(|start| beam_cells.contains(start)) {
+                return Err(ContinuousError::InvalidState {
+                    reason: format!(
+                        "Laser {laser_id} cannot have the colour {colour}: its beam would cross \
+                         the start {start:?} of agent {agent}, of colour {}",
+                        self.colours[agent]
+                    ),
+                });
+            }
+        }
+        if self.sources[index].colour != colour {
+            self.sources[index].colour = colour;
+            self.beams[index].colour = colour;
+            // The background shows the colour of the sources.
+            self.background.invalidate();
+        }
+        Ok(())
     }
     /// The laser sources, in laser order (the order of `sources_enabled` in the state).
     pub fn laser_sources(&self) -> &[LaserSourceInfo] {

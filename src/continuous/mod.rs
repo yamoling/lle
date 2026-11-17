@@ -12,6 +12,7 @@ mod geometry;
 mod lasers;
 mod observations;
 mod params;
+mod rendering;
 mod state;
 mod world;
 

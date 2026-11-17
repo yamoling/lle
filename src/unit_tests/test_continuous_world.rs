@@ -469,3 +469,76 @@ fn reset_only_uses_and_eventually_uses_every_possible_start() {
     }
     assert_eq!(seen, [vec![true], vec![true, true]]);
 }
+
+// ----- set_laser_colour -----
+
+/// A beam of colour 0 going north from (2, 1) over (1, 1) and (0, 1), and a beam of colour 2
+/// going east from (3, 0) over (3, 1), (3, 2) and (3, 3).
+///
+/// ```text
+/// S0  .   X .
+/// S1  .   X .
+/// .   L0N . .
+/// L2E .   . .
+/// ```
+const COLOURED: &str = "S0 . X .\nS1 . X .\n. L0N . .\nL2E . . .";
+
+#[test]
+fn test_set_laser_colour() {
+    let mut world = world(COLOURED);
+    assert_eq!(world.n_colours(), 3);
+    world.set_laser_colour(1, 0).unwrap();
+    world.set_laser_colour(0, 1).unwrap();
+    let colours: Vec<_> = world.laser_sources().iter().map(|s| s.colour).collect();
+    assert_eq!(colours, vec![1, 0]);
+    // The number of colours, and the sizes of the observations, are fixed at construction.
+    assert_eq!(world.n_colours(), 3);
+    assert_eq!(world.state_size(), 2 * 9 + 2);
+    assert_eq!(world.layered_shape(1).unwrap(), [10, 4, 4]);
+    // The colour is part of the configuration: a reset and a copy keep it.
+    world.reset();
+    assert_eq!(world.clone().laser_sources()[0].colour, 1);
+    assert_eq!(world.laser_sources()[0].colour, 1);
+}
+
+#[test]
+fn test_set_laser_colour_changes_who_dies() {
+    let mut world = world(COLOURED);
+    // Agent 1 (colour 1) walks east into the beam of colour 0, then survives it once the beam
+    // has its colour.
+    let mut died = world.clone();
+    let events = run(&mut died, &[STILL, [1.0, 0.0]], 10);
+    assert!(events.contains(&WorldEvent::AgentDied { agent_id: 1 }));
+    world.set_laser_colour(0, 1).unwrap();
+    let events = run(&mut world, &[STILL, [1.0, 0.0]], 10);
+    assert!(
+        !events
+            .iter()
+            .any(|e| matches!(e, WorldEvent::AgentDied { .. }))
+    );
+}
+
+#[test]
+fn test_set_laser_colour_errors_leave_the_world_unchanged() {
+    // The beam of colour 1 covers the start of agent 1 (colour 1), so it cannot take the
+    // colour 0.
+    let mut world = world("S0 . X\nL1E S1 X\n. . .");
+    world.step(&[[0.0, 1.0], STILL], 3).unwrap();
+    let before = world.clone();
+    let check_unchanged = |world: &ContinuousWorld| {
+        assert_eq!(world.get_state(), before.get_state());
+        assert_eq!(world.laser_sources(), before.laser_sources());
+        assert_eq!(world.n_colours(), before.n_colours());
+        assert_eq!(world.layered(2).unwrap(), before.layered(2).unwrap());
+    };
+    // A colour too large and an unknown laser id.
+    for (laser_id, colour) in [(0, 2), (0, 99), (1, 0), (7, 1)] {
+        let error = world.set_laser_colour(laser_id, colour).unwrap_err();
+        assert!(matches!(error, ContinuousError::InvalidState { .. }));
+        check_unchanged(&world);
+    }
+    world.set_laser_colour(0, 0).unwrap_err();
+    check_unchanged(&world);
+    world.set_laser_colour(0, 1).unwrap();
+    check_unchanged(&world);
+}

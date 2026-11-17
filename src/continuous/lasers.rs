@@ -1,11 +1,14 @@
 use super::{geometry::*, world::ContinuousWorld};
 use crate::shared::{Position, WorldEvent};
+/// The beam of a laser source: it starts on the edge of the source cell, at `origin`, and runs
+/// along `direction` (a unit axis vector) for `length` cells, up to the first solid cell or the
+/// boundary.
 #[derive(Clone, Debug)]
 pub(super) struct Beam {
-    origin: [f64; 2],
-    direction: [f64; 2],
-    length: f64,
-    colour: usize,
+    pub(super) origin: [f64; 2],
+    pub(super) direction: [f64; 2],
+    pub(super) length: f64,
+    pub(super) colour: usize,
 }
 impl Beam {
     pub(super) fn new(
@@ -55,6 +58,53 @@ impl Beam {
     }
 }
 impl ContinuousWorld {
+    /// The contact abscissa of every agent with `beam` (see [`Beam::contact`]), indexed by agent
+    /// id, dead agents included.
+    fn beam_contacts(&self, beam: &Beam) -> Vec<Option<f64>> {
+        self.state
+            .positions
+            .iter()
+            .map(|&p| beam.contact(p, self.params.agent_radius, self.params.beam_width / 2.0))
+            .collect()
+    }
+
+    /// Where `beam` is cut, as a distance from its origin: the first contact of an alive agent
+    /// of its colour, or its full length. It can be negative when that agent overlaps the
+    /// origin.
+    ///
+    /// @ai-generated
+    fn beam_cut(&self, beam: &Beam, contacts: &[Option<f64>]) -> f64 {
+        let mut cut = beam.length;
+        for (i, contact) in contacts.iter().enumerate() {
+            if self.state.agents_alive[i]
+                && self.colours[i] == beam.colour
+                && let Some(s) = contact
+            {
+                cut = cut.min(*s);
+            }
+        }
+        cut
+    }
+
+    /// The current segment of each beam, in laser order, as the length of the beam from its
+    /// origin after the cut by an alive agent of its colour. `None` when the source is disabled
+    /// or the segment is empty (the cutting agent overlaps the origin).
+    ///
+    /// @ai-generated
+    pub(super) fn beam_segments(&self) -> Vec<Option<f64>> {
+        self.beams
+            .iter()
+            .zip(&self.state.sources_enabled)
+            .map(|(beam, &enabled)| {
+                if !enabled {
+                    return None;
+                }
+                let cut = self.beam_cut(beam, &self.beam_contacts(beam));
+                (cut > 0.0).then_some(cut)
+            })
+            .collect()
+    }
+
     pub(super) fn resolve_lasers(&mut self, events: &mut Vec<WorldEvent>) {
         loop {
             let mut deaths = vec![false; self.n_agents()];
@@ -62,23 +112,8 @@ impl ContinuousWorld {
                 if !self.state.sources_enabled[b] {
                     continue;
                 }
-                let contacts: Vec<_> = self
-                    .state
-                    .positions
-                    .iter()
-                    .map(|&p| {
-                        beam.contact(p, self.params.agent_radius, self.params.beam_width / 2.0)
-                    })
-                    .collect();
-                let mut cut = beam.length;
-                for (i, contact) in contacts.iter().enumerate() {
-                    if self.state.agents_alive[i]
-                        && self.colours[i] == beam.colour
-                        && let Some(s) = contact
-                    {
-                        cut = cut.min(*s);
-                    }
-                }
+                let contacts = self.beam_contacts(beam);
+                let cut = self.beam_cut(beam, &contacts);
                 for (i, contact) in contacts.iter().enumerate() {
                     if self.state.agents_alive[i]
                         && self.colours[i] != beam.colour
