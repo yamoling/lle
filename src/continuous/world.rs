@@ -326,15 +326,15 @@ impl ContinuousWorld {
             self.state.positions[i] = std::array::from_fn(|d| old[i][d] + v[d] * self.params.dt);
         }
         self.resolve_collisions(&old);
+        // The velocity is the displacement of this tick divided by `dt`, for both action models.
+        // The velocity model never reads it back, so it only feeds the observations there.
         for (i, &p) in old.iter().enumerate() {
-            self.state.velocities[i] = if self.params.action_model == ActionModel::Acceleration
-                && self.state.agents_alive[i]
-                && !self.state.agents_arrived[i]
-            {
-                std::array::from_fn(|d| (self.state.positions[i][d] - p[d]) / self.params.dt)
-            } else {
-                [0.0; 2]
-            };
+            self.state.velocities[i] =
+                if self.state.agents_alive[i] && !self.state.agents_arrived[i] {
+                    std::array::from_fn(|d| (self.state.positions[i][d] - p[d]) / self.params.dt)
+                } else {
+                    [0.0; 2]
+                };
         }
         let mut events = Vec::new();
         for i in 0..self.n_agents() {

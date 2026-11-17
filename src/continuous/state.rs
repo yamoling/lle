@@ -3,6 +3,9 @@ use super::{ContinuousWorld, geometry::*};
 #[derive(Clone, Debug, PartialEq)]
 pub struct ContinuousWorldState {
     pub positions: Vec<[f64; 2]>,
+    /// The displacement of each agent during the last tick, divided by `dt` (zero for a dead or
+    /// arrived agent, and after a reset). The acceleration model integrates it; the velocity
+    /// model only reports it in the observations.
     pub velocities: Vec<[f64; 2]>,
     pub gems_collected: Vec<bool>,
     pub agents_alive: Vec<bool>,

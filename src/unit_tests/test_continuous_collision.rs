@@ -84,6 +84,28 @@ fn test_agent_slides_along_a_wall() {
 }
 
 #[test]
+fn test_velocity_model_reports_the_displacement_against_a_wall() {
+    // Driven diagonally into the wall below, the agent slides along it: the reported velocity
+    // keeps the tangential component of the command and loses the normal one.
+    let config = crate::shared::map::parse_v1("S0 . . . . . X\n@ @ @ @ @ @ @").unwrap();
+    let mut world =
+        ContinuousWorld::from_map(&config.validate().unwrap(), PhysicsParams::default()).unwrap();
+    world.reset();
+    // Before the contact, the velocity is the clipped command times max_speed.
+    world.tick(&[[1.0, 1.0]]).unwrap();
+    let [vx, vy] = world.get_state().velocities[0];
+    let component = 2.0 / 2f64.sqrt();
+    assert!((vx - component).abs() < TOL && (vy - component).abs() < TOL);
+    for _ in 0..10 {
+        world.tick(&[[1.0, 1.0]]).unwrap();
+    }
+    let [vx, vy] = world.get_state().velocities[0];
+    assert!((world.agents_positions()[0][1] - 0.7).abs() < TOL);
+    assert!(vy.abs() < TOL, "normal velocity {vy}");
+    assert!((vx - component).abs() < TOL, "tangential velocity {vx}");
+}
+
+#[test]
 fn test_acceleration_model_loses_the_normal_velocity_against_a_wall() {
     let params = PhysicsParams {
         action_model: ActionModel::Acceleration,

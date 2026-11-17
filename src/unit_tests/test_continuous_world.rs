@@ -184,6 +184,12 @@ fn test_velocity_model_clips_actions_by_norm() {
         world.reset();
         world.tick(&[action]).unwrap();
         assert_close(world.agents_positions()[0], [2.5 + dx, 2.5 + dy], 1e-12);
+        // The velocity model reports the displacement of the tick divided by dt.
+        assert_close(
+            world.get_state().velocities[0],
+            [dx / 0.05, dy / 0.05],
+            1e-9,
+        );
     }
 }
 

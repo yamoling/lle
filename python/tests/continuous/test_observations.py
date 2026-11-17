@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 from lle.continuous import ContinuousWorld, PhysicsParams
 
-from .common import SAME_COLOUR
+from .common import SAME_COLOUR, xy
 
 MAP = """
 S0 .   S1 . X
@@ -168,7 +168,7 @@ def test_velocities_are_normalized_and_never_relative():
 
 @pytest.mark.parametrize("action_model", ["velocity", "acceleration"])
 def test_velocity_features_are_the_state_velocities(action_model: str):
-    """With the velocity model, the reported velocity is whatever the state holds (the contract)."""
+    """The reported velocity is the state's, for both action models."""
     params = PhysicsParams(action_model=action_model)
     world = ContinuousWorld(MAP, params)
     world.step([(0.6, 0.3), (0.0, 1.0), (0.5, -0.5)], 4)
@@ -177,6 +177,26 @@ def test_velocity_features_are_the_state_velocities(action_model: str):
     for agent in range(3):
         start = agent * 9
         np.testing.assert_allclose(vector[start + 2 : start + 4], velocities[agent], rtol=1e-6, atol=1e-7)
+
+
+def test_velocity_model_reports_the_displacement_of_the_last_tick():
+    """Design doc §5.1: the velocity is the displacement of the last tick divided by `dt`."""
+    world = ContinuousWorld(MAP)
+    world.step([(0.6, 0.3), (0.0, -1.0), (0.0, 0.0)], 3)
+    # Agent 0 moves freely: v = action * max_speed. Agent 1 reaches the top boundary (y = r) after
+    # 2 ticks, so it does not move during the third one and its velocity is 0. Agent 2 stays still.
+    np.testing.assert_allclose(xy(world.get_state().velocities), [(1.2, 0.6), (0.0, 0.0), (0.0, 0.0)], atol=1e-9)
+    np.testing.assert_allclose(world.state_vector()[2:4], [0.6, 0.3], rtol=1e-6)
+
+
+def test_velocity_model_keeps_the_tangential_velocity_against_a_wall():
+    world = ContinuousWorld("S0 . . . . X\n@ @ @ @ @ @")
+    world.step([(1.0, 1.0)], 10)
+    # Against the wall below, the normal (y) component is lost and the tangential one is kept:
+    # max_speed / sqrt(2) = sqrt(2).
+    [velocity] = xy(world.get_state().velocities)
+    np.testing.assert_allclose(velocity, (np.sqrt(2), 0.0), atol=1e-9)
+    np.testing.assert_allclose(world.state_vector()[2:4], [1 / np.sqrt(2), 0.0], rtol=1e-6, atol=1e-7)
 
 
 def test_observation_and_state_vector_change_after_a_step():
