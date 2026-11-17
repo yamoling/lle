@@ -1,5 +1,5 @@
 use crate::{
-    ParseError, Position,
+    ParseError, Position, World,
     tiles::{CardinalDirection, Tile, VerticalDirection},
 };
 
@@ -21,7 +21,7 @@ fn test_multi_digit_laser_source_agent_id() {
     let config = parse("L10E S0 S1 S2 S3 S4 S5 S6 S7 S8 S9 S10 X").unwrap();
     let (_, source) = &config.sources()[0];
 
-    assert_eq!(source.agent_id, 10);
+    assert_eq!(source.colour, 10);
     assert_eq!(source.direction, CardinalDirection::East);
 }
 
@@ -49,12 +49,12 @@ fn test_multi_digit_agents_and_laser_sources_world() {
     assert_eq!(config.n_agents(), 14);
     assert_eq!(config.sources().len(), 14);
     for (agent_id, (source_pos, source)) in config.sources().iter().enumerate() {
-        assert_eq!(source.agent_id, agent_id);
+        assert_eq!(source.colour, agent_id);
         assert_eq!(source.direction, CardinalDirection::West);
         assert_eq!(*source_pos, Position::new2d(agent_id + 1, 1));
     }
 
-    config.into_world().unwrap();
+    World::try_from(config).unwrap();
 }
 
 #[test]
@@ -67,7 +67,7 @@ fn test_parse_lift_and_button() {
         ",
     )
     .unwrap();
-    let world = config.into_world().unwrap();
+    let world = World::try_from(config).unwrap();
 
     match world.at(&Position { i: 0, j: 2, k: 0 }) {
         Some(Tile::Lift(lift)) => {
@@ -112,7 +112,7 @@ fn test_lift_button_round_trip() {
     .unwrap();
     let as_string = super::to_v1_string(&config).unwrap();
     let reparsed = parse(&as_string).unwrap();
-    let world = reparsed.into_world().unwrap();
+    let world = World::try_from(reparsed).unwrap();
 
     match world.at(&Position { i: 0, j: 2, k: 0 }) {
         Some(Tile::Lift(lift)) => {
@@ -186,7 +186,7 @@ fn test_laser_kill_on_spawn() {
     ",
     )
     .unwrap();
-    let world = config.into_world();
+    let world = World::try_from(config);
     match world {
         Ok(_) => panic!(
             "The start location of agent 0 should have been removed and no remaining start position remains for agent 0"
@@ -206,7 +206,7 @@ fn test_laser_blocked_on_spawn() {
     ",
     )
     .unwrap();
-    let world = config.into_world();
+    let world = World::try_from(config);
     match world {
         Ok(_) => {}
         Err(ParseError::AgentWithoutStart { .. }) => panic!(
@@ -266,7 +266,7 @@ fn test_parse_lever_and_pressure_plate() {
         ",
     )
     .unwrap();
-    let world = config.into_world().unwrap();
+    let world = World::try_from(config).unwrap();
 
     match world.at(&Position { i: 0, j: 1, k: 0 }) {
         Some(Tile::Lever(lever)) => {
