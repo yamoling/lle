@@ -542,3 +542,83 @@ fn test_set_laser_colour_errors_leave_the_world_unchanged() {
     world.set_laser_colour(0, 1).unwrap();
     check_unchanged(&world);
 }
+
+#[test]
+fn test_valid_laser_colours() {
+    let world = world(COLOURED);
+    assert_eq!(world.valid_laser_colours(0).unwrap(), vec![0, 1, 2]);
+    assert_eq!(world.valid_laser_colours(1).unwrap(), vec![0, 1, 2]);
+    assert!(matches!(
+        world.valid_laser_colours(5),
+        Err(ContinuousError::InvalidState { .. })
+    ));
+    // The beam covers the only start of agent 1 (colour 1).
+    let world = self::world("S0 . X\nL1E S1 X\n. . .");
+    assert_eq!(world.valid_laser_colours(0).unwrap(), vec![1]);
+}
+
+/// Every colour is accepted by `set_laser_colour` exactly when `valid_laser_colours` lists it.
+fn assert_set_matches_valid(world: &ContinuousWorld) {
+    for source in world.laser_sources() {
+        let valid = world.valid_laser_colours(source.laser_id).unwrap();
+        for colour in 0..world.n_colours() + 1 {
+            let mut copy = world.clone();
+            let accepted = copy.set_laser_colour(source.laser_id, colour).is_ok();
+            assert_eq!(
+                accepted,
+                valid.contains(&colour),
+                "laser {}, colour {colour}",
+                source.laser_id
+            );
+        }
+    }
+}
+
+#[test]
+fn test_recolouring_never_puts_an_agent_in_a_lethal_beam() {
+    let mut world = world(COLOURED);
+    // Agent 0 (colour 0) blocks the beam of colour 0, in the cell (1, 1): any other colour would
+    // kill it where it stands.
+    let mut state = world.get_state();
+    state.positions[0] = [1.5, 1.5];
+    world.set_state(&state).unwrap();
+    assert_eq!(world.valid_laser_colours(0).unwrap(), vec![0]);
+    assert_set_matches_valid(&world);
+    let before = world.clone();
+    for colour in [1, 2] {
+        let error = world.set_laser_colour(0, colour).unwrap_err();
+        assert!(matches!(error, ContinuousError::InvalidState { .. }));
+        assert_eq!(world.get_state(), before.get_state());
+        assert_eq!(world.laser_sources(), before.laser_sources());
+    }
+    // The death rule of a tick also applies to arrived agents.
+    state.agents_arrived[0] = true;
+    world.set_state(&state).unwrap();
+    assert_eq!(world.valid_laser_colours(0).unwrap(), vec![0]);
+    // A dead agent, or a disabled source, kills nobody.
+    state.agents_arrived[0] = false;
+    state.agents_alive[0] = false;
+    world.set_state(&state).unwrap();
+    assert_eq!(world.valid_laser_colours(0).unwrap(), vec![0, 1, 2]);
+    state.agents_alive[0] = true;
+    state.sources_enabled[0] = false;
+    world.set_state(&state).unwrap();
+    assert_eq!(world.valid_laser_colours(0).unwrap(), vec![0, 1, 2]);
+    assert_set_matches_valid(&world);
+
+    // Agent 1 (colour 1) stands in the beam of colour 0, which would kill it at the next tick:
+    // only its own colour is valid, and setting it saves agent 1.
+    let mut world = self::world(COLOURED);
+    let mut state = world.get_state();
+    state.positions[1] = [1.5, 1.5];
+    world.set_state(&state).unwrap();
+    assert_eq!(world.valid_laser_colours(0).unwrap(), vec![1]);
+    assert_set_matches_valid(&world);
+    world.set_laser_colour(0, 1).unwrap();
+    let events = run(&mut world, &[STILL, STILL], 1);
+    assert!(
+        !events
+            .iter()
+            .any(|e| matches!(e, WorldEvent::AgentDied { .. }))
+    );
+}

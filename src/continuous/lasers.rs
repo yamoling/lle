@@ -86,6 +86,28 @@ impl ContinuousWorld {
         cut
     }
 
+    /// The first alive agent (by id) that the beam at `index` would kill where it stands if it
+    /// had the colour `colour`, with the death rule of a tick, or `None`. A disabled source kills
+    /// nobody.
+    ///
+    /// @ai-generated
+    pub(super) fn recoloured_beam_victim(&self, index: usize, colour: usize) -> Option<usize> {
+        if !self.state.sources_enabled[index] {
+            return None;
+        }
+        let beam = Beam {
+            colour,
+            ..self.beams[index].clone()
+        };
+        let contacts = self.beam_contacts(&beam);
+        let cut = self.beam_cut(&beam, &contacts);
+        (0..self.n_agents()).find(|&i| {
+            self.state.agents_alive[i]
+                && self.colours[i] != colour
+                && contacts[i].is_some_and(|s| s < cut)
+        })
+    }
+
     /// The current segment of each beam, in laser order, as the length of the beam from its
     /// origin after the cut by an alive agent of its colour. `None` when the source is disabled
     /// or the segment is empty (the cutting agent overlaps the origin).

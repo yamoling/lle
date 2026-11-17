@@ -255,15 +255,36 @@ impl ContinuousWorld {
     pub(super) fn walls(&self) -> &[Position] {
         &self.solids[..self.solids.len() - self.sources.len()]
     }
+    /// The colours that the laser source `laser_id` may take, in increasing order: those below
+    /// [`ContinuousWorld::n_colours`] such that
+    /// - its full beam covers no possible start of an agent of another colour (who would die
+    ///   there on reset), as `LaserSource.set_colour` checks in LLE;
+    /// - its current beam, with that colour, would not kill an agent where it stands: no alive
+    ///   agent of another colour touches it before the cut by an agent of that colour (the death
+    ///   rule of a tick, which also applies to arrived agents).
+    ///
+    /// [`ContinuousWorld::set_laser_colour`] accepts exactly these colours.
+    ///
+    /// # Errors
+    /// [`ContinuousError::InvalidState`] when no source has the id `laser_id`.
+    ///
+    /// @ai-generated
+    pub fn valid_laser_colours(&self, laser_id: LaserId) -> Result<Vec<Colour>, ContinuousError> {
+        let index = self.source_index(laser_id)?;
+        Ok((0..self.n_colours)
+            .filter(|&colour| self.laser_colour_conflict(index, colour).is_none())
+            .collect())
+    }
+
     /// Change the colour of the laser source `laser_id`: the agents of `colour` then block and
     /// cross its beam, and the others die in it. The colour is part of the configuration of the
     /// world, not of its state: `reset` and `set_state` keep it.
     ///
     /// # Errors
-    /// [`ContinuousError::InvalidState`], without changing the world, when `colour` is not
-    /// below [`ContinuousWorld::n_colours`], when no source has the id `laser_id`, or when the
-    /// full beam of the source would cover a possible start of an agent of another colour (who
-    /// would die there on reset), as `LaserSource.set_colour` checks in LLE.
+    /// [`ContinuousError::InvalidState`], without changing the world, when no source has the id
+    /// `laser_id` or when `colour` is not one of its
+    /// [`valid_laser_colours`](ContinuousWorld::valid_laser_colours) (too large, crossing a
+    /// possible start of an agent of another colour, or lethal to an agent where it stands).
     ///
     /// @ai-generated
     pub fn set_laser_colour(
@@ -271,33 +292,11 @@ impl ContinuousWorld {
         laser_id: LaserId,
         colour: Colour,
     ) -> Result<(), ContinuousError> {
-        if colour >= self.n_colours {
+        let index = self.source_index(laser_id)?;
+        if let Some(reason) = self.laser_colour_conflict(index, colour) {
             return Err(ContinuousError::InvalidState {
-                reason: format!(
-                    "Invalid laser colour {colour}: expected a colour below {}",
-                    self.n_colours
-                ),
+                reason: format!("Laser {laser_id} cannot have the colour {colour}: {reason}"),
             });
-        }
-        let Some(index) = self.sources.iter().position(|s| s.laser_id == laser_id) else {
-            return Err(ContinuousError::InvalidState {
-                reason: format!("No laser source has the id {laser_id}"),
-            });
-        };
-        let beam_cells = &self.beam_cells[index];
-        for (agent, starts) in self.starts.iter().enumerate() {
-            if self.colours[agent] == colour {
-                continue;
-            }
-            if let Some(start) = starts.iter().find(|start| beam_cells.contains(start)) {
-                return Err(ContinuousError::InvalidState {
-                    reason: format!(
-                        "Laser {laser_id} cannot have the colour {colour}: its beam would cross \
-                         the start {start:?} of agent {agent}, of colour {}",
-                        self.colours[agent]
-                    ),
-                });
-            }
         }
         if self.sources[index].colour != colour {
             self.sources[index].colour = colour;
@@ -306,6 +305,45 @@ impl ContinuousWorld {
             self.background.invalidate();
         }
         Ok(())
+    }
+
+    /// The index (in laser order) of the source `laser_id`.
+    fn source_index(&self, laser_id: LaserId) -> Result<usize, ContinuousError> {
+        self.sources
+            .iter()
+            .position(|s| s.laser_id == laser_id)
+            .ok_or_else(|| ContinuousError::InvalidState {
+                reason: format!("No laser source has the id {laser_id}"),
+            })
+    }
+
+    /// Why the source at `index` cannot take `colour` (see
+    /// [`ContinuousWorld::valid_laser_colours`]), or `None` when it can.
+    ///
+    /// @ai-generated
+    fn laser_colour_conflict(&self, index: usize, colour: Colour) -> Option<String> {
+        if colour >= self.n_colours {
+            return Some(format!("expected a colour below {}", self.n_colours));
+        }
+        let beam_cells = &self.beam_cells[index];
+        for (agent, starts) in self.starts.iter().enumerate() {
+            if self.colours[agent] == colour {
+                continue;
+            }
+            if let Some(start) = starts.iter().find(|start| beam_cells.contains(start)) {
+                return Some(format!(
+                    "its beam would cross the start {start:?} of agent {agent}, of colour {}",
+                    self.colours[agent]
+                ));
+            }
+        }
+        if let Some(agent) = self.recoloured_beam_victim(index, colour) {
+            return Some(format!(
+                "its beam would kill agent {agent}, of colour {}, where it stands",
+                self.colours[agent]
+            ));
+        }
+        None
     }
     /// The laser sources, in laser order (the order of `sources_enabled` in the state).
     pub fn laser_sources(&self) -> &[LaserSourceInfo] {
