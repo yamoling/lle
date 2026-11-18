@@ -114,19 +114,23 @@ impl PyContinuousWorld {
 
     /// Convert an array-like of shape `(n_agents, 2)` into actions.
     ///
+    /// A `float64` or `float32` 2-D array is read directly, with the values that
+    /// `numpy.asarray(actions, dtype="float64")` would give; anything else goes through it.
+    ///
     /// @ai-generated
     fn extract_actions(actions: &Bound<'_, PyAny>) -> PyResult<Vec<ContinuousAction>> {
+        if let Ok(array) = actions.cast::<PyArray2<f64>>() {
+            return Self::read_actions(array.readonly().as_array(), |x| x);
+        }
+        if let Ok(array) = actions.cast::<PyArray2<f32>>() {
+            return Self::read_actions(array.readonly().as_array(), f64::from);
+        }
         let py = actions.py();
         let kwargs = PyDict::new(py);
         kwargs.set_item("dtype", "float64")?;
         let array = py
             .import("numpy")?
             .call_method("asarray", (actions,), Some(&kwargs))?;
-        let shape_error = |shape: &[usize]| {
-            PyValueError::new_err(format!(
-                "Expected actions of shape (n_agents, 2), got an array of shape {shape:?}"
-            ))
-        };
         let array = match array.cast_into::<PyArray2<f64>>() {
             Ok(array) => array,
             Err(error) => {
@@ -134,13 +138,33 @@ impl PyContinuousWorld {
                 return Err(shape_error(&shape));
             }
         };
-        let array = array.readonly();
-        let view = array.as_array();
+        Self::read_actions(array.readonly().as_array(), |x| x)
+    }
+
+    /// The actions in the rows of `view`, converted by `to_f64`, or a `ValueError` when it does
+    /// not have 2 columns.
+    ///
+    /// @ai-generated
+    fn read_actions<T: Copy>(
+        view: numpy::ndarray::ArrayView2<'_, T>,
+        to_f64: impl Fn(T) -> f64,
+    ) -> PyResult<Vec<ContinuousAction>> {
         if view.ncols() != 2 {
             return Err(shape_error(view.shape()));
         }
-        Ok(view.rows().into_iter().map(|r| [r[0], r[1]]).collect())
+        Ok(view
+            .rows()
+            .into_iter()
+            .map(|r| [to_f64(r[0]), to_f64(r[1])])
+            .collect())
     }
+}
+
+/// The error for actions whose array has the shape `shape` instead of `(n_agents, 2)`.
+fn shape_error(shape: &[usize]) -> PyErr {
+    PyValueError::new_err(format!(
+        "Expected actions of shape (n_agents, 2), got an array of shape {shape:?}"
+    ))
 }
 
 /// A Python integer read as a `u64`: `Some(value)` when it fits, `None` for any other integer
