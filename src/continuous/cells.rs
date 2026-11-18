@@ -84,6 +84,9 @@ impl CellIndex {
     ///
     /// @ai-generated
     pub(super) fn solids_near(&self, p: [f64; 2]) -> &[u32] {
+        if self.near_solids.is_empty() {
+            return &[];
+        }
         let cell = self.cell(p);
         &self.near_solids[self.solid_offsets[cell] as usize..self.solid_offsets[cell + 1] as usize]
     }
@@ -92,6 +95,9 @@ impl CellIndex {
     ///
     /// @ai-generated
     pub(super) fn voids_near(&self, p: [f64; 2]) -> &[Position] {
+        if self.near_voids.is_empty() {
+            return &[];
+        }
         let cell = self.cell(p);
         &self.near_voids[self.void_offsets[cell] as usize..self.void_offsets[cell + 1] as usize]
     }
