@@ -138,6 +138,10 @@ class CLLE(ContinuousMARLEnv):
         )
         self._name = name
         self.done = False
+        # Every action is always available: `available_actions` returns copies of this array.
+        self._available_actions = super().available_actions()
+        # The keys of the per-agent metrics of `step`, in the order of the info dict.
+        self._metric_keys = [(f"has-arrived-{i}", f"is-alive-{i}") for i in range(self.n_agents)]
 
     def _shape(self, obs_type: ObservationType, state: bool) -> tuple[int, ...]:
         """
@@ -197,9 +201,9 @@ class CLLE(ContinuousMARLEnv):
         arrived = self._world.agents_arrived
         n_arrived = sum(arrived)
         metrics = {}
-        for i in range(self.n_agents):
-            metrics[f"has-arrived-{i}"] = arrived[i]
-            metrics[f"is-alive-{i}"] = alive[i]
+        for (arrived_key, alive_key), has_arrived, is_alive in zip(self._metric_keys, arrived, alive):
+            metrics[arrived_key] = has_arrived
+            metrics[alive_key] = is_alive
         return Step(
             actions,
             self.get_observation(),
@@ -248,6 +252,15 @@ class CLLE(ContinuousMARLEnv):
             if current[laser_id] != colour:
                 self._world.set_laser_colour(laser_id, colour)
 
+    def available_actions(self):
+        """
+        Every action is available: an array of `True` of shape `(n_agents, n_actions)`, a new one
+        at each call.
+
+        @ai-generated
+        """
+        return self._available_actions.copy()
+
     def seed(self, seed_value: int):
         random.seed(seed_value)
         self._world.seed(seed_value)
@@ -262,11 +275,13 @@ class CLLE(ContinuousMARLEnv):
         world = self._world
         match ObservationType[self.obs_type]:
             case ObservationType.STATE:
-                data = np.stack([world.observation(i, self.static_features) for i in range(self.n_agents)])
+                data = np.array([world.observation(i, self.static_features) for i in range(self.n_agents)])
             case ObservationType.LAYERED:
-                data = np.tile(world.layered(self.layered_resolution), (self.n_agents, 1, 1, 1))
+                layered = world.layered(self.layered_resolution)
+                data = np.empty((self.n_agents, *layered.shape), dtype=layered.dtype)
+                data[:] = layered
             case ObservationType.LIDAR:
-                data = np.stack([world.lidar(i, self.lidar_n_rays, self.lidar_range) for i in range(self.n_agents)])
+                data = np.array([world.lidar(i, self.lidar_n_rays, self.lidar_range) for i in range(self.n_agents)])
             case ObservationType.RGB_IMAGE:
                 data = np.tile(world.get_image(), (self.n_agents, 1, 1, 1)).astype(np.float32)
         return Observation(data, self.available_actions())
