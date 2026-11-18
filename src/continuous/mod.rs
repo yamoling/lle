@@ -6,6 +6,7 @@
 //! This ordering allows collecting a gem or arriving in the tick an agent dies.
 //! Void contact is safe, but overlap kills: skirting a void requires radius clearance.
 //! Between two voids, a one-cell corridor leaves 0.5 minus the radius on each side.
+mod cells;
 mod collision;
 mod errors;
 mod geometry;

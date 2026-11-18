@@ -1,5 +1,11 @@
 use super::{geometry::*, world::ContinuousWorld};
 impl ContinuousWorld {
+    /// Push the disc centred on `p` out of the boundary and the solids, at most 4 times.
+    ///
+    /// Only the solids near `p` are looked at (see [`CellIndex`](super::cells::CellIndex)), in
+    /// the order of `solids`, so the deepest one wins ties like with a scan of every solid.
+    ///
+    /// @ai-edited
     pub(super) fn project_static(&self, mut p: [f64; 2]) -> [f64; 2] {
         let r = self.params.agent_radius;
         for _ in 0..4 {
@@ -7,8 +13,8 @@ impl ContinuousWorld {
             p[1] = p[1].clamp(r, self.height as f64 - r);
             let mut correction = [0.0; 2];
             let mut deepest = 0.0;
-            for cell in &self.solids {
-                let delta = sub(p, closest(p, cell));
+            for &s in self.cells.solids_near(p).as_slice() {
+                let delta = sub(p, closest(p, &self.solids[s as usize]));
                 let d = norm(delta);
                 if d < r && r - d > deepest && d > 0.0 {
                     deepest = r - d;
@@ -23,8 +29,12 @@ impl ContinuousWorld {
         }
         p
     }
-    pub(super) fn overlapping_pairs(&self) -> Vec<(usize, usize)> {
-        let mut pairs = vec![];
+    /// Replace the content of `pairs` with the pairs `(i, j)`, `i < j`, of alive agents that
+    /// overlap.
+    ///
+    /// @ai-edited
+    fn overlapping_pairs(&self, pairs: &mut Vec<(usize, usize)>) {
+        pairs.clear();
         for i in 0..self.n_agents() {
             if !self.state.agents_alive[i] {
                 continue;
@@ -38,37 +48,60 @@ impl ContinuousWorld {
                 }
             }
         }
-        pairs
     }
+    /// Whether the alive agent at `p` penetrates the boundary or a solid (by more than 1e-12).
+    ///
+    /// @ai-generated
+    fn penetrates(&self, p: [f64; 2]) -> bool {
+        let r = self.params.agent_radius;
+        p[0] < r
+            || p[1] < r
+            || p[0] > self.width as f64 - r
+            || p[1] > self.height as f64 - r
+            || self
+                .cells
+                .solids_near(p)
+                .as_slice()
+                .iter()
+                .any(|&s| distance(p, &self.solids[s as usize]) < r - 1e-12)
+    }
+    /// Move the agents out of the solids and of each other after their intended move from
+    /// `old`, and revert to `old` the agents that still overlap something.
+    ///
+    /// @ai-edited
     pub(super) fn resolve_collisions(&mut self, old: &[[f64; 2]]) {
-        let movable: Vec<_> = old
-            .iter()
-            .enumerate()
-            .map(|(i, &p)| {
-                self.state.agents_alive[i]
-                    && !self.state.agents_arrived[i]
-                    && self.state.positions[i] != p
-            })
-            .collect();
+        let n = self.n_agents();
+        let mut movable = std::mem::take(&mut self.scratch.movable);
+        movable.clear();
+        movable.extend(old.iter().enumerate().map(|(i, &p)| {
+            self.state.agents_alive[i]
+                && !self.state.agents_arrived[i]
+                && self.state.positions[i] != p
+        }));
         for (i, &can_move) in movable.iter().enumerate() {
             if can_move {
                 self.state.positions[i] = self.project_static(self.state.positions[i]);
             }
         }
-        let displacement: Vec<_> = self
-            .state
-            .positions
-            .iter()
-            .zip(old)
-            .map(|(&p, &q)| sub(p, q))
-            .collect();
+        let mut displacement = std::mem::take(&mut self.scratch.displacement);
+        displacement.clear();
+        displacement.extend(
+            self.state
+                .positions
+                .iter()
+                .zip(old)
+                .map(|(&p, &q)| sub(p, q)),
+        );
+        let mut pairs = std::mem::take(&mut self.scratch.pairs);
+        let mut corrections = std::mem::take(&mut self.scratch.corrections);
         for _ in 0..8 {
-            let pairs = self.overlapping_pairs();
+            self.overlapping_pairs(&mut pairs);
             if pairs.is_empty() {
                 break;
             }
-            let mut corrections = vec![[0.0; 2]; self.n_agents()];
-            for (i, j) in pairs {
+            corrections.clear();
+            corrections.resize(n, [0.0; 2]);
+            for &(i, j) in &pairs {
                 let delta = sub(self.state.positions[j], self.state.positions[i]);
                 let d = norm(delta);
                 let n = if d == 0.0 {
@@ -108,24 +141,19 @@ impl ContinuousWorld {
                 }
             }
         }
+        let mut revert = std::mem::take(&mut self.scratch.revert);
         let mut used_fallback = false;
         loop {
-            let r = self.params.agent_radius;
-            let mut revert: Vec<_> = self
-                .state
-                .positions
-                .iter()
-                .enumerate()
-                .map(|(i, &p)| {
-                    self.state.agents_alive[i]
-                        && (p[0] < r
-                            || p[1] < r
-                            || p[0] > self.width as f64 - r
-                            || p[1] > self.height as f64 - r
-                            || self.solids.iter().any(|cell| distance(p, cell) < r - 1e-12))
-                })
-                .collect();
-            for (i, j) in self.overlapping_pairs() {
+            revert.clear();
+            revert.extend(
+                self.state
+                    .positions
+                    .iter()
+                    .enumerate()
+                    .map(|(i, &p)| self.state.agents_alive[i] && self.penetrates(p)),
+            );
+            self.overlapping_pairs(&mut pairs);
+            for &(i, j) in &pairs {
                 revert[i] = true;
                 revert[j] = true;
             }
@@ -142,6 +170,11 @@ impl ContinuousWorld {
         if used_fallback {
             self.collision_fallbacks += 1;
         }
+        self.scratch.movable = movable;
+        self.scratch.displacement = displacement;
+        self.scratch.pairs = pairs;
+        self.scratch.corrections = corrections;
+        self.scratch.revert = revert;
     }
 }
 #[cfg(test)]

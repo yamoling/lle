@@ -1,6 +1,6 @@
 use super::{
     ActionModel, ContinuousAction, ContinuousError, ContinuousWorldState, PhysicsParams,
-    geometry::*, lasers::Beam, rendering::Background,
+    cells::CellIndex, geometry::*, lasers::Beam, rendering::Background,
 };
 use crate::shared::{CardinalDirection, Colour, LaserId, MapSpec, Position, ValidMap, WorldEvent};
 use rand::{SeedableRng, rngs::ChaCha12Rng};
@@ -45,6 +45,25 @@ pub struct ContinuousWorld {
     pub(super) collision_fallbacks: u64,
     /// The static background of the frames, rendered by the first call to `get_image`.
     pub(super) background: Background,
+    /// The solids, voids and exits by cell.
+    pub(super) cells: CellIndex,
+    /// Buffers reused by every tick, to avoid allocations. Their content between two ticks is
+    /// meaningless.
+    pub(super) scratch: Scratch,
+}
+
+/// The buffers of a tick (see [`ContinuousWorld::scratch`]).
+#[derive(Clone, Debug, Default)]
+pub(super) struct Scratch {
+    /// The positions at the start of the tick.
+    pub(super) old: Vec<[f64; 2]>,
+    pub(super) movable: Vec<bool>,
+    pub(super) displacement: Vec<[f64; 2]>,
+    pub(super) corrections: Vec<[f64; 2]>,
+    pub(super) pairs: Vec<(usize, usize)>,
+    pub(super) revert: Vec<bool>,
+    pub(super) deaths: Vec<bool>,
+    pub(super) contacts: Vec<Option<f64>>,
 }
 
 impl Clone for ContinuousWorld {
@@ -70,6 +89,8 @@ impl Clone for ContinuousWorld {
             rng: ChaCha12Rng::deserialize_state(&self.rng.serialize_state()),
             collision_fallbacks: self.collision_fallbacks,
             background: self.background.clone(),
+            cells: self.cells.clone(),
+            scratch: Scratch::default(),
         }
     }
 }
@@ -140,6 +161,13 @@ impl ContinuousWorld {
             .chain(config.sources().iter().map(|(_, source)| &source.colour))
             .max()
             .map_or(0, |max| max + 1);
+        let cells = CellIndex::new(
+            config.width(),
+            config.height(),
+            &solids,
+            config.voids(),
+            config.exits(),
+        );
         let mut world = Self {
             width: config.width(),
             height: config.height(),
@@ -166,6 +194,8 @@ impl ContinuousWorld {
             rng: ChaCha12Rng::seed_from_u64(0),
             collision_fallbacks: 0,
             background: Background::default(),
+            cells,
+            scratch: Scratch::default(),
         };
         world.reset();
         world
@@ -406,7 +436,15 @@ impl ContinuousWorld {
         actions: &[ContinuousAction],
     ) -> Result<Vec<WorldEvent>, ContinuousError> {
         self.validate_actions(actions)?;
-        let old = self.state.positions.clone();
+        Ok(self.tick_unchecked(actions))
+    }
+    /// One tick with `actions`, already checked by [`ContinuousWorld::validate_actions`].
+    ///
+    /// @ai-edited
+    fn tick_unchecked(&mut self, actions: &[ContinuousAction]) -> Vec<WorldEvent> {
+        let mut old = std::mem::take(&mut self.scratch.old);
+        old.clear();
+        old.extend_from_slice(&self.state.positions);
         for (i, &action) in actions.iter().enumerate() {
             if !self.state.agents_alive[i] || self.state.agents_arrived[i] {
                 continue;
@@ -443,11 +481,12 @@ impl ContinuousWorld {
         }
         let mut events = Vec::new();
         for i in 0..self.n_agents() {
+            let p = self.state.positions[i];
             if self.state.agents_alive[i]
                 && self
-                    .voids
-                    .iter()
-                    .any(|v| distance(self.state.positions[i], v) < self.params.agent_radius - 1e-9)
+                    .cells
+                    .voids_near(p)
+                    .any(|v| distance(p, &v) < self.params.agent_radius - 1e-9)
             {
                 self.kill(i, &mut events);
             }
@@ -471,12 +510,7 @@ impl ContinuousWorld {
             let [x, y] = self.state.positions[i];
             if self.state.agents_alive[i]
                 && !self.state.agents_arrived[i]
-                && self.exits.iter().any(|p| {
-                    x >= p.j as f64
-                        && x < (p.j + 1) as f64
-                        && y >= p.i as f64
-                        && y < (p.i + 1) as f64
-                })
+                && self.cells.in_exit(x, y)
             {
                 self.state.agents_arrived[i] = true;
                 self.state.velocities[i] = [0.0; 2];
@@ -485,7 +519,8 @@ impl ContinuousWorld {
         }
         self.resolve_lasers(&mut events);
         self.state.tick += 1;
-        Ok(events)
+        self.scratch.old = old;
+        events
     }
     pub(super) fn kill(&mut self, i: usize, events: &mut Vec<WorldEvent>) {
         self.state.agents_alive[i] = false;
@@ -512,7 +547,7 @@ impl ContinuousWorld {
             {
                 break;
             }
-            let events = self.tick(actions)?;
+            let events = self.tick_unchecked(actions);
             let died = events
                 .iter()
                 .any(|e| matches!(e, WorldEvent::AgentDied { .. }));

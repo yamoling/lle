@@ -61,11 +61,22 @@ impl ContinuousWorld {
     /// The contact abscissa of every agent with `beam` (see [`Beam::contact`]), indexed by agent
     /// id, dead agents included.
     fn beam_contacts(&self, beam: &Beam) -> Vec<Option<f64>> {
-        self.state
-            .positions
-            .iter()
-            .map(|&p| beam.contact(p, self.params.agent_radius, self.params.beam_width / 2.0))
-            .collect()
+        let mut contacts = Vec::with_capacity(self.n_agents());
+        self.beam_contacts_into(beam, &mut contacts);
+        contacts
+    }
+
+    /// Replace the content of `contacts` with [`ContinuousWorld::beam_contacts`].
+    ///
+    /// @ai-generated
+    fn beam_contacts_into(&self, beam: &Beam, contacts: &mut Vec<Option<f64>>) {
+        contacts.clear();
+        contacts.extend(
+            self.state
+                .positions
+                .iter()
+                .map(|&p| beam.contact(p, self.params.agent_radius, self.params.beam_width / 2.0)),
+        );
     }
 
     /// Where `beam` is cut, as a distance from its origin: the first contact of an alive agent
@@ -127,14 +138,21 @@ impl ContinuousWorld {
             .collect()
     }
 
+    /// Kill the alive agents that touch a beam of another colour before its cut, until no
+    /// agent dies.
+    ///
+    /// @ai-edited
     pub(super) fn resolve_lasers(&mut self, events: &mut Vec<WorldEvent>) {
+        let mut deaths = std::mem::take(&mut self.scratch.deaths);
+        let mut contacts = std::mem::take(&mut self.scratch.contacts);
         loop {
-            let mut deaths = vec![false; self.n_agents()];
+            deaths.clear();
+            deaths.resize(self.n_agents(), false);
             for (b, beam) in self.beams.iter().enumerate() {
                 if !self.state.sources_enabled[b] {
                     continue;
                 }
-                let contacts = self.beam_contacts(beam);
+                self.beam_contacts_into(beam, &mut contacts);
                 let cut = self.beam_cut(beam, &contacts);
                 for (i, contact) in contacts.iter().enumerate() {
                     if self.state.agents_alive[i]
@@ -148,12 +166,14 @@ impl ContinuousWorld {
             if !deaths.iter().any(|&d| d) {
                 break;
             }
-            for (i, died) in deaths.into_iter().enumerate() {
+            for (i, &died) in deaths.iter().enumerate() {
                 if died {
                     self.kill(i, events);
                 }
             }
         }
+        self.scratch.deaths = deaths;
+        self.scratch.contacts = contacts;
     }
 }
 #[cfg(test)]
