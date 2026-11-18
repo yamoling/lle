@@ -486,7 +486,8 @@ impl ContinuousWorld {
                 && self
                     .cells
                     .voids_near(p)
-                    .any(|v| distance(p, &v) < self.params.agent_radius - 1e-9)
+                    .iter()
+                    .any(|v| distance_below(p, v, self.params.agent_radius - 1e-9))
             {
                 self.kill(i, &mut events);
             }
@@ -497,8 +498,10 @@ impl ContinuousWorld {
             }
             for i in 0..self.n_agents() {
                 if self.state.agents_alive[i]
-                    && norm(sub(self.state.positions[i], centre(pos)))
-                        < self.params.agent_radius + self.params.gem_radius
+                    && norm_below(
+                        sub(self.state.positions[i], centre(pos)),
+                        self.params.agent_radius + self.params.gem_radius,
+                    )
                 {
                     self.state.gems_collected[g] = true;
                     events.push(WorldEvent::GemCollected { agent_id: i });

@@ -13,10 +13,13 @@ impl ContinuousWorld {
             p[1] = p[1].clamp(r, self.height as f64 - r);
             let mut correction = [0.0; 2];
             let mut deepest = 0.0;
-            for &s in self.cells.solids_near(p).as_slice() {
+            for &s in self.cells.solids_near(p) {
                 let delta = sub(p, closest(p, &self.solids[s as usize]));
+                if !norm_below(delta, r) {
+                    continue;
+                }
                 let d = norm(delta);
-                if d < r && r - d > deepest && d > 0.0 {
+                if r - d > deepest && d > 0.0 {
                     deepest = r - d;
                     correction = [delta[0] / d * deepest, delta[1] / d * deepest];
                 }
@@ -41,8 +44,10 @@ impl ContinuousWorld {
             }
             for j in i + 1..self.n_agents() {
                 if self.state.agents_alive[j]
-                    && norm(sub(self.state.positions[j], self.state.positions[i]))
-                        < 2.0 * self.params.agent_radius - 1e-12
+                    && norm_below(
+                        sub(self.state.positions[j], self.state.positions[i]),
+                        2.0 * self.params.agent_radius - 1e-12,
+                    )
                 {
                     pairs.push((i, j));
                 }
@@ -61,9 +66,8 @@ impl ContinuousWorld {
             || self
                 .cells
                 .solids_near(p)
-                .as_slice()
                 .iter()
-                .any(|&s| distance(p, &self.solids[s as usize]) < r - 1e-12)
+                .any(|&s| distance_below(p, &self.solids[s as usize], r - 1e-12))
     }
     /// Move the agents out of the solids and of each other after their intended move from
     /// `old`, and revert to `old` the agents that still overlap something.

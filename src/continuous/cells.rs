@@ -1,43 +1,32 @@
-//! A static lookup of the cells of the map, so that a tick only looks at the cells near an
-//! agent instead of scanning the lists of solids, voids and exits.
+//! A static lookup of the cells of the map, so that a tick only looks at the solids and voids
+//! near an agent instead of scanning their full lists.
 //!
 //! The agent radius is below 0.5 (see [`PhysicsParams::validate`](super::PhysicsParams)), so a
 //! disc centred in the cell `(i, j)` can only touch the cells of its 3×3 neighbourhood: any
 //! other cell is at least one unit away from the centre along one axis. The neighbourhood is
 //! taken around the cell that contains the centre (`floor` is exact), rather than around the
-//! bounding box of the disc, so that no rounding of `x ± r` can leave a touching cell out.
+//! bounding box of the disc, so that no rounding of `x ± r` can leave a touching cell out. A
+//! centre outside the grid takes the neighbourhood of the closest cell of the grid, which still
+//! contains every cell that the disc touches.
 use crate::shared::Position;
-
-/// No solid on this cell.
-const NO_SOLID: u32 = u32::MAX;
 
 #[derive(Clone, Debug, Default)]
 pub(super) struct CellIndex {
     width: usize,
     height: usize,
-    /// The index in the list of solids of the first solid on each cell (row-major), or
-    /// [`NO_SOLID`].
-    solids: Vec<u32>,
-    voids: Vec<bool>,
+    /// The solids near each cell (row-major) are
+    /// `near_solids[solid_offsets[cell]..solid_offsets[cell + 1]]`.
+    solid_offsets: Vec<u32>,
+    /// Indices in the list of solids, in increasing order for each cell.
+    near_solids: Vec<u32>,
+    /// The voids near each cell are `near_voids[void_offsets[cell]..void_offsets[cell + 1]]`.
+    void_offsets: Vec<u32>,
+    near_voids: Vec<Position>,
     exits: Vec<bool>,
 }
 
-/// The indices of up to 9 cells or solids, without allocation.
-#[derive(Clone, Copy, Debug)]
-pub(super) struct Near {
-    items: [u32; 9],
-    len: usize,
-}
-
-impl Near {
-    pub(super) fn as_slice(&self) -> &[u32] {
-        &self.items[..self.len]
-    }
-}
-
 impl CellIndex {
-    /// Index the cells of `solids`, `voids` and `exits` on a `width`×`height` grid. A cell that
-    /// appears more than once in `solids` keeps its first index.
+    /// Index the cells of `solids`, `voids` and `exits` on a `width`×`height` grid.
     ///
     /// @ai-generated
     pub(super) fn new(
@@ -50,18 +39,27 @@ impl CellIndex {
         let mut index = Self {
             width,
             height,
-            solids: vec![NO_SOLID; width * height],
-            voids: vec![false; width * height],
+            solid_offsets: vec![0],
+            near_solids: vec![],
+            void_offsets: vec![0],
+            near_voids: vec![],
             exits: vec![false; width * height],
         };
-        for (s, pos) in solids.iter().enumerate() {
-            let cell = &mut index.solids[pos.i * width + pos.j];
-            if *cell == NO_SOLID {
-                *cell = s as u32;
+        let near = |cell: Position, other: &Position| {
+            cell.i.abs_diff(other.i) <= 1 && cell.j.abs_diff(other.j) <= 1
+        };
+        for i in 0..height {
+            for j in 0..width {
+                let cell = Position { i, j, k: 0 };
+                index
+                    .near_solids
+                    .extend((0..solids.len() as u32).filter(|&s| near(cell, &solids[s as usize])));
+                index.solid_offsets.push(index.near_solids.len() as u32);
+                index
+                    .near_voids
+                    .extend(voids.iter().filter(|v| near(cell, v)).copied());
+                index.void_offsets.push(index.near_voids.len() as u32);
             }
-        }
-        for pos in voids {
-            index.voids[pos.i * width + pos.j] = true;
         }
         for pos in exits {
             index.exits[pos.i * width + pos.j] = true;
@@ -69,25 +67,15 @@ impl CellIndex {
         index
     }
 
-    /// The row-major indices of the cells of the 3×3 neighbourhood of the cell that contains
-    /// `p`, clipped to the grid, in increasing order. Every cell that a disc of radius below 0.5
-    /// centred on `p` touches is among them.
+    /// The row-major index of the cell of the grid closest to `p` (the cell that contains it
+    /// when it is inside the grid).
     ///
     /// @ai-generated
-    fn neighbourhood(&self, p: [f64; 2]) -> Near {
-        let mut near = Near {
-            items: [0; 9],
-            len: 0,
-        };
-        // Saturating float-to-int casts: a far-away point gives an empty neighbourhood.
-        let (cj, ci) = (p[0].floor() as i64, p[1].floor() as i64);
-        for i in (ci - 1).max(0)..=(ci + 1).min(self.height as i64 - 1) {
-            for j in (cj - 1).max(0)..=(cj + 1).min(self.width as i64 - 1) {
-                near.items[near.len] = (i as usize * self.width + j as usize) as u32;
-                near.len += 1;
-            }
-        }
-        near
+    fn cell(&self, p: [f64; 2]) -> usize {
+        // Saturating float-to-int casts, then clamped to the grid.
+        let j = (p[0].floor() as i64).clamp(0, self.width as i64 - 1) as usize;
+        let i = (p[1].floor() as i64).clamp(0, self.height as i64 - 1) as usize;
+        i * self.width + j
     }
 
     /// The indices (in the list of solids) of the solids that may touch a disc of radius below
@@ -95,40 +83,17 @@ impl CellIndex {
     /// the full list.
     ///
     /// @ai-generated
-    pub(super) fn solids_near(&self, p: [f64; 2]) -> Near {
-        let mut near = Near {
-            items: [0; 9],
-            len: 0,
-        };
-        for &cell in self.neighbourhood(p).as_slice() {
-            let s = self.solids[cell as usize];
-            if s != NO_SOLID {
-                // Insertion sort: there are at most 9 items.
-                let mut k = near.len;
-                while k > 0 && near.items[k - 1] > s {
-                    near.items[k] = near.items[k - 1];
-                    k -= 1;
-                }
-                near.items[k] = s;
-                near.len += 1;
-            }
-        }
-        near
+    pub(super) fn solids_near(&self, p: [f64; 2]) -> &[u32] {
+        let cell = self.cell(p);
+        &self.near_solids[self.solid_offsets[cell] as usize..self.solid_offsets[cell + 1] as usize]
     }
 
     /// The cells of the voids that may touch a disc of radius below 0.5 centred on `p`.
     ///
     /// @ai-generated
-    pub(super) fn voids_near(&self, p: [f64; 2]) -> impl Iterator<Item = Position> + '_ {
-        let near = self.neighbourhood(p);
-        (0..near.len)
-            .map(move |k| near.items[k] as usize)
-            .filter(|&cell| self.voids[cell])
-            .map(|cell| Position {
-                i: cell / self.width,
-                j: cell % self.width,
-                k: 0,
-            })
+    pub(super) fn voids_near(&self, p: [f64; 2]) -> &[Position] {
+        let cell = self.cell(p);
+        &self.near_voids[self.void_offsets[cell] as usize..self.void_offsets[cell + 1] as usize]
     }
 
     /// Whether the point `(x, y)` lies in an exit cell, a cell being closed on its north and
@@ -145,3 +110,7 @@ impl CellIndex {
             && self.exits[i as usize * self.width + j as usize]
     }
 }
+
+#[cfg(test)]
+#[path = "../unit_tests/test_continuous_cells.rs"]
+mod tests;

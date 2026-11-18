@@ -8,6 +8,25 @@ pub(super) fn sub(a: [f64; 2], b: [f64; 2]) -> [f64; 2] {
 pub(super) fn norm(a: [f64; 2]) -> f64 {
     a[0].hypot(a[1])
 }
+/// Exactly `norm(a) < limit`, but without computing `norm` when a coordinate of `a` alone is
+/// too large.
+///
+/// `hypot` is within a few ulps of the exact norm, which is at least the absolute value of each
+/// coordinate. So a coordinate above `|limit|` by the relative margin 1e-9, far larger than that
+/// error, proves that the comparison is false. NaN coordinates go through `norm`.
+///
+/// @ai-generated
+pub(super) fn norm_below(a: [f64; 2], limit: f64) -> bool {
+    let bound = limit.abs() * (1.0 + 1e-9);
+    if a[0].abs() > bound || a[1].abs() > bound {
+        return false;
+    }
+    norm(a) < limit
+}
+/// Exactly `distance(p, cell) < limit` (see [`norm_below`]).
+pub(super) fn distance_below(p: [f64; 2], cell: &Position, limit: f64) -> bool {
+    norm_below(sub(p, closest(p, cell)), limit)
+}
 pub(super) fn dot(a: [f64; 2], b: [f64; 2]) -> f64 {
     a[0] * b[0] + a[1] * b[1]
 }
