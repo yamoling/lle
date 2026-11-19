@@ -3,7 +3,7 @@ use toml;
 
 use crate::{
     ParseError, Position,
-    core::parsing::{WorldConfig, parse_v1},
+    core::parsing::{MapSpec, parse_v1},
 };
 
 use super::{
@@ -173,7 +173,7 @@ fn compute_positions(
     Ok(res)
 }
 
-pub fn parse(toml_content: &str) -> Result<WorldConfig, ParseError> {
+pub fn parse(toml_content: &str) -> Result<MapSpec, ParseError> {
     let data: TomlConfig = match toml::from_str(toml_content) {
         Ok(d) => d,
         Err(e) => {
@@ -197,9 +197,9 @@ pub fn parse(toml_content: &str) -> Result<WorldConfig, ParseError> {
     data.try_into()
 }
 
-impl TryInto<WorldConfig> for TomlConfig {
+impl TryInto<MapSpec> for TomlConfig {
     type Error = ParseError;
-    fn try_into(mut self) -> Result<WorldConfig, Self::Error> {
+    fn try_into(mut self) -> Result<MapSpec, Self::Error> {
         if let Some(n) = self.n_agents {
             while n > self.agents.len() {
                 self.agents.push(AgentConfig::default());
@@ -259,7 +259,7 @@ impl TryInto<WorldConfig> for TomlConfig {
             .enumerate()
             .map(|(agent_id, agent)| agent.colour.unwrap_or(agent_id))
             .collect();
-        Ok(WorldConfig::new(
+        Ok(MapSpec::new(
             width,
             height,
             layer,
@@ -279,8 +279,8 @@ impl TryInto<WorldConfig> for TomlConfig {
     }
 }
 
-impl From<&WorldConfig> for TomlConfig {
-    fn from(value: &WorldConfig) -> Self {
+impl From<&MapSpec> for TomlConfig {
+    fn from(value: &MapSpec) -> Self {
         let width = value.width();
         let height = value.height();
         let layers = value.layers();

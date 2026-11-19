@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::{
-    AgentId,
+    agent::Colour,
     tiles::{CardinalDirection, LaserBeam, LaserId, LaserSource},
 };
 
@@ -10,7 +10,8 @@ use super::ParseError;
 #[derive(Debug)]
 pub struct LaserConfig {
     pub direction: CardinalDirection,
-    pub agent_id: AgentId,
+    /// The colour of the beam: agents of this colour block it, the others die in it.
+    pub colour: Colour,
     pub laser_id: LaserId,
 }
 
@@ -18,18 +19,18 @@ impl LaserConfig {
     /// Note there is no "TryFrom" implementation for LaserSource because we need the laser_id.
     pub fn from_str(value: &str, laser_id: LaserId) -> Result<LaserConfig, ParseError> {
         let direction = CardinalDirection::try_from(value.chars().last().unwrap()).unwrap();
-        let agent_id_str = &value[1..value.len() - 1];
-        let agent_id = match agent_id_str.parse::<AgentId>() {
-            Ok(agent_id) => agent_id,
+        let colour_str = &value[1..value.len() - 1];
+        let colour = match colour_str.parse::<Colour>() {
+            Ok(colour) => colour,
             Err(_) => {
                 return Err(ParseError::InvalidAgentId {
-                    given_agent_id: agent_id_str.to_string(),
+                    given_agent_id: colour_str.to_string(),
                 });
             }
         };
         Ok(Self {
             direction,
-            agent_id,
+            colour,
             laser_id,
         })
     }
@@ -37,7 +38,7 @@ impl LaserConfig {
     pub fn build(&self, beam_length: usize) -> LaserSource {
         let beam = Rc::new(LaserBeam::new(
             beam_length,
-            self.agent_id,
+            self.colour,
             self.direction,
             self.laser_id,
         ));
@@ -49,7 +50,7 @@ impl From<&LaserSource> for LaserConfig {
     fn from(source: &LaserSource) -> Self {
         Self {
             direction: source.direction(),
-            agent_id: source.agent_id(),
+            colour: source.colour(),
             laser_id: source.laser_id(),
         }
     }
@@ -63,7 +64,7 @@ impl From<LaserSource> for LaserConfig {
 
 impl std::fmt::Display for LaserConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "L{}{}", self.agent_id, self.direction.to_file_string())
+        write!(f, "L{}{}", self.colour, self.direction.to_file_string())
     }
 }
 

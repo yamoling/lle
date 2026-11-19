@@ -389,15 +389,19 @@ fn a_pressure_plate_is_drawn_occupied() {
 fn test_a_powered_lift_is_drawn_lit() {
     let toml = |on: bool| {
         format!(
-            "world_string = \"S0 TU0 . X\\n;\\n. . . X\"\n[[levers]]\ngroup_id = 0\nposition = {{ i = 0, j = 2, k = 0 }}\non = {on}\n"
+            "world_string = \". . . X\\n;\\nS0 TU0 . X\"\n[[levers]]\ngroup_id = 0\nposition = {{ i = 0, j = 2, k = 0 }}\non = {on}\n"
         )
     };
     let mut powered = World::try_from(toml(true).as_str()).unwrap();
     let mut idle = World::try_from(toml(false).as_str()).unwrap();
     powered.reset();
     idle.reset();
-    let drawn = Renderer::new(&powered).update(&powered);
+    let renderer = Renderer::new(&powered);
+    let drawn = renderer.update(&powered);
     let reference = Renderer::new(&idle).update(&idle);
+    // The lift and the lever are on the bottom floor, which is drawn below the top one.
+    let bottom = renderer.layer_y_offset(0);
+    let in_cell = |x, y, col, row| y >= bottom && in_cell(x, y - bottom, col, row);
     for (x, y, pixel) in drawn.enumerate_pixels() {
         if !in_cell(x, y, 1, 0) && !in_cell(x, y, 2, 0) {
             assert_eq!(
@@ -411,4 +415,49 @@ fn test_a_powered_lift_is_drawn_lit() {
         .enumerate_pixels()
         .any(|(x, y, p)| in_cell(x, y, 1, 0) && p != reference.get_pixel(x, y));
     assert!(lift_differs, "the powered lift must be drawn differently");
+}
+
+/// The floors are stacked like a building: the top floor at the top of the image, the bottom
+/// floor (`k = 0`) at the bottom, and a uniform band between them.
+#[test]
+fn floors_are_drawn_top_first_with_a_separator() {
+    use crate::rendering::{FLOOR_SEPARATOR, FLOOR_SEPARATOR_HEIGHT};
+    let render = |map: &str| {
+        let mut world = World::try_from(map).unwrap();
+        world.reset();
+        let renderer = Renderer::new(&world);
+        let image = renderer.update(&world);
+        (renderer, image)
+    };
+    let (renderer, image) = render(". @\n;\nS0 X");
+    let (_, bottom_alone) = render("S0 X");
+    let floor_height = bottom_alone.height();
+
+    assert_eq!(image.height(), 2 * floor_height + FLOOR_SEPARATOR_HEIGHT);
+    assert_eq!(image.height(), renderer.pixel_height());
+    assert_eq!(renderer.layer_y_offset(1), 0);
+    assert_eq!(
+        renderer.layer_y_offset(0),
+        floor_height + FLOOR_SEPARATOR_HEIGHT
+    );
+
+    let bottom = renderer.layer_y_offset(0);
+    for (x, y, pixel) in bottom_alone.enumerate_pixels() {
+        assert_eq!(
+            image.get_pixel(x, y + bottom),
+            pixel,
+            "the bottom floor must be drawn at the bottom of the image"
+        );
+    }
+    // The top floor has a wall where the bottom floor has its exit.
+    let centre = (TILE_SIZE + TILE_SIZE / 2, TILE_SIZE / 2);
+    assert_ne!(
+        image.get_pixel(centre.0, centre.1),
+        bottom_alone.get_pixel(centre.0, centre.1)
+    );
+    for y in floor_height..bottom {
+        for x in 0..image.width() {
+            assert_eq!(*image.get_pixel(x, y), FLOOR_SEPARATOR);
+        }
+    }
 }

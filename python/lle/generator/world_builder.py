@@ -124,7 +124,9 @@ class WorldBuilder:
 
 
 def build_layers(layers: list[WorldBuilder]):
-    """Stack one builder per layer, bottom layer first, into a real lle.World."""
-    world = World("\n;\n".join(layer.to_str() for layer in layers))
+    """Stack one builder per layer, bottom layer first, into a real lle.World.
+
+    A map string lists its floors from the top one to the bottom one, hence the reversal."""
+    world = World("\n;\n".join(layer.to_str() for layer in reversed(layers)))
     world.reset()
     return world

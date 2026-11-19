@@ -26,10 +26,10 @@ def run_baseline():
 def run_lift_random():
     print("\n=== 2. Lift-augmented map, random actions ===")
     map_str = """
-    S0 G B0 TU0
+    .  . .  .
     .  . .  X
     ;
-    .  . .  .
+    S0 G B0 TU0
     .  . .  X
     """
     env = lle.from_str(map_str).build()
@@ -55,11 +55,11 @@ def run_lift_random():
 def run_lift_deterministic():
     print("\n=== 3. Deterministic pass: does the lift actually move an agent? ===")
     map_str = """
-    S0 .  TU0
-    S1 B0 X
-    ;
     .  .  .
     .  .  X
+    ;
+    S0 .  TU0
+    S1 B0 X
     """
     env = lle.from_str(map_str).build()
 
@@ -90,11 +90,11 @@ def run_lift_event_check():
     print("\n=== 4. Confirm EventType.LIFT_MOVED fires (raw World API) ===")
     world = lle.World(
         """
-        S0 .  TU0
-        S1 B0 X
-        ;
         .  .  .
         .  .  X
+        ;
+        S0 .  TU0
+        S1 B0 X
         """
     )
     world.reset()

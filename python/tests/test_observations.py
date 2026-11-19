@@ -164,11 +164,11 @@ def test_observe_layered_gems_walls():
 def test_observe_layered_lift_button():
     world = World(
         """
-        S0 . TU0
-        .  . X
-        ;
         .  . TD0
         .  . .
+        ;
+        S0 . TU0
+        .  . X
         """
     )
     observer = Layered(world)
@@ -200,11 +200,11 @@ def test_observe_layered_button():
 def test_observe_layered_lift_button_groups_are_distinct():
     world = World(
         """
+        .  .   .   .
+        .  .   .   .
+        ;
         S0 TU0 B0  X
         .  TU2 B2  .
-        ;
-        .  .   .   .
-        .  .   .   .
         """
     )
     observer = Layered(world)
@@ -226,11 +226,11 @@ def test_observe_layered_lift_button_groups_are_distinct():
 def test_observe_layered_authorization():
     world = World(
         """
+        .  .    .   .
+        .  .    .   .
+        ;
         S0 B0A1 B0  X
         S1 .    TU0 X
-        ;
-        .  .    .   .
-        .  .    .   .
         """
     )
     observer = Layered(world)
@@ -253,11 +253,11 @@ def test_observe_layered_authorization():
 def test_observe_layered_authorized_lift():
     world = World(
         """
+        .  .     .
+        .  .     .
+        ;
         S0 TU0A1 X
         S1 .     X
-        ;
-        .  .     .
-        .  .     .
         """
     )
     observer = Layered(world)
@@ -489,10 +489,10 @@ def test_partial_3x3_authorization():
 def test_partial_3x3_ignores_other_floors():
     world = World(
         """
-        S0 . X
+        .  G .
         .  . .
         ;
-        .  G .
+        S0 . X
         .  . .
         """
     )
@@ -501,7 +501,7 @@ def test_partial_3x3_ignores_other_floors():
     observer = PartialGenerator(world, 3)
     (obs0,) = observer.observe()
 
-    # The gem sits at (0, 1) on the floor below: it must not leak into the
+    # The gem sits at (0, 1) on the floor above: it must not leak into the
     # window of an agent standing on floor 0.
     assert np.all(obs0[observer.GEM] == 0.0)
 
@@ -521,21 +521,21 @@ def test_padded_layered():
 
 
 # Same geometry and agent count, only the number of lift/button groups differs.
-_ZERO_GROUPS = """S0 .   .  X
-                  S1 .   .  X
-                  ;
+_ZERO_GROUPS = """.  .   .  .
                   .  .   .  .
-                  .  .   .  ."""
-_ONE_GROUP = """S0 TU0 B0 X
-                S1 .   .  X
-                ;
+                  ;
+                  S0 .   .  X
+                  S1 .   .  X"""
+_ONE_GROUP = """.  .   .  .
                 .  .   .  .
-                .  .   .  ."""
-_TWO_GROUPS = """S0 TU0 B0 X
-                 S1 TU1 B1 X
-                 ;
+                ;
+                S0 TU0 B0 X
+                S1 .   .  X"""
+_TWO_GROUPS = """.  .   .  .
                  .  .   .  .
-                 .  .   .  ."""
+                 ;
+                 S0 TU0 B0 X
+                 S1 TU1 B1 X"""
 
 
 def test_group_count_changes_shape_by_default():
@@ -778,11 +778,11 @@ def test_perspective_carries_lift_button_authorization():
     """`B0A1` restricts the button to colour 1, and AUTH is permuted like the other
     colour bands: whoever is observing reads its own authorization out of `AUTH_0`."""
     world = World("""
-                  S0 S1 B0A1 X
-                  .  .  .    X
-                  ;
                   .  .  TU0  .
                   .  .  .    .
+                  ;
+                  S0 S1 B0A1 X
+                  .  .  .    X
                   """)
     world.reset()
     generator = PerspectiveLayered(world)
@@ -808,10 +808,10 @@ def test_authorization_band_is_one_channel_per_colour():
     carry two colours, so an `n_agents`-wide band would be the wrong shape.
     """
     world = World("""
-                  S0 S0 S1 B0A1 X X X
+                  .  .  .  TU0  . . .
                   .  .  .  .    . . .
                   ;
-                  .  .  .  TU0  . . .
+                  S0 S0 S1 B0A1 X X X
                   .  .  .  .    . . .
                   """)
     world.reset()
@@ -835,10 +835,10 @@ def test_authorization_handles_a_colour_above_nine():
     token has to carry a multi-digit colour through to the observation band.
     """
     world = World("""
-                  S10 B0A10 X X
+                  .   TU0   . .
                   .   .     . .
                   ;
-                  .   TU0   . .
+                  S10 B0A10 X X
                   .   .     . .
                   """)
     world.reset()
@@ -867,10 +867,10 @@ def test_authorization_colour_with_no_channel_encodes_nothing():
     channel for it - it must not alias into another colour's layer or raise.
     """
     world = World("""
-                  S0 B0A5 X X
+                  .  TU0  . .
                   .  .    . .
                   ;
-                  .  TU0  . .
+                  S0 B0A5 X X
                   .  .    . .
                   """)
     world.reset()
@@ -897,10 +897,10 @@ def test_perspective_authorization_slot_zero_is_always_the_observer():
     `B0A1` authorizes colour 1, which only agent 2 has.
     """
     world = World("""
-                  S0 S0 S1 B0A1 X X X
+                  .  .  .  TU0  . . .
                   .  .  .  .    . . .
                   ;
-                  .  .  .  TU0  . . .
+                  S0 S0 S1 B0A1 X X X
                   .  .  .  .    . . .
                   """)
     world.reset()
@@ -1149,9 +1149,9 @@ def test_layered_state_types_still_round_trip_without_boxes(state_type):
 # ===================== Levers and pressure plates =====================
 
 _LEVER_WORLD = """
-S0 H0 TU0 . X
-;
 .  .  .   . X
+;
+S0 H0 TU0 . X
 """
 
 
@@ -1176,7 +1176,7 @@ def test_observe_layered_lever_flips_when_toggled():
 
 
 def test_observe_layered_pressure_plate():
-    world = World("S0 P0 TU0 X\n;\n. . . X")
+    world = World(". . . X\n;\nS0 P0 TU0 X")
     observer = Layered(world)
     world.reset()
     layers = observer.observe()
@@ -1188,9 +1188,9 @@ def test_observe_layered_pressure_plate():
 def test_observe_layered_actuators_share_the_lift_group_index():
     world = World(
         """
-        S0 H1 TU1 P2 TU2 B0 TU0 X
-        ;
         .  .  .   .  .   .  .   X
+        ;
+        S0 H1 TU1 P2 TU2 B0 TU0 X
         """
     )
     observer = Layered(world)
@@ -1211,11 +1211,11 @@ def test_observe_layered_actuators_share_the_lift_group_index():
 def test_observe_layered_lever_and_plate_authorization():
     world = World(
         """
+        .  .    .    .  .
+        .  .    .    .  .
+        ;
         S0 H0A1 P0A0 H0 X
         S1 .    TU0  .  X
-        ;
-        .  .    .    .  .
-        .  .    .    .  .
         """
     )
     observer = Layered(world)
@@ -1228,7 +1228,7 @@ def test_observe_layered_lever_and_plate_authorization():
 
 
 def test_partial_3x3_lever_and_plate():
-    world = World("S0 H0 P0 TU0 X\n;\n. . . . X")
+    world = World(". . . . X\n;\nS0 H0 P0 TU0 X")
     observer = PartialGenerator(world, 3)
     world.reset()
     world.step([Action.EAST])  # onto the lever: the plate is the window's east cell

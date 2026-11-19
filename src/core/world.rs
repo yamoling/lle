@@ -1,17 +1,12 @@
 /// The core logic of LLE, which should not be parametrisable.
 use itertools::{Itertools, izip};
-use std::{
-    fs::File,
-    io::{BufReader, Read},
-};
 
 use crate::{
     Action, AgentId, Grid, ParseError, Position, RuntimeWorldError, WorldEvent, WorldState,
     agent::{Agent, Colour},
     core::{
         boxes::{BoxId, Boxes},
-        levels,
-        parsing::{WorldConfig, parse},
+        parsing::MapSpec,
     },
     tiles::{
         BoxOutcome, Button, Gem, Laser, LaserId, LaserSource, Lever, Lift, PressurePlate, Tile,
@@ -246,7 +241,7 @@ impl World {
         self.rng = rand::SeedableRng::seed_from_u64(seed);
     }
 
-    pub fn get_config(&self) -> WorldConfig {
+    pub fn get_config(&self) -> MapSpec {
         let source_configs = self.sources().map(|(p, s)| (p, s.into())).collect();
         let lift_configs = self
             .lifts()
@@ -268,7 +263,7 @@ impl World {
             .into_iter()
             .map(|(pos, plate)| (pos, plate.into()))
             .collect();
-        WorldConfig::new(
+        MapSpec::new(
             self.width,
             self.height,
             self.layers,
@@ -1067,33 +1062,20 @@ impl World {
         Ok(events)
     }
 
+    /// The built-in level `level`, numbered from 1.
+    ///
+    /// # Errors
+    /// [`ParseError::InvalidLevel`] when `level` is 0 or greater than the number of levels.
     pub fn get_level(level: usize) -> Result<Self, ParseError> {
-        let content = levels::LEVELS
-            .get(level - 1)
-            .ok_or(ParseError::InvalidLevel {
-                asked: level,
-                min: 1,
-                max: levels::LEVELS.len(),
-            })?;
-        Self::try_from(content.to_string())
+        Self::try_from(MapSpec::level(level)?)
     }
 
+    /// Load a world from a file, or a built-in level name such as `lvl3`.
+    ///
+    /// # Errors
+    /// [`ParseError::InvalidFileName`] when the file cannot be read, or any parsing error.
     pub fn from_file(file: &str) -> Result<Self, ParseError> {
-        if let Some(world_str) = levels::get_level_str(file) {
-            return World::try_from(world_str);
-        }
-        let file = match File::open(file) {
-            Ok(f) => f,
-            Err(_) => {
-                return Err(ParseError::InvalidFileName {
-                    file_name: file.into(),
-                });
-            }
-        };
-        let mut reader = BufReader::new(file);
-        let mut world_str = String::new();
-        reader.read_to_string(&mut world_str).unwrap();
-        World::try_from(world_str)
+        Self::try_from(MapSpec::from_file(file)?)
     }
 }
 
@@ -1101,7 +1083,7 @@ impl TryFrom<String> for World {
     type Error = ParseError;
 
     fn try_from(world_str: String) -> Result<Self, Self::Error> {
-        parse(&world_str)
+        Self::try_from(world_str.as_str())
     }
 }
 
@@ -1109,14 +1091,14 @@ impl TryFrom<&str> for World {
     type Error = ParseError;
 
     fn try_from(world_str: &str) -> Result<Self, Self::Error> {
-        parse(world_str)
+        Self::try_from(MapSpec::parse(world_str)?)
     }
 }
 
 impl Clone for World {
     fn clone(&self) -> Self {
         let state = self.get_state();
-        let mut clone = self.get_config().into_world().unwrap();
+        let mut clone = World::try_from(self.get_config()).unwrap();
         clone.set_state(&state).unwrap();
         clone
             .last_pulsed_groups
