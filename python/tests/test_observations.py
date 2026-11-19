@@ -137,7 +137,7 @@ def test_observe_layered_gems_walls():
     )
     observer = Layered(world)
     world.reset()
-    layers = observer.observe()
+    layers = observer.observe_grid()
     LASER_0_LAYER = observer.LASER_0
     WALL_LAYER = observer.WALL
     VOID_LAYER = observer.VOID
@@ -173,7 +173,7 @@ def test_observe_layered_lift_button():
     )
     observer = Layered(world)
     world.reset()
-    layers = observer.observe()
+    layers = observer.observe_grid()
 
     lift_0 = observer.LIFT_0 + observer.group_index[0]
     assert np.all(layers[:, lift_0, 0, 2, 0] == 1.0)  # Up direction
@@ -190,7 +190,7 @@ def test_observe_layered_button():
     )
     observer = Layered(world)
     world.reset()
-    layers = observer.observe()
+    layers = observer.observe_grid()
 
     button_0 = observer.BUTTON_0 + observer.group_index[0]
     assert np.all(layers[:, button_0, 0, 1, 0] == 1.0)
@@ -209,7 +209,7 @@ def test_observe_layered_lift_button_groups_are_distinct():
     )
     observer = Layered(world)
     world.reset()
-    layers = observer.observe()
+    layers = observer.observe_grid()
 
     group_a, group_b = observer.group_index[0], observer.group_index[2]
     assert group_a != group_b
@@ -235,7 +235,7 @@ def test_observe_layered_authorization():
     )
     observer = Layered(world)
     world.reset()
-    layers = observer.observe()
+    layers = observer.observe_grid()
 
     # `B0A1` may only be actuated by agent 1.
     assert layers[0, observer.AUTH_0 + 0, 0, 1, 0] == 0.0
@@ -262,7 +262,7 @@ def test_observe_layered_authorized_lift():
     )
     observer = Layered(world)
     world.reset()
-    layers = observer.observe()
+    layers = observer.observe_grid()
 
     assert layers[0, observer.AUTH_0 + 0, 0, 1, 0] == 0.0
     assert layers[0, observer.AUTH_0 + 1, 0, 1, 0] == 1.0
@@ -284,7 +284,7 @@ def test_observe_layered_void():
     )
     observer = Layered(world)
     world.reset()
-    layers = observer.observe()
+    layers = observer.observe_grid()
     positions = [(0, 0), (2, 0), (2, 1)]
     for i in range(world.height):
         for j in range(world.width):
@@ -561,7 +561,7 @@ def test_declared_n_groups_reserves_empty_channels():
     world = World(_ONE_GROUP)
     observer = ObservationType.LAYERED.get_observation_generator(world, n_groups=3)
     assert observer.n_groups == 3
-    layers = observer.observe()
+    layers = observer.observe_grid()
     # The world only uses the first group, the two reserved ones stay empty.
     assert np.any(layers[0, observer.LIFT_0 + 0] != 0.0)
     assert np.all(layers[0, observer.LIFT_0 + 1 : observer.BUTTON_0] == 0.0)
@@ -571,8 +571,8 @@ def test_declared_n_groups_reserves_empty_channels():
 def test_declared_n_groups_on_a_world_without_lifts():
     """The section is emitted on a lift-free map so it stays shape-compatible."""
     observer = ObservationType.LAYERED.get_observation_generator(World(_ZERO_GROUPS), n_groups=2)
-    layers = observer.observe()
-    assert observer.shape[0] == 3 * 2 + 4 + 4 * 2
+    layers = observer.observe_grid()
+    assert observer.grid_shape[0] == 3 * 2 + 4 + 4 * 2
     assert np.all(layers[:, observer.LIFT_0 :] == 0.0)
 
 
@@ -586,7 +586,7 @@ def test_n_groups_too_small_raises():
 def test_set_world_refreshes_static_layers():
     observer = ObservationType.LAYERED.get_observation_generator(World(_ONE_GROUP), n_groups=3)
     observer.set_world(World(_TWO_GROUPS))
-    layers = observer.observe()
+    layers = observer.observe_grid()
 
     # The second group of the new world is now visible...
     assert layers[0, observer.LIFT_0 + observer.group_index[1], 1, 1, 0] == 1.0
@@ -597,9 +597,9 @@ def test_set_world_refreshes_static_layers():
 
 def test_set_world_refreshes_walls():
     observer = ObservationType.LAYERED.get_observation_generator(World("S0 @ X"))
-    assert observer.observe()[0, observer.WALL, 0, 1, 0] == 1.0
+    assert observer.observe_grid()[0, observer.WALL, 0, 1, 0] == 1.0
     observer.set_world(World("S0 . X"))
-    assert observer.observe()[0, observer.WALL, 0, 1, 0] == 0.0
+    assert observer.observe_grid()[0, observer.WALL, 0, 1, 0] == 0.0
 
 
 def test_set_world_rejects_a_world_that_would_reshape():
@@ -713,7 +713,7 @@ def test_perspective_matches_layered_modulo_translation_and_colour_swap():
         if actions is not None:
             world.step(actions)
 
-        layered_obs = baseline.observe()
+        layered_obs = baseline.observe_grid()
         perspective_obs = generator.observe()
 
         for observer, (i, j, _) in enumerate(world.agents_positions):
@@ -746,9 +746,9 @@ def test_layered_agent_layers_are_keyed_by_colour():
     world.reset()
     generator = Layered(world)
     assert world.n_colours == 3
-    assert generator.shape == (world.n_colours * 2 + 4, world.height, world.width, world.layers)
+    assert generator.grid_shape == (world.n_colours * 2 + 4, world.height, world.width, world.layers)
 
-    obs = generator.observe()[0]
+    obs = generator.observe_grid()[0]
     (i0, j0, k0), (i1, j1, k1) = world.agents_positions
     assert obs[generator.A0, i0, j0, k0] == 1.0
     assert obs[generator.A0 + 2, i1, j1, k1] == 1.0, "The colour-2 agent belongs in the colour-2 layer"
@@ -821,7 +821,8 @@ def test_authorization_band_is_one_channel_per_colour():
         Layered(world, guard_shared_colours=False),
         PerspectiveLayered(world),
     ):
-        band = generator.shape[0] - generator.AUTH_0
+        n_channels = generator.grid_shape[0] if isinstance(generator, Layered) else generator.shape[0]
+        band = n_channels - generator.AUTH_0
         assert band == world.n_colours, (
             f"{type(generator).__name__} reserved {band} authorization channels "
             f"for {world.n_colours} colours"
@@ -847,7 +848,7 @@ def test_authorization_handles_a_colour_above_nine():
     assert world.buttons[0].authorized_colour == 10
 
     generator = Layered(world)
-    obs = generator.observe()[0]
+    obs = generator.observe_grid()[0]
     bi, bj, bk = 0, 1, 0
     assert obs[generator.AUTH_0 + 10, bi, bj, bk] == 1.0, "colour 10 belongs in channel 10"
     assert obs[generator.AUTH_0 + 1, bi, bj, bk] == 0.0, "it must not land in channel 1"
@@ -878,7 +879,7 @@ def test_authorization_colour_with_no_channel_encodes_nothing():
     assert world.buttons[0].authorized_colour == 5
 
     generator = Layered(world)
-    obs = generator.observe()[0]
+    obs = generator.observe_grid()[0]
     # Only the button is restricted; the lift next to it is unrestricted and so
     # legitimately marks every colour as authorized on its own cell.
     bi, bj, bk = 0, 1, 0
@@ -1101,8 +1102,8 @@ def test_laser_colour_above_n_agents_does_not_alias_into_the_wall_layer():
     world = World("S0 L1E X\n@  .   .")
     generator = Layered(world)
     assert world.n_colours == 2
-    assert generator.shape == (world.n_colours * 2 + 4, world.height, world.width, world.layers)
-    data = generator.observe()
+    assert generator.grid_shape == (world.n_colours * 2 + 4, world.height, world.width, world.layers)
+    data = generator.observe_grid()
     laser_1_layer = data[0, generator.LASER_0 + 1]
     assert laser_1_layer[0, 1] == -1
     assert laser_1_layer[0, 2] == 1
@@ -1161,25 +1162,25 @@ def test_observe_layered_lever_flips_when_toggled():
     world.reset()
     lever_channel = observer.LEVER_0 + observer.group_index[0]
 
-    layers = observer.observe()
+    layers = observer.observe_grid()
     assert np.all(layers[:, lever_channel, 0, 1, 0] == 1.0)  # present and off
     assert np.count_nonzero(layers[0, lever_channel]) == 1
 
     world.step([Action.EAST])
     world.step([Action.TRIGGER])
-    layers = observer.observe()
+    layers = observer.observe_grid()
     assert np.all(layers[:, lever_channel, 0, 1, 0] == -1.0)  # on
     assert np.count_nonzero(layers[0, lever_channel]) == 1
 
     world.step([Action.TRIGGER])
-    assert np.all(observer.observe()[:, lever_channel, 0, 1, 0] == 1.0)  # off again
+    assert np.all(observer.observe_grid()[:, lever_channel, 0, 1, 0] == 1.0)  # off again
 
 
 def test_observe_layered_pressure_plate():
     world = World(". . . X\n;\nS0 P0 TU0 X")
     observer = Layered(world)
     world.reset()
-    layers = observer.observe()
+    layers = observer.observe_grid()
     plate_channel = observer.PLATE_0 + observer.group_index[0]
     assert np.all(layers[:, plate_channel, 0, 1, 0] == 1.0)
     assert np.count_nonzero(layers[0, plate_channel]) == 1
@@ -1195,7 +1196,7 @@ def test_observe_layered_actuators_share_the_lift_group_index():
     )
     observer = Layered(world)
     world.reset()
-    layers = observer.observe()[0]
+    layers = observer.observe_grid()[0]
     idx = observer.group_index
     assert observer.n_groups == 3
     assert layers[observer.LEVER_0 + idx[1], 0, 1, 0] == 1.0
@@ -1220,7 +1221,7 @@ def test_observe_layered_lever_and_plate_authorization():
     )
     observer = Layered(world)
     world.reset()
-    layers = observer.observe()[0]
+    layers = observer.observe_grid()[0]
     auth = observer.AUTH_0
     assert (layers[auth + 0, 0, 1, 0], layers[auth + 1, 0, 1, 0]) == (0.0, 1.0)  # H0A1
     assert (layers[auth + 0, 0, 2, 0], layers[auth + 1, 0, 2, 0]) == (1.0, 0.0)  # P0A0
@@ -1268,31 +1269,38 @@ def test_layered_to_world_state_restores_the_lever():
 
 
 def _two_layer_world() -> World:
-    # Two stacked 3x3 floors: enough to get a rank-4 `layered` with L = 2.
+    # Two stacked 3x3 floors: enough for a map with L = 2.
     return World("S0 . .\n. . X\n. . .\n;\n. . .\n. G .\n. . .")
 
 
-def test_layered_stacked_single_layer_equals_layered_squeezed():
-    env_l = LLE.level(3).obs_type("layered").build()
-    env_s = LLE.level(3).obs_type("layered-stacked").build()
-    assert env_s.observation_shape == env_l.observation_shape[:-1]
-    obs_l, _ = env_l.reset()
-    obs_s, _ = env_s.reset()
-    assert np.array_equal(obs_s.data, obs_l.data[..., 0])
+def test_layered_single_layer_is_rank3():
+    env = LLE.level(3).obs_type("layered").build()
+    c, h, w = env.observation_shape
+    assert (h, w) == (12, 13)
+    obs, _ = env.reset()
+    assert obs.data.shape == (env.n_agents, c, h, w)
 
 
-def test_layered_stacked_is_layer_major_and_lossless():
+def test_layered_stacks_layers_layer_major_and_lossless():
     world = _two_layer_world()
     layered = Layered(world)
-    stacked = ObservationType.LAYERED_STACKED.get_observation_generator(world)
-    c, h, w, l = layered.shape
+    c, h, w, l = layered.grid_shape
     assert l == 2
-    assert stacked.shape == (l * c, h, w)
+    assert layered.shape == (l * c, h, w)
     world.reset()
-    lo = layered.observe()
-    so = stacked.observe()
-    assert so.shape == (world.n_agents, l * c, h, w)
+    grid = layered.observe_grid()
+    obs = layered.observe()
+    assert obs.shape == (world.n_agents, l * c, h, w)
     for k in range(l):
-        assert np.array_equal(so[:, k * c : (k + 1) * c], lo[..., k])
-    assert np.array_equal(stacked.unstack(so, l), lo)
-    assert stacked.to_world_state(so[0]) == layered.to_world_state(lo[0])
+        assert np.array_equal(obs[:, k * c : (k + 1) * c], grid[..., k])
+    assert np.array_equal(Layered.unstack(obs, l), grid)
+    assert layered.to_world_state(obs[0]) == layered.to_world_state(grid[0])
+
+
+def test_flattened_unchanged_by_stacking():
+    # `flattened` is still the (C, H, W, L) grid reshaped, so old checkpoints stay valid.
+    world = _two_layer_world()
+    layered = Layered(world)
+    flat = ObservationType.FLATTENED.get_observation_generator(world)
+    world.reset()
+    assert np.array_equal(flat.observe(), layered.observe_grid().reshape(world.n_agents, -1))

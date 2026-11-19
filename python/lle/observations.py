@@ -32,7 +32,6 @@ ObservationTypeLiteral = Literal[
     "layered-padded-2",
     "layered-padded-3",
     "layered-padded",
-    "layered-stacked",
 ]
 
 
@@ -48,6 +47,10 @@ class ObservationType(str, Enum):
     """
     Layered observations of the map (walls, lasers, ...) as shown below. Only 2 agents are shown for the sake of clarity.
 
+    Shape `(L*C, H, W)`: the map layers are stacked along the channel axis, layer-major
+    (channel `k*C + c` is channel `c` of map layer `k`). On a single-layer map this is just
+    `(C, H, W)`.
+
     ![Layered representation of the world](../../docs/layers.png)
     """
     FLATTENED = "flattened"
@@ -60,13 +63,7 @@ class ObservationType(str, Enum):
     LAYERED_PADDED_2AGENTS = "layered-padded-2"
     LAYERED_PADDED_3AGENTS = "layered-padded-3"
     PERSPECTIVE = "perspective"
-    LAYERED_STACKED = "layered-stacked"
-    """
-    The layered observation with the map layers stacked along the channel axis:
-    `(L*C, H, W)` instead of `(C, H, W, L)`, layer-major (the C channels of layer 0, then
-    the C channels of layer 1, ...). Same values as `layered`, rank 3, so any 2-D CNN can
-    consume it. Equal to `layered` squeezed when the map has a single layer.
-    """
+
 
     @staticmethod
     def from_str(s: ObservationTypeLiteral | str) -> "ObservationType":
@@ -107,8 +104,6 @@ class ObservationType(str, Enum):
                 return LayeredPadded(world, 3, n_groups)
             case ObservationType.PERSPECTIVE:
                 return PerspectiveLayered(world, n_groups)
-            case ObservationType.LAYERED_STACKED:
-                return LayeredStacked(world, n_groups)
             case other:
                 raise ValueError(f"Unknown observation type: {other}")
 
@@ -328,7 +323,10 @@ class LayeredPadded(ObservationGenerator):
         self.PLATE_0 = self.LEVER_0 + self.n_groups
         self.AUTH_0 = self.PLATE_0 + self.n_groups
         n_channels = self.AUTH_0 + (self.n_colours if self.n_groups > 0 else 0)
-        self._shape = (n_channels, world.height, world.width, world.layers)
+        # The generator works on a `(C, H, W, L)` grid internally; `observe` stacks the map
+        # layers into the channel axis, so the public shape is `(L*C, H, W)`.
+        self._grid_shape = (n_channels, world.height, world.width, world.layers)
+        self._shape = (world.layers * n_channels, world.height, world.width)
         self.ordered_gem_pos = sorted(gem.pos for gem in world.gems)
 
         self.static_obs = self._setup()
@@ -341,7 +339,7 @@ class LayeredPadded(ObservationGenerator):
         mid-training is a failure that has to be loud.
         """
         group_ids, group_index = _build_group_index(new_world)
-        _assert_world_fits(new_world, len(group_ids), self.n_agents, self.n_groups, self._shape[1:])
+        _assert_world_fits(new_world, len(group_ids), self.n_agents, self.n_groups, self._grid_shape[1:])
         super().set_world(new_world)
         self.group_ids, self.group_index = group_ids, group_index
         self.width = new_world.width
@@ -359,7 +357,7 @@ class LayeredPadded(ObservationGenerator):
         Lift/actuator positions, groups and authorizations never change either, so they are
         baked in here too. Levers are baked in as off; `observe` flips the ones that are on.
         """
-        obs = np.zeros(self._shape, dtype=np.float32)
+        obs = np.zeros(self._grid_shape, dtype=np.float32)
         for i, j, k in self._world.wall_pos:
             obs[self.WALL, i, j, k] = 1.0
 
@@ -419,6 +417,8 @@ class LayeredPadded(ObservationGenerator):
             raise NotImplementedError(
                 "Layered states cannot reconstruct box positions; use the 'state' state type for worlds with boxes"
             )
+        if data.ndim == 3:
+            data = self.unstack(data, self._grid_shape[-1])
         _, i, j, k = np.nonzero(data[self.A0 : self.A0 + self.n_colours])
         agents_positions = [(int(i[n]), int(j[n]), int(k[n])) for n in range(self._world.n_agents)]
         gems_collected = []
@@ -428,7 +428,23 @@ class LayeredPadded(ObservationGenerator):
         levers_on = [bool(data[(self.LEVER_0 + self.group_index[lever.group_id], *lever.pos)] == -1.0) for lever in self._world.levers]
         return WorldState(agents_positions, gems_collected, levers_on=levers_on)
 
+    @staticmethod
+    def stack(grid: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
+        """`(..., C, H, W, L) -> (..., L*C, H, W)`, layer-major."""
+        *lead, c, h, w, l = grid.shape
+        return np.moveaxis(grid, -1, -4).reshape(*lead, l * c, h, w)
+
+    @staticmethod
+    def unstack(stacked: npt.NDArray[np.float32], n_layers: int) -> npt.NDArray[np.float32]:
+        """Inverse of `stack`: `(..., L*C, H, W) -> (..., C, H, W, L)`."""
+        *lead, lc, h, w = stacked.shape
+        return np.moveaxis(stacked.reshape(*lead, n_layers, lc // n_layers, h, w), -4, -1)
+
     def observe(self):
+        return self.stack(self.observe_grid())
+
+    def observe_grid(self):
+        """The observation before stacking: `(n_agents, C, H, W, L)`."""
         obs = np.copy(self.static_obs)
         for laser in self._world.lasers:
             i, j, k = laser.pos
@@ -450,7 +466,13 @@ class LayeredPadded(ObservationGenerator):
 
     @property
     def shape(self):
+        """`(L*C, H, W)`: what `observe` returns per agent."""
         return self._shape
+
+    @property
+    def grid_shape(self):
+        """`(C, H, W, L)`: the unstacked grid, what `observe_grid` returns per agent."""
+        return self._grid_shape
 
     @property
     def obs_type(self) -> ObservationType:
@@ -467,12 +489,13 @@ class FlattenedLayered(ObservationGenerator):
         super().__init__(world)
         self.layered = Layered(world, n_groups)
         size = 1
-        for s in self.layered.shape:
+        # Flattened from the `(C, H, W, L)` grid, so the vector is unchanged by the stacking.
+        for s in self.layered._grid_shape:
             size = size * s
         self._shape = (size,)
 
     def observe(self):
-        obs = self.layered.observe()
+        obs = self.layered.observe_grid()
         return obs.reshape(self._world.n_agents, -1)
 
     @property
@@ -490,54 +513,6 @@ class FlattenedLayered(ObservationGenerator):
     def set_world(self, new_world: World):
         self.layered.set_world(new_world)
         return super().set_world(new_world)
-
-
-class LayeredStacked(ObservationGenerator):
-    """`Layered` with the map layers moved into the channel axis.
-
-    `Layered` produces `(C, H, W, L)` per agent. This generator returns `(L*C, H, W)`,
-    layer-major: channel `k*C + c` is channel `c` of map layer `k`. No value is added or
-    dropped, only reordered.
-    """
-
-    def __init__(self, world: World, n_groups: int | None = None):
-        super().__init__(world)
-        self.layered = Layered(world, n_groups)
-        n_channels, height, width, n_layers = self.layered.shape
-        self._shape = (n_layers * n_channels, height, width)
-
-    @staticmethod
-    def stack(layered_obs: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
-        """`(..., C, H, W, L) -> (..., L*C, H, W)`, layer-major."""
-        *lead, c, h, w, l = layered_obs.shape
-        return np.moveaxis(layered_obs, -1, -4).reshape(*lead, l * c, h, w)
-
-    @staticmethod
-    def unstack(stacked_obs: npt.NDArray[np.float32], n_layers: int) -> npt.NDArray[np.float32]:
-        """Inverse of `stack`: `(..., L*C, H, W) -> (..., C, H, W, L)`."""
-        *lead, lc, h, w = stacked_obs.shape
-        return np.moveaxis(stacked_obs.reshape(*lead, n_layers, lc // n_layers, h, w), -4, -1)
-
-    def observe(self):
-        return self.stack(self.layered.observe())
-
-    def to_world_state(self, data: npt.NDArray[np.float32]) -> WorldState:
-        return self.layered.to_world_state(self.unstack(data, self.layered.shape[-1]))
-
-    def reset(self) -> None:
-        self.layered.reset()
-
-    def set_world(self, new_world: World):
-        self.layered.set_world(new_world)
-        return super().set_world(new_world)
-
-    @property
-    def obs_type(self) -> ObservationType:
-        return ObservationType.LAYERED_STACKED
-
-    @property
-    def shape(self):
-        return self._shape
 
 
 class PartialGenerator(ObservationGenerator):
@@ -730,7 +705,7 @@ class PerspectiveLayered(ObservationGenerator):
 
     def observe(self):
         # The map-sized layers, then one shifted, colour-canonicalised copy per agent.
-        world_view = self._layered.observe()[0]
+        world_view = self._layered.observe_grid()[0]
         obs = np.zeros((self._world.n_agents, *self._shape), dtype=np.float32)
         # Everything outside the map is a wall; the map window is cleared per agent below.
         obs[:, self.WALL] = 1.0
