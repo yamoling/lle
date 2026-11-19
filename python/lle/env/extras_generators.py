@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
 
 import numpy as np
 import numpy.typing as npt
@@ -97,7 +97,7 @@ class LaserSubgoal(ExtraGenerator):
         if joint:
             meanings = [f"Agent {agent} - {meaning}" for agent in range(world.n_agents) for meaning in meanings]
         super().__init__(len(meanings), meanings)
-        self.pos_to_reward = [set(laser.pos for laser in get_lasers_of(world, source)) for source in sources]
+        self.pos_to_reward = [{laser.pos for laser in get_lasers_of(world, source)} for source in sources]
         self.agents_pos_reached = np.full((world.n_agents, len(sources)), False, dtype=np.bool)
 
     def compute(self):

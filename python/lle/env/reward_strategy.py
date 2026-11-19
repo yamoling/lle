@@ -220,8 +220,6 @@ class PotentialShapedLLE(PotentialShaped):
 
     The cells to reward are the beam cells of each laser source of `lasers_to_reward`, and the
     positions of the agents are those of `world`.
-
-    @ai-edited
     """
 
     def __init__(
@@ -235,8 +233,6 @@ class PotentialShapedLLE(PotentialShaped):
         """
         Shape `strategy` with the beam cells of `lasers_to_reward`, read from `world`, whose
         agents' positions are read at every step.
-
-        @ai-edited
         """
         self._world = world
         super().__init__(
@@ -247,18 +243,12 @@ class PotentialShapedLLE(PotentialShaped):
         )
 
     def get_agents_positions(self):
-        """
-        The positions of the agents of `self._world`. Reading the world through `self` (rather
-        than a closure) keeps `copy.deepcopy` and `pickle` of the environment consistent.
-
-        @ai-generated
-        """
         return self._world.agents_positions
 
     @staticmethod
     def _compute_positions_to_reward(world: World, lasers_to_reward: Iterable[tiles.LaserSource]):
         pos_to_reward = list[set[Position]]()
         for source in lasers_to_reward:
-            in_laser_rewards = set(laser.pos for laser in get_lasers_of(world, source))
+            in_laser_rewards = {laser.pos for laser in get_lasers_of(world, source)}
             pos_to_reward.append(in_laser_rewards)
         return pos_to_reward

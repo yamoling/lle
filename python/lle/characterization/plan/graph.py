@@ -57,7 +57,7 @@ class TemporalCooperationGraph:
     """
 
     def __init__(self, edges: Iterable[DependencyEdge]):
-        edges = set(e for e in edges if e.helper != e.beneficiary)
+        edges = {e for e in edges if e.helper != e.beneficiary}
         self._edges = tuple(sorted(edges, key=lambda edge: (edge.t, edge.helper, edge.beneficiary)))
 
         by_helper_time: dict[AgentId, dict[int, set[AgentId]]] = {}
@@ -69,7 +69,7 @@ class TemporalCooperationGraph:
             by_time_helper.setdefault(edge.t, {}).setdefault(edge.helper, set()).add(edge.beneficiary)
             edge_ids_by_helper.setdefault(edge.helper, []).append(edge_id)
 
-        agent_ids = sorted(set(e.helper for e in edges) | set(e.beneficiary for e in edges))
+        agent_ids = sorted({e.helper for e in edges} | {e.beneficiary for e in edges})
         self.vertices = {
             agent_id: AgentVertex(
                 agent_id,

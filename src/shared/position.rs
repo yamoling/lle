@@ -43,8 +43,7 @@ impl From<(usize, usize)> for Position {
 
 impl From<Position> for (usize, usize, usize) {
     fn from(pos: Position) -> Self {
-        let (i, j, k) = pos.as_ijk();
-        (i, j, k)
+        pos.as_ijk()
     }
 }
 

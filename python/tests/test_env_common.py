@@ -60,8 +60,8 @@ def make_shaped(strategy: RewardStrategy, cells: Sequence[Collection[tuple[int, 
 
 
 def test_death_strategy_is_the_same_object_from_every_import_path():
+    from lle.env import DeathStrategy as from_env_module
     from lle.env.common import DeathStrategy as from_common
-    from lle.env.env import DeathStrategy as from_env_module
 
     assert from_common is from_env_module is DeathStrategy
 
