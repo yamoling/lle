@@ -1,0 +1,851 @@
+use std::collections::{HashMap, HashSet, VecDeque};
+
+use strum::IntoEnumIterator;
+
+use super::position_set::PositionSet;
+use crate::Position;
+use crate::{World, tiles::CardinalDirection};
+
+const MAX_NEIGHBOURS: usize = 5;
+
+/// A fixed-capacity, row-major list of positions adjacent in the movement graph.
+#[derive(Clone, Copy, Debug)]
+pub struct NeighbourList {
+    positions: [Position; MAX_NEIGHBOURS],
+    len: u8,
+}
+
+impl NeighbourList {
+    const EMPTY_POSITION: Position = Position { i: 0, j: 0, k: 0 };
+
+    pub const fn empty() -> Self {
+        Self {
+            positions: [Self::EMPTY_POSITION; MAX_NEIGHBOURS],
+            len: 0,
+        }
+    }
+
+    pub fn push(&mut self, pos: Position) {
+        debug_assert!((self.len as usize) < MAX_NEIGHBOURS);
+        self.positions[self.len as usize] = pos;
+        self.len += 1;
+    }
+
+    pub fn contains(&self, pos: &Position) -> bool {
+        self.iter().any(|candidate| candidate == *pos)
+    }
+
+    pub const fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = Position> + '_ {
+        self.positions[..self.len as usize].iter().copied()
+    }
+}
+
+impl<'a> IntoIterator for &'a NeighbourList {
+    type Item = Position;
+    type IntoIter = std::iter::Copied<std::slice::Iter<'a, Position>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.positions[..self.len as usize].iter().copied()
+    }
+}
+
+/// Return walkable cardinal neighbours, excluding the position itself.
+fn neighbours_of(
+    pos: Position,
+    exits: &PositionSet,
+    height: usize,
+    width: usize,
+    walls: &PositionSet,
+) -> NeighbourList {
+    let mut result = NeighbourList::empty();
+    if exits.contains(&pos) {
+        // Once an agent reaches an exit, it can no longer move.
+        return result;
+    }
+    for d in CardinalDirection::iter() {
+        if let Ok(n) = pos + d
+            && n.i < height
+            && n.j < width
+            && !walls.contains(&n)
+        {
+            result.push(n);
+        }
+    }
+    result
+}
+
+/// One laser source's relevant info for constraint generation.
+pub struct LaserSourceInfo {
+    /// The agent of the beam's colour, which can block it. `None` when no agent has that colour:
+    /// the beam can then only be blocked by boxes.
+    pub owner: Option<usize>,
+    pub laser_id: usize,
+    /// Beam tiles, in order, starting right after the source tile.
+    pub path: Vec<Position>,
+}
+
+/// One lift's relevant info for constraint generation. Only lifts whose destination is walkable
+/// are kept: the others never move anyone.
+pub struct LiftInfo {
+    pub pos: Position,
+    pub dest: Position,
+    pub group: usize,
+    /// Agents whose colour may ride this lift.
+    pub riders: Vec<usize>,
+}
+
+/// One actuator's (button, lever or pressure plate) relevant info for constraint generation.
+pub struct ButtonInfo {
+    pub pos: Position,
+    pub group: usize,
+    /// Agents whose colour may activate this actuator.
+    pub pressers: Vec<usize>,
+}
+
+/// Data shared across all constraint-generation routines.
+/// Built once per `(world, t_max)` pair. Data is computed on-demand and cached for efficiency.
+pub struct ConstraintContext {
+    pub t_max: usize,
+    pub n_agents: usize,
+    pub start_pos: Vec<Position>,
+    /// Position of each box at `t == 0`, indexed by box id.
+    pub box_start_pos: Vec<Position>,
+    /// `predecessors[k][i][j]` = positions from which an agent can move into `(i, j, k)`.
+    pub predecessors: Vec<Vec<Vec<NeighbourList>>>,
+    pub solution_lower_bound: usize,
+    pub laser_sources: Vec<LaserSourceInfo>,
+    pub lifts: Vec<LiftInfo>,
+    pub buttons: Vec<ButtonInfo>,
+    pub levers: Vec<ButtonInfo>,
+    /// Whether each lever (index in `levers`) is on at `t == 0`.
+    pub levers_initially_on: Vec<bool>,
+    pub plates: Vec<ButtonInfo>,
+    exits: PositionSet,
+    layers: usize,
+    height: usize,
+    width: usize,
+    updated_until: Option<usize>,
+
+    /// `neighbours[k][i][j]` = `[(i, j, k), ...reachable single-step neighbours]`.
+    pub(crate) neighbours: Vec<Vec<Vec<NeighbourList>>>,
+
+    /// `distance_buckets[d]` = positions whose distance to the nearest exit is exactly `d`
+    /// (only for `d <= t_max`, the only distances that ever matter). Used to incrementally
+    /// build `exit_reachable` as `t` grows, instead of recomputing each entry from scratch.
+    distance_buckets: Vec<PositionSet>,
+
+    /// `exit_reachable[t]` = positions from which an exit can still be reached within
+    /// the remaining time budget (`t_max - t` steps).
+    /// Lazily computed and cached per time step (in increasing order of `t`).
+    exit_reachable: Vec<PositionSet>,
+
+    /// Cache for reachable positions per agent and time step: `relevant_positions[agent][t]`.
+    /// Bitsets here turn the per-agent intersections in `reachable_positions` into
+    /// word-at-a-time ANDs instead of per-element hashing.
+    relevant_positions: Vec<Vec<PositionSet>>,
+
+    /// Cache for reachable laser paths per laser source and time step: `relevant_laser_paths[laser_idx][t]`.
+    relevant_laser_paths: Vec<Vec<PositionSet>>,
+
+    /// Cells a box may occupy: inside the grid, neither a wall nor a laser source. Voids included.
+    box_walkable: PositionSet,
+    voids: PositionSet,
+
+    /// Cache for the positions each box can occupy per time step: `relevant_box_positions[box][t]`.
+    relevant_box_positions: Vec<Vec<PositionSet>>,
+
+    /// `forbidden_first_beam_tiles[agent]` = first beam tiles of every laser NOT owned by `agent`.
+    /// A non-owner can never stand on the first beam tile: if the owner can reach it, the beam is
+    /// active ↔ ¬owner, so non-owner requires owner present — impossible by no_overlap; otherwise
+    /// the beam is constant-active and the non-owner dies. This is pre-computed once and applied at
+    /// every time step during `update_relevant_positions`.
+    forbidden_first_beam_tiles: Vec<PositionSet>,
+
+    /// `forced_exits[agent]` = the exit `agent` must end on, if it is the only agent that can
+    /// reach some exit within the horizon (see [`Self::update_forced_exit_relevance`]).
+    forced_exits: Vec<Option<Position>>,
+}
+
+impl ConstraintContext {
+    /// Build the static geometry and time-indexed context caches for a world.
+    pub fn new(world: &World, t_max: usize) -> Self {
+        let layers = world.layers();
+        let height = world.height();
+        let width = world.width();
+        let n_agents = world.n_agents();
+        // Laser sources are impassable. The v1 parser lists them as walls, but a TOML map with
+        // `[[lasers]]` does not, so they are added explicitly.
+        let walls = PositionSet::from_positions(
+            layers,
+            height,
+            width,
+            world
+                .walls()
+                .into_iter()
+                .chain(world.sources().map(|(pos, _)| pos)),
+        );
+        let voids =
+            PositionSet::from_positions(layers, height, width, world.void_positions().into_iter());
+        let exits =
+            PositionSet::from_positions(layers, height, width, world.exits_positions().into_iter());
+        // let exits: HashSet<Position> = exit_positions.iter().collect();
+        let start_pos: Vec<Position> = world.starts().into_iter().collect();
+        let box_start_pos = world.boxes_start_positions();
+
+        let valid_positions: HashSet<Position> = grid_positions(layers, height, width)
+            .filter(|pos| !walls.contains(pos) && !voids.contains(pos))
+            .collect();
+
+        // neighbours[k][i][j] = [(i, j, k), ...reachable single-step neighbours].
+        // Invalid tiles stay empty; valid tiles get their self-neighbour from `neighbours_of`.
+        let mut neighbours = vec![vec![vec![NeighbourList::empty(); width]; height]; layers];
+
+        for &pos in &valid_positions {
+            neighbours[pos.k][pos.i][pos.j].push(pos);
+            for n in neighbours_of(pos, &exits, height, width, &walls).iter() {
+                if valid_positions.contains(&n) {
+                    neighbours[pos.k][pos.i][pos.j].push(n);
+                }
+            }
+        }
+
+        // Reverse adjacency: predecessors[k][i][j] = positions from which an agent can move into (i, j, k).
+        let mut predecessors = vec![vec![vec![NeighbourList::empty(); width]; height]; layers];
+        for &pos in &valid_positions {
+            for succ in &neighbours[pos.k][pos.i][pos.j] {
+                predecessors[succ.k][succ.i][succ.j].push(pos);
+            }
+        }
+
+        let agent_colours = world.agent_colours();
+        let allowed = |colour: Option<usize>| -> Vec<usize> {
+            (0..n_agents)
+                .filter(|&agent| colour.is_none_or(|c| c == agent_colours[agent]))
+                .collect()
+        };
+        let lifts: Vec<LiftInfo> = world
+            .lifts()
+            .into_iter()
+            .filter_map(|(pos, lift)| {
+                let dest = lift.destination(pos).ok()?;
+                // Voids included: lifting an agent onto one kills it, which is not a no-op.
+                world.at(&dest)?.is_walkable().then(|| LiftInfo {
+                    pos,
+                    dest,
+                    group: lift.group_id(),
+                    riders: allowed(lift.authorized_colour()),
+                })
+            })
+            .collect();
+        let buttons = world
+            .buttons()
+            .into_iter()
+            .map(|(pos, button)| ButtonInfo {
+                pos,
+                group: button.group_id(),
+                pressers: allowed(button.authorized_colour()),
+            })
+            .collect();
+        let levers = world
+            .levers()
+            .into_iter()
+            .map(|(pos, lever)| ButtonInfo {
+                pos,
+                group: lever.group_id(),
+                pressers: allowed(lever.authorized_colour()),
+            })
+            .collect();
+        let levers_initially_on = world
+            .levers()
+            .iter()
+            .map(|(_, lever)| lever.is_initially_on())
+            .collect();
+        let plates = world
+            .pressure_plates()
+            .into_iter()
+            .map(|(pos, plate)| ButtonInfo {
+                pos,
+                group: plate.group_id(),
+                pressers: allowed(plate.authorized_colour()),
+            })
+            .collect();
+        // An agent standing on a lift or walking onto it can be lifted in the same step.
+        let mut lift_predecessors: HashMap<Position, Vec<Position>> = HashMap::new();
+        for lift in &lifts {
+            let (k, i, j) = (lift.pos.k, lift.pos.i, lift.pos.j);
+            lift_predecessors
+                .entry(lift.dest)
+                .or_default()
+                .extend(predecessors[k][i][j].iter());
+        }
+        let exit_distance = compute_exit_distance(&exits, &predecessors, &lift_predecessors);
+        let solution_lower_bound = start_pos
+            .iter()
+            .map(|p| exit_distance.get(p).copied().unwrap_or(0))
+            .max()
+            .unwrap_or(0);
+
+        let mut laser_sources = Vec::new();
+        for (pos, source) in world.sources() {
+            let d = source.direction();
+            let mut prev = pos;
+            let mut path = Vec::new();
+            while let Ok(current) = prev + d
+                && current.i < height
+                && current.j < width
+                && !walls.contains(&current)
+            {
+                path.push(current);
+                prev = current;
+            }
+            laser_sources.push(LaserSourceInfo {
+                owner: agent_colours
+                    .iter()
+                    .position(|&colour| colour == source.colour()),
+                laser_id: source.laser_id(),
+                path,
+            });
+        }
+        // Opt 3: pre-compute first beam tiles forbidden for non-owner agents.
+        let mut forbidden_first_beam_tiles: Vec<PositionSet> =
+            vec![PositionSet::empty(layers, height, width); n_agents];
+        for source in &laser_sources {
+            if let Some(&first_tile) = source.path.first() {
+                for (agent, forbidden) in forbidden_first_beam_tiles.iter_mut().enumerate() {
+                    if Some(agent) != source.owner {
+                        forbidden.insert(first_tile);
+                    }
+                }
+            }
+        }
+
+        let forced_exits = forced_exits(
+            &exits,
+            &start_pos,
+            &neighbours,
+            &predecessors,
+            &lifts,
+            &forbidden_first_beam_tiles,
+            t_max,
+        );
+
+        // Bucket positions by their exact distance to the nearest exit (capped at `t_max`,
+        // since farther positions can never be exit-reachable within the horizon).
+        let mut distance_buckets = vec![PositionSet::empty(layers, height, width); t_max + 1];
+        for (&pos, &d) in &exit_distance {
+            if d <= t_max {
+                distance_buckets[d].insert(pos);
+            }
+        }
+
+        let box_walkable = PositionSet::from_positions(
+            layers,
+            height,
+            width,
+            grid_positions(layers, height, width).filter(|pos| !walls.contains(pos)),
+        );
+        let relevant_box_positions = box_start_pos
+            .iter()
+            .map(|_| Vec::with_capacity(t_max + 1))
+            .collect();
+
+        let exit_reachable = Vec::with_capacity(t_max + 1);
+        let relevant_positions = (0..n_agents)
+            .map(|_| Vec::with_capacity(t_max + 1))
+            .collect();
+        let relevant_laser_paths = (0..laser_sources.len())
+            .map(|_| Vec::with_capacity(t_max + 1))
+            .collect();
+
+        Self {
+            t_max,
+            n_agents,
+            start_pos,
+            box_start_pos,
+            predecessors,
+            solution_lower_bound,
+            laser_sources,
+            lifts,
+            buttons,
+            levers,
+            levers_initially_on,
+            plates,
+            exits,
+            layers,
+            height,
+            width,
+            neighbours,
+            updated_until: None,
+            distance_buckets,
+            exit_reachable,
+            relevant_positions,
+            box_walkable,
+            voids,
+            relevant_box_positions,
+            forbidden_first_beam_tiles,
+            relevant_laser_paths,
+            forced_exits,
+        }
+    }
+
+    /// Compute and cache the positions from which an exit is still reachable at time `t`.
+    ///
+    /// At `t = 0`, this seeds the cache with every position whose exit distance fits within the
+    /// horizon.
+    ///
+    /// Later steps shrink the previous set by removing positions whose shortest exit
+    /// distance no longer fits in the remaining time budget.
+    fn update_exit_reachable(&mut self, t: usize) {
+        if t == 0 {
+            let mut result = PositionSet::empty(self.layers, self.height, self.width);
+            for bucket in &self.distance_buckets {
+                result.union_with(bucket);
+            }
+            self.exit_reachable.push(result);
+            return;
+        }
+
+        let mut prev_exit_reachable = self.exit_reachable[t - 1].clone();
+        let excluded_distance = self.t_max - t + 1;
+        prev_exit_reachable.subtract_with(&self.distance_buckets[excluded_distance]);
+        self.exit_reachable.push(prev_exit_reachable);
+    }
+
+    /// Update the relevant positions for each agent at time step t.
+    /// # Details
+    /// A position is relevant to a given agent at time step t if:
+    ///     - the agent can reach it at time step t
+    ///     - the agent can still access the exit within `t_max - t` steps
+    fn update_relevant_positions(&mut self, t: usize) {
+        for agent in 0..self.n_agents {
+            let mut result = if t == 0 {
+                PositionSet::singleton(self.layers, self.height, self.width, self.start_pos[agent])
+            } else {
+                let mut reachable = PositionSet::empty(self.layers, self.height, self.width);
+                let previous = &self.relevant_positions[agent][t - 1];
+                for pos in previous {
+                    for n in &self.neighbours[pos.k][pos.i][pos.j] {
+                        reachable.insert(n);
+                    }
+                }
+                for lift in self
+                    .lifts
+                    .iter()
+                    .filter(|lift| lift.riders.contains(&agent))
+                {
+                    if self
+                        .lift_entries(lift)
+                        .any(|entry| previous.contains(&entry))
+                    {
+                        reachable.insert(lift.dest);
+                    }
+                }
+                reachable
+            };
+            result.intersect_with(&self.exit_reachable[t]);
+            // At t=1 no agent can occupy another agent's t=0 start position.
+            // The no-following-conflict rule forbids agent A from being at start_B at t=1
+            // because B was there at t=0 (implies(-a_cur, -b_prev) ⇒ ¬A here when B was here).
+            if t == 1 {
+                // A lift may still move the agent there, as `no_following_conflict` allows.
+                for (other, &start) in self.start_pos.iter().enumerate() {
+                    if other != agent
+                        && !self
+                            .lifts
+                            .iter()
+                            .any(|lift| lift.dest == start && lift.riders.contains(&agent))
+                    {
+                        result.remove(&start);
+                    }
+                }
+            }
+            // Non-owner agents can never stand on the first tile of another agent's beam.
+            result.subtract_with(&self.forbidden_first_beam_tiles[agent]);
+            self.relevant_positions[agent].push(result);
+        }
+    }
+
+    /// Update every laser-derived relevance cache for time `t`.
+    ///
+    /// This first removes foreign-colour agent positions on beam tiles that cannot be made safe by
+    /// an upstream owner block, then computes the relevant laser paths from the pruned position
+    /// sets. Keeping all pruning before all path computation avoids order-dependent results when
+    /// laser paths overlap or cross.
+    fn update_laser_relevance(&mut self, t: usize) {
+        for source in &self.laser_sources {
+            let mut blockable_upstream = false;
+            for &pos in &source.path {
+                if !blockable_upstream {
+                    for (agent, positions) in self.relevant_positions.iter_mut().enumerate() {
+                        if Some(agent) != source.owner {
+                            positions[t].remove(&pos);
+                        }
+                    }
+                }
+                let owner_reachable = source
+                    .owner
+                    .is_some_and(|owner| self.relevant_positions[owner][t].contains(&pos));
+                let box_reachable = !self.voids.contains(&pos)
+                    && self
+                        .relevant_box_positions
+                        .iter()
+                        .any(|positions| positions[t].contains(&pos));
+                if owner_reachable || box_reachable {
+                    blockable_upstream = true;
+                }
+            }
+        }
+
+        for laser_idx in 0..self.laser_sources.len() {
+            let source = &self.laser_sources[laser_idx];
+            // Without an owner, no agent can help another one through this beam.
+            let relevant_path = match source.owner {
+                Some(owner) => compute_relevant_laser_path(
+                    &source.path,
+                    &self.relevant_positions,
+                    t,
+                    owner,
+                    self.layers,
+                    self.height,
+                    self.width,
+                ),
+                None => PositionSet::empty(self.layers, self.height, self.width),
+            };
+            self.relevant_laser_paths[laser_idx].push(relevant_path);
+        }
+    }
+
+    /// Update the positions each box can occupy at time step `t`.
+    ///
+    /// A box can stay where it is, unless it lies on a void (it is then destroyed), or be pushed
+    /// from `q` to `r = q + d` by an agent that can stand on `q - d` at `t - 1` and step onto `q`.
+    /// The destination `r` must be walkable for a box, voids included.
+    fn update_box_relevance(&mut self, t: usize) {
+        for box_id in 0..self.box_start_pos.len() {
+            let result = if t == 0 {
+                PositionSet::singleton(
+                    self.layers,
+                    self.height,
+                    self.width,
+                    self.box_start_pos[box_id],
+                )
+            } else {
+                let mut result = PositionSet::empty(self.layers, self.height, self.width);
+                for q in &self.relevant_box_positions[box_id][t - 1] {
+                    if self.voids.contains(&q) {
+                        continue;
+                    }
+                    result.insert(q);
+                    for d in CardinalDirection::iter() {
+                        if let Some(r) = self.push_destination(q, d)
+                            && self.can_push_from(q, d, t - 1)
+                        {
+                            result.insert(r);
+                        }
+                    }
+                }
+                result
+            };
+            self.relevant_box_positions[box_id].push(result);
+        }
+    }
+
+    /// The cell a box at `q` lands on when pushed in direction `d`, if it is walkable for a box.
+    pub fn push_destination(&self, q: Position, d: CardinalDirection) -> Option<Position> {
+        (q + d)
+            .ok()
+            .filter(|r| r.i < self.height && r.j < self.width && self.box_walkable.contains(r))
+    }
+
+    /// The cell an agent pushing a box at `q` in direction `d` comes from.
+    pub fn pusher_origin(&self, q: Position, d: CardinalDirection) -> Option<Position> {
+        (q + d.opposite())
+            .ok()
+            .filter(|p| p.i < self.height && p.j < self.width)
+    }
+
+    /// Whether some agent can stand behind `q` at `t` and step onto `q` in direction `d`.
+    fn can_push_from(&self, q: Position, d: CardinalDirection, t: usize) -> bool {
+        self.pusher_origin(q, d).is_some_and(|p| {
+            self.neighbours[p.k][p.i][p.j].contains(&q)
+                && self
+                    .relevant_positions
+                    .iter()
+                    .any(|positions| positions[t].contains(&p))
+        })
+    }
+
+    /// Remove from each agent's relevant positions at `t` the exits other than its forced exit.
+    ///
+    /// When there are exactly as many exits as agents, every exit tile must be occupied in any
+    /// satisfying objective state because all agents must end on distinct exits. An exit that only
+    /// one agent can reach within the horizon is therefore that agent's final position, and exits
+    /// being absorbing, that agent never stops on another exit.
+    fn update_forced_exit_relevance(&mut self, t: usize) {
+        for (agent, forced_exit) in self.forced_exits.iter().enumerate() {
+            let Some(forced_exit) = forced_exit else {
+                continue;
+            };
+            for exit in &self.exits {
+                if exit != *forced_exit {
+                    self.relevant_positions[agent][t].remove(&exit);
+                }
+            }
+        }
+    }
+
+    /// Pre-compute and cache the reachable positions and relevant laser paths needed to generate
+    /// constraints for time step `t`.
+    pub fn update(&mut self, t: usize) {
+        if self
+            .updated_until
+            .is_some_and(|updated_until| t <= updated_until)
+        {
+            return;
+        }
+        let start = self
+            .updated_until
+            .map_or(0, |updated_until| updated_until + 1);
+        for tt in start..=t {
+            self.update_exit_reachable(tt);
+            self.update_relevant_positions(tt);
+            self.update_box_relevance(tt);
+            self.update_laser_relevance(tt);
+            self.update_forced_exit_relevance(tt);
+        }
+        self.updated_until = Some(t);
+    }
+
+    /// Relevant positions for a single agent at time `t`, i.e. positions that the agent
+    /// can reach and from which it can still access the exit within due time.
+    pub fn relevant_positions_for_agent(&self, agent: usize, t: usize) -> &PositionSet {
+        &self.relevant_positions[agent][t]
+    }
+
+    /// Positions relevant to *all* the given agents exactly at time `t` (already filtered by
+    /// exit-reachability), i.e. intersection of the positions relevant to each agent individually.
+    ///
+    /// See `relevant_positions_for_agent` for more details.
+    pub fn relevant_positions(&self, t: usize, agents: &[usize]) -> PositionSet {
+        if agents.is_empty() {
+            return PositionSet::empty(self.layers, self.height, self.width);
+        }
+        let mut reachable = self.relevant_positions_for_agent(agents[0], t).clone();
+        for &agent in &agents[1..] {
+            reachable.intersect_with(self.relevant_positions_for_agent(agent, t));
+        }
+        reachable
+    }
+
+    /// Positions the agent could have occupied at time `t - 1` to reach `(i, j)` at `t`.
+    /// Assumes `update` has already been called for this `t`.
+    pub fn prev_neighbours(
+        &self,
+        agent: usize,
+        pos: &Position,
+        t: usize,
+    ) -> impl Iterator<Item = Position> + '_ {
+        self.predecessors[pos.k][pos.i][pos.j]
+            .iter()
+            .filter(move |predecessor| {
+                t > 0 && self.relevant_positions[agent][t - 1].contains(predecessor)
+            })
+    }
+
+    /// Positions from which an agent is on `lift` once the walking part of a step is over: the
+    /// lift itself and every cell walking onto it.
+    pub fn lift_entries(&self, lift: &LiftInfo) -> impl Iterator<Item = Position> + '_ {
+        self.predecessors[lift.pos.k][lift.pos.i][lift.pos.j].iter()
+    }
+
+    pub fn n_boxes(&self) -> usize {
+        self.box_start_pos.len()
+    }
+
+    /// Positions box `box_id` can occupy at time `t`. Assumes `update` has already been called
+    /// for this `t`.
+    pub fn relevant_positions_for_box(&self, box_id: usize, t: usize) -> &PositionSet {
+        &self.relevant_box_positions[box_id][t]
+    }
+
+    pub fn is_void(&self, pos: &Position) -> bool {
+        self.voids.contains(pos)
+    }
+
+    /// The reachable laser tiles positions for a given laser source at time `t`: the beam tiles
+    /// that can still be blocked. Assumes `update` has already been called for this `t`.
+    pub fn relevant_laser_tiles(&self, laser_id: usize, t: usize) -> &PositionSet {
+        &self.relevant_laser_paths[laser_id][t]
+    }
+}
+
+#[cfg(test)]
+impl ConstraintContext {
+    /// ONLY USE THIS FOR TESTING PURPOSES
+    ///
+    /// `exit_reachable` is now lazily computed by `update`, so make sure every entry is
+    /// available before scanning it for `pos`.
+    fn get_exit_distance(&mut self, pos: &Position) -> usize {
+        self.update(self.t_max);
+        for t in (0..=self.t_max).rev() {
+            if self.exit_reachable[t].contains(pos) {
+                return self.t_max - t;
+            }
+        }
+        panic!("{pos:?} is not in the PositionSet !")
+    }
+
+    /// ONLY USE THIS FOR TESTING PURPOSES
+    fn is_exit_reachable(&self, pos: &Position, t: usize) -> bool {
+        self.exit_reachable[t].contains(pos)
+    }
+}
+
+/// Compute laser tiles that are relevant to consider at time step t.
+///
+/// # Details
+/// The relevant laser path for a given laser source at time `t` is the subset of its beam tiles
+/// worth reasoning about. A tile is relevant if either:
+///   - the owning agent can reach it at time `t` (it can block the beam there), or
+///   - it lies downstream of such a blockable tile *and* some other agent can reach it at time
+///     `t`. Because the owner could block the beam upstream, the tile may become safe for that
+///     other agent — so it is a tile where cooperation matters.
+///
+/// # Assumptions
+/// This function assumes that `update_relevant_positions` has already been called for `t`.
+/// Compute the relevant beam tiles for one laser source at time `t`.
+///
+fn compute_relevant_laser_path(
+    path: &[Position],
+    relevant_positions: &[Vec<PositionSet>],
+    t: usize,
+    owner_id: usize,
+    layers: usize,
+    height: usize,
+    width: usize,
+) -> PositionSet {
+    let n_agents = relevant_positions.len();
+    let owner_reachable = &relevant_positions[owner_id][t];
+    let mut result = PositionSet::empty(layers, height, width);
+    // Whether an upstream tile can be blocked by the owner: once true, every downstream tile can
+    // be made safe by blocking the beam upstream.
+    let mut blockable_upstream = false;
+    for &pos in path {
+        if owner_reachable.contains(&pos) {
+            result.insert(pos);
+            blockable_upstream = true;
+        } else if blockable_upstream
+            && (0..n_agents).any(|a| a != owner_id && relevant_positions[a][t].contains(&pos))
+        {
+            result.insert(pos);
+        }
+    }
+    result
+}
+
+/// The exit each agent must end on: one that no other agent can reach within `t_max` steps, when
+/// there are as many exits as agents. An agent that is the only one able to reach several exits
+/// gets none (the world is then unsolvable, which the solver finds by itself).
+///
+/// Uniqueness must hold over the whole horizon, not at one time step: an exit only one agent can
+/// reach by `t` may still be taken later by another agent.
+fn forced_exits(
+    exits: &PositionSet,
+    start_pos: &[Position],
+    neighbours: &[Vec<Vec<NeighbourList>>],
+    predecessors: &[Vec<Vec<NeighbourList>>],
+    lifts: &[LiftInfo],
+    forbidden_first_beam_tiles: &[PositionSet],
+    t_max: usize,
+) -> Vec<Option<Position>> {
+    let n_agents = start_pos.len();
+    if exits.size() != n_agents {
+        return vec![None; n_agents];
+    }
+    let reach: Vec<HashSet<Position>> = (0..n_agents)
+        .map(|agent| {
+            // Over-approximates every `relevant_positions[agent][t]`: walking and lift moves,
+            // avoiding only the cells this agent can never stand on.
+            let forbidden = &forbidden_first_beam_tiles[agent];
+            let mut seen = HashSet::from([start_pos[agent]]);
+            let mut frontier = vec![start_pos[agent]];
+            for _ in 0..t_max {
+                let mut next = Vec::new();
+                for pos in frontier {
+                    let walked = neighbours[pos.k][pos.i][pos.j].iter();
+                    let lifted = lifts
+                        .iter()
+                        .filter(|lift| {
+                            lift.riders.contains(&agent)
+                                && predecessors[lift.pos.k][lift.pos.i][lift.pos.j].contains(&pos)
+                        })
+                        .map(|lift| lift.dest);
+                    for succ in walked.chain(lifted) {
+                        if !forbidden.contains(&succ) && seen.insert(succ) {
+                            next.push(succ);
+                        }
+                    }
+                }
+                frontier = next;
+            }
+            seen
+        })
+        .collect();
+    let mut forced = vec![None; n_agents];
+    let mut n_unique = vec![0; n_agents];
+    for exit in exits {
+        let mut reaching = (0..n_agents).filter(|&agent| reach[agent].contains(&exit));
+        if let (Some(agent), None) = (reaching.next(), reaching.next()) {
+            forced[agent] = Some(exit);
+            n_unique[agent] += 1;
+        }
+    }
+    for (agent, count) in n_unique.into_iter().enumerate() {
+        if count != 1 {
+            forced[agent] = None;
+        }
+    }
+    forced
+}
+
+/// Every `(i, j, k)` position of a `layers x height x width` grid.
+fn grid_positions(layers: usize, height: usize, width: usize) -> impl Iterator<Item = Position> {
+    (0..layers).flat_map(move |k| {
+        (0..height).flat_map(move |i| (0..width).map(move |j| Position { i, j, k }))
+    })
+}
+
+fn compute_exit_distance(
+    exits: &PositionSet,
+    predecessors: &[Vec<Vec<NeighbourList>>],
+    lift_predecessors: &HashMap<Position, Vec<Position>>,
+) -> HashMap<Position, usize> {
+    let mut dist: HashMap<Position, usize> = exits.iter().map(|p| (p, 0)).collect();
+    let mut frontier: VecDeque<Position> = exits.iter().collect();
+    while let Some(current) = frontier.pop_front() {
+        let current_dist = dist[&current];
+        let lifted_from = lift_predecessors
+            .get(&current)
+            .into_iter()
+            .flatten()
+            .copied();
+        for pred in predecessors[current.k][current.i][current.j]
+            .iter()
+            .chain(lifted_from)
+        {
+            dist.entry(pred).or_insert_with(|| {
+                frontier.push_back(pred);
+                current_dist + 1
+            });
+        }
+    }
+    dist
+}
+
+#[cfg(test)]
+#[path = "../../unit_tests/test_context.rs"]
+mod tests;

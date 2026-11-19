@@ -1,4 +1,5 @@
-from typing import Literal, Optional, Sequence
+from collections.abc import Sequence
+from typing import Literal, Optional
 
 from .. import tiles
 from ..observations import ObservationType, ObservationTypeLiteral

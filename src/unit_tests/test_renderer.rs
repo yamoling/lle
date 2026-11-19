@@ -1,6 +1,6 @@
 use crate::{
     Action, Renderer, World,
-    rendering::{TILE_SIZE, sprites},
+    shared::sprites::{self, TILE_SIZE},
 };
 use image::RgbImage;
 
@@ -9,7 +9,7 @@ use image::RgbImage;
 /// which is the colour a restriction badge is meant to echo.
 fn sprite_accent(colour: usize) -> image::Rgb<u8> {
     use std::collections::HashMap;
-    let sprite = &crate::rendering::sprites::AGENTS[colour];
+    let sprite = &crate::shared::sprites::AGENTS[colour];
     let mut counts: HashMap<[u8; 3], usize> = HashMap::new();
     for pixel in sprite.pixels() {
         let [r, g, b, a] = pixel.0;
@@ -36,7 +36,7 @@ fn sprite_accent(colour: usize) -> image::Rgb<u8> {
 #[test]
 fn badge_tint_matches_the_agent_sprite_it_authorizes() {
     // The badge tells you *which agents* may use a lift/button, so it has to be
-    // tinted like those agents. `AGENT_COLORS` is a table maintained by hand
+    // tinted like those agents. `AGENT_COLOURS` is a table maintained by hand
     // beside the sprite files, so pin it to the sprites: entries 1 and 3 were
     // once swapped relative to them, and nothing caught it.
     for colour in 0..=10 {
@@ -54,7 +54,7 @@ fn badge_tint_falls_back_past_the_accented_sprites() {
     for colour in [11, 12, 99] {
         assert_eq!(
             super::agent_color(colour),
-            super::AGENT_COLOR_FALLBACK,
+            crate::shared::sprites::AGENT_COLOUR_FALLBACK,
             "colour {colour} should use the fallback badge tint"
         );
     }
@@ -245,7 +245,7 @@ fn lift_and_button_are_rendered() {
 
 #[test]
 fn restriction_badge_falls_back_for_a_colour_above_the_badge_table() {
-    // `AGENT_COLORS` stops at the numbered sprites, but a colour is not capped
+    // `AGENT_COLOURS` stops at the numbered sprites, but a colour is not capped
     // there - colour 10 is in the table, colour 11's sprite is neutral, and
     // anything beyond has no sprite at all. Rendering a lift/button restricted to
     // such a colour must fall back, exactly as the agent sprite does, rather than
@@ -421,7 +421,7 @@ fn test_a_powered_lift_is_drawn_lit() {
 /// floor (`k = 0`) at the bottom, and a uniform band between them.
 #[test]
 fn floors_are_drawn_top_first_with_a_separator() {
-    use crate::rendering::{FLOOR_SEPARATOR, FLOOR_SEPARATOR_HEIGHT};
+    use crate::shared::sprites::{FLOOR_SEPARATOR, FLOOR_SEPARATOR_HEIGHT};
     let render = |map: &str| {
         let mut world = World::try_from(map).unwrap();
         world.reset();

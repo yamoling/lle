@@ -4,8 +4,7 @@ use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use crate::{
-    Position, Tile, World,
-    agent::AgentId,
+    AgentId, Position, Tile, World,
     bindings::{PyPosition, tiles::PyDirection},
     tiles::{Laser, LaserId},
 };

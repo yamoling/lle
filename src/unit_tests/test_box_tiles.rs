@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::{
-    agent::Colour,
+    shared::Colour,
     tiles::{BoxOutcome, CardinalDirection, Gem, Laser, LaserBeam, Tile, Void},
 };
 

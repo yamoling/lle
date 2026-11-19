@@ -31,8 +31,9 @@ from __future__ import annotations
 
 import math
 import random
+from collections.abc import Iterator, Sequence
 from dataclasses import replace
-from typing import Any, Iterator, Literal, Sequence, overload
+from typing import Any, Literal, overload
 
 from ..world import World
 from .generator import WorldGenerator

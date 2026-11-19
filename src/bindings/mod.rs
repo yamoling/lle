@@ -1,13 +1,16 @@
 use pyo3::prelude::*;
 use pyo3_stub_gen::define_stub_info_gatherer;
+mod continuous;
 mod pyagent;
 mod pyexceptions;
 mod solver;
 mod tiles;
 mod utils;
 mod world;
+pub use continuous::{PyContinuousWorld, PyContinuousWorldState, PyPhysicsParams, PyStepOutcome};
 pub use pyexceptions::{
     InvalidActionError, InvalidLevelError, InvalidWorldStateError, ParsingError,
+    UnsupportedFeatureError, continuous_error_to_pyexception,
 };
 pub use solver::{PyClauseGenerator, PySatSolver, PySolveMode, PySolver};
 pub use tiles::{PyButton, PyLaser, PyLaserSource, PyLever, PyLift, PyPressurePlate};
@@ -89,6 +92,8 @@ mod lle {
         use super::super::pyexceptions::ParsingError;
         #[pymodule_export]
         use super::super::pyexceptions::SolverError;
+        #[pymodule_export]
+        use super::super::pyexceptions::UnsupportedFeatureError;
     }
 
     #[pymodule_init]
@@ -109,7 +114,17 @@ mod lle {
         clauses.add_class::<super::solver::PySolveMode>()?;
         clauses.add_class::<super::solver::PySatSolver>()?;
         clauses.add_class::<super::solver::PySolver>()?;
-        sys_modules.set_item("lle.solver.clauses", &clauses)
+        sys_modules.set_item("lle.solver.clauses", &clauses)?;
+
+        // Same trick for the continuous engine: `lle.continuous` is a regular Python package
+        // (`python/lle/continuous/__init__.py`) that re-exports the native classes of
+        // `lle.continuous.world`.
+        let continuous = PyModule::new(py, "lle.continuous.world")?;
+        continuous.add_class::<super::continuous::PyPhysicsParams>()?;
+        continuous.add_class::<super::continuous::PyContinuousWorldState>()?;
+        continuous.add_class::<super::continuous::PyStepOutcome>()?;
+        continuous.add_class::<super::continuous::PyContinuousWorld>()?;
+        sys_modules.set_item("lle.continuous.world", &continuous)
     }
 }
 

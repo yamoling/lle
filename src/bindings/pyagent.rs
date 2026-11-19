@@ -1,7 +1,7 @@
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
-use crate::agent::Agent;
+use crate::Agent;
 
 /// An agent in the world.
 #[gen_stub_pyclass]

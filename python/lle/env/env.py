@@ -6,7 +6,6 @@ strategy, and optional extras into the `marlenv` interface.
 
 import random
 from dataclasses import dataclass
-from enum import IntEnum
 from functools import cached_property
 from typing import Literal
 
@@ -16,24 +15,9 @@ from marlenv.models import DiscreteMARLEnv, DiscreteSpace, Observation, State, S
 
 from ..observations import ObservationType, StateGenerator
 from ..world import Action, World, WorldState
+from .common import DeathStrategy
 from .extras_generators import ExtraGenerator, NoExtras
 from .reward_strategy import RewardStrategy, SingleObjective
-
-
-class DeathStrategy(IntEnum):
-    END = 0
-    """End the game when an agent dies"""
-    RESPAWN = 1
-    """The agent respawns on its start position when it dies"""
-
-    @staticmethod
-    def from_str(value: Literal["end", "respawn"]):
-        match value:
-            case "end":
-                return DeathStrategy.END
-            case "respawn":
-                return DeathStrategy.RESPAWN
-        raise ValueError(f"Unknown death strategy: {value}")
 
 
 @dataclass

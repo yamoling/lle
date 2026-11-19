@@ -1,4 +1,4 @@
-use crate::{ParseError, RuntimeWorldError};
+use crate::{ParseError, RuntimeWorldError, continuous::ContinuousError};
 use pyo3::{
     PyErr,
     exceptions::{self, PyValueError},
@@ -25,6 +25,41 @@ create_exception!(
     PyValueError,
     "Raised when there is a problem while parsing a world string."
 );
+
+// `pyo3_stub_gen::create_exception!` writes the base of an exception as `builtins.<base>`, which
+// is wrong for a base defined in `lle.exceptions`. This is the same expansion, with the base
+// written unqualified in the stub.
+pyo3::create_exception!(
+    lle.exceptions,
+    UnsupportedFeatureError,
+    ParsingError,
+    "Raised when a map uses features that the engine does not support."
+);
+
+impl pyo3_stub_gen::PyStubType for UnsupportedFeatureError {
+    fn type_output() -> pyo3_stub_gen::TypeInfo {
+        pyo3_stub_gen::TypeInfo::builtin("UnsupportedFeatureError")
+    }
+}
+
+pyo3_stub_gen::impl_py_runtime_type!(UnsupportedFeatureError);
+
+pyo3_stub_gen::inventory::submit! {
+    pyo3_stub_gen::type_info::PyClassInfo {
+        pyclass_name: "UnsupportedFeatureError",
+        struct_id: std::any::TypeId::of::<UnsupportedFeatureError>,
+        getters: &[],
+        setters: &[],
+        module: Some("lle.exceptions"),
+        doc: "Raised when a map uses features that the engine does not support.",
+        bases: &[|| pyo3_stub_gen::TypeInfo::unqualified("ParsingError")],
+        has_eq: false,
+        has_ord: false,
+        has_hash: false,
+        has_str: false,
+        subclass: true,
+    }
+}
 
 create_exception!(
     lle.exceptions,
@@ -211,6 +246,26 @@ pub fn runtime_error_to_pyexception(error: RuntimeWorldError) -> PyErr {
     }
 }
 
+/// Convert an error of the continuous engine into the matching Python exception.
+///
+/// @ai-generated
+pub fn continuous_error_to_pyexception(error: ContinuousError) -> PyErr {
+    match error {
+        ContinuousError::Parse(error) => parse_error_to_exception(error),
+        ContinuousError::UnsupportedFeature { features } => UnsupportedFeatureError::new_err(
+            format!("Unsupported features: {}", features.join(", ")),
+        ),
+        ContinuousError::InvalidParams { reason } => PyValueError::new_err(reason),
+        ContinuousError::InvalidNumberOfActions { given, expected } => PyValueError::new_err(
+            format!("Invalid number of actions: given {given}, expected {expected}"),
+        ),
+        ContinuousError::InvalidAction { agent_id, action } => InvalidActionError::new_err(
+            format!("Invalid continuous action for agent {agent_id}: {action:?}"),
+        ),
+        ContinuousError::InvalidState { reason } => InvalidWorldStateError::new_err(reason),
+    }
+}
+
 pub fn solver_error_to_exception(error: crate::solver::errors::SolverError) -> PyErr {
     match error {
         crate::solver::errors::SolverError::VariableNotCreated { var } => {
@@ -250,3 +305,7 @@ pub fn solver_error_to_exception(error: crate::solver::errors::SolverError) -> P
         }
     }
 }
+
+#[cfg(all(test, feature = "python-bindings"))]
+#[path = "../unit_tests/test_pyexceptions.rs"]
+mod tests;

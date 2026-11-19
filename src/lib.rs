@@ -1,23 +1,18 @@
-mod action;
-mod agent;
 #[cfg(feature = "python-bindings")]
 pub mod bindings;
-mod core;
-mod grid;
-mod position;
-pub mod rendering;
-pub mod solver;
+pub mod continuous;
+pub mod discrete;
+pub mod shared;
 
-mod utils;
-
-pub use action::Action;
-pub use agent::{Agent, AgentId};
-pub use core::parsing::{MapSpec, ValidMap, parse_toml as parse_v2};
-pub use core::{
-    BoxId, ParseError, RuntimeWorldError, World, WorldEvent, WorldState, tiles, tiles::Tile,
+pub use discrete::{
+    Action, Agent, RuntimeWorldError, World, WorldState, rendering, rendering::Renderer, solver,
+    tiles, tiles::Tile,
 };
-pub use grid::Grid;
-pub use position::Position;
-pub use rendering::Renderer;
+pub use shared::map::{MapSpec, ParseError, ValidMap, parse_toml as parse_v2};
+pub use shared::{AgentId, BoxId, Grid, Position, WorldEvent};
 // Include the version number of the crate from the build script
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+#[cfg(test)]
+#[path = "unit_tests/test_architecture.rs"]
+mod test_architecture;
