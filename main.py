@@ -1,56 +1,23 @@
-import logging
-from time import sleep
+import time
+
+import cv2
 
 import lle
-from lle import Action
+
+MAP_FILE = "poc.toml"
+WAIT_SECONDS = 20
 
 
-def setup_logging():
-    root = logging.getLogger()
-    root.setLevel(logging.DEBUG)  # capture everything
+def main():
+    env = lle.from_file(MAP_FILE).build()
+    env.reset()
+    env.render()  # MARLEnv.render: cv2 window named after the env
+    # Pump the cv2 event loop instead of time.sleep so the window stays drawn and responsive.
+    deadline = time.monotonic() + WAIT_SECONDS
+    while time.monotonic() < deadline:
+        cv2.waitKey(100)
+    cv2.destroyAllWindows()
 
-    fileName = "lle_example.log"
-    fileHandler = logging.FileHandler(fileName)
-    fileHandler.setLevel(logging.DEBUG)  # capture everything to the file
-    # Clear existing handlers (important in notebooks / frameworks)
-    root.handlers.clear()
-    root.addHandler(fileHandler)
 
-
-setup_logging()
-
-N, S, E, W, STAY, TRIGGER = (
-    Action.NORTH,
-    Action.SOUTH,
-    Action.EAST,
-    Action.WEST,
-    Action.STAY,
-    Action.TRIGGER,
-)
-solution = [
-    (E, E),
-    (E, E),
-    (E, STAY),
-    (STAY, N),
-    (STAY, TRIGGER),
-    (W, E),
-    (TRIGGER, STAY),
-    (W, S),
-    (W, STAY),
-    (S, STAY),
-]
-
-env = lle.from_file("lift.toml").build()
-done = False
-obs, state = env.reset()
-for actions in solution:
-    env.render()  # uncomment to render
-    sleep(1)  # uncomment to slow down the rendering
-    step = env.step([action.value for action in actions])
-    # Access the step data with `step.obs`, `step.reward`, ...
-    done = step.is_terminal  # Either done or truncated
-    if done:
-        break
-
-assert done, "The hand-crafted solution did not resolve the level"
-print(f"Solved lift.toml in {len(solution)} steps, final reward={step.reward}")
+if __name__ == "__main__":
+    main()

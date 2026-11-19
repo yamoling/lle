@@ -1265,3 +1265,34 @@ def test_layered_to_world_state_restores_the_lever():
     world.reset()
     world.set_state(state)
     assert world.levers[0].is_on
+
+
+def _two_layer_world() -> World:
+    # Two stacked 3x3 floors: enough to get a rank-4 `layered` with L = 2.
+    return World("S0 . .\n. . X\n. . .\n;\n. . .\n. G .\n. . .")
+
+
+def test_layered_stacked_single_layer_equals_layered_squeezed():
+    env_l = LLE.level(3).obs_type("layered").build()
+    env_s = LLE.level(3).obs_type("layered-stacked").build()
+    assert env_s.observation_shape == env_l.observation_shape[:-1]
+    obs_l, _ = env_l.reset()
+    obs_s, _ = env_s.reset()
+    assert np.array_equal(obs_s.data, obs_l.data[..., 0])
+
+
+def test_layered_stacked_is_layer_major_and_lossless():
+    world = _two_layer_world()
+    layered = Layered(world)
+    stacked = ObservationType.LAYERED_STACKED.get_observation_generator(world)
+    c, h, w, l = layered.shape
+    assert l == 2
+    assert stacked.shape == (l * c, h, w)
+    world.reset()
+    lo = layered.observe()
+    so = stacked.observe()
+    assert so.shape == (world.n_agents, l * c, h, w)
+    for k in range(l):
+        assert np.array_equal(so[:, k * c : (k + 1) * c], lo[..., k])
+    assert np.array_equal(stacked.unstack(so, l), lo)
+    assert stacked.to_world_state(so[0]) == layered.to_world_state(lo[0])

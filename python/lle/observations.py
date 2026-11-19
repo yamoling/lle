@@ -32,6 +32,7 @@ ObservationTypeLiteral = Literal[
     "layered-padded-2",
     "layered-padded-3",
     "layered-padded",
+    "layered-stacked",
 ]
 
 
@@ -59,6 +60,13 @@ class ObservationType(str, Enum):
     LAYERED_PADDED_2AGENTS = "layered-padded-2"
     LAYERED_PADDED_3AGENTS = "layered-padded-3"
     PERSPECTIVE = "perspective"
+    LAYERED_STACKED = "layered-stacked"
+    """
+    The layered observation with the map layers stacked along the channel axis:
+    `(L*C, H, W)` instead of `(C, H, W, L)`, layer-major (the C channels of layer 0, then
+    the C channels of layer 1, ...). Same values as `layered`, rank 3, so any 2-D CNN can
+    consume it. Equal to `layered` squeezed when the map has a single layer.
+    """
 
     @staticmethod
     def from_str(s: ObservationTypeLiteral | str) -> "ObservationType":
@@ -99,6 +107,8 @@ class ObservationType(str, Enum):
                 return LayeredPadded(world, 3, n_groups)
             case ObservationType.PERSPECTIVE:
                 return PerspectiveLayered(world, n_groups)
+            case ObservationType.LAYERED_STACKED:
+                return LayeredStacked(world, n_groups)
             case other:
                 raise ValueError(f"Unknown observation type: {other}")
 
@@ -480,6 +490,54 @@ class FlattenedLayered(ObservationGenerator):
     def set_world(self, new_world: World):
         self.layered.set_world(new_world)
         return super().set_world(new_world)
+
+
+class LayeredStacked(ObservationGenerator):
+    """`Layered` with the map layers moved into the channel axis.
+
+    `Layered` produces `(C, H, W, L)` per agent. This generator returns `(L*C, H, W)`,
+    layer-major: channel `k*C + c` is channel `c` of map layer `k`. No value is added or
+    dropped, only reordered.
+    """
+
+    def __init__(self, world: World, n_groups: int | None = None):
+        super().__init__(world)
+        self.layered = Layered(world, n_groups)
+        n_channels, height, width, n_layers = self.layered.shape
+        self._shape = (n_layers * n_channels, height, width)
+
+    @staticmethod
+    def stack(layered_obs: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
+        """`(..., C, H, W, L) -> (..., L*C, H, W)`, layer-major."""
+        *lead, c, h, w, l = layered_obs.shape
+        return np.moveaxis(layered_obs, -1, -4).reshape(*lead, l * c, h, w)
+
+    @staticmethod
+    def unstack(stacked_obs: npt.NDArray[np.float32], n_layers: int) -> npt.NDArray[np.float32]:
+        """Inverse of `stack`: `(..., L*C, H, W) -> (..., C, H, W, L)`."""
+        *lead, lc, h, w = stacked_obs.shape
+        return np.moveaxis(stacked_obs.reshape(*lead, n_layers, lc // n_layers, h, w), -4, -1)
+
+    def observe(self):
+        return self.stack(self.layered.observe())
+
+    def to_world_state(self, data: npt.NDArray[np.float32]) -> WorldState:
+        return self.layered.to_world_state(self.unstack(data, self.layered.shape[-1]))
+
+    def reset(self) -> None:
+        self.layered.reset()
+
+    def set_world(self, new_world: World):
+        self.layered.set_world(new_world)
+        return super().set_world(new_world)
+
+    @property
+    def obs_type(self) -> ObservationType:
+        return ObservationType.LAYERED_STACKED
+
+    @property
+    def shape(self):
+        return self._shape
 
 
 class PartialGenerator(ObservationGenerator):
