@@ -1,4 +1,4 @@
-use crate::{bindings::PyPosition, core::WorldState};
+use crate::{WorldState, bindings::PyPosition};
 use numpy::PyArray1;
 use pyo3::{exceptions, prelude::*, pyclass::CompareOp, types::PyDict};
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};

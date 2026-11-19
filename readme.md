@@ -165,6 +165,7 @@ Run the Rust and Python test suites with:
 
 ```bash
 cargo test      # Rust unit + integration tests
+cargo test --features python-bindings # also the Rust tests of the Python bindings
 maturin dev     # (re)build the extension
 pytest          # Python tests
 ```

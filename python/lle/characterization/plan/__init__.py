@@ -13,9 +13,9 @@ from .graph import DependencyEdge, TemporalCooperationGraph
 from .profile import PlanProfile
 
 __all__ = [
-    "profile_plan",
-    "detect_dependencies",
     "DependencyEdge",
-    "TemporalCooperationGraph",
     "PlanProfile",
+    "TemporalCooperationGraph",
+    "detect_dependencies",
+    "profile_plan",
 ]

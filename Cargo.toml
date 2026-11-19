@@ -28,7 +28,8 @@ itertools = "0.14.0"
 numpy = { version = "0.28.0", optional = true }
 pyo3 = { version = "0.28.0", features = ["generate-import-lib"], optional = true }
 pyo3-stub-gen = { version = "0.22.0", optional = true }
-rand = "0.10.1"
+# `chacha` exposes `ChaCha12Rng`, whose state can be copied and serialized (unlike `StdRng`).
+rand = { version = "0.10.1", features = ["chacha"] }
 cadical = "0.1.16"
 serde = { version = "1.0.217", features = ["derive"] }
 strum = { version = "0.28.0", features = ["derive"] }
@@ -39,6 +40,9 @@ boon = "0.6.1"
 rstest = "0.26.1"
 rstest_reuse = "0.7.0"
 serde_json = "1.0"
+# Used by the architecture guard (src/unit_tests/test_architecture.rs) to parse the sources.
+proc-macro2 = "1.0.107"
+syn = { version = "2.0.119", features = ["full", "visit"] }
 
 [build-dependencies]
 image = { version = "0.25.5", default-features = false, features = ["png"] }

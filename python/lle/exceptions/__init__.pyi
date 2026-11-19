@@ -8,6 +8,7 @@ __all__ = [
     "InvalidWorldStateError",
     "ParsingError",
     "SolverError",
+    "UnsupportedFeatureError",
 ]
 
 class InvalidActionError(builtins.ValueError):
@@ -37,6 +38,12 @@ class ParsingError(builtins.ValueError):
 class SolverError(builtins.ValueError):
     r"""
     Raised when the solver encounters an illegal state.
+    """
+    ...
+
+class UnsupportedFeatureError(ParsingError):
+    r"""
+    Raised when a map uses features that the engine does not support.
     """
     ...
 

@@ -1,4 +1,4 @@
-use crate::{Position, core::boxes::Boxes};
+use crate::{Position, discrete::boxes::Boxes};
 
 fn pos(i: usize, j: usize) -> Position {
     Position::new2d(i, j)

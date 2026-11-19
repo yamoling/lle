@@ -80,7 +80,7 @@ impl PyWorldEvent {
         }
     }
 
-    fn __str__(&self) -> String {
+    pub(crate) fn __str__(&self) -> String {
         match (self.agent_id, self.box_id) {
             (Some(agent_id), _) => format!("{:?}, agent id: {}", self.event_type, agent_id),
             (None, Some(box_id)) => format!("{:?}, box id: {}", self.event_type, box_id),

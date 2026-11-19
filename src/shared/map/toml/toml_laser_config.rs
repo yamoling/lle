@@ -1,0 +1,32 @@
+use serde::{Deserialize, Serialize};
+
+use crate::shared::{AgentId, CardinalDirection, LaserId, Position, map::LaserConfig};
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct TomlLaserConfig {
+    pub direction: CardinalDirection,
+    pub agent: AgentId,
+    pub position: Position,
+    pub laser_id: LaserId,
+}
+
+impl TomlLaserConfig {
+    pub fn from_laser_config(laser: &LaserConfig, position: Position) -> Self {
+        Self {
+            direction: laser.direction,
+            agent: laser.colour,
+            position,
+            laser_id: laser.laser_id,
+        }
+    }
+}
+
+impl From<&TomlLaserConfig> for LaserConfig {
+    fn from(val: &TomlLaserConfig) -> Self {
+        LaserConfig {
+            direction: val.direction,
+            colour: val.agent,
+            laser_id: val.laser_id,
+        }
+    }
+}
