@@ -103,7 +103,7 @@ def test_layered_at_res_1_matches_lle_along_the_discrete_plan(level: int):
     for t, joint_action in enumerate(shortest_plan(level)):
         discrete.step(list(joint_action))
         world.step([velocity_of(a) for a in joint_action], n_ticks)
-        expected = Layered(discrete).observe()[0][..., 0]
+        expected = Layered(discrete).observe()[0]
         actual = world.layered(1)
         for channel, i, j in np.argwhere(actual != expected):
             assert actual[channel, i, j] == 1.0 and expected[channel, i, j] == 0.0, (t, channel, i, j)
