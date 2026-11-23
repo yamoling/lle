@@ -41,11 +41,11 @@ A0, A1, L0, L1, WALL, VOID, GEM, EXIT = range(8)
 
 def lle_layered(world: lle.World) -> np.ndarray:
     """
-    LLE's `Layered` observation of `world` (identical for every agent), without its layer axis.
+    LLE's `Layered` observation of `world` (identical for every agent): `(C, H, W)`, since the map has one layer.
 
     @ai-generated
     """
-    return Layered(world).observe()[0][..., 0]
+    return Layered(world).observe()[0]
 
 
 def block(res: int, i: int, j: int) -> tuple[slice, slice]:
